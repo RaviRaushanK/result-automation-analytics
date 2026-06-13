@@ -1,0 +1,1 @@
+const express = require('express'); const router = express.Router(); const batchController = require('../controllers/batchController'); router.route('/') .get(batchController.all) .post(batchController.create); router.route('/:id') .get(batchController.get) .put(batchController.update) .delete(batchController.delete); module.exports = router;
