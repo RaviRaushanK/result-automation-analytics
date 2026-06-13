@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('batch', {
+return sequelize.define('Batch', {
     batch_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -41,8 +41,10 @@ module.exports = (sequelize, DataTypes) => {
     deleted_at: {
       type: DataTypes.DATE
     }
-  }, {
+}, {
     timestamps: false,
-    paranoid: true
+    paranoid: true,
+    deletedAt: 'deleted_at',
+    tableName: 'batches'
   });
 };

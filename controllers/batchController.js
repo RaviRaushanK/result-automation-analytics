@@ -1,74 +1,154 @@
-const db = require('../config/db');
+// Import Batch model from centralized registry
+const { Batch } = require('../models/models.js');
 
-const Batch = {
-  // Get all batches
+
+const batchController = {
+
+  // ========================
+  // GET ALL BATCHES
+  // ========================
   all: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM batches');
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Batch.findAll();
+
+      res.status(200).json({
+        success: true,
+        data
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: err.message
+      });
     }
   },
 
-  // Get a single batch by ID
+  // ========================
+  // GET SINGLE BATCH
+  // ========================
   get: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM batches WHERE id = ?', [req.params.id]);
-      if (rows.length === 0) {
-        return res.status(404).json({ error: 'Batch not found' });
+      const data = await Batch.findByPk(req.params.id);
+
+      if (!data) {
+        return res.status(404).json({
+          success: false,
+          message: 'Batch not found'
+        });
       }
-      res.json(rows[0]);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.status(200).json({
+        success: true,
+        data
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: err.message
+      });
     }
   },
 
- // Create a new batch
+  // ========================
+  // CREATE BATCH
+  // ========================
   create: async (req, res) => {
     try {
-      const { name, year, department } = req.body;
-      const [result] = await db.query(
-        'INSERT INTO batches (name, year, department) VALUES (?, ?, ?)',
-        [name, year, department]
-      );
-      res.status(201).json({ id: result.insertId, name, year, department });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      // Only allow safe fields (prevents injection of unwanted columns)
+      const {
+        batch_uuid,
+        department_id,
+        batch_name,
+        start_year,
+        end_year,
+        status
+      } = req.body;
+
+      const data = await Batch.create({
+        batch_uuid,
+        department_id,
+        batch_name,
+        start_year,
+        end_year,
+        status
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Batch created successfully',
+        data
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: err.message
+      });
     }
   },
 
-  // Update a batch
+  // ========================
+  // UPDATE BATCH
+  // ========================
   update: async (req, res) => {
     try {
-      const { id } = req.params;
-      const { name, year, department } = req.body;
-      const [affected] = await db.query(
-        'UPDATE batches SET name = ?, year = ?, department = ? WHERE id = ?',
-        [name, year, department, id]
-      );
-      if (affected.affectedRows === 0) {
-        return res.status(404).json({ error: 'Batch not found' });
+      const [updated] = await Batch.update(req.body, {
+        where: { batch_id: req.params.id }
+      });
+
+      if (!updated) {
+        return res.status(404).json({
+          success: false,
+          message: 'Batch not found'
+        });
       }
-      res.json({ message: 'Batch updated successfully' });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      const updatedData = await Batch.findByPk(req.params.id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Batch updated successfully',
+        data: updatedData
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: err.message
+      });
     }
   },
 
-  // Delete a batch
+  // ========================
+  // DELETE BATCH
+  // ========================
   delete: async (req, res) => {
     try {
-      const { id } = req.params;
-      const [affected] = await db.query('DELETE FROM batches WHERE id = ?', [id]);
-      if (affected.affectedRows === 0) {
-        return res.status(404).json({ error: 'Batch not found' });
+      const deleted = await Batch.destroy({
+        where: { batch_id: req.params.id }
+      });
+
+      if (!deleted) {
+        return res.status(404).json({
+          success: false,
+          message: 'Batch not found'
+        });
       }
-      res.json({ message: 'Batch deleted successfully' });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.status(200).json({
+        success: true,
+        message: 'Batch deleted successfully'
+      });
+
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: err.message
+      });
     }
   }
 };
 
-module.exports = Batch;
+module.exports = batchController;

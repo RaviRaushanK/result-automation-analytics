@@ -1,77 +1,93 @@
-const db = require('../config/db');
+const { Subject } = require('../database/models');
 
-const Subject = {
+const subjectController = {
+
+  // GET ALL SUBJECTS
   all: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM subjects');
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Subject.findAll();
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // GET SUBJECT BY ID
   getById: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM subjects WHERE id = ?', [req.params.id]);
-      if (rows.length === 0) {
+      const data = await Subject.findByPk(req.params.id);
+
+      if (!data) {
         return res.status(404).json({ error: 'Subject not found' });
       }
-      res.json(rows[0]);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.json(data);
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // GET SUBJECTS BY SESSION
   getBySession: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM subjects WHERE session_id = ?', [req.params.session_id]);
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Subject.findAll({
+        where: { session_id: req.params.session_id }
+      });
+
+      res.json(data);
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // CREATE SUBJECT
   create: async (req, res) => {
     try {
-      const { session_id, name, code, max_marks } = req.body;
-      const [result] = await db.query(
-        'INSERT INTO subjects (session_id, name, code, max_marks) VALUES (?, ?, ?, ?)',
-        [session_id, name, code, max_marks]
-      );
-      res.status(201).json({ id: result.insertId, session_id, name, code, max_marks });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Subject.create(req.body);
+      res.status(201).json(data);
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // UPDATE SUBJECT
   update: async (req, res) => {
     try {
-      const { id } = req.params;
-      const { session_id, name, code, max_marks } = req.body;
-      const [affected] = await db.query(
-        'UPDATE subjects SET session_id = ?, name = ?, code = ?, max_marks = ? WHERE id = ?',
-        [session_id, name, code, max_marks, id]
-      );
-      if (affected.affectedRows === 0) {
+      const updated = await Subject.update(req.body, {
+        where: { subject_id: req.params.id }
+      });
+
+      if (!updated[0]) {
         return res.status(404).json({ error: 'Subject not found' });
       }
-      res.json({ message: 'Subject updated successfully' });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.json({ message: 'Updated successfully' });
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // DELETE SUBJECT
   delete: async (req, res) => {
     try {
-      const [affected] = await db.query('DELETE FROM subjects WHERE id = ?', [req.params.id]);
-      if (affected.affectedRows === 0) {
+      const deleted = await Subject.destroy({
+        where: { subject_id: req.params.id }
+      });
+
+      if (!deleted) {
         return res.status(404).json({ error: 'Subject not found' });
       }
-      res.json({ message: 'Subject deleted successfully' });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.json({ message: 'Deleted successfully' });
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   }
 };
 
-module.exports = Subject;
+module.exports = subjectController;

@@ -1,86 +1,90 @@
-const db = require('../config/db');
+const { Result } = require('../database/models');
 
-const Result = {
+const resultController = {
+
+  // GET ALL RESULTS
   all: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM results');
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Result.findAll();
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // GET RESULT BY ID
   getById: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM results WHERE id = ?', [req.params.id]);
-      if (rows.length === 0) {
+      const data = await Result.findByPk(req.params.id);
+
+      if (!data) {
         return res.status(404).json({ error: 'Result not found' });
       }
-      res.json(rows[0]);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // GET RESULTS BY STUDENT
   getByStudent: async (req, res) => {
     try {
-      const [rows] = await db.query('SELECT * FROM results WHERE student_id = ?', [req.params.student_id]);
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Result.findAll({
+        where: { student_id: req.params.student_id }
+      });
+
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
-  getBySubject: async (req, res) => {
-    try {
-      const [rows] = await db.query('SELECT * FROM results WHERE subject_id = ?', [req.params.subject_id]);
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
-    }
-  },
-
+  // CREATE RESULT
   create: async (req, res) => {
     try {
-      const { student_id, subject_id, marks_obtained, grade, exam_date } = req.body;
-      const [result] = await db.query(
-        'INSERT INTO results (student_id, subject_id, marks_obtained, grade, exam_date) VALUES (?,?,?,?,?)',
-        [student_id, subject_id, marks_obtained, grade, exam_date]
-      );
-      res.status(201).json({ id: result.insertId });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+      const data = await Result.create(req.body);
+      res.status(201).json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // UPDATE RESULT
   update: async (req, res) => {
     try {
-      const { id } = req.params;
-      const { marks_obtained, grade, exam_date } = req.body;
-      const [affected] = await db.query(
-        'UPDATE results SET marks_obtained = ?, grade = ?, exam_date = ? WHERE id = ?',
-        [marks_obtained, grade, exam_date, id]
-      );
-      if (affected.affectedRows === 0) {
+      const updated = await Result.update(req.body, {
+        where: { result_id: req.params.id }
+      });
+
+      if (!updated[0]) {
         return res.status(404).json({ error: 'Result not found' });
       }
-      res.json({ message: 'Result updated successfully' });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.json({ message: 'Updated successfully' });
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   },
 
+  // DELETE RESULT
   delete: async (req, res) => {
     try {
-      const [affected] = await db.query('DELETE FROM results WHERE id = ?', [req.params.id]);
-      if (affected.affectedRows === 0) {
+      const deleted = await Result.destroy({
+        where: { result_id: req.params.id }
+      });
+
+      if (!deleted) {
         return res.status(404).json({ error: 'Result not found' });
       }
-      res.json({ message: 'Result deleted successfully' });
-    } catch (error) {
-      res.status(500).json({ error: 'Internal Server Error' });
+
+      res.json({ message: 'Deleted successfully' });
+
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   }
 };
 
-module.exports = Result;
+module.exports = resultController;

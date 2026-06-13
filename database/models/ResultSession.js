@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('result_session', {
+  return sequelize.define('ResultSession', {
     session_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -35,6 +35,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
-    timestamps: false
+    timestamps: false,
+    tableName: 'result_sessions'
   });
 };

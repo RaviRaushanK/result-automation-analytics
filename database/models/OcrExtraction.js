@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('ocr_extraction', {
+  return sequelize.define('OcrExtraction', {
     extraction_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -28,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
-    timestamps: false
+    timestamps: false,
+    tableName: 'ocr_extractions'
   });
 };

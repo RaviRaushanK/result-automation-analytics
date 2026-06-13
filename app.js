@@ -16,11 +16,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(session(sessionConfig));
 
-const authRoutes = require('./routes/authRoutes');
+// const authRoutes = require('./routes/authRoutes');
 const batchRoutes = require('./routes/batchRoutes');
+
 // Register routes
-app.use('/auth', authRoutes);
+// app.use('/auth', authRoutes);
 app.use('/batches', batchRoutes);
+
 
 // Global error handler
 app.use((err, req, res, next) => {

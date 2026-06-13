@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('admin_users', {
+  return sequelize.define('AdminUser', {
     admin_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -48,6 +48,7 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     timestamps: false,
-    paranoid: true
+    paranoid: true,
+    tableName: 'admin_users'
   });
 };

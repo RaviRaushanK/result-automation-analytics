@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('faculty', {
+  return sequelize.define('Faculty', {
     faculty_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -47,6 +47,7 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     timestamps: false,
-    paranoid: true
+    paranoid: true,
+    tableName: 'faculty'
   });
 };

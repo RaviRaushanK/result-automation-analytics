@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('result', {
+  return sequelize.define('Result', {
     result_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -43,6 +43,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
-    timestamps: false
+    timestamps: false,
+    tableName: 'results'
   });
 };

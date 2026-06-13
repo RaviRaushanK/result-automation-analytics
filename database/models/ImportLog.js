@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('import_log', {
+  return sequelize.define('ImportLog', {
     import_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -46,6 +46,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
-    timestamps: false
+    timestamps: false,
+    tableName: 'import_logs'
   });
 };
