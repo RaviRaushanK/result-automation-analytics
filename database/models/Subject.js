@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('subject', {
+  return sequelize.define('Subject', {
     subject_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -40,6 +40,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
+    tableName: 'subjects', // IMPORTANT
     timestamps: false
   });
 };

@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('subject_faculty', {
+  return sequelize.define('SubjectFaculty', {
     id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
@@ -18,6 +18,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
+    tableName: 'subject_faculty',
     timestamps: false,
     indexes: [
       {

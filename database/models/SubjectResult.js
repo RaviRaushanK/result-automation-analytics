@@ -33,6 +33,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
+    tableName: 'subject_results',
     timestamps: false,
     indexes: [
       {

@@ -16,13 +16,21 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(session(sessionConfig));
 
-// const authRoutes = require('./routes/authRoutes');
+const authRoutes = require('./routes/authRoutes');
 const batchRoutes = require('./routes/batchRoutes');
+const resultRoutes = require('./routes/resultRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
+const subjectRoutes = require('./routes/subjectRoutes');
 
 // Register routes
-// app.use('/auth', authRoutes);
-app.use('/batches', batchRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/batches', batchRoutes);
+app.use('/api/results', resultRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/subjects', subjectRoutes);
 
+//------No controller contains an unexposed method, and no additional controllers are required at this time. If new business logic is added that introduces new controller methods, you will need to create or update the relevant route file accordingly.
+//========================================================================================================//
 
 // Global error handler
 app.use((err, req, res, next) => {
