@@ -3,12 +3,14 @@
 
 ```
 .
+├── .gitignore
 ├── .sequelizerc
 ├── app.js
 ├── package.json
 ├── package-lock.json
 ├── README.md
 ├── config
+│   ├── .env.example
 │   ├── .env
 │   ├── config.js
 │   ├── db.js
@@ -49,15 +51,17 @@
 ├── middlewares
 ├── migrations
 │   └── 20231001000000-create-all-tables.js
-├── models
-│   └── models.js
 ├── public
 │   ├── charts
 │   ├── css
 │   ├── images
 │   └── js
 ├── routes
-│   └── batchRoutes.js
+│   ├── authRoutes.js
+│   ├── batchRoutes.js
+│   ├── resultRoutes.js
+│   ├── sessionRoutes.js
+│   └── subjectRoutes.js
 ├── scripts
 │   ├── bootstrap-db.js
 │   └── runInit.js

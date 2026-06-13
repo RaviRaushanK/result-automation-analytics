@@ -18,3 +18,4 @@
 | **Middleware** | Logging | Not Implemented |
 | **Testing** | Unit tests | Implemented |
 | **Testing** | Integration tests | Not Implemented |
+| **Relationships** | Defined in `database/models/index.js` | Implemented |

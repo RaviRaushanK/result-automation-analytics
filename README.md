@@ -77,12 +77,14 @@ listed; no guessed or missing entries are present.
 
 ```
 .
+├── .gitignore
 ├── .sequelizerc
 ├── app.js
 ├── package.json
 ├── package-lock.json
 ├── README.md
 ├── config
+│   ├── .env.example
 │   ├── .env
 │   ├── config.js
 │   ├── db.js
@@ -123,15 +125,17 @@ listed; no guessed or missing entries are present.
 ├── middlewares
 ├── migrations
 │   └── 20231001000000-create-all-tables.js
-├── models
-│   └── models.js
 ├── public
 │   ├── charts
 │   ├── css
 │   ├── images
 │   └── js
 ├── routes
-│   └── batchRoutes.js
+│   ├── authRoutes.js
+│   ├── batchRoutes.js
+│   ├── resultRoutes.js
+│   ├── sessionRoutes.js
+│   └── subjectRoutes.js
 ├── scripts
 │   ├── bootstrap-db.js
 │   └── runInit.js
@@ -159,7 +163,7 @@ listed; no guessed or missing entries are present.
 ## 📚 Database Design Summary  
 
 * **Tables** – `departments`, `admin_users`, `activity_logs`, `batches`, `faculty`, `result_sessions`, `subjects`, `subject_faculty`, `students`, `results`, `subject_results`, `revaluation_results`, `import_logs`, `ocr_extractions`, `system_settings`.  
-* **Relationships** – One‑to‑many and many‑to‑many associations are defined in `models/models.js`.  
+* **Relationships** – One‑to‑many and many‑to‑many associations are defined in `database/models/index.js`.
 * **View** – `effective_student_results` aggregates subject results and re‑valuations for reporting.  
 
 ---  
