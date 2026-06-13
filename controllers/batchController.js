@@ -1,5 +1,5 @@
 // Import Batch model from centralized registry
-const { Batch } = require('../models/models.js');
+const { Batch } = require('../database/models');
 
 
 const batchController = {
