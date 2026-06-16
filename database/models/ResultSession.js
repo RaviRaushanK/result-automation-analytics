@@ -34,8 +34,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
     }
-  }, {
-    timestamps: false,
-    tableName: 'result_sessions'
-  });
+    }, {
+      timestamps: false,
+      tableName: 'result_sessions',
+      indexes: [
+        {
+          unique: true,
+          fields: ['batch_id', 'semester', 'exam_session', 'exam_year'],
+          name: 'unique_session_batch'
+        }
+      ]
+    });
 };

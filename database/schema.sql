@@ -79,10 +79,12 @@ CREATE TABLE faculty (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,
-  FOREIGN KEY (department_id) REFERENCES departments(department_id) ON DELETE RESTRICT ON UPDATE CASCADE) ENGINE=InnoDB;
+  FOREIGN KEY (department_id) REFERENCES departments(department_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
 
 -- -------------------------------------------------
--- 6. result_sessions-- -------------------------------------------------
+-- 6. result_sessions
+-- -------------------------------------------------
 CREATE TABLE result_sessions (
   session_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   session_uuid CHAR(36) NOT NULL UNIQUE,
@@ -92,7 +94,8 @@ CREATE TABLE result_sessions (
   exam_year INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE RESTRICT ON UPDATE CASCADE
+  FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  UNIQUE(batch_id, semester, exam_session, exam_year)
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -102,13 +105,14 @@ CREATE TABLE subjects (
   subject_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   subject_uuid CHAR(36) NOT NULL UNIQUE,
   session_id BIGINT NOT NULL,
-  subject_code VARCHAR(20) NOT NULL UNIQUE,
+  subject_code VARCHAR(20) NOT NULL,
   subject_name VARCHAR(100) NOT NULL,
   subject_type ENUM('theory', 'lab', 'project') NOT NULL,
   credits INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE
+  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  UNIQUE(session_id, subject_code)
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -149,8 +153,8 @@ CREATE TABLE results (
   result_uuid CHAR(36) NOT NULL UNIQUE,
   student_id BIGINT NOT NULL,
   session_id BIGINT NOT NULL,
-  sgpa DECIMAL(3,2) NOT NULL,
-  cgpa DECIMAL(3,2) NOT NULL,
+  sgpa DECIMAL(3,2) NULL,
+  cgpa DECIMAL(3,2) NULL,
   result_status ENUM('pass', 'fail') NOT NULL,
   failed_subject_count INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -186,9 +190,15 @@ CREATE TABLE revaluation_results (
   revised_marks INT NOT NULL,
   original_status ENUM('pass', 'fail') NOT NULL,
   revised_status ENUM('pass', 'fail') NOT NULL,
+  revised_grade VARCHAR(5),
   revaluation_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  file_name VARCHAR(255),
+  file_path VARCHAR(255),
+  remarks TEXT,
+  uploaded_by BIGINT,
   upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (subject_result_id) REFERENCES subject_results(subject_result_id) ON DELETE CASCADE ON UPDATE CASCADE
+  FOREIGN KEY (subject_result_id) REFERENCES subject_results(subject_result_id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES admin_users(admin_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -249,6 +259,7 @@ CREATE INDEX idx_revaluation_subject_result ON revaluation_results(subject_resul
 CREATE INDEX idx_import_session ON import_logs(session_id);
 CREATE INDEX idx_import_uploader ON import_logs(uploaded_by);
 CREATE INDEX idx_ocr_import ON ocr_extractions(import_id);
+CREATE INDEX idx_student_usn ON students(usn);
 
 -- -------------------------------------------------
 -- View: effective_student_results-- -------------------------------------------------
@@ -294,4 +305,20 @@ CREATE TRIGGER before_update_admin  BEFORE UPDATE ON admin_users
   BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
   END//
-DELIMITER ;
+DELIMITER ;</arg_value>
+<arg_key>task_progress</arg_key>
+<arg_value>
+- [x] Read Subject model
+- [x] Read ResultSession model
+- [x] Read Result model
+- [x] Update Subject model uniqueness
+- [x] Update ResultSession model uniqueness
+- [x] Make SGPA/CGPA nullable
+- [x] Extend RevaluationResult with metadata
+- [x] Fix effective_student_results view
+- [ ] Verify subject-faculty relationship
+- [ ] Add missing indexes
+- [ ] Update Sequelize models
+- [ ] Create migration files
+</arg_value>
+</tool_call>

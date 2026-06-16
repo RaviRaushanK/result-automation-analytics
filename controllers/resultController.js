@@ -16,11 +16,7 @@ const resultController = {
   getById: async (req, res) => {
     try {
       const data = await Result.findByPk(req.params.id);
-
-      if (!data) {
-        return res.status(404).json({ error: 'Result not found' });
-      }
-
+      if (!data) return res.status(404).json({ error: 'Result not found' });
       res.json(data);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -30,10 +26,7 @@ const resultController = {
   // GET RESULTS BY STUDENT
   getByStudent: async (req, res) => {
     try {
-      const data = await Result.findAll({
-        where: { student_id: req.params.student_id }
-      });
-
+      const data = await Result.findAll({ where: { student_id: req.params.student_id } });
       res.json(data);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -53,16 +46,9 @@ const resultController = {
   // UPDATE RESULT
   update: async (req, res) => {
     try {
-      const updated = await Result.update(req.body, {
-        where: { result_id: req.params.id }
-      });
-
-      if (!updated[0]) {
-        return res.status(404).json({ error: 'Result not found' });
-      }
-
+      const [updated] = await Result.update(req.body, { where: { result_id: req.params.id } });
+      if (!updated) return res.status(404).json({ error: 'Result not found' });
       res.json({ message: 'Updated successfully' });
-
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -71,16 +57,9 @@ const resultController = {
   // DELETE RESULT
   delete: async (req, res) => {
     try {
-      const deleted = await Result.destroy({
-        where: { result_id: req.params.id }
-      });
-
-      if (!deleted) {
-        return res.status(404).json({ error: 'Result not found' });
-      }
-
+      const deleted = await Result.destroy({ where: { result_id: req.params.id } });
+      if (!deleted) return res.status(404).json({ error: 'Result not found' });
       res.json({ message: 'Deleted successfully' });
-
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

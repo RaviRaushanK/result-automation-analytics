@@ -16,9 +16,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     subject_code: {
       type: DataTypes.STRING(20),
-      allowNull: false,
-      unique: true
+      allowNull: false
     },
+    // Composite unique index (session_id, subject_code)
+    // Sequelize will enforce this via the indexes array below
     subject_name: {
       type: DataTypes.STRING(100),
       allowNull: false
@@ -40,7 +41,14 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
-    tableName: 'subjects', // IMPORTANT
-    timestamps: false
+    tableName: 'subjects',
+    timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        fields: ['session_id', 'subject_code'],
+        name: 'unique_session_subject_code'
+      }
+    ]
   });
 };
