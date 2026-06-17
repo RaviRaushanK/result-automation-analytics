@@ -1,108 +1,32 @@
-# Recommended Database Folder Structure
+# Database Structure Updates (SRAAS)
 
-```
-project-root/
-│
-├─ config/
-│   ├─ .env                # Environment variables (DB credentials, etc.)
-│   └─ db.js               # Sequelize instance configuration
-│
-├─ database/
-│   ├─ schema.sql          # Raw MySQL schema (for manual execution)
-│   └─ models/             # Individual Sequelize model files
-│       ├─ Department.js
-│       ├─ AdminUser.js
-│       ├─ Batch.js
-│       ├─ Faculty.js
-│       ├─ ResultSession.js
-│       ├─ Subject.js
-│       ├─ SubjectFaculty.js
-│       ├─ Student.js
-│       ├─ Result.js
-│       ├─ SubjectResult.js
-│       ├─ RevaluationResult.js
-│       ├─ ImportLog.js
-│       ├─ OcrExtraction.js
-│       └─ SystemSetting.js
-│
-├─ migrations/             # Sequelize migration files (schema only)
-│   └─ 20231001000000-create-all-tables.js
-│
-├─ init/                   # **Required system data** (run in every environment)
-│   ├─ 01-default-settings.js
-│   ├─ 02-default-admin.js
-│   └─ README.md
-│
-├─ seeders/                # **Sample / demo / testing data** (dev only)
-│   └─ 20231001000100-seed-mca.js
-│
-├─ scripts/                # Helper scripts
-│   └─ runInit.js          # Executes all files in ./init
-│
-├─ models/
-│   └─ models.js           # Central import & association definition
-│
-├─ docs/
-│   ├─ database-structure.md
-│   └─ er-diagram.md
-│
-├─ controllers/            # Express route handlers
-│   └─ … (existing)
-│
-├─ routes/                 # Express route definitions
-│   └─ … (existing)
-│
-├─ public/                 # Static assets (CSS, JS, images)
-│   └─ …
-│
-├─ views/                  # EJS templates
-│   └─ …
-│
-├─ app.js                  # Express application entry point
-└─ package.json
-```
+## New Constraints & Indexes
+- **subjects**: Composite unique constraint `UNIQUE(session_id, subject_code)` replaces the previous global unique on `subject_code`.
+- **result_sessions**: Composite unique constraint `UNIQUE(batch_id, semester, exam_session, exam_year)` added.
+- **results**: Columns `sgpa` and `cgpa` are now nullable (`DECIMAL(3,2) NULL`).
+- **revaluation_results**: Added columns
+  - `revised_grade` VARCHAR(5)
+  - `file_name` VARCHAR(255)
+  - `file_path` VARCHAR(255)
+  - `remarks` TEXT
+  - `uploaded_by` BIGINT (FK → `admin_users.admin_id`)
+- **students**: Added index `idx_student_usn` on `usn`.
 
-## Database Initialization Workflow
+## Views
+- **effective_student_results**: Updated to use `revised_grade` from `revaluation_results`:
+  ```sql
+  COALESCE(rr_rev.revised_grade, srs.grade) AS effective_grade
+  ```
 
-1. **Create the schema**  
-   ```bash
-   npx sequelize-cli db:migrate
-   ```
+## Migrations
+- New migration `20231101000000-modify-schema.js` implements all the above schema changes.
 
-2. **Load required system data** (run in **all** environments)  
-   ```bash
-   npm run init-db
-   ```
-   This executes every script in the `init/` folder (e.g., default settings, default admin account).  
-   The scripts are idempotent, so the command can be safely re‑run.
+## Seeders
+- Fixed subject insertion syntax and removed duplicate entries in `seeders/20231001000100-seed-mca.js`.
 
-3. **Load optional demo data** (development / demo only)  
-   ```bash
-   npx sequelize-cli db:seed:all
-   ```
-
-4. **Start the application**  
-   ```bash
-   npm start
-   ```
-
-The separation ensures that production deployments never receive demo data, while required configuration is always present.
-
----
-
-### Adding New Init Scripts
-
-* Place a new file in `init/` with the next numeric prefix (e.g., `03-add-feature-flags.js`).  
-* Export an async function receiving `{ sequelize, DataTypes }`.  
-* Use `findOrCreate` or `upsert` to make the operation safe to run multiple times.
-
----
-
-### Adding New Seeders
-
-* Follow the existing naming convention (`YYYYMMDDHHMMSS-description.js`).  
-* Seeders are intended for sample data and should **not** be run in production pipelines.
-
----
-
-**Note:** The `npm run init-db` script is defined in `package.json` and points to `scripts/runInit.js`.
+These changes ensure:
+- Subject codes can be reused across different sessions.
+- Result sessions cannot be duplicated.
+- SGPA/CGPA can be null where appropriate.
+- Revaluation metadata is captured and linked to the uploading admin.
+- Improved query performance with additional indexes.
