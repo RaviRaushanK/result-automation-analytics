@@ -1,0 +1,45 @@
+/* Light Theme Tokens */
+:root[data-theme="light"] {
+  --body-bg: #F3F4F6;
+  --secondary-bg: #ECEFF3;
+  --sidebar-bg: #F3F4F6;
+  --sidebar-hover: #E7EBF1;
+  --sidebar-active: #DDE6F7;
+  --navbar-border: #D8DCE2;
+  --card-bg: #FFFFFF;
+  --card-border: #DCE2EA;
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --primary-brand: #2563EB;
+  --primary-hover: #1D4ED8;
+}
+
+/* Dark Theme Tokens */
+:root[data-theme="dark"] {
+  --body-bg: #0F172A;
+  --secondary-bg: #111827;
+  --sidebar-bg: #111827;
+  --sidebar-hover: #1E293B;
+  --sidebar-active: #273449;
+  --navbar-border: #243041;
+  --card-bg: #1B2432;
+  --card-border: #2A3547;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --primary-brand: #60A5FA;
+  --primary-hover: #3B82F6;
+}
+
+/* Semantic colors */
+:root {
+  --color-success: #28a745;
+  --color-warning: #ffc107;
+  --color-danger: #dc3545;
+  --color-info: #17a2b8;
+}
+
+/* Apply tokens */
+body {
+  background-color: var(--body-bg);
+  color: var(--text-primary);
+}

@@ -1,0 +1,69 @@
+{
+  "menu": [
+    {
+      "label": "Dashboard",
+      "icon": "dashboard",
+      "route": "/dashboard",
+      "roles": ["admin", "faculty", "student"]
+    },
+    {
+      "label": "Academic Management",
+      "icon": "school",
+      "children": [
+        { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin", "faculty"] },
+        { "label": "Sessions", "icon": "calendar", "route": "/sessions", "roles": ["admin", "faculty"] },
+        { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] },
+        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] }
+      ]
+    },
+    {
+      "label": "Result Management",
+      "icon": "assessment",
+      "children": [
+        { "label": "Upload Results", "icon": "cloud_upload", "route": "/results/upload", "roles": ["admin", "faculty"] },
+        { "label": "Upload Revaluation", "icon": "cloud_upload", "route": "/revaluation/upload", "roles": ["admin", "faculty"] },
+        { "label": "Import Logs", "icon": "list_alt", "route": "/results/logs", "roles": ["admin"] }
+      ]
+    },
+    {
+      "label": "Student Repository",
+      "icon": "person",
+      "children": [
+        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] },
+        { "label": "Student Search", "icon": "search", "route": "/students/search", "roles": ["admin", "faculty", "student"] }
+      ]
+    },
+    {
+      "label": "Analytics",
+      "icon": "insights",
+      "children": [
+        { "label": "Dashboard", "icon": "dashboard", "route": "/analytics", "roles": ["admin", "faculty"] },
+        { "label": "Toppers", "icon": "star", "route": "/analytics/toppers", "roles": ["admin", "faculty"] },
+        { "label": "Failed Students", "icon": "error", "route": "/analytics/failed", "roles": ["admin", "faculty"] },
+        { "label": "Subject Analysis", "icon": "pie_chart", "route": "/analytics/subjects", "roles": ["admin", "faculty"] }
+      ]
+    },
+    {
+      "label": "Reports",
+      "icon": "description",
+      "children": [
+        { "label": "Summary Report", "icon": "summarize", "route": "/reports/summary", "roles": ["admin", "faculty"] },
+        { "label": "Topper Report", "icon": "star", "route": "/reports/topper", "roles": ["admin", "faculty"] },
+        { "label": "Failed Report", "icon": "error", "route": "/reports/failed", "roles": ["admin", "faculty"] },
+        { "label": "Revaluation Report", "icon": "assignment", "route": "/reports/revaluation", "roles": ["admin", "faculty"] }
+      ]
+    },
+    {
+      "label": "Chat Assistant",
+      "icon": "chat",
+      "route": "/chat",
+      "roles": ["admin", "faculty", "student"]
+    },
+    {
+      "label": "Settings",
+      "icon": "settings",
+      "route": "/settings",
+      "roles": ["admin", "faculty"]
+    }
+  ]
+}

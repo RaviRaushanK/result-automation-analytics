@@ -1,0 +1,26 @@
+<aside class="sidebar bg-light">
+  <nav class="nav flex-column">
+    <% function renderMenu(items) { %>
+      <% items.forEach(function(item) { %>
+        <div class="nav-item">
+          <% if (item.children && item.children.length) { %>
+            <a class="nav-link d-flex justify-content-between align-items-center" href="#" data-bs-toggle="collapse" data-bs-target="#menu-<%= item.label.replace(/\\s+/g, '-') %>" aria-expanded="false">
+              <span><i class="material-icons me-2"><%= item.icon %></i><%= item.label %></span>
+              <i class="material-icons">expand_more</i>
+            </a>
+            <div class="collapse" id="menu-<%= item.label.replace(/\\s+/g, '-') %>">
+              <nav class="nav flex-column ms-3">
+                <% renderMenu(item.children); %>
+              </nav>
+            </div>
+          <% } else { %>
+            <a class="nav-link" href="<%= item.route %>">
+              <i class="material-icons me-2"><%= item.icon %></i><%= item.label %>
+            </a>
+          <% } %>
+        </div>
+      <% }); %>
+    <% } %>
+    <% renderMenu(menuConfig); %>
+  </nav>
+</aside>

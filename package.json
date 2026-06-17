@@ -24,6 +24,7 @@
   "homepage": "https://github.com/RaviRaushanK/result-automation-analytics#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-mysql-session": "^3.0.3",

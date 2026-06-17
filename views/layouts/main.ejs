@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en" class="<%= themeClass %>" data-theme="<%= theme %>">
+  <%- include('../partials/head') %>
+  <body class="main-body">
+    <%- include('../partials/navbar') %>
+    <div class="d-flex">
+      <%- include('../partials/sidebar') %>
+      <main class="flex-grow-1 p-4">
+        <%- include('../partials/breadcrumbs') %>
+        <%- include('../partials/alerts') %>
+        <%- body %> <!-- Page specific content -->
+      </main>
+    </div>
+    <%- include('../partials/footer') %>
+    <%- include('../partials/scripts') %>
+  </body>
+</html>
