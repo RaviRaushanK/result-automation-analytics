@@ -1,20 +1,21 @@
-<aside class="sidebar bg-light">
+<aside class="sidebar">
   <nav class="nav flex-column">
     <% function renderMenu(items) { %>
       <% items.forEach(function(item) { %>
+        <% var safeId = item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'); %>
         <div class="nav-item">
           <% if (item.children && item.children.length) { %>
-            <a class="nav-link d-flex justify-content-between align-items-center" href="#" data-bs-toggle="collapse" data-bs-target="#menu-<%= item.label.replace(/\\s+/g, '-') %>" aria-expanded="false">
+            <a class="nav-link sidebar-link collapsed d-flex justify-content-between align-items-center" href="#" data-bs-toggle="collapse" data-bs-target="#menu-<%= safeId %>" aria-expanded="false">
               <span><i class="material-icons me-2"><%= item.icon %></i><%= item.label %></span>
-              <i class="material-icons">expand_more</i>
+              <i class="material-icons sidebar-arrow">chevron_right</i>
             </a>
-            <div class="collapse" id="menu-<%= item.label.replace(/\\s+/g, '-') %>">
+            <div class="collapse" id="menu-<%= safeId %>">
               <nav class="nav flex-column ms-3">
                 <% renderMenu(item.children); %>
               </nav>
             </div>
           <% } else { %>
-            <a class="nav-link" href="<%= item.route %>">
+            <a class="nav-link sidebar-link" href="<%= item.route %>">
               <i class="material-icons me-2"><%= item.icon %></i><%= item.label %>
             </a>
           <% } %>

@@ -14,21 +14,17 @@ const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Layout engine
+const ejLayouts = require('express-ejs-layouts');
+app.use(ejLayouts);
+app.set('layout', 'layouts/main');
+
 // Middleware setup
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(cookieParser());
 app.use(session(sessionConfig));
-
-// Custom middlewares
-const layoutMiddleware = require('./middlewares/layoutMiddleware');
-const themeMiddleware = require('./middlewares/themeMiddleware');
-const menuMiddleware = require('./middlewares/menuMiddleware');
-
-app.use(layoutMiddleware);
-app.use(themeMiddleware);
-app.use(menuMiddleware);
 
 // Controllers
 const authController = require('./controllers/authController');
@@ -40,12 +36,14 @@ const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 
-// Register routes
-app.use('/auth', authRoutes); // Auth routes use auth layout
-app.use('/batches', batchRoutes);
-app.use('/results', resultRoutes);
-app.use('/sessions', sessionRoutes);
-app.use('/subjects', subjectRoutes);
+// Custom middlewares
+const layoutMiddleware = require('./middlewares/layoutMiddleware');
+const themeMiddleware = require('./middlewares/themeMiddleware');
+const menuMiddleware = require('./middlewares/menuMiddleware');
+
+app.use(layoutMiddleware);
+app.use(themeMiddleware);
+app.use(menuMiddleware);
 
 // Global error handler
 app.use((err, req, res, next) => {
