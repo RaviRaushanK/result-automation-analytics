@@ -35,6 +35,7 @@ const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const testingRoutes = require('./routes/testingRoutes');
 
 // Custom middlewares
 const layoutMiddleware = require('./middlewares/layoutMiddleware');
@@ -44,6 +45,9 @@ const menuMiddleware = require('./middlewares/menuMiddleware');
 app.use(layoutMiddleware);
 app.use(themeMiddleware);
 app.use(menuMiddleware);
+
+// Testing routes – isolated layout verification (no DB, no auth)
+app.use('/testing', testingRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

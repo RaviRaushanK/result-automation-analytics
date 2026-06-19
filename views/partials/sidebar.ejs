@@ -1,21 +1,53 @@
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar" aria-label="Main sidebar">
+  <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse sidebar" title="Collapse sidebar">
+    <span class="material-icons">chevron_left</span>
+  </button>
   <nav class="nav flex-column">
-    <% function renderMenu(items) { %>
+    <%
+      // Helper: check if current path matches an item's route
+      function isActive(itemRoute) {
+        if (!itemRoute || !currentPath) return false;
+        return currentPath === itemRoute || currentPath.startsWith(itemRoute + '/');
+      }
+
+      // Helper: check if any child in a menu tree is active
+      function hasActiveChild(items) {
+        if (!items || !currentPath) return false;
+        return items.some(function(item) {
+          if (isActive(item.route)) return true;
+          if (item.children && item.children.length) {
+            return hasActiveChild(item.children);
+          }
+          return false;
+        });
+      }
+
+      function renderMenu(items) {
+    %>
       <% items.forEach(function(item) { %>
-        <% var safeId = item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'); %>
+        <%
+          var safeId = item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          var itemActive = isActive(item.route);
+          var parentActive = hasActiveChild(item.children);
+          var isExpanded = parentActive;
+        %>
         <div class="nav-item">
           <% if (item.children && item.children.length) { %>
-            <a class="nav-link sidebar-link collapsed d-flex justify-content-between align-items-center" href="#" data-bs-toggle="collapse" data-bs-target="#menu-<%= safeId %>" aria-expanded="false">
+            <a class="nav-link sidebar-link d-flex justify-content-between align-items-center<%= isExpanded ? '' : ' collapsed' %><%= parentActive ? ' active-parent' : '' %>"
+               href="#"
+               data-bs-toggle="collapse"
+               data-bs-target="#menu-<%= safeId %>"
+               aria-expanded="<%= isExpanded %>">
               <span><i class="material-icons me-2"><%= item.icon %></i><%= item.label %></span>
               <i class="material-icons sidebar-arrow">chevron_right</i>
             </a>
-            <div class="collapse" id="menu-<%= safeId %>">
+            <div class="collapse<%= isExpanded ? ' show' : '' %>" id="menu-<%= safeId %>">
               <nav class="nav flex-column ms-3">
                 <% renderMenu(item.children); %>
               </nav>
             </div>
           <% } else { %>
-            <a class="nav-link sidebar-link" href="<%= item.route %>">
+            <a class="nav-link sidebar-link<%= itemActive ? ' active' : '' %>" href="<%= item.route %>">
               <i class="material-icons me-2"><%= item.icon %></i><%= item.label %>
             </a>
           <% } %>

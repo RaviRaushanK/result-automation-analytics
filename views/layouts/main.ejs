@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html lang="en" class="<%= themeClass %>" data-theme="<%= theme %>">
   <%- include('../partials/head') %>
-  <body class="main-body">
-    <%- include('../partials/navbar') %>
-    <div class="layout-wrapper d-flex flex-grow-1">
-      <%- include('../partials/sidebar') %>
-      <main class="main-content p-4">
-        <%- include('../partials/breadcrumbs') %>
-        <%- include('../partials/alerts') %>
-        <%- body %> <!-- Page specific content -->
-      </main>
+  <body class="main-body <%= themeClass %>">
+    <div class="app-layout">
+      <%- include('../partials/navbar') %>
+      <div class="layout-wrapper">
+        <%- include('../partials/sidebar') %>
+        <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+        <main class="main-content p-4">
+          <%- include('../partials/breadcrumbs') %>
+          <%- include('../partials/alerts') %>
+          <%- body %> <!-- Page specific content -->
+        </main>
+      </div>
+      <%- include('../partials/footer') %>
     </div>
-    <%- include('../partials/footer') %>
     <%- include('../partials/scripts') %>
   </body>
 </html>

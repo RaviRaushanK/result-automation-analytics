@@ -1,0 +1,267 @@
+<!--
+  Layout Test Page – Main Layout
+  This page exercises all main layout components with placeholder content.
+  No production logic is included.
+-->
+<div class="container-fluid px-0">
+
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Main Layout Test Page</h1>
+    <div>
+      <span class="badge bg-primary me-1">Testing</span>
+      <span class="badge bg-success">Layout</span>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Typography / Headings
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Typography & Headings</h5>
+    </div>
+    <div class="card-body">
+      <h1>h1. Heading level one</h1>
+      <h2>h2. Heading level two</h2>
+      <h3>h3. Heading level three</h3>
+      <h4>h4. Heading level four</h4>
+      <h5>h5. Heading level five</h5>
+      <h6>h6. Heading level six</h6>
+      <hr>
+      <p class="text-muted">Muted paragraph text for secondary information.</p>
+      <p>Regular paragraph text demonstrating the base font size and line height. This is the default body text style used across the application.</p>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Cards
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Cards</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <div class="card text-center p-3">
+            <h6 class="text-muted mb-1">Total Students</h6>
+            <h2 class="mb-0 text-primary">1,248</h2>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center p-3">
+            <h6 class="text-muted mb-1">Pass Rate</h6>
+            <h2 class="mb-0 text-success">87.4%</h2>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center p-3">
+            <h6 class="text-muted mb-1">Faculty</h6>
+            <h2 class="mb-0 text-warning">42</h2>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center p-3">
+            <h6 class="text-muted mb-1">Subjects</h6>
+            <h2 class="mb-0 text-info">18</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Table
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="card-title mb-0">Data Table</h5>
+      <span class="badge bg-secondary">Sample Data</span>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Student Name</th>
+            <th>Roll No.</th>
+            <th>Subject</th>
+            <th>Marks</th>
+            <th>Grade</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Aarav Sharma</td>
+            <td>MCA2024001</td>
+            <td>Data Structures</td>
+            <td>92</td>
+            <td>A</td>
+            <td><span class="badge bg-success">Pass</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Priya Patel</td>
+            <td>MCA2024002</td>
+            <td>Database Systems</td>
+            <td>78</td>
+            <td>B+</td>
+            <td><span class="badge bg-success">Pass</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Rohit Singh</td>
+            <td>MCA2024003</td>
+            <td>Operating Systems</td>
+            <td>45</td>
+            <td>F</td>
+            <td><span class="badge bg-danger">Fail</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Sneha Verma</td>
+            <td>MCA2024004</td>
+            <td>Computer Networks</td>
+            <td>81</td>
+            <td>A</td>
+            <td><span class="badge bg-success">Pass</span></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Ankit Kumar</td>
+            <td>MCA2024005</td>
+            <td>Software Engineering</td>
+            <td>63</td>
+            <td>C</td>
+            <td><span class="badge bg-success">Pass</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Forms
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Form Elements</h5>
+    </div>
+    <div class="card-body">
+      <form>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="testName" class="form-label">Full Name</label>
+            <input type="text" class="form-control" id="testName" placeholder="Enter your name" value="Test User">
+          </div>
+          <div class="col-md-6">
+            <label for="testEmail" class="form-label">Email Address</label>
+            <input type="email" class="form-control" id="testEmail" placeholder="you@example.com" value="test@example.com">
+          </div>
+          <div class="col-md-6">
+            <label for="testSelect" class="form-label">Department</label>
+            <select class="form-select" id="testSelect">
+              <option selected>MCA</option>
+              <option>MBA</option>
+              <option>B.Tech</option>
+              <option>M.Tech</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="testSemester" class="form-label">Semester</label>
+            <select class="form-select" id="testSemester">
+              <option>Semester 1</option>
+              <option selected>Semester 2</option>
+              <option>Semester 3</option>
+              <option>Semester 4</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label for="testTextarea" class="form-label">Remarks</label>
+            <textarea class="form-control" id="testTextarea" rows="2" placeholder="Any additional remarks..."></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Buttons
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Buttons</h5>
+    </div>
+    <div class="card-body">
+      <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-primary">Primary</button>
+        <button type="button" class="btn btn-secondary">Secondary</button>
+        <button type="button" class="btn btn-success">Success</button>
+        <button type="button" class="btn btn-danger">Danger</button>
+        <button type="button" class="btn btn-warning">Warning</button>
+        <button type="button" class="btn btn-info">Info</button>
+        <button type="button" class="btn btn-light">Light</button>
+        <button type="button" class="btn btn-dark">Dark</button>
+        <button type="button" class="btn btn-outline-primary">Outline Primary</button>
+        <button type="button" class="btn btn-outline-danger">Outline Danger</button>
+        <button type="button" class="btn btn-link">Link Button</button>
+      </div>
+      <hr>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-primary btn-sm">Small</button>
+        <button type="button" class="btn btn-primary">Default</button>
+        <button type="button" class="btn btn-primary btn-lg">Large</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Alerts (static demo)
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Alert Styles</h5>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-success" role="alert">
+        <strong>Success!</strong> Records imported successfully — 248 students updated.
+      </div>
+      <div class="alert alert-warning" role="alert">
+        <strong>Warning!</strong> Some records have missing fields. Please review the import log.
+      </div>
+      <div class="alert alert-danger" role="alert">
+        <strong>Error!</strong> Upload failed — file format not supported.
+      </div>
+      <div class="alert alert-info" role="alert">
+        <strong>Info:</strong> System maintenance scheduled for Sunday 02:00–04:00 AM.
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================
+       Badges / Pills
+       ============================== -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="card-title mb-0">Badges & Pills</h5>
+    </div>
+    <div class="card-body">
+      <span class="badge bg-primary me-1">Primary</span>
+      <span class="badge bg-secondary me-1">Secondary</span>
+      <span class="badge bg-success me-1">Success</span>
+      <span class="badge bg-danger me-1">Danger</span>
+      <span class="badge bg-warning text-dark me-1">Warning</span>
+      <span class="badge bg-info text-dark me-1">Info</span>
+      <span class="badge bg-dark me-1">Dark</span>
+      <span class="badge bg-light text-dark">Light</span>
+      <hr>
+      <span class="badge rounded-pill bg-primary me-1">1</span>
+      <span class="badge rounded-pill bg-success me-1">New</span>
+      <span class="badge rounded-pill bg-danger me-1">3</span>
+    </div>
+  </div>
+
+</div>

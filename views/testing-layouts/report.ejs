@@ -1,0 +1,216 @@
+<!--
+  Layout Test Page – Report Layout
+  This page exercises the report layout with printable result report placeholders.
+  No production logic is included.
+-->
+
+<!-- Report Header -->
+<div class="text-center mb-4 border-bottom pb-3">
+  <h3 class="mb-1">MCA Department – Semester Result Report</h3>
+  <p class="text-muted mb-0">Session: 2024–2025 | Semester: II | Published: June 15, 2025</p>
+</div>
+
+<!-- Summary Stats -->
+<div class="row g-2 mb-4">
+  <div class="col-3">
+    <div class="border rounded p-2 text-center">
+      <small class="text-muted d-block">Total Students</small>
+      <strong>120</strong>
+    </div>
+  </div>
+  <div class="col-3">
+    <div class="border rounded p-2 text-center">
+      <small class="text-muted d-block">Passed</small>
+      <strong class="text-success">102</strong>
+    </div>
+  </div>
+  <div class="col-3">
+    <div class="border rounded p-2 text-center">
+      <small class="text-muted d-block">Failed</small>
+      <strong class="text-danger">18</strong>
+    </div>
+  </div>
+  <div class="col-3">
+    <div class="border rounded p-2 text-center">
+      <small class="text-muted d-block">Pass %</small>
+      <strong>85.0%</strong>
+    </div>
+  </div>
+</div>
+
+<!-- Subject-wise Stats -->
+<div class="mb-4">
+  <h5 class="mb-2">Subject-wise Performance</h5>
+  <table class="table table-bordered table-sm">
+    <thead class="table-light">
+      <tr>
+        <th>Subject</th>
+        <th>Max Marks</th>
+        <th>Avg Marks</th>
+        <th>Pass %</th>
+        <th>Topper</th>
+        <th>Topper Marks</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Data Structures</td>
+        <td>100</td>
+        <td>72.4</td>
+        <td>88.3%</td>
+        <td>Aarav Sharma</td>
+        <td>96</td>
+      </tr>
+      <tr>
+        <td>Database Systems</td>
+        <td>100</td>
+        <td>68.2</td>
+        <td>82.5%</td>
+        <td>Priya Patel</td>
+        <td>91</td>
+      </tr>
+      <tr>
+        <td>Operating Systems</td>
+        <td>100</td>
+        <td>65.7</td>
+        <td>79.2%</td>
+        <td>Rohit Singh</td>
+        <td>88</td>
+      </tr>
+      <tr>
+        <td>Computer Networks</td>
+        <td>100</td>
+        <td>70.1</td>
+        <td>85.8%</td>
+        <td>Sneha Verma</td>
+        <td>94</td>
+      </tr>
+      <tr>
+        <td>Software Engineering</td>
+        <td>100</td>
+        <td>66.9</td>
+        <td>81.7%</td>
+        <td>Ankit Kumar</td>
+        <td>87</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Topper Section -->
+<div class="mb-4">
+  <h5 class="mb-2">Overall Toppers</h5>
+  <table class="table table-bordered table-sm">
+    <thead class="table-light">
+      <tr>
+        <th>Rank</th>
+        <th>Student Name</th>
+        <th>Roll No.</th>
+        <th>Total Marks</th>
+        <th>Percentage</th>
+        <th>Grade</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Aarav Sharma</td>
+        <td>MCA2024001</td>
+        <td>472</td>
+        <td>94.4%</td>
+        <td>A+</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Priya Patel</td>
+        <td>MCA2024002</td>
+        <td>458</td>
+        <td>91.6%</td>
+        <td>A+</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Sneha Verma</td>
+        <td>MCA2024004</td>
+        <td>441</td>
+        <td>88.2%</td>
+        <td>A</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Ankit Kumar</td>
+        <td>MCA2024005</td>
+        <td>429</td>
+        <td>85.8%</td>
+        <td>A</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>Rohit Singh</td>
+        <td>MCA2024003</td>
+        <td>415</td>
+        <td>83.0%</td>
+        <td>B+</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Failed Students List -->
+<div class="mb-4">
+  <h5 class="mb-2">Students Requiring Improvement (Failed)</h5>
+  <table class="table table-bordered table-sm">
+    <thead class="table-light">
+      <tr>
+        <th>#</th>
+        <th>Student Name</th>
+        <th>Roll No.</th>
+        <th>Failed Subjects</th>
+        <th>Total Marks</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Vikram Singh</td>
+        <td>MCA2024010</td>
+        <td>Data Structures, OS</td>
+        <td>218</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Neha Gupta</td>
+        <td>MCA2024015</td>
+        <td>Database Systems</td>
+        <td>245</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Rajesh Kumar</td>
+        <td>MCA2024022</td>
+        <td>OS, Networks</td>
+        <td>207</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Pooja Mehta</td>
+        <td>MCA2024031</td>
+        <td>Data Structures</td>
+        <td>239</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>Sunil Yadav</td>
+        <td>MCA2024050</td>
+        <td>Software Eng, OS, Networks</td>
+        <td>186</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Footer note -->
+<div class="text-center text-muted small border-top pt-2">
+  <p class="mb-0">Generated by SRAAS — Result Automation & Analytics System</p>
+  <p class="mb-0">This is a computer-generated report. No signature required.</p>
+</div>

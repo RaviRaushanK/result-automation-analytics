@@ -3,7 +3,7 @@ const path = require('path');
 
 /**
  * Menu middleware – loads sidebar configuration, filters by user role,
- * and makes it available to all views as `menuConfig`.
+ * makes menuConfig available to all views, and exposes currentPath.
  */
 module.exports = function menuMiddleware(req, res, next) {
   const configPath = path.join(__dirname, '..', 'config', 'sidebar.json');
@@ -31,5 +31,7 @@ module.exports = function menuMiddleware(req, res, next) {
   };
 
   res.locals.menuConfig = filterMenu(menu);
+  // Expose the current request path for active route highlighting in sidebar
+  res.locals.currentPath = req.path;
   next();
 };
