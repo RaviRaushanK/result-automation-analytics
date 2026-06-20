@@ -11,12 +11,6 @@ module.exports = function layoutMiddleware(req, res, next) {
     return next();
   }
 
-  // Report/print routes – usually end with /print or are under /reports
-  if (path.startsWith('/reports') && (path.endsWith('/print') || path.endsWith('.pdf'))) {
-    res.locals.layout = 'report';
-    return next();
-  }
-
   // Default to main layout for all internal pages
   res.locals.layout = 'main';
   next();

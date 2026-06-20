@@ -17,7 +17,7 @@ app.set('views', path.join(__dirname, 'views'));
 // Layout engine
 const ejLayouts = require('express-ejs-layouts');
 app.use(ejLayouts);
-app.set('layout', 'layouts/main');
+
 
 // Middleware setup
 app.use(express.json());
@@ -35,7 +35,7 @@ const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
-const testingRoutes = require('./routes/testingRoutes');
+
 
 // Custom middlewares
 const layoutMiddleware = require('./middlewares/layoutMiddleware');
@@ -46,8 +46,7 @@ app.use(layoutMiddleware);
 app.use(themeMiddleware);
 app.use(menuMiddleware);
 
-// Testing routes – isolated layout verification (no DB, no auth)
-app.use('/testing', testingRoutes);
+
 
 // Global error handler
 app.use((err, req, res, next) => {
