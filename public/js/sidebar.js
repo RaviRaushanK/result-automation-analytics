@@ -58,9 +58,22 @@
   function addTooltipAttributes() {
     const links = sidebar.querySelectorAll('.sidebar-link');
     links.forEach(function(link) {
+      if (link.hasAttribute('data-tooltip')) return;
+
       const textSpan = link.querySelector('span:not(.material-icons)');
-      if (textSpan && !link.hasAttribute('data-tooltip')) {
+      if (textSpan) {
         link.setAttribute('data-tooltip', textSpan.textContent.trim());
+        return;
+      }
+
+      // Fallback for links where the label text is a direct text node
+      // (e.g. the sticky Settings link)
+      const icon = link.querySelector('.material-icons');
+      if (icon && icon.nextSibling && icon.nextSibling.nodeType === Node.TEXT_NODE) {
+        const text = icon.nextSibling.textContent.trim();
+        if (text) {
+          link.setAttribute('data-tooltip', text);
+        }
       }
     });
   }

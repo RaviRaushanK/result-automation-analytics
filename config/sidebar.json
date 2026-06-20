@@ -58,12 +58,6 @@
       "icon": "chat",
       "route": "/chat",
       "roles": ["admin", "faculty", "student"]
-    },
-    {
-      "label": "Settings",
-      "icon": "settings",
-      "route": "/settings",
-      "roles": ["admin", "faculty"]
     }
   ]
 }

@@ -2,18 +2,17 @@
 <html lang="en" class="<%= themeClass %>" data-theme="<%= theme %>">
   <%- include('../partials/head') %>
   <body class="main-body <%= themeClass %>">
-<div class="app-layout">
+    <div class="app-layout">
       <%- include('../partials/navbar') %>
       <%- include('../partials/sidebar') %>
       <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
-      <main class="main-content p-4">
-        <div class="page-content">
-          <%- include('../partials/breadcrumbs') %>
-          <%- include('../partials/alerts') %>
-          <%- body %>
-        </div>
-        
-      </main>
+        <main class="main-content p-4">
+          <div class="page-content">
+            <%- include('../partials/breadcrumbs') %>
+            <%- include('../partials/alerts') %>
+            <%- body %>
+          </div>
+        </main>
     </div>
     <%- include('../partials/footer') %>
     <%- include('../partials/scripts') %>
