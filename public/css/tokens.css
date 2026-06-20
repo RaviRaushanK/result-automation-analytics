@@ -92,6 +92,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  padding-top: var(--header-height);
 }
 
 /* ---------- Header ---------- */
@@ -292,14 +293,12 @@ body {
 }
 
 /* ========================================
-   Layout Wrapper (Sidebar + Content)
-   ======================================== */
+    Layout Wrapper (Sidebar + Content)
+    ======================================== */
 .layout-wrapper {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  margin-top: var(--header-height);
-  overflow: hidden;
+   display: flex;
+   flex: 1;
+   min-height: 0;
 }
 
 /* ---------- Sidebar Overlay (Mobile) ---------- */
@@ -321,23 +320,22 @@ body {
 
 /* ---------- Sidebar ---------- */
 .sidebar {
-  position: sticky;
-  z-index: 10;
-  height: calc(100vh - var(--header-height));
-  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   scrollbar-width: none;
   -ms-overflow-style: none;
   width: var(--sidebar-width);
-  min-height: 100%;
   background-color: var(--sidebar-bg);
   border-right: 1px solid var(--navbar-border);
-  flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0.375rem 0;
   transition: background-color 0.2s ease, width var(--sidebar-transition), transform var(--sidebar-transition);
-  position: relative;
-  z-index: 1020;
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  bottom: 0;
+  z-index: 1050;
 }
 .sidebar .nav {
   display: flex;
@@ -501,16 +499,10 @@ body {
 }
 
 /* ---------- Main Content ---------- */
-.main
-
-/* ---------- Main Content ---------- */
 .main-content {
   margin-left: var(--sidebar-width);
-  margin-top: var(--header-height);
-  height: calc(100vh - var(--header-height));
   overflow-x: hidden;
   flex: 1;
-  overflow-y: auto;
   background-color: var(--body-bg);
   transition: background-color 0.2s ease, margin var(--sidebar-transition);
   min-width: 0;
@@ -519,6 +511,7 @@ body {
 /* ---------- Footer ---------- */
 .footer {
   flex-shrink: 0;
+  margin-bottom: 0;
   background-color: var(--card-bg) !important;
   border-top: 1px solid var(--navbar-border);
   color: var(--text-secondary);
