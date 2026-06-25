@@ -1,6 +1,7 @@
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
-    <% breadcrumbItems?.forEach(function(crumb, idx) { %>
+    <% if (typeof breadcrumbItems !== 'undefined' && breadcrumbItems) { %>
+      <% breadcrumbItems.forEach(function(crumb, idx) { %>
       <li class="breadcrumb-item <%= idx === breadcrumbItems.length - 1 ? 'active' : '' %>" <%= idx === breadcrumbItems.length - 1 ? 'aria-current="page"' : '' %>>
         <% if (idx !== breadcrumbItems.length - 1) { %>
           <a href="<%= crumb.href %>"><%= crumb.label %></a>
@@ -9,5 +10,6 @@
         <% } %>
       </li>
     <% }); %>
+    <% } %>
   </ol>
 </nav>

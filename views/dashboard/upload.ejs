@@ -1,0 +1,162 @@
+<%- include('../partials/head') %>
+
+<div class="upload-container">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Upload Results</h1>
+      <p class="text-muted mb-0">Upload marksheets for OCR processing</p>
+    </div>
+    <div>
+      <a href="/dashboard" class="btn btn-outline-secondary">
+        <i class="material-icons me-2">arrow_back</i>Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Upload Form -->
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="material-icons me-2">cloud_upload</i>Upload Marksheet
+          </h5>
+        </div>
+        <div class="card-body">
+          <form id="uploadForm" enctype="multipart/form-data">
+            <div class="mb-4">
+              <label for="sessionId" class="form-label">Select Session <span class="text-danger">*</span></label>
+              <select class="form-select" id="sessionId" name="sessionId" required>
+                <option value="">-- Select Session --</option>
+                <% sessions.forEach(session => { %>
+                  <option value="<%= session.session_id %>">
+                    <%= session.exam_year %> - Semester <%= session.semester %> (<%= session.exam_session %>)
+                  </option>
+                <% }) %>
+              </select>
+              <div class="form-text">Select the academic session for this marksheet</div>
+            </div>
+
+            <div class="mb-4">
+              <label for="marksheet" class="form-label">Upload Marksheet <span class="text-danger">*</span></label>
+              <input class="form-control" type="file" id="marksheet" name="marksheet" 
+                     accept=".pdf,.jpg,.jpeg,.png" required>
+              <div class="form-text">
+                Supported formats: PDF, JPG, PNG (Max size: 10MB)
+              </div>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+              <button type="button" class="btn btn-outline-secondary" id="resetForm">
+                <i class="material-icons me-2">refresh</i>Reset
+              </button>
+              <button type="submit" class="btn btn-primary" id="uploadBtn">
+                <i class="material-icons me-2">upload</i>Upload & Process
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Upload Progress -->
+      <div class="card mt-4 d-none" id="progressCard">
+        <div class="card-body">
+          <h6 class="mb-3">Processing Status</h6>
+          <div class="progress mb-3" style="height: 25px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                 id="uploadProgress" 
+                 role="progressbar" 
+                 style="width: 0%"
+                 aria-valuenow="0" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100">
+              0%
+            </div>
+          </div>
+          <p class="mb-0 text-muted" id="progressText">Initializing...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OCR Preview Section (Hidden initially) -->
+  <div class="row mt-4 d-none" id="previewSection">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="material-icons me-2">visibility</i>Extracted Data Preview
+          </h5>
+          <div>
+            <span class="badge bg-info me-2" id="confidenceBadge">Confidence: 0%</span>
+            <button class="btn btn-sm btn-success" id="saveDataBtn">
+              <i class="material-icons me-1">save</i>Save to Database
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Validation Messages -->
+          <div class="alert alert-warning d-none" id="validationWarning" role="alert">
+            <i class="material-icons me-2">warning</i>
+            <strong>Warnings:</strong>
+            <ul class="mb-0 mt-2" id="warningList"></ul>
+          </div>
+
+          <div class="alert alert-danger d-none" id="validationError" role="alert">
+            <i class="material-icons me-2">error</i>
+            <strong>Errors:</strong>
+            <ul class="mb-0 mt-2" id="errorList"></ul>
+          </div>
+
+          <!-- Editable Data Table -->
+          <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="previewTable">
+              <thead class="table-dark">
+                <tr>
+                  <th>Student Name</th>
+                  <th>USN</th>
+                  <th>Semester</th>
+                  <th>Subject Code</th>
+                  <th>Subject Name</th>
+                  <th>Marks</th>
+                  <th>Grade</th>
+                  <th>Result</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="previewTableBody">
+                <!-- Data will be populated here -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-3">
+            <button class="btn btn-outline-primary btn-sm" id="addRowBtn">
+              <i class="material-icons me-1">add</i>Add Row
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+  <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <i class="material-icons me-2" id="toastIcon">info</i>
+      <strong class="me-auto" id="toastTitle">Notification</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body" id="toastMessage">
+      Message here
+    </div>
+  </div>
+</div>
+
+<!-- Hidden input for extraction ID -->
+<input type="hidden" id="extractionId" value="">
+
+<%- include('../partials/footer') %>

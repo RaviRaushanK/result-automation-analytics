@@ -1,0 +1,334 @@
+<%- include('../partials/head') %>
+
+<div class="dashboard-container">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Dashboard Overview</h1>
+      <p class="text-muted mb-0">Student Result Analytics & Statistics</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/dashboard/upload" class="btn btn-primary">
+        <i class="material-icons me-2">cloud_upload</i>Upload Results
+      </a>
+    </div>
+  </div>
+
+  <!-- Filters Section -->
+  <div class="card mb-4 filter-card">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label for="academicYear" class="form-label">Academic Year</label>
+          <select class="form-select" id="academicYear">
+            <option value="">All Years</option>
+            <% academicYears.forEach(year => { %>
+              <option value="<%= year %>" <%= selectedYear == year ? 'selected' : '' %>>
+                <%= year %>-<%= parseInt(year) + 1 %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="semester" class="form-label">Semester</label>
+          <select class="form-select" id="semester">
+            <option value="">All Semesters</option>
+            <% semesters.forEach(sem => { %>
+              <option value="<%= sem %>" <%= selectedSemester == sem ? 'selected' : '' %>>
+                Semester <%= sem %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary flex-fill" id="applyFilter">
+              <i class="material-icons me-2">filter_alt</i>Apply Filter
+            </button>
+            <button class="btn btn-outline-secondary" id="resetFilter">
+              <i class="material-icons">refresh</i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row g-4 mb-4">
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-primary">
+        <div class="stat-icon">
+          <i class="material-icons">people</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Total Students</h6>
+          <h3 class="stat-value" id="totalStudents">0</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-success">
+        <div class="stat-icon">
+          <i class="material-icons">check_circle</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Total Pass</h6>
+          <h3 class="stat-value" id="totalPass">0</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-danger">
+        <div class="stat-icon">
+          <i class="material-icons">cancel</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Total Fail</h6>
+          <h3 class="stat-value" id="totalFail">0</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-info">
+        <div class="stat-icon">
+          <i class="material-icons">percent</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Pass Percentage</h6>
+          <h3 class="stat-value" id="passPercentage">0%</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-warning">
+        <div class="stat-icon">
+          <i class="material-icons">warning</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Fail Percentage</h6>
+          <h3 class="stat-value" id="failPercentage">0%</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-purple">
+        <div class="stat-icon">
+          <i class="material-icons">menu_book</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Total Subjects</h6>
+          <h3 class="stat-value" id="totalSubjects">0</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-orange">
+        <div class="stat-icon">
+          <i class="material-icons">emoji_events</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Highest Score</h6>
+          <h3 class="stat-value" id="highestScore">0</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+      <div class="stat-card stat-teal">
+        <div class="stat-icon">
+          <i class="material-icons">grading</i>
+        </div>
+        <div class="stat-content">
+          <h6 class="stat-label">Average CGPA</h6>
+          <h3 class="stat-value" id="averageCGPA">0</h3>
+        </div>
+        <div class="stat-loader">
+          <div class="spinner-border spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 10 Scorers -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        <i class="material-icons me-2">star</i>Top 10 Scorers
+      </h5>
+      <span class="badge bg-primary">Ranked by Total Marks</span>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover" id="topScorersTable">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>USN</th>
+              <th>Student Name</th>
+              <th>Semester</th>
+              <th>Percentage</th>
+              <th>Total Marks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="6" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Loading top scorers...</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1 -->
+  <div class="row g-4 mb-4">
+    <!-- Subject Wise Average Chart -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="material-icons me-2">bar_chart</i>Subject Wise Average Marks
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="subjectAverageChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pass vs Fail Charts -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="material-icons me-2">pie_chart</i>Pass vs Fail Analysis
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <canvas id="passFailPieChart"></canvas>
+            </div>
+            <div class="col-md-6">
+              <canvas id="passFailDoughnutChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2 -->
+  <div class="row g-4 mb-4">
+    <!-- Result Trends -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="material-icons me-2">trending_up</i>Result Trends
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="resultTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Semester Performance -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="material-icons me-2">show_chart</i>Semester Wise Performance
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="semesterPerformanceChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subject Wise Analytics Table -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        <i class="material-icons me-2">analytics</i>Subject Wise Analytics
+      </h5>
+      <button class="btn btn-sm btn-outline-primary" id="exportSubjectAnalytics">
+        <i class="material-icons me-1">download</i>Export
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover" id="subjectAnalyticsTable">
+          <thead>
+            <tr>
+              <th>Subject Code</th>
+              <th>Subject Name</th>
+              <th>Average Marks</th>
+              <th>Highest Marks</th>
+              <th>Lowest Marks</th>
+              <th>Pass Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="6" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Loading subject analytics...</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+  <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <i class="material-icons me-2" id="toastIcon">info</i>
+      <strong class="me-auto" id="toastTitle">Notification</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body" id="toastMessage">
+      Message here
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -7,6 +7,12 @@
       "roles": ["admin", "faculty", "student"]
     },
     {
+      "label": "Upload Results",
+      "icon": "cloud_upload",
+      "route": "/dashboard/upload",
+      "roles": ["admin", "faculty"]
+    },
+    {
       "label": "Academic Management",
       "icon": "school",
       "children": [

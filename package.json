@@ -31,8 +31,10 @@
     "express-ejs-layouts": "^2.5.1",
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.19.0",
+    "multer": "^2.2.0",
     "mysql2": "^3.22.5",
     "sequelize": "^6.37.8",
-    "sequelize-cli": "^6.6.5"
+    "sequelize-cli": "^6.6.5",
+    "tesseract.js": "^7.0.0"
   }
 }

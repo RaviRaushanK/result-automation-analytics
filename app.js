@@ -18,6 +18,12 @@ app.set('views', path.join(__dirname, 'views'));
 const ejLayouts = require('express-ejs-layouts');
 app.use(ejLayouts);
 
+// Configure express-ejs-layouts
+// Set default layout name - express-ejs-layouts will look in views/layouts/ folder
+app.set('layout', 'layouts/main');
+app.set('layout extractScripts', true);
+app.set('layout extractStyles', true);
+
 
 // Middleware setup
 app.use(express.json());
@@ -35,6 +41,7 @@ const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 
 // Custom middlewares
@@ -53,6 +60,9 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Internal Server Error' });
 });
+
+// Dashboard routes
+app.use('/dashboard', dashboardRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,4 +1,4 @@
-<% if (flash && flash.length) { %>
+<% if (typeof flash !== 'undefined' && flash && flash.length) { %>
   <div class="alert-container position-fixed top-0 end-0 p-3">
     <% flash.forEach(function(msg) { %>
       <div class="alert alert-<%= msg.type %> alert-dismissible fade show" role="alert">

@@ -13,6 +13,32 @@ module.exports = {
     const studentId = 1;
     const resultId = 1;
 
+    // Clear existing data to avoid duplicate key errors
+    try {
+      // Disable foreign key checks temporarily
+      await queryInterface.sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+      
+      await queryInterface.bulkDelete('subject_results', null, {});
+      await queryInterface.bulkDelete('results', null, {});
+      await queryInterface.bulkDelete('students', null, {});
+      await queryInterface.bulkDelete('subjects', null, {});
+      await queryInterface.bulkDelete('result_sessions', null, {});
+      await queryInterface.bulkDelete('faculty', null, {});
+      await queryInterface.bulkDelete('batches', null, {});
+      await queryInterface.bulkDelete('departments', null, {});
+      
+      // Re-enable foreign key checks
+      await queryInterface.sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+    } catch (err) {
+      console.log('Cleanup warning:', err.message);
+      // Ensure FK checks are re-enabled even if error occurs
+      try {
+        await queryInterface.sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     await queryInterface.bulkInsert('departments', [
       {
         department_id: departmentId,
