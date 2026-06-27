@@ -37,7 +37,6 @@
       "label": "Analytics",
       "icon": "insights",
       "children": [
-        { "label": "Dashboard", "icon": "dashboard", "route": "/analytics", "roles": ["admin", "faculty"] },
         { "label": "Toppers", "icon": "star", "route": "/analytics/toppers", "roles": ["admin", "faculty"] },
         { "label": "Failed Students", "icon": "error", "route": "/analytics/failed", "roles": ["admin", "faculty"] },
         { "label": "Subject Analysis", "icon": "pie_chart", "route": "/analytics/subjects", "roles": ["admin", "faculty"] }

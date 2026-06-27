@@ -14,9 +14,18 @@ const authController = {
       const isMatch = await bcrypt.compare(password, admin.password_hash);
       if (!isMatch) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false });
       if (admin.status !== 'active') return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Your account is inactive. Contact support.', expired: false });
+      
+      // Set session data
       req.session.adminId = admin.admin_id;
       req.session.username = admin.username;
       req.session.role = admin.role;
+      
+      // Store complete user object in session for easy access
+      req.session.user = {
+        adminId: admin.admin_id,
+        username: admin.username,
+        role: admin.role
+      };
 
       await AdminUser.update({ last_login: new Date() }, { where: { admin_id: admin.admin_id } });
       const returnTo = req.session.returnTo || '/dashboard';
