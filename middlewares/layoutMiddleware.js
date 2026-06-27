@@ -1,7 +1,7 @@
 module.exports = function layoutMiddleware(req, res, next) {
   const path = req.path.toLowerCase();
 
-  if (path.startsWith('/auth') || path.startsWith('/login') || path.startsWith('/register')) {
+  if (path.startsWith('/login')) {
     res.locals.layoutType = 'auth';
   } else if (path.startsWith('/reports') && (path.endsWith('/print') || path.endsWith('.pdf'))) {
     res.locals.layoutType = 'report';

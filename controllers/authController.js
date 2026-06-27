@@ -1,95 +1,56 @@
-// Import required libraries
 const bcrypt = require('bcryptjs');
-const { User } = require('../database/models');
-
+const { AdminUser } = require('../database/models');
 const authController = {
-
-  // ========================
-  // LOGIN USER
-  // ========================
+  showLoginPage: (req, res) => {
+    if (req.session && req.session.adminId) return res.redirect('/dashboard');
+    res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: null, expired: req.query.expired === '1' });
+  },
   login: async (req, res) => {
     try {
       const { username, password } = req.body;
-
-      // Find user by username
-      const user = await User.findOne({
-        where: { username }
-      });
-
-      // If user not found
-      if (!user) {
-        return res.status(401).json({
-          error: 'Invalid credentials'
-        });
-      }
-
-      // Compare password with hashed password
-      const isMatch = await bcrypt.compare(password, user.password_hash);
-
-      if (!isMatch) {
-        return res.status(401).json({
-          error: 'Invalid credentials'
-        });
-      }
-
-      // Store session data
-      req.session.userId = user.admin_id;
-      req.session.role = user.role;
-
-      // Send response
-      res.json({
-        message: 'Login successful',
-        user: {
-          username: user.username,
-          role: user.role
-        }
-      });
-
+      if (!username || !password) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Please enter both username and password.', expired: false });
+      const admin = await AdminUser.findOne({ where: { username } });
+      if (!admin) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false });
+      const isMatch = await bcrypt.compare(password, admin.password_hash);
+      if (!isMatch) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false });
+      if (admin.status !== 'active') return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Your account is inactive. Contact support.', expired: false });
+      req.session.adminId = admin.admin_id;
+      req.session.username = admin.username;
+      req.session.role = admin.role;
+      await AdminUser.update({ last_login: new Date() }, { where: { admin_id: admin.admin_id } });
+      const returnTo = req.session.returnTo || '/dashboard';
+      delete req.session.returnTo;
+      return res.redirect(returnTo);
     } catch (err) {
-      res.status(500).json({
-        error: err.message
-      });
+      console.error('Login error:', err);
+      return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'An unexpected error occurred. Please try again.', expired: false });
     }
   },
-
-  // ========================
-  // LOGOUT USER
-  // ========================
   logout: (req, res) => {
-    req.session.destroy();
-    res.json({
-      message: 'Logout successful'
-    });
+    req.session.destroy((err) => { if (err) console.error('Logout error:', err); res.clearCookie('connect.sid'); return res.redirect('/'); });
   },
-
-  // ========================
-  // REGISTER USER
-  // ========================
-  register: async (req, res) => {
+  showAccountSecurity: (req, res) => {
+    res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: null, breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '#', label: 'Account Security' }] });
+  },
+  changePassword: async (req, res) => {
     try {
-      const { username, email, password, role } = req.body;
-
-      // Hash password before saving
-      const password_hash = await bcrypt.hash(password, 10);
-
-      // Create new user
-      await User.create({
-        username,
-        email,
-        password_hash,
-        role
-      });
-
-      res.status(201).json({
-        message: 'User registered successfully'
-      });
-
+      const { currentPassword, newPassword, confirmPassword } = req.body;
+      const bc = [{ href: '/dashboard', label: 'Dashboard' }, { href: '#', label: 'Account Security' }];
+      if (!currentPassword || !newPassword || !confirmPassword) return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'All fields are required.', breadcrumbItems: bc });
+      if (newPassword !== confirmPassword) return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'New password and confirmation do not match.', breadcrumbItems: bc });
+      if (newPassword.length < 6) return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'New password must be at least 6 characters.', breadcrumbItems: bc });
+      const admin = await AdminUser.findByPk(req.session.adminId);
+      if (!admin) return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'Administrator account not found.', breadcrumbItems: bc });
+      const isMatch = await bcrypt.compare(currentPassword, admin.password_hash);
+      if (!isMatch) return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'Current password is incorrect.', breadcrumbItems: bc });
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await AdminUser.update({ password_hash: hashedPassword }, { where: { admin_id: req.session.adminId } });
+      req.session.destroy((e) => { if (e) console.error('Session destroy error:', e); res.clearCookie('connect.sid'); return res.redirect('/login?expired=1'); });
     } catch (err) {
-      res.status(500).json({
-        error: err.message
-      });
+      console.error('Change password error:', err);
+      const bc = [{ href: '/dashboard', label: 'Dashboard' }, { href: '#', label: 'Account Security' }];
+      return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'An unexpected error occurred.', breadcrumbItems: bc });
     }
   }
 };
-
 module.exports = authController;

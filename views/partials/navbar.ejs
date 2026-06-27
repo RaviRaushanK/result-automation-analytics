@@ -11,7 +11,7 @@
         <span class="material-icons">menu</span>
       </button>
 
-      <a class="header-brand" href="/">
+      <a class="header-brand" href="/dashboard">
         <div class="brand-icon">
           <span class="material-icons">analytics</span>
         </div>
@@ -42,13 +42,17 @@
             <span class="material-icons dropdown-item-icon">person</span> Profile
           </a></li>
           <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="/auth/logout">
+          <li><a class="dropdown-item" href="/account-security">
+            <span class="material-icons dropdown-item-icon">security</span> Account Security
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="/logout">
             <span class="material-icons dropdown-item-icon">logout</span> Logout
           </a></li>
         </ul>
       </div>
       <% } else { %>
-      <a href="/auth/login" class="btn btn-sm btn-primary">Sign In</a>
+      <a href="/login" class="btn btn-sm btn-primary">Sign In</a>
       <% } %>
     </div>
   </div>

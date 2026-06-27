@@ -1,0 +1,57 @@
+<section class="landing-bg">
+    <div class="login-container">
+        <!-- Logo -->
+        <div class="hero-logo">
+            <i class="material-icons">school</i>
+        </div>
+
+        <!-- System Title -->
+        <h1 class="login-title">SRAAS</h1>
+        <p class="login-subtitle">Student Result Automation &amp; Analytics System</p>
+
+        <!-- Session Expired Message -->
+        <% if (expired) { %>
+        <div class="alert alert-warning alert-dismissible fade show mt-3 w-100" role="alert">
+            Your session has expired. Please log in again.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <% } %>
+
+        <!-- Error Message -->
+        <% if (error) { %>
+        <div class="alert alert-danger alert-dismissible fade show mt-3 w-100" role="alert">
+            <%= error %>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <% } %>
+
+        <!-- Login Form -->
+        <form method="POST" action="/login" class="login-form mt-3">
+            <div class="mb-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="material-icons">person</i></span>
+                    <input type="text" name="username" class="form-control" placeholder="Username" required autofocus>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="material-icons">lock</i></span>
+                    <input type="password" name="password" class="form-control" placeholder="Password" required>
+                </div>
+            </div>
+            <div class="mb-3 form-check d-flex align-items-center">
+                <input type="checkbox" name="remember" class="form-check-input me-2" id="rememberMe">
+                <label class="form-check-label text-light small" for="rememberMe">Remember me</label>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 login-btn">
+                <i class="material-icons me-1">login</i> Sign In
+            </button>
+        </form>
+
+        <!-- Footer -->
+        <div class="hero-footer mt-3">
+            <i class="material-icons">verified_user</i>
+            SRAAS v1.0
+        </div>
+    </div>
+</section>
