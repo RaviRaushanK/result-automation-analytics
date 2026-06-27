@@ -60,6 +60,13 @@ app.use((req, res, next) => {
 // ======================
 // Custom Middleware
 // ======================
+// Route imports
+const authRoutes = require('./routes/authRoutes');
+const batchRoutes = require('./routes/batchRoutes');
+const resultRoutes = require('./routes/resultRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
+const subjectRoutes = require('./routes/subjectRoutes');
+
 
 const layoutMiddleware = require('./middlewares/layoutMiddleware');
 const themeMiddleware = require('./middlewares/themeMiddleware');
