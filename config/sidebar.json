@@ -57,7 +57,7 @@
       "label": "Chat Assistant",
       "icon": "chat",
       "route": "/chat",
-      "roles": ["admin", "faculty", "student"]
+      "roles": ["admin"]
     }
   ]
 }

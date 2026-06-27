@@ -17,6 +17,7 @@ const authController = {
       req.session.adminId = admin.admin_id;
       req.session.username = admin.username;
       req.session.role = admin.role;
+
       await AdminUser.update({ last_login: new Date() }, { where: { admin_id: admin.admin_id } });
       const returnTo = req.session.returnTo || '/dashboard';
       delete req.session.returnTo;
