@@ -31,12 +31,16 @@ router.get('/', (req, res) => {
       }));
   };
 
+  // Fix: Use originalUrl for proper path matching
+  // When mounted at /dashboard, req.path is / but we need /dashboard
+  const currentPath = req.originalUrl.split('?')[0] || '/';
+
   res.render('dashboard/index', {
     layout: 'layouts/main',
     title: 'Dashboard - SRAAS',
     user: req.user || null,
     menuConfig: filterMenu(menuConfig),
-    currentPath: req.path,
+    currentPath: currentPath,
     breadcrumbItems: [
       { href: '/dashboard', label: 'Dashboard' }
     ]
