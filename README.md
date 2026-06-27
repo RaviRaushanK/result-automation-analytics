@@ -182,7 +182,7 @@ npm start
 or during development:
 
 ```bash
-npm run dev
+npm run dev <- Not working
 ```
 
 The application will be available at:
