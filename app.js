@@ -248,16 +248,10 @@ app.use('/subjects', authMiddleware, subjectRoutes);
 // ======================
 
 app.use((req, res) => {
-
-    if (!req.session?.adminId) {
-        return res.redirect('/login');
-    }
-
     return res.status(404).render('errors/404', {
-        layout: 'layouts/main',
+        layout: 'layouts/landing',
         title: 'Page Not Found'
     });
-
 });
 
 // ======================
@@ -267,8 +261,8 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
     console.error(err);
 
-    res.status(500).render('errors/500', {
-        layout: 'layouts/main',
+    return res.status(500).render('errors/500', {
+        layout: 'layouts/landing',
         title: 'Server Error'
     });
 });
