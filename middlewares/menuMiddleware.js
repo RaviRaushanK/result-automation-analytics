@@ -22,19 +22,12 @@ try {
 
 module.exports = function menuMiddleware(req, res, next) {
 
-    // Default to guest if no authenticated user exists
-    const role = req.user?.role || 'guest';
+    const role = req.user?.role ?? 'guest';
 
-    /**
-     * Recursively filter menu items based on role.
-     * A parent item is kept if:
-     *  - it is directly accessible, OR
-     *  - it contains at least one accessible child.
-     */
     function filterMenu(items) {
         return items.reduce((filtered, item) => {
 
-            const children = item.children
+            const children = Array.isArray(item.children)
                 ? filterMenu(item.children)
                 : [];
 
@@ -54,11 +47,10 @@ module.exports = function menuMiddleware(req, res, next) {
         }, []);
     }
 
-    // Make sidebar available to all views
-    res.locals.menuConfig = filterMenu(sidebarMenu);
+    res.locals.sidebarMenu = filterMenu(sidebarMenu);
 
-    // Current URL for active menu highlighting
-    res.locals.currentPath = (req.originalUrl || req.path).split('?')[0];
+    res.locals.currentPath =
+        (req.originalUrl || req.path).split('?')[0];
 
     next();
 };

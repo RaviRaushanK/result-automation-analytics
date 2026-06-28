@@ -37,22 +37,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 app.use(session(sessionConfig));
 
-// Populate authenticated user from session
-app.use((req, res, next) => {
-    if (req.session?.adminId) {
-        req.user = {
-            adminId: req.session.adminId,
-            username: req.session.username,
-            role: req.session.role
-        };
-
-        res.locals.user = {
-            name: req.session.username,
-            role: req.session.role
-        };
-    }
-    next();
-});
 
 // Keep active sessions alive while the administrator is using the system.
 app.use((req, res, next) => {
@@ -78,19 +62,19 @@ app.use((req, res, next) => {
 // Custom Middleware
 // ======================
 
-const layoutMiddleware = require('./middlewares/layoutMiddleware');
+const userMiddleware = require('./middlewares/userMiddleware');
 const themeMiddleware = require('./middlewares/themeMiddleware');
 const menuMiddleware = require('./middlewares/menuMiddleware');
 const authMiddleware = require('./middlewares/authMiddleware');
 
-app.use(layoutMiddleware);
+
+app.use(userMiddleware);
 app.use(themeMiddleware);
 app.use(menuMiddleware);
 
 // Shared variables for all EJS views.
 app.use((req, res, next) => {
     res.locals.flash = res.locals.flash || [];
-    res.locals.user = res.locals.user || null;
     res.locals.breadcrumbItems = res.locals.breadcrumbItems || [];
     next();
 });
