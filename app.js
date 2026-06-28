@@ -89,7 +89,7 @@ const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
-const testingRoutes = require('./routes/testingRoutes');
+
 
 // ======================
 // Public Routes
@@ -98,8 +98,6 @@ const testingRoutes = require('./routes/testingRoutes');
 app.use('/', landingRoutes);
 app.use('/', authRoutes);
 
-// Development testing routes.
-app.use('/testing', testingRoutes);
 
 // Health check.
 app.get('/api/health', (req, res) => {

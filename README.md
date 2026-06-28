@@ -102,7 +102,6 @@ result-automation-analytics/
 │   ├── resultRoutes.js
 │   ├── sessionRoutes.js
 │   ├── subjectRoutes.js
-│   └── testingRoutes.js
 ├── scripts/
 │   ├── bootstrap-db.js
 │   └── runInit.js
@@ -129,7 +128,6 @@ result-automation-analytics/
     ├── sessions/
     ├── students/
     ├── subjects/
-    └── testing-layouts/
 ```
 
 ## Installation

@@ -28,7 +28,6 @@ views/
 ├── sessions/                 # Academic session pages
 ├── students/                 # Student management pages
 ├── subjects/                 # Subject management pages
-└── testing-layouts/          # Layout testing pages
 ```
 
 ---
@@ -54,7 +53,6 @@ views/
 | `sessions/`        | Academic session management pages.                 |
 | `students/`        | Student management pages.                          |
 | `subjects/`        | Subject management pages.                          |
-| `testing-layouts/` | Pages used to test layouts during development.     |
 
 ---
 
@@ -138,7 +136,6 @@ Layout
 | `landing/index.ejs`         | Public landing page   | `landing.ejs` |
 | `errors/404.ejs`            | Page Not Found        | `landing.ejs` |
 | `errors/500.ejs`            | Internal Server Error | `landing.ejs` |
-| `testing-layouts/main.ejs`  | Layout testing page   | `main.ejs`    |
 
 > Update this table whenever new views are added.
 
