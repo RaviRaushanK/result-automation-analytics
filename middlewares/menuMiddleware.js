@@ -1,37 +1,64 @@
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Menu middleware – loads sidebar configuration, filters by user role,
- * makes menuConfig available to all views, and exposes currentPath.
- */
+// ======================
+// Load Sidebar Configuration (Once)
+// ======================
+
+const sidebarConfigPath = path.join(__dirname, '..', 'config', 'sidebar.json');
+
+let sidebarMenu = [];
+
+try {
+    const raw = fs.readFileSync(sidebarConfigPath, 'utf8');
+    sidebarMenu = JSON.parse(raw).menu || [];
+} catch (err) {
+    console.error('Failed to load sidebar configuration:', err);
+}
+
+// ======================
+// Menu Middleware
+// ======================
+
 module.exports = function menuMiddleware(req, res, next) {
-  const configPath = path.join(__dirname, '..', 'config', 'sidebar.json');
-  let menu = [];
 
-  try {
-    const raw = fs.readFileSync(configPath, 'utf-8');
-    const json = JSON.parse(raw);
-    menu = json.menu || [];
-  } catch (err) {
-    console.error('Failed to load sidebar config:', err);
-  }
+    // Default to guest if no authenticated user exists
+    const role = req.user?.role || 'guest';
 
-  // Assume req.user.role is set by authentication middleware
-  const role = req.user?.role || 'guest';
+    /**
+     * Recursively filter menu items based on role.
+     * A parent item is kept if:
+     *  - it is directly accessible, OR
+     *  - it contains at least one accessible child.
+     */
+    function filterMenu(items) {
+        return items.reduce((filtered, item) => {
 
-  // Simple role filter – keep items where roles include the current role or roles is undefined
-  const filterMenu = (items) => {
-    return items
-      .filter(item => !item.roles || item.roles.includes(role))
-      .map(item => ({
-        ...item,
-        children: item.children ? filterMenu(item.children) : undefined
-      }));
-  };
+            const children = item.children
+                ? filterMenu(item.children)
+                : [];
 
-  res.locals.menuConfig = filterMenu(menu);
-  // Expose the current request path for active route highlighting in sidebar
-  res.locals.currentPath = req.path;
-  next();
+            const hasAccess =
+                !item.roles ||
+                item.roles.includes(role);
+
+            if (hasAccess || children.length > 0) {
+                filtered.push({
+                    ...item,
+                    children: children.length ? children : undefined
+                });
+            }
+
+            return filtered;
+
+        }, []);
+    }
+
+    // Make sidebar available to all views
+    res.locals.menuConfig = filterMenu(sidebarMenu);
+
+    // Current URL for active menu highlighting
+    res.locals.currentPath = (req.originalUrl || req.path).split('?')[0];
+
+    next();
 };

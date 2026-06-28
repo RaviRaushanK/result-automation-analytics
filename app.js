@@ -37,6 +37,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 app.use(session(sessionConfig));
 
+// Populate authenticated user from session
+app.use((req, res, next) => {
+    if (req.session?.adminId) {
+        req.user = {
+            adminId: req.session.adminId,
+            username: req.session.username,
+            role: req.session.role
+        };
+
+        res.locals.user = {
+            name: req.session.username,
+            role: req.session.role
+        };
+    }
+    next();
+});
+
 // Keep active sessions alive while the administrator is using the system.
 app.use((req, res, next) => {
     if (req.session) {
