@@ -10,6 +10,13 @@
   <!-- Material Icons -->
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-  <!-- SRAAS Design Tokens -->
+  <!-- SRAAS Design Tokens (Global - Always Loaded) -->
   <link rel="stylesheet" href="/css/tokens.css">
+
+  <!-- Page-Specific Styles (dynamically injected by route/controller) -->
+  <% if (typeof pageStyles !== 'undefined' && Array.isArray(pageStyles) && pageStyles.length > 0) { %>
+    <% pageStyles.forEach(function(style) { %>
+      <link rel="stylesheet" href="<%= style.startsWith('/') ? style : '/' + style %>">
+    <% }); %>
+  <% } %>
 </head>

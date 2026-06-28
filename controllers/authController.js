@@ -1,19 +1,21 @@
 const bcrypt = require('bcryptjs');
 const { AdminUser } = require('../database/models');
+
+const LOGIN_PAGE_STYLES = ['/css/login.css'];
 const authController = {
   showLoginPage: (req, res) => {
     if (req.session && req.session.adminId) return res.redirect('/dashboard');
-    res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: null, expired: req.query.expired === '1' });
+    res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: null, expired: req.query.expired === '1' , pageStyles: LOGIN_PAGE_STYLES });
   },
   login: async (req, res) => {
     try {
       const { username, password } = req.body;
-      if (!username || !password) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Please enter both username and password.', expired: false });
+      if (!username || !password) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Please enter both username and password.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
       const admin = await AdminUser.findOne({ where: { username } });
-      if (!admin) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false });
+      if (!admin) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
       const isMatch = await bcrypt.compare(password, admin.password_hash);
-      if (!isMatch) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false });
-      if (admin.status !== 'active') return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Your account is inactive. Contact support.', expired: false });
+      if (!isMatch) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
+      if (admin.status !== 'active') return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Your account is inactive. Contact support.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
       
       // Set session data
       req.session.adminId = admin.admin_id;
@@ -33,7 +35,7 @@ const authController = {
       return res.redirect(returnTo);
     } catch (err) {
       console.error('Login error:', err);
-      return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'An unexpected error occurred. Please try again.', expired: false });
+      return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'An unexpected error occurred. Please try again.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
     }
   },
   logout: (req, res) => {

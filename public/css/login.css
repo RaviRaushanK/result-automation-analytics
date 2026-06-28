@@ -1,144 +1,328 @@
 /* ============================================
-   Login Page – matches Landing Page identity
+   Login Page - Polished & Self-Contained
    Dark gradient bg, blur glow, glassmorphism card
-   Fits within 732px usable height (1366x768)
+   Animated entrance, shine button, floating inputs
    ============================================ */
 
+/* ---------- Page Background ---------- */
+.login-bg {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+    font-family: Inter, sans-serif;
+    color: #fff;
+    background: radial-gradient(circle at top left, #0b2f8d 0%, #091326 35%, #03050d 100%);
+}
+.login-bg::before {
+    content: "";
+    position: absolute;
+    width: 28rem; height: 28rem;
+    background: #2563EB;
+    filter: blur(180px);
+    opacity: .18;
+    top: -12rem; left: -8rem;
+    pointer-events: none;
+}
+.login-bg::after {
+    content: "";
+    position: absolute;
+    width: 32rem; height: 32rem;
+    background: #111827;
+    filter: blur(180px);
+    opacity: .35;
+    right: -8rem; bottom: -14rem;
+    pointer-events: none;
+}
+
+/* ---------- Container ---------- */
 .login-container {
-    max-width: 24rem;
+    max-width: 26rem;
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 1rem;
+    position: relative;
+    z-index: 1;
+    animation: loginFadeIn 0.7s ease-out both;
+}
+@keyframes loginFadeIn {
+    from { opacity: 0; transform: translateY(1.5rem); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
+/* ---------- Logo ---------- */
+.login-logo {
+    width: 4.5rem; height: 4.5rem;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    background: rgba(37, 99, 235, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    position: relative;
+    animation: loginFadeIn 0.5s ease-out 0.1s both;
+}
+.login-logo::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: rgba(37, 99, 235, 0.15);
+    filter: blur(12px);
+    animation: logoPulse 2.5s ease-in-out infinite;
+    z-index: -1;
+}
+@keyframes logoPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.08); }
+}
+.login-logo i {
+    font-size: 2.3rem;
+    color: #3B82F6;
+}
+
+/* ---------- Title & Subtitle ---------- */
 .login-title {
-    margin-top: 0.75rem;
-    font-size: 1.6rem;
+    margin-top: 0;
+    font-size: 1.75rem;
     font-weight: 800;
     color: #fff;
     letter-spacing: -0.02em;
+    animation: loginFadeIn 0.5s ease-out 0.2s both;
 }
-
 .login-subtitle {
     color: #9CA3AF;
-    font-size: 0.85rem;
-    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    margin-top: 0.35rem;
+    animation: loginFadeIn 0.5s ease-out 0.3s both;
 }
-
-/* Glassmorphism card effect on form */
+/* ---------- Glassmorphism Form Card ---------- */
 .login-form {
     width: 100%;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 1rem;
-    padding: 1.5rem;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    padding: 1.75rem;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 32px rgba(0,0,0,0.3);
+    animation: loginFadeIn 0.5s ease-out 0.4s both;
+    transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+.login-form:hover {
+    border-color: rgba(37,99,235,0.2);
+    box-shadow: 0 0 0 1px rgba(37,99,235,0.08) inset, 0 8px 40px rgba(37,99,235,0.08), 0 8px 32px rgba(0,0,0,0.3);
 }
 
-/* Input group styling */
+/* ---------- Input Group ---------- */
+.login-form .input-group {
+    border-radius: 0.6rem;
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+.login-form .input-group:focus-within {
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.25);
+}
 .login-form .input-group-text {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
     color: #9CA3AF;
-    border-radius: 0.5rem 0 0 0.5rem;
+    border-radius: 0.6rem 0 0 0.6rem;
+    padding: 0.6rem 0.75rem;
+    transition: color 0.3s ease, border-color 0.3s ease;
 }
-
+.login-form .input-group:focus-within .input-group-text {
+    color: #3B82F6;
+    border-color: rgba(37,99,235,0.4);
+}
+.login-form .input-group-text .material-icons {
+    font-size: 1.25rem;
+    vertical-align: middle;
+}
 .login-form .form-control {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
     border-left: none;
     color: #fff;
-    border-radius: 0 0.5rem 0.5rem 0;
+    border-radius: 0 0.6rem 0.6rem 0;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.95rem;
+    transition: background 0.3s ease, border-color 0.3s ease;
 }
-
 .login-form .form-control::placeholder {
     color: #6B7280;
 }
-
 .login-form .form-control:focus {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: #2563EB;
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(37,99,235,0.4);
     box-shadow: none;
     color: #fff;
 }
 
-/* Checkbox */
-.login-form .form-check-input {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
+/* ---------- Password Toggle ---------- */
+.password-toggle-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-left: none;
+    border-radius: 0 0.6rem 0.6rem 0;
+    color: #6B7280;
+    padding: 0 0.75rem;
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+}
+.password-toggle-btn:hover {
+    color: #3B82F6;
+    background: rgba(255,255,255,0.1);
+}
+.password-toggle-btn:focus {
+    outline: none;
+    color: #3B82F6;
 }
 
+/* ---------- Checkbox ---------- */
+.login-form .form-check-input {
+    background-color: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.2);
+    width: 1.1rem; height: 1.1rem;
+    cursor: pointer;
+}
+.login-form .form-check-input:focus {
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.25);
+    border-color: #2563EB;
+}
 .login-form .form-check-input:checked {
     background-color: #2563EB;
     border-color: #2563EB;
 }
-
-/* Login button */
+.login-form .form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+/* ---------- Sign In Button ---------- */
 .login-btn {
     background: linear-gradient(135deg, #2563EB, #1D4ED8);
     border: none;
-    border-radius: 0.5rem;
-    padding: 0.6rem;
+    border-radius: 0.6rem;
+    padding: 0.7rem;
     font-weight: 600;
     font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem;
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    gap: 0.4rem;
+    width: 100%;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 }
-
 .login-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1.5rem rgba(37, 99, 235, 0.35);
+    box-shadow: 0 0.5rem 1.5rem rgba(37,99,235,0.35);
     background: linear-gradient(135deg, #3B82F6, #2563EB);
+    color: #fff;
 }
-
+.login-btn:active {
+    transform: translateY(0px) scale(0.98);
+}
+.login-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+}
+.login-btn:hover::before {
+    transform: translateX(120%);
+}
 .login-btn .material-icons {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
+    transition: transform 0.25s ease;
+}
+.login-btn:hover .material-icons {
+    transform: translateX(-3px);
+}
+.login-btn.loading {
+    pointer-events: none;
+    opacity: 0.85;
+}
+.login-btn .spinner-border {
+    width: 1.1rem; height: 1.1rem;
+    border-width: 2px;
 }
 
-/* Alert styling inside login */
+/* ---------- Alerts ---------- */
 .login-container .alert {
     font-size: 0.85rem;
     text-align: left;
+    border-radius: 0.6rem;
+    border: none;
+    margin-bottom: 1rem;
+    animation: loginFadeIn 0.4s ease-out both;
+}
+.login-container .alert-danger {
+    background: rgba(220,53,69,0.15);
+    color: #FCA5A5;
+    border: 1px solid rgba(220,53,69,0.2);
+}
+.login-container .alert-warning {
+    background: rgba(255,193,7,0.12);
+    color: #FDE68A;
+    border: 1px solid rgba(255,193,7,0.2);
+}
+.login-container .alert .btn-close {
+    filter: invert(1) brightness(0.8);
+    font-size: 0.7rem;
 }
 
-/* Responsive */
+/* ---------- Footer ---------- */
+.login-footer {
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+    color: #6B7280;
+    font-size: 0.8rem;
+    animation: loginFadeIn 0.5s ease-out 0.6s both;
+}
+.login-footer i {
+    color: #3B82F6;
+    font-size: 1rem;
+}
+
+/* ---------- Responsive ---------- */
 @media (max-width: 480px) {
-    .login-container {
-        max-width: 100%;
-        padding: 0.75rem;
-    }
-    .login-form {
-        padding: 1rem;
-    }
+    .login-bg { padding: 2rem 1rem; }
+    .login-container { max-width: 100%; }
+    .login-form { padding: 1.25rem; }
+    .login-title { font-size: 1.5rem; }
 }
 
-/* Ensure no scrollbar on small viewport heights (732px usable) */
 @media (max-height: 768px) {
-    .login-container {
-        padding: 0.5rem;
-    }
-    .login-title {
-        margin-top: 0.4rem;
-        font-size: 1.4rem;
-    }
-    .login-subtitle {
-        font-size: 0.8rem;
-    }
-    .login-form {
-        padding: 1rem;
-        margin-top: 0.5rem !important;
-    }
-    .login-form .mb-3 {
-        margin-bottom: 0.5rem !important;
-    }
-    .hero-footer.mt-3 {
-        margin-top: 0.5rem !important;
-    }
+    .login-bg { padding: 1.5rem 1rem; }
+    .login-logo { width: 3.5rem; height: 3.5rem; margin-bottom: 0.5rem; }
+    .login-logo i { font-size: 1.8rem; }
+    .login-title { font-size: 1.4rem; }
+    .login-form { padding: 1rem 1.25rem; }
+    .login-form .mb-3 { margin-bottom: 0.6rem !important; }
+    .login-footer { margin-top: 0.75rem; }
+}
+
+/* ---------- Reduced Motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .login-container, .login-logo, .login-title, .login-subtitle,
+    .login-form, .login-footer, .login-container .alert { animation: none !important; }
+    .login-logo::before { animation: none !important; }
+    .login-btn, .login-btn::before, .login-btn .material-icons { transition: none !important; }
 }

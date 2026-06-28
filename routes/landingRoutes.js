@@ -7,7 +7,8 @@ const router = express.Router();
  */
 router.get('/', (req, res) => {
   res.render('landing/index', {
-    layout: 'layouts/landing'
+    layout: 'layouts/landing',
+    pageStyles: ['/css/landing.css']
   });
 });
 
