@@ -49,13 +49,7 @@
     text-align: center;
     position: relative;
     z-index: 1;
-    animation: loginFadeIn 0.7s ease-out both;
 }
-@keyframes loginFadeIn {
-    from { opacity: 0; transform: translateY(1.5rem); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 /* ---------- Logo ---------- */
 .login-logo {
     width: 4.5rem; height: 4.5rem;
@@ -67,7 +61,6 @@
     background: rgba(37, 99, 235, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.08);
     position: relative;
-    animation: loginFadeIn 0.5s ease-out 0.1s both;
 }
 .login-logo::before {
     content: "";
@@ -95,13 +88,11 @@
     font-weight: 800;
     color: #fff;
     letter-spacing: -0.02em;
-    animation: loginFadeIn 0.5s ease-out 0.2s both;
 }
 .login-subtitle {
     color: #9CA3AF;
     font-size: 0.875rem;
     margin-top: 0.35rem;
-    animation: loginFadeIn 0.5s ease-out 0.3s both;
 }
 /* ---------- Glassmorphism Form Card ---------- */
 .login-form {
@@ -113,12 +104,12 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 0 0 1px rgba(255,255,255,0.03) inset, 0 8px 32px rgba(0,0,0,0.3);
-    animation: loginFadeIn 0.5s ease-out 0.4s both;
-    transition: border-color 0.4s ease, box-shadow 0.4s ease;
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .login-form:hover {
-    border-color: rgba(37,99,235,0.2);
-    box-shadow: 0 0 0 1px rgba(37,99,235,0.08) inset, 0 8px 40px rgba(37,99,235,0.08), 0 8px 32px rgba(0,0,0,0.3);
+    transform: translateY(-4px);
+    border-color: rgba(37,99,235,0.3);
+    box-shadow: 0 0 0 1px rgba(37,99,235,0.12) inset, 0 12px 48px rgba(37,99,235,0.15), 0 12px 40px rgba(0,0,0,0.4);
 }
 
 /* ---------- Input Group ---------- */
@@ -267,7 +258,6 @@
     border-radius: 0.6rem;
     border: none;
     margin-bottom: 1rem;
-    animation: loginFadeIn 0.4s ease-out both;
 }
 .login-container .alert-danger {
     background: rgba(220,53,69,0.15);
@@ -294,7 +284,6 @@
     gap: 0.4rem;
     color: #6B7280;
     font-size: 0.8rem;
-    animation: loginFadeIn 0.5s ease-out 0.6s both;
 }
 .login-footer i {
     color: #3B82F6;
@@ -319,10 +308,3 @@
     .login-footer { margin-top: 0.75rem; }
 }
 
-/* ---------- Reduced Motion ---------- */
-@media (prefers-reduced-motion: reduce) {
-    .login-container, .login-logo, .login-title, .login-subtitle,
-    .login-form, .login-footer, .login-container .alert { animation: none !important; }
-    .login-logo::before { animation: none !important; }
-    .login-btn, .login-btn::before, .login-btn .material-icons { transition: none !important; }
-}

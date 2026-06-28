@@ -1,15 +1,15 @@
 <section class="login-bg">
-    <div class="login-container" <%= (error || expired) ? ' style="animation:none"' : '' %>>
+    <div class="login-container">
         <!-- Login Form -->
-        <form method="POST" action="/login" class="login-form" id="loginForm" <%= (error || expired) ? ' style="animation:none"' : '' %>>
+        <form method="POST" action="/login" class="login-form" id="loginForm">
             <!-- Logo -->
-            <div class="login-logo" <%= (error || expired) ? ' style="animation:none"' : '' %>>
+            <div class="login-logo">
                 <i class="material-icons">school</i>
             </div>
 
             <!-- System Title -->
-            <h1 class="login-title" <%= (error || expired) ? ' style="animation:none"' : '' %>>SRAAS</h1>
-            <p class="login-subtitle" <%= (error || expired) ? ' style="animation:none"' : '' %>>Student Result Automation &amp; Analytics System</p>
+            <h1 class="login-title">SRAAS</h1>
+            <p class="login-subtitle">Student Result Automation &amp; Analytics System</p>
 
             <!-- Session Expired Message -->
             <% if (expired) { %>
@@ -51,7 +51,7 @@
         </form>
 
         <!-- Footer -->
-        <div class="login-footer" <%= (error || expired) ? ' style="animation:none"' : '' %>>
+        <div class="login-footer">
             <i class="material-icons">verified_user</i>
             SRAAS v1.0
         </div>
