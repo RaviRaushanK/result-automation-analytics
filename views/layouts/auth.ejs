@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en" class="<%= themeClass %>" data-theme="<%= theme %>">
+  <%- include('../partials/head') %>
+  <body class="auth-body <%= themeClass %>">
+    <div class="auth-layout">
+      <main class="auth-main">
+        <div class="auth-card">
+          <%- body %> <!-- Login / Register content will be injected here -->
+        </div>
+      </main>
+      <%- include('../partials/footer') %>
+    </div>
+    <%- include('../partials/scripts') %>
+  </body>
+</html>

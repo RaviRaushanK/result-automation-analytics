@@ -1,48 +1,152 @@
-// Main entry point for the Result Automation & Analytics application
+// Main entry point for the Student Result Analysis & Academic Analytics System (SRAAS)
+
+const dotenv = require('dotenv');
+dotenv.config();
 
 const express = require('express');
-const dotenv = require('dotenv');
+const path = require('path');
 const session = require('express-session');
-const db = require('./config/db');
-const sessionConfig = require('./config/session');
-
-dotenv.config();
+const cookieParser = require('cookie-parser');
+const expressLayouts = require('express-ejs-layouts');
 
 const app = express();
 
-// Middleware setup
+// Database
+require('./config/db');
+
+// Session configuration
+const sessionConfig = require('./config/session');
+
+// ======================
+// View Engine
+// ======================
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+app.use(expressLayouts);
+app.set('layout', 'layouts/main');
+
+// ======================
+// Global Middleware
+// ======================
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(cookieParser());
 app.use(session(sessionConfig));
 
+
+// Keep active sessions alive while the administrator is using the system.
+app.use((req, res, next) => {
+    if (req.session) {
+        req.session.touch();
+    }
+    next();
+});
+
+// Prevent browser caching for authenticated pages.
+app.use((req, res, next) => {
+    if (req.session?.adminId) {
+        res.set({
+            'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+    }
+    next();
+});
+
+// ======================
+// Custom Middleware
+// ======================
+
+const userMiddleware = require('./middlewares/userMiddleware');
+const themeMiddleware = require('./middlewares/themeMiddleware');
+const menuMiddleware = require('./middlewares/menuMiddleware');
+const authMiddleware = require('./middlewares/authMiddleware');
+
+
+app.use(userMiddleware);
+app.use(themeMiddleware);
+app.use(menuMiddleware);
+
+// Shared variables for all EJS views.
+app.use((req, res, next) => {
+    res.locals.flash = res.locals.flash || [];
+    res.locals.breadcrumbItems = res.locals.breadcrumbItems || [];
+    next();
+});
+
+// ======================
+// Routes
+// ======================
+
+const landingRoutes = require('./routes/landingRoutes');
 const authRoutes = require('./routes/authRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 
-// Register routes
-app.use('/api/auth', authRoutes);
-app.use('/api/batches', batchRoutes);
-app.use('/api/results', resultRoutes);
-app.use('/api/sessions', sessionRoutes);
-app.use('/api/subjects', subjectRoutes);
 
-//------No controller contains an unexposed method, and no additional controllers are required at this time. If new business logic is added that introduces new controller methods, you will need to create or update the relevant route file accordingly.
-//========================================================================================================//
+// ======================
+// Public Routes
+// ======================
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Internal Server Error' });
-});
-// Health check endpoint
+app.use('/', landingRoutes);
+app.use('/', authRoutes);
+
+
+// Health check.
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+    res.json({
+        status: 'ok'
+    });
 });
+
+// ======================
+// Protected Routes
+// ======================
+
+app.use('/dashboard', authMiddleware, dashboardRoutes);
+app.use('/batches', authMiddleware, batchRoutes);
+app.use('/results', authMiddleware, resultRoutes);
+app.use('/sessions', authMiddleware, sessionRoutes);
+app.use('/subjects', authMiddleware, subjectRoutes);
+
+// ======================
+// 404 Handler
+// ======================
+
+app.use((req, res) => {
+    return res.status(404).render('errors/404', {
+        layout: 'layouts/landing',
+        title: 'Page Not Found'
+    });
+});
+
+// ======================
+// Global Error Handler
+// ======================
+
+app.use((err, req, res, next) => {
+    console.error(err);
+
+    return res.status(500).render('errors/500', {
+        layout: 'layouts/landing',
+        title: 'Server Error'
+    });
+});
+
+// ======================
+// Start Server
+// ======================
 
 const PORT = process.env.APP_PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+    console.log(`Server running at http://localhost:${PORT}`);
 });
