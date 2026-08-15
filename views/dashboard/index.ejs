@@ -1,14 +1,211 @@
 <div class="container-fluid">
-    <div class="row g-4">
-        <!-- Welcome Card -->
-        <div class="col-12">
-            <div class="card">
+    <!-- Page Header -->
+    <div class="dashboard-header">
+        <div>
+            <h4>Dashboard</h4>
+            <p class="text-muted">Student Result Analytics Overview</p>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card filter-card">
+        <div class="card-body">
+            <form id="dashboardFilterForm" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="filterAcademicYear" class="form-label">Academic Year</label>
+                    <select id="filterAcademicYear" class="form-select">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filterSemester" class="form-label">Semester</label>
+                    <select id="filterSemester" class="form-select">
+                        <option value="">All Semesters</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <div class="filter-actions">
+                        <button type="button" id="applyFilterBtn" class="btn btn-primary">
+                            <span class="material-icons btn-icon">filter_alt</span>
+                            Apply Filter
+                        </button>
+                        <button type="button" id="resetFilterBtn" class="btn btn-outline-secondary">
+                            <span class="material-icons btn-icon">refresh</span>
+                            Reset
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
                 <div class="card-body">
-                    <h4 class="card-title">Welcome to SRAAS</h4>
-                    <p class="card-text text-muted">Student Result Automation &amp; Analytics System</p>
-                    <p>Select a module from the sidebar to get started.</p>
+                    <div class="stat-icon bg-primary-subtle text-primary"><span class="material-icons">group</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="totalStudents">--</div>
+                        <div class="stat-label">Total Students</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-success-subtle text-success"><span class="material-icons">check_circle</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="totalPass">--</div>
+                        <div class="stat-label">Total Pass</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-danger-subtle text-danger"><span class="material-icons">cancel</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="totalFail">--</div>
+                        <div class="stat-label">Total Fail</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-info-subtle text-info"><span class="material-icons">trending_up</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="passPercentage">--</div>
+                        <div class="stat-label">Pass %</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-warning-subtle text-warning"><span class="material-icons">trending_down</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="failPercentage">--</div>
+                        <div class="stat-label">Fail %</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-secondary-subtle text-secondary"><span class="material-icons">menu_book</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="totalSubjects">--</div>
+                        <div class="stat-label">Total Subjects</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-primary-subtle text-primary"><span class="material-icons">emoji_events</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="highestScore">--</div>
+                        <div class="stat-label">Highest Score</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="stat-icon bg-success-subtle text-success"><span class="material-icons">school</span></div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="averageCGPA">--</div>
+                        <div class="stat-label">Average CGPA</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top 10 Scorers -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Top 10 Scorers</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle top-scorers-table mb-0" id="topScorersTable">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">USN</th>
+                            <th scope="col">Student Name</th>
+                            <th scope="col">SGPA</th>
+                            <th scope="col">CGPA</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-center table-loading">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span class="ms-2 text-muted">Loading top scorers...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Subject Wise Average Marks</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="subjectAverageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Pass vs Fail Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="chart-container-sm">
+                                <canvas id="passFailPieChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="chart-container-sm">
+                                <canvas id="passFailDoughnutChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Expose filter data to dashboard.js -->
+<div id="dashboardFilters"
+     data-academic-years="<%= JSON.stringify(academicYears || []) %>"
+     data-semesters="<%= JSON.stringify(semesters || []) %>"
+     class="d-none"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/dashboard.js"></script>
