@@ -164,15 +164,18 @@ cp config/.env.example config/.env
 Update the database credentials and other environment variables inside `config/.env`.
 
 ### Initialize the Database
-
 Run the initialization script to create the database schema, seed default data, and prepare the application.
 
 ```bash
 npm run setup
 ```
 
-### Start the Application
+### Run Database Seeders (Insert Demo Data Into DB)
+```bash
+npm run seed
+```
 
+### Start the Application
 ```bash
 npm start
 ```
