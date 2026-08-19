@@ -50,13 +50,16 @@
 .stat-card {
     position: relative;
     overflow: hidden;
+    border-radius: 12px;
     transition: transform 0.25s ease, box-shadow 0.25s ease;
+    
     height: 100%;
 }
 .stat-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
+
 .stat-card .card-body {
     display: flex;
     align-items: center;
@@ -94,111 +97,131 @@
     margin-top: 0.125rem;
 }
 
-/* ---------- Left Edge Color Accent ---------- */
-/* Thin 4px colored vertical strip along the entire left edge of each
-   stat card, following the card's rounded corners. Applied to the
-   existing .stat-corner element. No glow, no top/right/bottom accents. */
+/* ---------- Left Edge Color Accent ----------*/
 .stat-corner {
     position: absolute;
     top: 0;
     left: 0;
     bottom: 0;
-    width: 4px;
-    border-radius: 10px 0 0 10px;
+    width: 6px;
+    border-radius: 12px 0 0 12px;
     pointer-events: none;
     z-index: 1;
 }
 
-/* Left strip colors (Light Theme) */
+/* ---------- Left Edge Colors ---------- */
+
 .stat-blue .stat-corner {
     background-color: var(--accent-blue);
 }
+
 .stat-green .stat-corner {
     background-color: var(--accent-green);
 }
+
 .stat-red .stat-corner {
     background-color: var(--accent-red);
 }
+
 .stat-teal .stat-corner {
     background-color: var(--accent-teal);
 }
+
 .stat-amber .stat-corner {
     background-color: var(--accent-amber);
 }
+
 .stat-purple .stat-corner {
     background-color: var(--accent-purple);
 }
+
 .stat-orange .stat-corner {
     background-color: var(--accent-orange);
 }
+
 .stat-emerald .stat-corner {
     background-color: var(--accent-emerald);
 }
 
-/* ---------- Dark Theme Stat Card Adjustments ---------- */
-:root[data-theme="dark"] .stat-card {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-:root[data-theme="dark"] .stat-card:hover {
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+/* ---------- Icon Color & Background ---------- */
+.stat-blue .stat-icon {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: var(--accent-blue);
 }
 
-/* Dark theme: same left-edge strips; accent tokens automatically use
-   brighter shades for visibility against the dark card background */
-:root[data-theme="dark"] .stat-blue .stat-corner {
-    background-color: var(--accent-blue);
-}
-:root[data-theme="dark"] .stat-green .stat-corner {
-    background-color: var(--accent-green);
-}
-:root[data-theme="dark"] .stat-red .stat-corner {
-    background-color: var(--accent-red);
-}
-:root[data-theme="dark"] .stat-teal .stat-corner {
-    background-color: var(--accent-teal);
-}
-:root[data-theme="dark"] .stat-amber .stat-corner {
-    background-color: var(--accent-amber);
-}
-:root[data-theme="dark"] .stat-purple .stat-corner {
-    background-color: var(--accent-purple);
-}
-:root[data-theme="dark"] .stat-orange .stat-corner {
-    background-color: var(--accent-orange);
-}
-:root[data-theme="dark"] .stat-emerald .stat-corner {
-    background-color: var(--accent-emerald);
+.stat-green .stat-icon {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: var(--accent-green);
 }
 
-/* Dark theme: icon backgrounds become transparent/light tint */
+.stat-red .stat-icon {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--accent-red);
+}
+
+.stat-teal .stat-icon {
+    background-color: rgba(20, 184, 166, 0.15);
+    color: var(--accent-teal);
+}
+
+.stat-amber .stat-icon {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: var(--accent-amber);
+}
+
+.stat-purple .stat-icon {
+    background-color: rgba(139, 92, 246, 0.15);
+    color: var(--accent-purple);
+}
+
+.stat-orange .stat-icon {
+    background-color: rgba(249, 115, 22, 0.15);
+    color: var(--accent-orange);
+}
+
+.stat-emerald .stat-icon {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: var(--accent-emerald);
+}
+
+
+/* Dark theme: icon backgrounds */
+
 :root[data-theme="dark"] .stat-blue .stat-icon {
     background-color: rgba(96, 165, 250, 0.12);
     color: var(--accent-blue);
 }
+
 :root[data-theme="dark"] .stat-green .stat-icon {
     background-color: rgba(74, 222, 128, 0.12);
     color: var(--accent-green);
 }
+
 :root[data-theme="dark"] .stat-red .stat-icon {
     background-color: rgba(248, 113, 113, 0.12);
     color: var(--accent-red);
 }
+
 :root[data-theme="dark"] .stat-teal .stat-icon {
     background-color: rgba(34, 211, 238, 0.12);
     color: var(--accent-teal);
 }
+
 :root[data-theme="dark"] .stat-amber .stat-icon {
     background-color: rgba(251, 191, 36, 0.12);
     color: var(--accent-amber);
 }
+
 :root[data-theme="dark"] .stat-purple .stat-icon {
     background-color: rgba(167, 139, 250, 0.12);
     color: var(--accent-purple);
 }
+
 :root[data-theme="dark"] .stat-orange .stat-icon {
     background-color: rgba(251, 146, 60, 0.12);
     color: var(--accent-orange);
 }
+
 :root[data-theme="dark"] .stat-emerald .stat-icon {
     background-color: rgba(52, 211, 153, 0.12);
     color: var(--accent-emerald);
@@ -287,9 +310,9 @@
     .stat-value {
         font-size: 1.25rem;
     }
-    /* Stat card left-edge strip stays thin 4px on mobile */
+    /* Stat card left-edge strip stays thin 10px on mobile */
     .stat-corner {
-        width: 4px;
+        width: 10px;
         height: auto;
     }
     .chart-container,
