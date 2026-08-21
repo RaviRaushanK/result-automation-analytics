@@ -4,7 +4,7 @@
   "description": "Automates student result processing with analytics and reporting features",
   "main": "app.js",
   "scripts": {
-    "setup": "node scripts/bootstrap-db.js && npx sequelize-cli db:migrate && npm run init-db && npx sequelize-cli db:seed:all",
+    "setup": "node scripts/bootstrap-db.js && npx sequelize-cli db:migrate && npm run init-db",
     "migrate": "npx sequelize-cli db:migrate",
     "seed": "npx sequelize-cli db:seed:all",
     "init-db": "node scripts/runInit.js",
@@ -24,8 +24,11 @@
   "homepage": "https://github.com/RaviRaushanK/result-automation-analytics#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
+    "ejs": "^6.0.1",
     "express": "^5.2.1",
+    "express-ejs-layouts": "^2.5.1",
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.19.0",
     "mysql2": "^3.22.5",

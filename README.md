@@ -1,45 +1,45 @@
 # Result Automation Analytics (SRAAS)
 
-A full-stack Node.js/Express application for managing academic results, students, subjects, and revaluations.
-
 ## Overview
 
-This project provides a full-stack solution for:
+A full-stack Node.js/Express application for managing academic results, students, subjects, and revaluations.
 
-- Managing **departments**, **batches**, **students**, **faculty**, and **subjects**.
-- Recording **semester results** with optional **SGPA** and **CGPA** values.
-- Handling **revaluation requests** with metadata such as uploaded file, remarks, and the admin who performed the upload.
-- Generating an **effective results view** that combines original and revaluation data.
+## Features
 
-## Key Features and Recent Updates
+- Manage departments, batches, students, faculty, and subjects
+- Record semester results with optional SGPA and CGPA values
+- Handle revaluation requests with file uploads
+- Generate analytics and reports
+- Role-based access control (admin, faculty, student)
+- Dashboard with sidebar navigation
+- Session and academic management
 
-| Feature | Description |
-|---|---|
-| **Composite Unique Constraints** | `subjects` are unique per `session_id`; `result_sessions` are unique per batch/semester/exam session/year. |
-| **Nullable SGPA/CGPA** | Results can be stored without SGPA/CGPA values. |
-| **Revaluation Metadata** | `revaluation_results` stores `revised_grade`, `file_name`, `file_path`, `remarks`, and `uploaded_by`. |
-| **Indexes** | Added missing index on `students.usn` and ensured other critical indexes exist for performance. |
-| **Effective View Update** | `effective_student_results` uses `revised_grade` from revaluation results when available. |
-| **Seeder Fixes** | Subject seeder syntax was corrected to align with new constraints. |
-| **Controller Updates** | `resultController` now accepts nullable SGPA/CGPA without extra validation. |
-| **Documentation Updates** | `docs/database-structure.md` and `docs/implementation-status.md` were updated with the latest schema and implementation details. |
+## Technology Stack
+
+- **Runtime**: Node.js
+- **View Engine**: EJS (Embedded JavaScript)
+- **Database**: MySQL
+- **ORM**: Sequelize
+- **Authentication**: express-session with bcryptjs
+- **UI**: Bootstrap 5, Material Icons
 
 ## Project Structure
 
-```
-.
-├── app.js
-├── package.json
-├── package-lock.json
-├── README.md
-├── .sequelizerc
-├── .gitignore
+```text
+result-automation-analytics/
+├── app.js                          # Express application entry point
+├── package.json                    # Project metadata and dependencies
+├── package-lock.json               # Dependency lock file
+├── README.md                       # Main project documentation
+├── .gitignore                      # Git ignore rules
+├── .sequelizerc                    # Sequelize CLI configuration
 ├── config/
-│   ├── .env.example
-│   ├── config.js
-│   ├── db.js
-│   ├── README.md
-│   └── session.js
+│   ├── .env.example                # Environment variables template
+│   ├── config.js                   # Application configuration
+│   ├── db.js                       # Database connection
+│   ├── session.js                  # Session configuration
+│   ├── sidebar.json                # Sidebar menu configuration
+│   └── README.md                   # Configuration documentation
 ├── controllers/
 │   ├── authController.js
 │   ├── batchController.js
@@ -47,14 +47,14 @@ This project provides a full-stack solution for:
 │   ├── sessionController.js
 │   └── subjectController.js
 ├── database/
-│   ├── schema.sql
+│   ├── schema.sql                  # Database schema
 │   └── models/
+│       ├── index.js
 │       ├── AdminUser.js
 │       ├── Batch.js
 │       ├── Department.js
 │       ├── Faculty.js
 │       ├── ImportLog.js
-│       ├── index.js
 │       ├── OcrExtraction.js
 │       ├── Result.js
 │       ├── ResultSession.js
@@ -74,20 +74,34 @@ This project provides a full-stack solution for:
 │   ├── 02-default-admin.js
 │   └── README.md
 ├── middlewares/
+│   ├── authMiddleware.js
+│   ├── layoutMiddleware.js
+│   ├── menuMiddleware.js
+│   ├── themeMiddleware.js
+│   └── userMiddleware.js
 ├── migrations/
 │   ├── 20231001000000-create-all-tables.js
 │   └── 20231101000000-modify-schema.js
 ├── public/
 │   ├── charts/
 │   ├── css/
+│   │   ├── dashboard.css
+│   │   ├── landing.css
+│   │   ├── login.css
+│   │   └── tokens.css
 │   ├── images/
 │   └── js/
+│       ├── landing.js
+│       ├── sidebar.js
+│       └── themeSwitcher.js
 ├── routes/
 │   ├── authRoutes.js
 │   ├── batchRoutes.js
+│   ├── dashboardRoutes.js
+│   ├── landingRoutes.js
 │   ├── resultRoutes.js
 │   ├── sessionRoutes.js
-│   └── subjectRoutes.js
+│   ├── subjectRoutes.js
 ├── scripts/
 │   ├── bootstrap-db.js
 │   └── runInit.js
@@ -96,122 +110,147 @@ This project provides a full-stack solution for:
 ├── services/
 ├── uploads/
 └── views/
+    ├── README.md
     ├── analytics/
     ├── auth/
     ├── batches/
     ├── chat/
     ├── dashboard/
+    ├── departments/
+    ├── errors/
+    ├── faculty/
+    ├── landing/
     ├── layouts/
     ├── partials/
     ├── reports/
+    ├── results/
     ├── revaluation/
     ├── sessions/
     ├── students/
-    └── subjects/
+    ├── subjects/
 ```
 
-### Folder Responsibilities
+## Installation
 
-| Path | Purpose |
-|---|---|
-| `app.js` | Express application entry point and middleware setup. |
-| `config/` | Database, session, and environment configuration. |
-| `controllers/` | Business logic for auth, batches, results, sessions, and subjects. |
-| `database/models/` | Sequelize model definitions and model associations. |
-| `database/schema.sql` | SQL representation of the database schema. |
-| `docs/` | Project documentation, including database structure, ER diagram, implementation status, and project structure. |
-| `init/` | One-time initialization scripts for default settings and default admin user. |
-| `middlewares/` | Express middleware utilities. |
-| `migrations/` | Sequelize migrations for database schema changes. |
-| `public/` | Static assets such as CSS, JavaScript, images, and charts. |
-| `routes/` | Express route definitions mapped to controllers. |
-| `scripts/` | Database bootstrap and initialization helper scripts. |
-| `seeders/` | Sequelize seeders for initial/sample data. |
-| `services/` | Reusable service logic. |
-| `uploads/` | Uploaded files, including revaluation documents. |
-| `views/` | EJS templates for the web UI. |
+### Prerequisites
 
-## Getting Started
+* Node.js (v18 or later recommended)
+* npm (v9 or later)
+* MySQL (v8.0 or later)
 
-### 1. Install dependencies
+### Clone the Repository
+
+```bash
+git clone https://github.com/RaviRaushanK/result-automation-analytics.git
+cd result-automation-analytics
+```
+
+### Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Configure environment
+### Configure Environment
 
-Copy `.env.example` to `.env` and update the MySQL/database settings.
+Copy the example environment file and update the required values.
 
 ```bash
-cp .env.example .env
+cp config/.env.example config/.env
 ```
 
-### 3. Setup the database
+> **Note:** On Windows, create `config/.env` manually or use File Explorer if the `cp` command is unavailable.
+
+Update the database credentials and other environment variables inside `config/.env`.
+
+### Initialize the Database
+Run the initialization script to create the database schema, seed default data, and prepare the application.
 
 ```bash
 npm run setup
 ```
 
-This command:
+### Run Database Seeders (Insert Demo Data Into DB)
+```bash
+npm run seed
+```
 
-- Creates the database if it does not already exist.
-- Runs all migrations, including `20231101000000-modify-schema.js`.
-- Executes initialization scripts:
-  - `init/01-default-settings.js`
-  - `init/02-default-admin.js`
-- Seeds the database with sample data.
-
-### 4. Run the application
-
+### Start the Application
 ```bash
 npm start
 ```
 
-The server will be available at:
+or during development:
+
+```bash
+npm run dev <- Not working
+```
+
+The application will be available at:
 
 ```text
 http://localhost:3000
 ```
 
-## Usage
+## Default Login Credentials
 
-- **Departments and Batches**: managed through `/departments` and `/batches` routes.
-- **Students**: CRUD operations under `/students`.
-- **Subjects**: CRUD operations under `/subjects`; subject codes are unique per session.
-- **Results**: create, read, update, and delete results via `/results`; SGPA/CGPA can be omitted.
-- **Revaluations**: upload revaluation files and view revised results through `/revaluation`.
+After completing the setup, log in using the default administrator account configured by the initialization script.
 
-## Testing and Validation
+| Field        | Value               |
+| ------------ | ------------------- |
+| **Username** | `admin`             |
+| **Email**    | `admin@example.com` |
+| **Password** | `admin123`          |
 
-After running `npm run setup`, verify that the seed data loads without errors.
 
-You can validate the effective results view with:
+## Available npm Scripts
 
-```sql
-SELECT * FROM effective_student_results LIMIT 10;
-```
+npm install - Install dependencies
+npm run setup - Setup database, run migrations, init data
+npm run migrate - Run migrations
+npm run seed - Run seeders
+npm run init-db - Run initialization scripts
+npm start - Start the application
 
-The `effective_grade` column should reflect `revaluation_results.revised_grade` when a revaluation result exists.
+## Authentication
 
-## Documentation
+The application uses session-based authentication with bcryptjs for password hashing.
 
-| Document | Description |
-|---|---|
-| `docs/database-structure.md` | Database tables, fields, relationships, and schema notes. |
-| `docs/implementation-status.md` | Current implementation status and completed/missing features. |
-| `docs/er-diagram.md` | Entity relationship documentation for the database. |
-| `docs/project-structure.md` | Detailed project file and folder structure. |
+## Routes
 
-## Future Enhancements
+/ - Landing page - Public
+/login - Login page - Public
+/logout - Logout - Authenticated
+/dashboard - Dashboard - Authenticated
+/batches - Batch management - Authenticated
+/subjects - Subject management - Authenticated
+/results - Result management - Authenticated
+/sessions - Session management - Authenticated
 
-- Add pagination and filtering to result listings.
-- Implement role-based access control for admin and faculty users.
-- Provide an API endpoint for bulk revaluation uploads.
-- Add automated tests for controllers, routes, and database operations.
+## Current Project Status
 
----
+- Core architecture implemented with Express.js and Sequelize
+- Database models and associations defined
+- Dashboard with sidebar navigation
+- CRUD operations for batches, subjects, results, sessions
+- EJS views with layout system
 
-Feel free to explore the codebase, run the application, and extend its functionality. If you encounter any issues, check the documentation or open an issue on the repository.
+## Future Roadmap
 
-Happy coding!
+- Add pagination and filtering to result listings
+- Implement role-based access control for admin, faculty, and student roles
+- Add file upload functionality for revaluation documents
+- Implement OCR extraction for result processing
+- Implement automated tests
+- Add API endpoints for mobile applications
+
+## License
+This project is licensed under the ISC License.
+
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
+Password: admin123

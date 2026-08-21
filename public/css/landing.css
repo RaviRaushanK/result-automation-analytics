@@ -1,0 +1,481 @@
+@import "./tokens.css"; 
+
+/* ---------- Base ---------- */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family:Inter,sans-serif;
+
+  color:white;
+
+  background:
+  radial-gradient(circle at top left,#0b2f8d 0%,#091326 35%,#03050d 100%);
+
+}
+
+
+/* ---------- Hero ---------- */
+.landing-page{
+    width:100%;
+    height:100vh;
+}
+
+
+.landing-bg{
+
+    min-height:100vh;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    padding:3rem 2rem;
+
+    position:relative;
+
+    overflow:hidden;
+
+}
+
+/* Blur circles */
+
+.landing-bg::before{
+
+    content:"";
+
+    position:absolute;
+
+    width:28rem;
+
+    height:28rem;
+
+    background:#2563EB;
+
+    filter:blur(180px);
+
+    opacity:.18;
+
+    top:-12rem;
+
+    left:-8rem;
+}
+
+.landing-bg::after{
+
+    content:"";
+
+    position:absolute;
+
+    width:32rem;
+
+    height:32rem;
+
+    background:#111827;
+
+    filter:blur(180px);
+
+    opacity:.35;
+
+    right:-8rem;
+
+    bottom:-14rem;
+
+}
+
+/* ---------- Container ---------- */
+
+.hero-container{
+    max-width:52rem;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+}
+/* ---------- Logo ---------- */
+
+.hero-logo{
+
+    width:4.5rem;
+
+    height:4.5rem;
+
+    margin:auto;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    border-radius:50%;
+
+    background:rgba(37,99,235,.12);
+
+    border:1px solid rgba(255,255,255,.08);
+
+}
+
+.hero-logo i{
+
+    font-size:2.3rem;
+
+    color:#3B82F6;
+
+}
+
+/* ---------- Department ---------- */
+
+.hero-department{
+    display:block;
+
+    margin-top:1.5rem;
+
+    color:#3B82F6;
+
+    font-size:1.1rem;
+
+    font-weight:600;
+
+    opacity:0;
+
+    animation:fadeInUp .8s ease-out .2s forwards;
+}
+
+/* ---------- Divider ---------- */
+
+.hero-divider{
+    width:4rem;
+    height:.2rem;
+    margin:1.25rem auto;
+
+    background:#2563EB;
+    border-radius:999px;
+
+    opacity:0;
+    transform:scaleX(0);
+
+    animation:dividerReveal .7s ease-out .3s forwards;
+}
+
+@keyframes dividerReveal{
+    from{
+        opacity:0;
+        transform:scaleX(0);
+    }
+
+    to{
+        opacity:1;
+        transform:scaleX(1);
+    }
+}
+
+/* ---------- Description ---------- */
+.hero-description{
+
+    max-width:36rem;
+
+    margin:auto;
+
+    color:#a7afc0;
+
+    font-size:1.1rem;
+
+    line-height:1.7;
+
+    opacity:0;
+
+    animation:fadeInUp .8s ease-out .4s forwards;
+}
+
+
+/* ---------- Features ---------- */
+
+.hero-features{
+
+    margin:2rem 0;
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:2.25rem;
+
+    flex-wrap:wrap;
+
+}
+
+
+.feature{
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:center;
+
+    gap:.7rem;
+
+    opacity:0;
+
+    animation:fadeInUp .7s ease-out forwards;
+}
+
+
+.feature i{
+
+    color:#3B82F6;
+
+    font-size:2rem;
+
+    transition:.3s;
+
+}
+
+.feature:hover i{
+
+    transform:translateY(-5px) scale(1.15);
+
+    text-shadow:0 0 20px #2563EB;
+
+}
+
+.feature span{
+
+    color:#e5e7eb;
+
+}
+
+
+
+.feature:nth-child(1){
+    animation-delay:.6s;
+}
+
+.feature:nth-child(2){
+    animation-delay:.75s;
+}
+
+.feature:nth-child(3){
+    animation-delay:.9s;
+}
+
+.feature:nth-child(4){
+    animation-delay:1.05s;
+}
+
+/* ---------- Button ---------- */
+/* ---------- Hero Button ---------- */
+
+.hero-btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.7rem;
+
+    width:20rem;
+    height:3.7rem;
+
+    position:relative;
+    overflow:hidden;
+
+    border-radius:.9rem;
+    text-decoration:none;
+
+    color:#fff;
+    font-size:1.1rem;
+    font-weight:600;
+
+    background:linear-gradient(135deg,#2563EB,#1D4ED8);
+    box-shadow:0 .5rem 1.5rem rgba(37,99,235,.35);
+
+    /* Page load animation */
+    opacity:0;
+    animation:buttonReveal .8s ease-out 1.2s forwards;
+
+    /* Hover animation */
+    transition:
+        transform .25s ease,
+        box-shadow .25s ease,
+        background .25s ease;
+}
+
+/* Hover Effect */
+.hero-btn:hover{
+    transform:translateY(-0.35rem) scale(1.03);
+
+    background:linear-gradient(135deg,#3B82F6,#2563EB);
+
+    box-shadow:
+        0 1rem 2rem rgba(37,99,235,.45),
+        0 0 2.5rem rgba(37,99,235,.30);
+
+    color:#fff;
+}
+
+/* Click Effect */
+.hero-btn:active{
+    transform:translateY(-0.15rem) scale(1.01);
+}
+
+/* Shine Animation */
+.hero-btn::before{
+    content:"";
+    position:absolute;
+    inset:0;
+
+    background:linear-gradient(
+        120deg,
+        transparent,
+        rgba(255,255,255,.28),
+        transparent
+    );
+
+    transform:translateX(-120%);
+    transition:transform .7s ease;
+}
+
+.hero-btn:hover::before{
+    transform:translateX(120%);
+}
+
+/* Icon Animation */
+.hero-btn i{
+    transition:transform .25s ease;
+}
+
+.hero-btn:hover i{
+    transform:translateX(-4px) rotate(-10deg);
+}
+
+/* Button Reveal Animation */
+@keyframes buttonReveal{
+    from{
+        opacity:0;
+        transform:translateY(2rem);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+/* ---------- Footer ---------- */
+
+.hero-footer{
+
+    margin-top:2rem;
+    padding-top:1rem;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    gap:.5rem;
+
+    color:#9CA3AF;
+
+    opacity:0;
+
+    animation:fadeInUp .8s ease-out 1.5s forwards;
+}
+
+.hero-footer i{
+
+    color:#3B82F6;
+
+}
+
+/* ---------- Responsive ---------- */
+
+@media(max-width:768px){
+
+    .landing-bg{
+
+        padding:2rem 1.25rem;
+
+    }
+
+    .hero-features{
+
+        gap:2rem;
+
+    }
+
+    .hero-btn{
+
+        width:100%;
+
+        max-width:20rem;
+
+    }
+
+    .hero-description{
+
+        font-size:1rem;
+
+    }
+
+}
+
+@media(max-width:480px){
+
+    .hero-features{
+
+        display:grid;
+
+        grid-template-columns:repeat(2,1fr);
+
+        gap:2rem;
+
+    }
+
+    .hero-title{
+
+        line-height:1.25;
+
+    }
+
+}
+
+
+.hero-title{
+    margin-top:1rem;
+
+    font-size:clamp(2rem,3.5vw,3.3rem);
+
+    line-height:1.15;
+
+    font-weight:800;
+
+    letter-spacing:-0.03em;
+
+    opacity:0;
+
+    animation:fadeInUp .9s ease-out forwards;
+}
+
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 2.5rem, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+

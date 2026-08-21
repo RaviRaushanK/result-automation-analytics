@@ -27,7 +27,7 @@ CREATE TABLE admin_users (
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('super_admin', 'department_admin') DEFAULT 'department_admin',
+  role ENUM('admin') DEFAULT 'admin',
   status ENUM('active', 'inactive') DEFAULT 'active',
   last_login TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

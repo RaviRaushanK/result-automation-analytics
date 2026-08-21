@@ -1,0 +1,87 @@
+<aside class="sidebar" id="sidebar" aria-label="Main sidebar">
+  <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse sidebar" title="Collapse sidebar">
+    <span class="material-icons">chevron_left</span>
+  </button>
+
+  <div class="sidebar-scrollable">
+    <nav class="nav flex-column" aria-label="Main navigation">
+      <%
+        // Get active path - currentPath is passed from route
+        var activePath = currentPath || '';
+        
+        // Helper function to check active route
+        function isActive(itemRoute) {
+          if (!itemRoute || !activePath) return false;
+          return (activePath === itemRoute) || (activePath.indexOf(itemRoute + '/') === 0);
+        }
+        
+        // Helper function to check if any child is active
+        function hasActiveChild(items) {
+          if (!items || !activePath) return false;
+          for (var i = 0; i < items.length; i++) {
+            if (isActive(items[i].route)) return true;
+            if (items[i].children && items[i].children.length) {
+              if (hasActiveChild(items[i].children)) return true;
+            }
+          }
+          return false;
+        }
+        
+        // Render menu recursively
+        function renderMenu(items) {
+          if (!items) return;
+          for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var safeId = item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            var itemActive = isActive(item.route);
+            var parentActive = hasActiveChild(item.children);
+            var isExpanded = parentActive;
+            
+            // Build class string
+            var linkClass = 'sidebar-link';
+            if (itemActive) linkClass += ' active';
+            if (parentActive) linkClass += ' active-parent';
+            if (item.children && item.children.length && !isExpanded) linkClass += ' collapsed';
+      %>
+        <div class="nav-item">
+          <% if (item.children && item.children.length) { %>
+            <a class="nav-link <%= linkClass %> d-flex justify-content-between align-items-center"
+               href="#"
+               data-bs-toggle="collapse"
+               data-bs-target="#menu-<%= safeId %>"
+               aria-expanded="<%= isExpanded %>">
+              <span><i class="material-icons me-2"><%= item.icon %></i><%= item.label %></span>
+              <i class="material-icons sidebar-arrow">chevron_right</i>
+            </a>
+            <div class="collapse<%= isExpanded ? ' show' : '' %>" id="menu-<%= safeId %>">
+              <nav class="nav flex-column ms-3">
+                <% renderMenu(item.children); %>
+              </nav>
+            </div>
+          <% } else { %>
+            <a class="nav-link <%= linkClass %>" href="<%= item.route %>" <%= itemActive ? 'aria-current="page"' : '' %>>
+              <i class="material-icons me-2"><%= item.icon %></i><%= item.label %>
+            </a>
+          <% } %>
+        </div>
+      <% } %>
+        <% } %>
+      <% renderMenu(sidebarMenu); %>
+    </nav>
+  </div>
+
+  <div class="sidebar-footer">
+    <%
+      var settingsActive = isActive('/settings');
+      var settingsClass = 'sidebar-link sidebar-settings-link';
+      if (settingsActive) settingsClass += ' active';
+    %>
+    <a class="nav-link <%= settingsClass %>"
+       href="/settings"
+       <%- settingsActive ? 'aria-current="page"' : '' %>
+       aria-label="Settings">
+      <i class="material-icons me-2">settings</i>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>

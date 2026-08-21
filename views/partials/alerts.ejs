@@ -1,0 +1,10 @@
+<% if (flash && flash.length) { %>
+  <div class="alert-container position-fixed top-0 end-0 p-3">
+    <% flash.forEach(function(msg) { %>
+      <div class="alert alert-<%= msg.type %> alert-dismissible fade show" role="alert">
+        <%= msg.text %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
