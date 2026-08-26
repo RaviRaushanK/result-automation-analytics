@@ -32,6 +32,24 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       defaultValue: 0
     },
+    max_internal: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 50,
+      comment: 'Maximum internal/CIE marks'
+    },
+    max_external: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 50,
+      comment: 'Maximum external/SEE marks'
+    },
+    max_marks: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 100,
+      comment: 'Maximum total marks; grade % computed against this'
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

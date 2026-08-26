@@ -15,8 +15,6 @@ module.exports = {
     // HELPER FUNCTIONS
     // ============================================================
 
-    // Seeded random number generator
-    // This makes the generated data consistent every time.
     let seed = 12345;
 
     function random() {
@@ -46,11 +44,20 @@ module.exports = {
     await queryInterface.bulkInsert('departments', [
       {
         department_id: departmentId,
-        department_uuid: '11111111-1111-1111-1111-111111111111',
+
+        department_uuid:
+          '11111111-1111-1111-1111-111111111111',
+
         department_code: 'MCA',
-        department_name: 'Master of Computer Applications',
-        description: 'MCA Department',
+
+        department_name:
+          'Master of Computer Applications',
+
+        description:
+          'MCA Department',
+
         status: 'active',
+
         created_at: new Date(),
         updated_at: new Date()
       }
@@ -63,12 +70,21 @@ module.exports = {
     await queryInterface.bulkInsert('batches', [
       {
         batch_id: batchId,
-        batch_uuid: '22222222-2222-2222-2222-222222222222',
+
+        batch_uuid:
+          '22222222-2222-2222-2222-222222222222',
+
         department_id: departmentId,
-        batch_name: 'MCA 2025-2027',
+
+        batch_name:
+          'MCA 2025-2027',
+
         start_year: 2025,
+
         end_year: 2027,
+
         status: 'active',
+
         created_at: new Date(),
         updated_at: new Date()
       }
@@ -97,7 +113,9 @@ module.exports = {
     const faculty = [];
 
     for (let i = 0; i < 7; i++) {
+
       faculty.push({
+
         faculty_id: i + 1,
 
         faculty_uuid:
@@ -108,13 +126,16 @@ module.exports = {
         faculty_code:
           `FAC${String(i + 1).padStart(3, '0')}`,
 
-        faculty_name: facultyNames[i],
+        faculty_name:
+          facultyNames[i],
 
         email:
           `faculty${i + 1}@example.com`,
 
         designation:
-          designations[randomInt(0, designations.length - 1)],
+          designations[
+            randomInt(0, designations.length - 1)
+          ],
 
         status: 'active',
 
@@ -123,7 +144,10 @@ module.exports = {
       });
     }
 
-    await queryInterface.bulkInsert('faculty', faculty);
+    await queryInterface.bulkInsert(
+      'faculty',
+      faculty
+    );
 
     // ============================================================
     // 4. RESULT SESSION
@@ -142,7 +166,7 @@ module.exports = {
 
         exam_session: 'DEC',
 
-        exam_year: 2026,
+        exam_year: 2025,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -150,7 +174,7 @@ module.exports = {
     ]);
 
     // ============================================================
-    // 5. SUBJECTS - 6 SUBJECTS
+    // 5. SUBJECTS - ACTUAL SUBJECTS FROM MARKS CARD
     // ============================================================
 
     await queryInterface.bulkInsert('subjects', [
@@ -163,14 +187,20 @@ module.exports = {
 
         session_id: sessionId,
 
-        subject_code: 'MCA101',
+        subject_code: 'MMC101',
 
         subject_name:
-          'Programming Fundamentals',
+          'PROGRAMMING AND PROBLEM SOLVING IN C',
 
         subject_type: 'theory',
 
         credits: 4,
+
+        max_internal: 50,
+
+        max_external: 50,
+
+        max_marks: 100,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -184,14 +214,20 @@ module.exports = {
 
         session_id: sessionId,
 
-        subject_code: 'MCA102',
+        subject_code: 'MMC102',
 
         subject_name:
-          'Data Structures',
+          'DISCRETE MATHEMATICS AND GRAPH THEORY',
 
         subject_type: 'theory',
 
         credits: 4,
+
+        max_internal: 50,
+
+        max_external: 50,
+
+        max_marks: 100,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -205,14 +241,20 @@ module.exports = {
 
         session_id: sessionId,
 
-        subject_code: 'MCA103',
+        subject_code: 'MMC103',
 
         subject_name:
-          'Database Management Systems',
+          'DATABASE MANAGEMENT SYSTEMS (DBMS)',
 
         subject_type: 'theory',
 
         credits: 4,
+
+        max_internal: 50,
+
+        max_external: 50,
+
+        max_marks: 100,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -226,14 +268,20 @@ module.exports = {
 
         session_id: sessionId,
 
-        subject_code: 'MCA104',
+        subject_code: 'MMC104',
 
         subject_name:
-          'Computer Networks',
+          'OPERATING SYSTEM',
 
         subject_type: 'theory',
 
         credits: 4,
+
+        max_internal: 50,
+
+        max_external: 50,
+
+        max_marks: 100,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -247,14 +295,20 @@ module.exports = {
 
         session_id: sessionId,
 
-        subject_code: 'MCA105',
+        subject_code: 'MMC105',
 
         subject_name:
-          'Operating Systems',
+          'WEB TECHNOLOGIES',
 
         subject_type: 'theory',
 
         credits: 4,
+
+        max_internal: 50,
+
+        max_external: 50,
+
+        max_marks: 100,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -268,14 +322,20 @@ module.exports = {
 
         session_id: sessionId,
 
-        subject_code: 'MCA106',
+        subject_code: 'MMCL106',
 
         subject_name:
-          'Web Technologies',
+          'DBMS AND WEB TECHNOLOGIES LABORATORY',
 
-        subject_type: 'theory',
+        subject_type: 'lab',
 
         credits: 4,
+
+        max_internal: 50,
+
+        max_external: 50,
+
+        max_marks: 100,
 
         created_at: new Date(),
         updated_at: new Date()
@@ -337,11 +397,50 @@ module.exports = {
 
     for (let i = 1; i <= 76; i++) {
 
+      // ----------------------------------------------------------
+      // Real student from uploaded marks card
+      // ----------------------------------------------------------
+
+      if (i === 1) {
+
+        students.push({
+
+          student_id: 1,
+
+          student_uuid:
+            '77777777-7777-7777-7777-000000000001',
+
+          batch_id: batchId,
+
+          usn:
+            '1MV25MC061',
+
+          student_name:
+            'RAVI RAUSHAN KUMAR',
+
+          email:
+            'student1@example.com',
+
+          status: 'active',
+
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+
+        continue;
+      }
+
+      // ----------------------------------------------------------
+      // Dummy students for analytics/demo data
+      // ----------------------------------------------------------
+
       const firstName =
         firstNames[(i - 1) % firstNames.length];
 
       const lastName =
-        lastNames[randomInt(0, lastNames.length - 1)];
+        lastNames[
+          randomInt(0, lastNames.length - 1)
+        ];
 
       students.push({
 
@@ -383,12 +482,29 @@ module.exports = {
     for (let studentId = 1; studentId <= 76; studentId++) {
 
       // ----------------------------------------------------------
+      // IMPORTANT
+      //
+      // Student 1 is the real student from the uploaded
+      // marks card.
+      //
+      // Do NOT create a result for this student here.
+      //
+      // The upload/extraction module will create the result
+      // after admin confirmation.
+      // ----------------------------------------------------------
+
+      if (studentId === 1) {
+        continue;
+      }
+
+      // ----------------------------------------------------------
       // Generate marks for 6 subjects
       // ----------------------------------------------------------
 
       const marks = [];
 
       for (let i = 0; i < 6; i++) {
+
         marks.push(
           randomInt(35, 98)
         );
@@ -420,15 +536,17 @@ module.exports = {
       // ----------------------------------------------------------
       // Calculate SGPA
       //
-      // All 6 subjects have 4 credits.
+      // TEMPORARY DEMO CALCULATION
+      //
+      // Official credits should be added later.
       // ----------------------------------------------------------
 
       let totalGradePoints = 0;
-
       let totalCredits = 0;
 
       for (let i = 0; i < 6; i++) {
 
+        // Temporary 4-credit assumption
         totalGradePoints +=
           grades[i].point * 4;
 
@@ -464,11 +582,10 @@ module.exports = {
 
         sgpa: roundedSGPA,
 
-        // Since this is Semester 1,
-        // CGPA is same as SGPA.
         cgpa: roundedSGPA,
 
-        result_status: resultStatus,
+        result_status:
+          resultStatus,
 
         failed_subject_count:
           failedSubjectCount,
@@ -492,7 +609,8 @@ module.exports = {
 
           marks: marks[i],
 
-          grade: grades[i].grade,
+          grade:
+            grades[i].grade,
 
           result_status:
             marks[i] >= 40
@@ -523,7 +641,6 @@ module.exports = {
       'subject_results',
       subjectResults
     );
-
   },
 
   // ============================================================

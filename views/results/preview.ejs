@@ -1,0 +1,119 @@
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-9">
+
+      <!-- Validation successful banner -->
+      <div class="alert alert-success d-flex align-items-center shadow-sm" role="alert">
+        <i class="material-icons me-2">check_circle</i>
+        <div>
+          <strong>Validation Successful!</strong>
+          All result data passed validation. Please review everything below before importing.
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h4 class="mb-0">Validated Preview</h4>
+            <small class="text-muted"><%= sessionDisplay %></small>
+          </div>
+          <span class="badge bg-info text-dark">Step 3 of 4</span>
+        </div>
+
+        <div class="card-body">
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-3">
+              <div class="border rounded p-3 h-100">
+                <h6 class="text-primary mb-2">Student</h6>
+                <div class="fw-semibold"><%= data.student.name %></div>
+                <code><%= data.student.usn %></code>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-3 h-100">
+                <h6 class="text-primary mb-2">Overall Result</h6>
+                <% if (data.overallResult === 'pass') { %>
+                  <span class="badge bg-success fs-6">PASS</span>
+                <% } else { %>
+                  <span class="badge bg-danger fs-6">FAIL</span>
+                <% } %>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-3 h-100">
+                <h6 class="text-primary mb-2">SGPA</h6>
+                <span class="fs-4 fw-bold"><%= data.sgpa %></span>
+                <div class="small text-muted">all courses incl. F</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-3 h-100">
+                <h6 class="text-primary mb-2">CGPA</h6>
+                <span class="fs-4 fw-bold"><%= data.cgpa === null ? '—' : data.cgpa %></span>
+                <div class="small text-muted">excludes F-grade courses</div>
+              </div>
+            </div>
+          </div>
+
+          <h6 class="text-primary mb-2">Subject Results (<%= data.subjects.length %> subjects)</h6>
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Code</th>
+                  <th>Subject</th>
+                  <th class="text-center">Internal</th>
+                  <th class="text-center">External</th>
+                  <th class="text-center">Total</th>
+                  <th class="text-center">Score %</th>
+                  <th class="text-center">Grade</th>
+                  <th class="text-center">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% data.subjects.forEach(function (s) { %>
+                  <tr>
+                    <td><code><%= s.subject_code %></code></td>
+                    <td><%= s.subject_name %></td>
+                    <td class="text-center"><%= s.internalMarks %></td>
+                    <td class="text-center"><%= s.externalMarks %></td>
+                    <td class="text-center fw-bold"><%= s.totalMarks %></td>
+                    <td class="text-center"><%= s.percent %>%</td>
+                    <td class="text-center"><%= s.grade %></td>
+                    <td class="text-center">
+                      <% if (s.result_status === 'pass') { %>
+                        <span class="badge bg-success">PASS</span>
+                      <% } else { %>
+                        <span class="badge bg-danger">FAIL</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="small text-muted mb-0">
+            Failed subjects: <strong><%= data.failedSubjectCount %></strong>
+            &middot; Grading per <strong>P.G. 2022/2024</strong> scheme (O 90–100 · A+ 80–89 · A 70–79 · B+ 60–69 · B 55–59 · C 50–54 · F &lt;50)
+            &middot; SGPA/CGPA will be saved exactly as shown above.
+          </p>
+
+        </div>
+
+        <div class="card-footer bg-white d-flex justify-content-between py-3">
+          <a href="/results/upload/<%= importId %>/review" class="btn btn-secondary btn-lg">
+            <i class="material-icons align-middle me-1" style="font-size:18px;">arrow_back</i> Back &amp; Edit
+          </a>
+          <form action="/results/upload/<%= importId %>/import" method="POST" id="confirmForm">
+            <button type="submit" class="btn btn-success btn-lg">
+              <i class="material-icons align-middle me-1" style="font-size:18px;">save</i> Confirm &amp; Save
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

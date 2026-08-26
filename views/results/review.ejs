@@ -1,0 +1,113 @@
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-12">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h4 class="mb-0">Review & Edit</h4>
+            <small class="text-muted"><%= sessionDisplay %></small>
+          </div>
+          <span class="badge bg-warning text-dark">Step 2 of 4 &mdash; compare the card, fix any OCR mistakes</span>
+        </div>
+        <div class="card-body">
+                    <% if (typeof duplicateStudent !== 'undefined' && duplicateStudent) { %>
+            <div class="alert alert-danger d-flex align-items-start" role="alert">
+              <i class="material-icons me-2 mt-1">block</i>
+              <div>
+                <strong>Duplicate Student Detected</strong>
+                <div class="small mt-1">
+                  A result for <strong><%= student.usn %></strong> already exists in this session
+                  (<%= sessionDisplay %>). You cannot save another result for the same student.
+                </div>
+              </div>
+            </div>
+          <% } %>
+          <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" novalidate>
+            <div class="row g-3">
+              <!-- LEFT: original marks card -->
+              <div class="col-lg-6">
+                <div class="border rounded bg-light h-100 d-flex flex-column" style="min-height: 480px;">
+                  <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-white rounded-top">
+                    <strong>Original Marks Card</strong>
+                    <a href="<%= fileUrl %>" target="_blank" class="btn btn-sm btn-outline-secondary">
+                      <i class="material-icons" style="font-size:16px;">open_in_new</i> Open
+                    </a>
+                  </div>
+                  <div class="flex-grow-1 overflow-auto p-2">
+                    <% if (fileType === 'pdf') { %>
+                      <iframe src="<%= fileUrl %>" style="width:100%; height:759px; border:none;"></iframe>  <!-- Updated 560px to 759px -->
+                    <% } else { %>
+                      <img src="<%= fileUrl %>" alt="Original marks card" class="img-fluid rounded mx-auto d-block" style="max-height:640px;">
+                    <% } %>
+                  </div>
+                </div>
+              </div><!-- /LEFT -->
+              
+              <!-- RIGHT: editable extracted data -->
+              <div class="col-lg-6">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <h6 class="text-primary mb-3">Student Information</h6>
+                    <div class="row g-3">
+                      <div class="col-md-5">
+                        <label class="form-label small fw-semibold">USN</label>
+                        <input type="text" class="form-control text-uppercase" id="usnInput" name="usn" value="<%= student.usn %>" maxlength="20" required>
+                      </div>
+                      <div class="col-md-7">
+                        <label class="form-label small fw-semibold">Student Name</label>
+                        <input type="text" class="form-control" id="nameInput" name="name" value="<%= student.name %>" maxlength="100" required>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="text-primary">Subject Results</h6>
+                      <span class="badge bg-secondary small"><%= subjects.length %> subjects</span>
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table table-bordered table-striped align-middle mb-0" id="subjectsTable">
+                        <thead class="table-light"><tr>
+                          <th style="width:10%;">Code</th><th style="width:35%;">Subject</th>
+                          <th class="text-center" style="width:15%;">Internal</th>
+                          <th class="text-center" style="width:15%;">External</th>
+                          <th class="text-center">Total</th><th class="text-center">Status</th>
+                        </tr></thead>
+                        <tbody>
+                          <% subjects.forEach(function (s) { %>
+                            <% var maxI = s.max_internal || 50; %>
+                            <% var maxE = s.max_external || 100; %>
+                            <% var maxM = s.max_marks || (maxI + maxE); %>
+                            <% var iVal = (s.internalMarks != null && s.internalMarks !== "") ? s.internalMarks : ""; %>
+                            <% var xVal = (s.externalMarks != null && s.externalMarks !== "") ? s.externalMarks : ""; %>
+                            <% var total = (iVal !== "" && xVal !== "") ? (parseInt(iVal,10) + parseInt(xVal,10)) : ""; %>
+                            <tr data-max-marks="<%= maxM %>" data-max-internal="<%= maxI %>" data-max-external="<%= maxE %>">
+                              <td><code><%= s.subject_code %></code></td>
+                              <td><%= s.subject_name %></td>
+                              <td><input type="number" min="0" max="<%= maxI %>" class="form-control form-control-sm internal-input" id="internal_<%= s.subject_id %>" name="internal_<%= s.subject_id %>" value="<%= iVal %>" required placeholder="0-<%= maxI %>"><div class="small text-muted">max <%= maxI %></div></td>
+                              <td><input type="number" min="0" max="<%= maxE %>" class="form-control form-control-sm external-input" id="external_<%= s.subject_id %>" name="external_<%= s.subject_id %>" value="<%= xVal %>" required placeholder="0-<%= maxE %>"><div class="small text-muted">max <%= maxE %></div></td>
+                              <td class="fw-bold total-cell"><%= total !== "" ? total : "—" %></td>
+                              <td class="status-cell text-center"><% if (total !== "") { %><% var pct = Math.floor((total/maxM)*100); %><% if (pct >= 50) { %><span class="badge bg-success">PASS</span><% } else { %><span class="badge bg-danger">FAIL</span><% } %><% } else { %><span class="badge bg-secondary">N/A</span><% } %></td>
+                            </tr>
+                          <% }); %>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                  <a href="/results/upload" class="btn btn-outline-secondary flex-fill">Cancel</a>
+                  <button type="submit" id="validateButton" class="btn btn-primary btn-lg flex-fill<%= duplicateStudent ? " disabled" : "" %>">
+                    Validate <i class="material-icons align-middle ms-1" style="font-size:18px;">arrow_forward</i>
+                  </button>
+                </div>
+              </div><!-- /RIGHT -->
+            </div><!-- /row -->
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/js/results/review.js"></script>

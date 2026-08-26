@@ -1,0 +1,42 @@
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6 text-center">
+
+      <div class="card shadow-sm my-5">
+        <div class="card-body p-5">
+
+          <i class="material-icons text-success mb-3" style="font-size: 80px;">check_circle</i>
+          <h3 class="mb-1">Result Imported Successfully</h3>
+          <p class="text-muted mb-4">The result has been saved to the database.</p>
+
+          <div class="border rounded p-4 bg-light text-start mb-4">
+            <p class="mb-2"><strong>Student:</strong> <%= studentName %> (<code><%= usn %></code>)</p>
+            <p class="mb-2"><strong>Result Session:</strong> <%= sessionDisplay %></p>
+            <p class="mb-2"><strong>Subjects Imported:</strong> <%= subjectsCount %></p>
+            <p class="mb-0">
+              <strong>Result:</strong>
+              <% if (overallResult === 'pass') { %>
+                <span class="badge bg-success">PASS</span>
+              <% } else { %>
+                <span class="badge bg-danger">FAIL</span>
+              <% } %>
+              &nbsp;<strong>SGPA:</strong> <span class="fw-bold"><%= sgpa %></span>
+              &nbsp;&middot;&nbsp;<strong>CGPA:</strong> <span class="fw-bold"><%= typeof cgpa !== 'undefined' && cgpa !== null ? cgpa : '—' %></span>
+            </p>
+          </div>
+
+          <div class="d-flex gap-2 justify-content-center flex-wrap">
+            <a href="/results/logs" class="btn btn-outline-primary btn-lg">
+              <i class="material-icons align-middle me-1" style="font-size:18px;">list_alt</i> View Import Logs
+            </a>
+            <a href="/results/upload" class="btn btn-primary btn-lg">
+              <i class="material-icons align-middle me-1" style="font-size:18px;">cloud_upload</i> Upload Another
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

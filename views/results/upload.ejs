@@ -1,0 +1,91 @@
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-9">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h4 class="mb-0">Upload Results</h4>
+          <small class="text-muted">Upload a student marks card and import the result data</small>
+        </div>
+        <div class="card-body">
+
+          <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><i class="material-icons align-middle me-1">error</i> <%= error %></div>
+          <% } %>
+
+          <form id="uploadForm" action="/results/upload" method="POST" enctype="multipart/form-data" novalidate>
+
+            <!-- 1. Result Session -->
+            <div class="mb-3">
+              <label for="resultSessionSelect" class="form-label fw-semibold">
+                Result Session <span class="text-danger">*</span>
+              </label>
+              <select class="form-select form-select-lg" id="resultSessionSelect" name="sessionId" required>
+                <option value="">Select Result Session</option>
+                <% sessions.forEach(function (s) { %>
+                  <option value="<%= s.session_id %>"><%= s.display_name %></option>
+                <% }); %>
+              </select>
+              <div class="invalid-feedback">Please select the result session this marks card belongs to.</div>
+            </div>
+
+            <!-- Selected session summary + expected subjects -->
+            <div id="sessionDetailsCard" class="card bg-light border-0 mb-4" style="display: none;">
+              <div class="card-body">
+                <h6 class="text-primary mb-3">Selected Session</h6>
+                <div class="row g-2 mb-2 small">
+                  <div class="col-md-6"><strong>Academic Year:</strong> <span id="displayAcademicYear"></span></div>
+                  <div class="col-md-6"><strong>Semester:</strong> <span id="displaySemester"></span></div>
+                  <div class="col-md-6"><strong>Exam Session:</strong> <span id="displayExamSession"></span></div>
+                  <div class="col-md-6"><strong>Subjects:</strong> <span id="displaySubjectCount"></span></div>
+                </div>
+                <h6 class="text-primary mb-2">Subjects the system expects on this card</h6>
+                <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+                  <table class="table table-sm table-bordered table-striped bg-white mb-0">
+                    <thead class="table-light">
+                      <tr><th style="width:130px;">Code</th><th>Subject</th><th style="width:90px;">Credits</th></tr>
+                    </thead>
+                    <tbody id="subjectPreviewList"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Marks card -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Marks Card <span class="text-danger">*</span></label>
+              <div id="dropZone"
+                   class="border rounded text-center p-5 bg-light"
+                   style="border-style: dashed !important; border-width: 2px !important; cursor: pointer;">
+                <i class="material-icons text-muted" style="font-size: 48px;">cloud_upload</i>
+                <p class="mb-0 mt-2">Drag &amp; drop marks card here</p>
+                <p class="text-muted small mb-2">PDF marks card &middot; max 15 MB</p>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="chooseFileButton">Choose File</button>
+                <div class="mt-2 fw-medium text-primary" id="fileNameLabel"></div>
+              </div>
+              <input type="file" id="marksCardInput" name="resultDocument"
+                     accept=".pdf" class="d-none" required>
+              <div class="invalid-feedback d-none" id="fileErrorFeedback">Please choose a marks card file.</div>
+            </div>
+
+            <input type="hidden" name="resultType" value="original">
+
+            <button type="submit" id="extractButton" class="btn btn-primary btn-lg w-100" disabled>
+              <i class="material-icons align-middle me-1">document_scanner</i> Extract Data
+            </button>
+
+          </form>
+
+        </div>
+      </div>
+
+      <!-- Flow hint -->
+      <div class="text-center text-muted small mb-4">
+        Select Session &rarr; Upload Card &rarr; OCR Extraction &rarr; Review &amp; Edit &rarr; Validate &rarr; Confirm &amp; Save
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/js/results/uploadSession.js"></script>

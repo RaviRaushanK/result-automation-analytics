@@ -19,12 +19,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     sgpa: {
-      type: DataTypes.DECIMAL(3,2),
-      allowNull: false
+      type: DataTypes.DECIMAL(4,2),
+      allowNull: true
     },
     cgpa: {
-      type: DataTypes.DECIMAL(3,2),
-      allowNull: false
+      type: DataTypes.DECIMAL(4,2),
+      allowNull: true
     },
     result_status: {
       type: DataTypes.ENUM('pass', 'fail'),

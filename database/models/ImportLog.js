@@ -38,8 +38,8 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0
     },
     status: {
-      type: DataTypes.ENUM('success', 'failed'),
-      defaultValue: 'success'
+      type: DataTypes.ENUM('pending', 'extracted', 'success', 'failed'),
+      defaultValue: 'pending'
     },
     created_at: {
       type: DataTypes.DATE,

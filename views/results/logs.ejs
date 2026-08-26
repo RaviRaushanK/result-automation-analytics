@@ -1,0 +1,74 @@
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Import Logs</h4>
+          <span class="badge bg-secondary"><%= logs.length %> records</span>
+        </div>
+        <div class="card-body">
+
+          <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><i class="material-icons align-middle me-1">error</i> <%= error %></div>
+          <% } %>
+
+          <% if (logs && logs.length > 0) { %>
+            <div class="table-responsive">
+              <table class="table table-hover table-striped align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Date</th>
+                    <th>Session</th>
+                    <th>Marks Card File</th>
+                    <th>Records</th>
+                    <th>Status</th>
+                    <th class="text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% logs.forEach(function (log) { %>
+                    <tr>
+                      <td class="text-nowrap"><%= log.date %></td>
+                      <td><small><%= log.session_display %></small></td>
+                      <td><small><code><%= log.file_name %></code></small></td>
+                      <td class="text-center"><%= log.imported_records %> / <%= log.total_records %></td>
+                      <td>
+                        <% if (log.status === 'success') { %>
+                          <span class="badge bg-success">Success</span>
+                        <% } else if (log.status === 'failed') { %>
+                          <span class="badge bg-danger">Failed</span>
+                        <% } else if (log.status === 'extracted') { %>
+                          <a href="/results/upload/<%= log.import_id %>/review" class="badge bg-warning text-dark text-decoration-none">Pending Review</a>
+                        <% } else { %>
+                          <span class="badge bg-secondary"><%= log.status %></span>
+                        <% } %>
+                      </td>
+                      <td class="text-center">
+                        <% if (log.status !== 'failed') { %>
+                          <a href="/uploads/results/<%= log.file_name %>" target="_blank"
+                             class="btn btn-sm btn-outline-info" title="View original marks card">
+                            <i class="material-icons" style="font-size:16px;">visibility</i>
+                          </a>
+                        <% } else { %>
+                          <span class="text-muted small">&mdash;</span>
+                        <% } %>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          <% } else { %>
+            <div class="alert alert-info mb-0" role="alert">
+              No imports yet. Upload a result from
+              <a href="/results/upload">Upload Results</a> to see logs here.
+            </div>
+          <% } %>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

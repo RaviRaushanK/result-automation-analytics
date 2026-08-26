@@ -24,15 +24,24 @@
   "homepage": "https://github.com/RaviRaushanK/result-automation-analytics#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "concurrently": "^10.0.5",
     "cookie-parser": "^1.4.7",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-ejs-layouts": "^2.5.1",
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.19.0",
+    "fs": "^0.0.1-security",
+    "multer": "^2.2.0",
     "mysql2": "^3.22.5",
+    "path": "^0.12.7",
+    "pdfjs-dist": "^6.2.108",
     "sequelize": "^6.37.8",
-    "sequelize-cli": "^6.6.5"
+    "sequelize-cli": "^6.6.5",
+    "sharp": "^0.35.3",
+    "sucrase": "^3.35.1",
+    "tesseract.js": "^7.0.0"
   }
 }
