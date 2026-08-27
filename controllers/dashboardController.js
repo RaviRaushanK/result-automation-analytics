@@ -1,5 +1,4 @@
-const { Op } = require('sequelize');
-const { fn, col } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 const {
     Result,
     ResultSession,
@@ -83,7 +82,7 @@ const dashboardController = {
             const failPercentage = totalResults ? parseFloat(((totalFail / totalResults) * 100).toFixed(2)) : 0;
             const totalSubjects = await Subject.count({ where: subjectWhere });
 
-            // Highest score (max marks across subject_results for filtered sessions)
+            // Highest score
             const highestScore = await SubjectResult.max('marks', {
                 include: [{ model: Result, where: resultWhere, attributes: [] }]
             });
@@ -99,11 +98,12 @@ const dashboardController = {
             // Subject-wise averages
             const subjectAverages = await SubjectResult.findAll({
                 attributes: [
+                    [col('Subject.subject_code'), 'subject_code'],
                     [col('Subject.subject_name'), 'subject_name'],
                     [fn('AVG', col('SubjectResult.marks')), 'average_marks']
                 ],
                 include: [{ model: Subject, attributes: [], where: subjectWhere }],
-                group: ['Subject.subject_id', 'Subject.subject_name'],
+                group: ['Subject.subject_id', 'Subject.subject_code', 'Subject.subject_name'],
                 order: [[fn('AVG', col('SubjectResult.marks')), 'DESC']],
                 raw: true
             });
@@ -122,6 +122,7 @@ const dashboardController = {
                         averageCGPA
                     },
                     subjectAverages: subjectAverages.map(s => ({
+                        subject_code: s.subject_code,
                         subject_name: s.subject_name,
                         average_marks: parseFloat(parseFloat(s.average_marks).toFixed(2))
                     }))

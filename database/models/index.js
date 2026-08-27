@@ -90,13 +90,33 @@ SubjectResult.belongsTo(Result, { foreignKey: 'result_id' });
 Subject.hasMany(SubjectResult, { foreignKey: 'subject_id' });
 SubjectResult.belongsTo(Subject, { foreignKey: 'subject_id' });
 
-// SubjectResult ↔ RevaluationResult
+// SubjectResult ↔ RevaluationResult (one subject attempt can accumulate
+// MULTIPLE historical revaluation events; exactly one is_effective)
+SubjectResult.hasMany(RevaluationResult, {
+  foreignKey: 'subject_result_id',
+  as: 'Revaluations'
+});
+
+// Convenience accessor for the single event feeding effective results
 SubjectResult.hasOne(RevaluationResult, {
-  foreignKey: 'subject_result_id'
+  foreignKey: 'subject_result_id',
+  scope: { is_effective: true },
+  as: 'EffectiveRevaluation'
 });
 
 RevaluationResult.belongsTo(SubjectResult, {
   foreignKey: 'subject_result_id'
+});
+
+// Revaluation provenance (uploaded_by / reviewed_by)
+AdminUser.hasMany(RevaluationResult, {
+  foreignKey: 'uploaded_by',
+  as: 'revaluationsUploaded'
+});
+
+RevaluationResult.belongsTo(AdminUser, {
+  foreignKey: 'uploaded_by',
+  as: 'uploader'
 });
 
 // ResultSession ↔ ImportLog

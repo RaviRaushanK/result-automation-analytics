@@ -1,0 +1,182 @@
+<div class="container-fluid">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h4 class="mb-1"><i class="material-icons me-1">document_scanner</i> Revaluation — OCR Extraction</h4>
+      <p class="text-muted mb-0">Candidates read from the uploaded revaluation document. Nothing academic has been changed.</p>
+    </div>
+    <div class="col-auto">
+      <% if (extractionStatus === 'extracted') { %>
+        <span class="badge bg-success">EXTRACTED</span>
+      <% } else if (extractionStatus === 'failed') { %>
+        <span class="badge bg-danger">FAILED</span>
+      <% } else { %>
+        <span class="badge bg-secondary"><%= logStatus || 'PENDING' %></span>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+  <% if (extractionStatus === 'failed') { %>
+    <div class="alert alert-danger">
+      <strong>Extraction failed<%= failedReason ? ' (' + failedReason + ')' : '' %>.</strong>
+      <% if (errorMsg) { %><div class="small mt-1"><%= errorMsg %></div><% } %>
+      You may retry below. No academic records were created or modified.
+    </div>
+  <% } %>
+
+  <div class="card mb-3">
+    <div class="card-header">Server-authoritative context (from the database)</div>
+    <div class="card-body">
+      <p class="mb-1"><strong>Import ID:</strong> <%= importId %> &middot; <strong>Result ID:</strong> <%= resultId !== null && resultId !== undefined ? resultId : '—' %></p>
+      <p class="mb-1"><strong>Student:</strong> <%= student.name || '—' %> (<%= student.usn || '—' %>)</p>
+      <p class="mb-1"><strong>Session:</strong> <%= sessionDisplay || '—' %></p>
+      <p class="mb-0"><strong>Attempt:</strong> #<%= attempt.attempt_no %> &middot; <span class="badge bg-info text-dark"><%= attempt.exam_type %></span></p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">OCR identity evidence (candidates)</div>
+    <div class="card-body">
+      <p class="mb-1">
+        <strong>OCR USN:</strong> <%= ocrStudent.usn || '—' %>
+        <% if (ocrStudent.usn) { %>
+          <% if (ocrStudent.usn_matches_server) { %><span class="badge bg-success ms-1">matches</span><% } else { %><span class="badge bg-danger ms-1">MISMATCH</span><% } %>
+        <% } %>
+      </p>
+      <p class="mb-1">
+        <strong>OCR name:</strong> <%= ocrStudent.name || '—' %>
+        <% if (ocrStudent.name) { %>
+          <% if (ocrStudent.name_matches_server) { %><span class="badge bg-success ms-1">matches</span><% } else { %><span class="badge bg-warning text-dark ms-1">differs</span><% } %>
+        <% } %>
+      </p>
+      <p class="mb-1"><strong>Semester candidate:</strong> <%= semesterCandidate !== null && semesterCandidate !== undefined ? semesterCandidate : '—' %></p>
+      <p class="mb-0"><strong>Method:</strong> <%= extractionMethod || '—' %> &middot; <strong>Aggregate confidence:</strong> <%= confidenceScore !== null && confidenceScore !== undefined ? confidenceScore : '—' %> &middot; <strong>At:</strong> <%= extractedAt || '—' %></p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">Selected subjects — original vs OCR candidates</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Code (original)</th>
+            <th>OCR code</th>
+            <th>Normalized</th>
+            <th>Match</th>
+            <th class="text-end">Original marks</th>
+            <th class="text-end">Rev. Int</th>
+            <th class="text-end">Rev. Ext</th>
+            <th class="text-end">Rev. Total</th>
+            <th>Rev. Status</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!subjects.length) { %><tr><td colspan="10" class="text-muted">No selected subjects recorded.</td></tr><% } %>
+          <% subjects.forEach(s => {
+               const badge = s.match_state === 'MATCHED' ? 'success'
+                           : s.match_state === 'AMBIGUOUS' ? 'dark'
+                           : 'danger'; %>
+            <tr>
+              <td><code><%= s.original_subject_code %></code><div class="small text-muted"><%= s.original_subject_name || '' %></div></td>
+              <td><%= s.ocr_subject_code || '—' %></td>
+              <td><code><%= s.normalized_code || '—' %></code></td>
+              <td><span class="badge bg-<%= badge %>"><%= s.match_state || '—' %></span></td>
+              <td class="text-end"><%= (s.original_marks !== null && s.original_marks !== undefined) ? s.original_marks : '—' %></td>
+              <td class="text-end"><%= (s.revised_internal_marks !== null && s.revised_internal_marks !== undefined) ? s.revised_internal_marks : '—' %></td>
+              <td class="text-end"><%= (s.revised_external_marks !== null && s.revised_external_marks !== undefined) ? s.revised_external_marks : '—' %></td>
+              <td class="text-end"><%= (s.revised_marks !== null && s.revised_marks !== undefined) ? s.revised_marks : '—' %></td>
+              <td>
+                <%= s.revised_status_candidate || '—' %>
+                <% if (s.raw_status && s.raw_status !== s.revised_status_candidate) { %><div class="small text-muted">raw: <%= s.raw_status %></div><% } %>
+              </td>
+              <td><span class="badge bg-secondary"><%= s.confidence || '—' %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header">Unmatched OCR subject codes</div>
+        <div class="card-body">
+          <% if (!unmatched.length) { %>
+            <p class="text-muted mb-0">None — every document subject row was accounted for.</p>
+          <% } else { %>
+            <ul class="mb-0">
+              <% unmatched.forEach(u => { %>
+                <li><code><%= u.ocr_subject_code %></code> <%= u.revised_marks !== null && u.revised_marks !== undefined ? '— total candidate: ' + u.revised_marks : '' %></li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header">Warnings</div>
+        <div class="card-body">
+          <% if (!warnings.length) { %>
+            <p class="text-success mb-0">No warnings.</p>
+          <% } else { %>
+            <ul class="mb-0">
+              <% warnings.forEach(w => { %><li><%= w %></li><% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header">Uploaded document</div>
+        <div class="card-body">
+          <p class="mb-1"><strong>File:</strong> <%= docName || '—' %></p>
+          <% if (docLink) { %>
+            <a href="<%= docLink %>" target="_blank" class="btn btn-sm btn-outline-secondary">
+              <i class="material-icons align-middle me-1" style="font-size:16px;">picture_as_pdf</i>View original document
+            </a>
+          <% } else { %>
+            <span class="text-muted small">No stored document link available.</span>
+          <% } %>
+        </div>
+      </div>
+
+      <% if (extractionStatus === 'failed') { %>
+        <form method="POST" action="/revaluation/pending/<%= importId %>/extract" class="mb-3">
+          <button type="submit" class="btn btn-warning"><i class="material-icons align-middle me-1" style="font-size:18px;">refresh</i>Retry OCR Extraction</button>
+        </form>
+      <% } %>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header">Raw extracted text</div>
+        <div class="card-body">
+          <details>
+            <summary class="text-primary">Show raw text (<%= rawText.length %> chars)</summary>
+            <pre class="small text-muted mb-0" style="white-space:pre-wrap; max-height:420px; overflow:auto;"><%= rawText || '—' %></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-warning mt-2">
+    <i class="material-icons align-middle me-1">warning_amber</i>
+    <strong>These are OCR candidates only. No marks have been changed. Review/Edit &amp; validation is the next stage.</strong>
+  </div>
+
+  <div class="mt-2 mb-4 d-flex gap-2">
+    <% if (logStatus === 'extracted' && extractionStatus === 'extracted') { %>
+      <a href="/revaluation/review/<%= importId %>" class="btn btn-primary btn-sm">
+        <i class="material-icons align-middle">fact_check</i> Proceed to Review &amp; Validate
+      </a>
+    <% } %>
+    <a href="/revaluation/pending/<%= importId %>" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to pending record</a>
+    <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to result selection</a>
+  </div>
+</div>
+
+

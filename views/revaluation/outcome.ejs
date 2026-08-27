@@ -1,0 +1,130 @@
+<div class="container-fluid">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h4 class="mb-1"><i class="material-icons me-1">workspace_premium</i> Revaluation — Outcome</h4>
+      <p class="text-muted mb-0">Original result preserved as historical truth; approved revaluation events overlay their own subjects only.</p>
+    </div>
+    <div class="col-auto"><span class="badge bg-<%= logStatus === 'success' ? 'success' : 'secondary' %>"><%= String(logStatus || '').toUpperCase() %></span></div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+  <% if (notice) { %><div class="alert alert-info"><%= notice %></div><% } %>
+
+  <div class="card mb-3">
+    <div class="card-header">Result context</div>
+    <div class="card-body">
+      <p class="mb-1"><strong>Import ID:</strong> <%= meta.importId %> &middot; <strong>Result ID:</strong> <%= meta.resultId %></p>
+      <p class="mb-1"><strong>Student:</strong> <%= meta.studentName || '—' %> (<%= meta.studentUsn || '—' %>)</p>
+      <p class="mb-1"><strong>Session:</strong> <%= meta.sessionDisplay || '—' %> &middot;
+        <strong>Attempt:</strong> #<%= meta.attemptNo %> &middot;
+        <span class="badge bg-info text-dark"><%= meta.examType %></span>
+        <% if (meta.docUrl) { %> &middot;
+          <a href="<%= meta.docUrl %>" target="_blank" class="small">
+            <i class="material-icons align-middle" style="font-size:16px;">picture_as_pdf</i> <%= meta.docName || 'document' %>
+          </a>
+        <% } %>
+      </p>
+      <% if (origResult) { %>
+        <p class="mb-0 text-muted small">Historical Result row: SGPA <%= origResult.sgpa === null ? '—' : origResult.sgpa %> &middot;
+          CGPA <%= origResult.cgpa === null ? '—' : origResult.cgpa %> &middot;
+          status <%= origResult.result_status %> &middot;
+          failed <%= origResult.failed_subject_count %> &middot; (unchanged by revaluation)</p>
+      <% } %>
+      <% if (reviewedAt) { %>
+        <p class="mb-0 small"><strong>Last review/approval activity:</strong> <%= reviewedAt %>
+          <% if (!reviewPresent) { %><em>(proposal not saved)</em><% } %></p>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">Subject overlay — original vs effective</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Code</th><th>Subject</th>
+            <th class="text-center">Original marks</th><th class="text-center">Original status/grade</th>
+            <th class="text-center">Effective marks</th><th class="text-center">Effective status/grade</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!rows.length) { %><tr><td colspan="7" class="text-muted">No subjects were attached to this revaluation.</td></tr><% } %>
+          <% rows.forEach(r => { const eff = r.effective; %>
+            <tr class="<%= r.changed ? 'table-success' : '' %>">
+              <td><code><%= r.code %></code></td>
+              <td><small><%= r.name %></small><br><small class="text-muted">credits <%= r.credits %> / max <%= r.maxMarks %></small></td>
+              <td class="text-center fw-bold"><%= r.origMarks !== null ? r.origMarks : '—' %></td>
+              <td class="text-center">
+                <span class="badge bg-<%= r.origStatus === 'pass' ? 'success' : 'danger' %>"><%= r.origStatus || '—' %></span>
+                <small><%= r.origGrade || '' %></small>
+              </td>
+              <td class="text-center fw-bold <%= r.changed ? 'text-success' : 'text-muted' %>"><%= eff.marks !== null && eff.marks !== undefined ? eff.marks : '—' %></td>
+              <td class="text-center">
+                <span class="badge bg-<%= eff.status === 'pass' ? 'success' : 'danger' %>"><%= eff.status %></span>
+                <small><%= eff.grade || eff.derivedGrade %></small>
+              </td>
+              <td>
+                <% if (r.changed) { %><span class="badge bg-success">approved event</span>
+                <% } else { %><span class="badge bg-light text-dark">original</span><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-3 border-info">
+    <div class="card-header bg-info bg-opacity-10">Derived effective analytics
+      <small class="text-muted">(computed live over the overlay mix — never stored on Result)</small></div>
+    <div class="card-body d-flex gap-4 flex-wrap">
+      <div><small class="text-muted d-block">Overall</small>
+        <span class="fs-5 badge bg-<%= aggregates.overall_result === 'pass' ? 'success' : 'danger' %>"><%= aggregates.overall_result %></span></div>
+      <div><small class="text-muted d-block">SGPA</small><span class="fs-5"><%= aggregates.sgpa %></span></div>
+      <div><small class="text-muted d-block">CGPA</small><span class="fs-5"><%= aggregates.cgpa === null ? '—' : aggregates.cgpa %></span></div>
+      <div><small class="text-muted d-block">Failed subjects</small><span class="fs-5"><%= aggregates.failed_subject_count %></span></div>
+    </div>
+  </div>
+
+  <% if (events.length) { %>
+    <div class="card mb-3">
+      <div class="card-header">Revaluation event ledger (created by this import)</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>#</th><th>ID</th><th>subject_result_id</th><th class="text-end">Original</th><th class="text-end">Revised</th>
+                <th>Status change</th><th>Grade</th><th>Effective</th><th>Remarks</th></tr>
+          </thead>
+          <tbody>
+            <% events.forEach(e => { %>
+              <tr>
+                <td><%= e.no %></td><td><%= e.id %></td><td><%= e.srid %></td>
+                <td class="text-end"><%= e.originalMarks %></td>
+                <td class="text-end"><%= e.revisedMarks %></td>
+                <td><span class="badge bg-<%= e.originalStatus === 'pass' ? 'success' : 'danger' %>"><%= e.originalStatus %></span>
+                    &rarr;
+                    <span class="badge bg-<%= e.revisedStatus === 'pass' ? 'success' : 'danger' %>"><%= e.revisedStatus %></span></td>
+                <td><%= e.revisedGrade || '—' %></td>
+                <td><% if (e.isEffective) { %><span class="badge bg-success">EFFECTIVE</span><% } else { %><span class="badge bg-secondary">no</span><% } %></td>
+                <td><small class="text-muted"><%= e.remarks || '' %></small></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% } else if (logStatus !== 'success') { %>
+    <div class="alert alert-secondary">No revaluation events exist yet for this import.</div>
+  <% } %>
+
+  <div class="mt-2 mb-4 d-flex gap-2">
+    <a href="/revaluation/review/<%= meta.importId %>" class="btn btn-outline-secondary btn-sm">
+      <i class="material-icons">arrow_back</i> Review page
+    </a>
+    <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm">
+      <i class="material-icons">arrow_back</i> Back to result selection
+    </a>
+  </div>
+</div>

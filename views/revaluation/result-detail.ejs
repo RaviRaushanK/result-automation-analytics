@@ -1,0 +1,57 @@
+<div class="container-fluid">
+  <div class="row mb-3">
+    <div class="col">
+      <h4 class="mb-1"><%= student.name %> <small class="text-muted">(<%= student.usn %>)</small></h4>
+      <p class="text-muted mb-0">
+        <%= sessionDisplay || '—' %> &middot;
+        Attempt <strong>#<%= attempt.attempt_no %></strong> &middot;
+        <span class="badge bg-info text-dark"><%= attempt.exam_type %></span> &middot;
+        Overall <span class="badge bg-<%= result_status === 'pass' ? 'success' : 'danger' %>"><%= result_status %></span>
+        <% if (typeof cgpa !== 'undefined' && cgpa != null) { %> &middot; CGPA <strong><%= cgpa %></strong><% } %>
+      </p>
+    </div>
+    <div class="col-auto d-flex align-items-start">
+      <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm">Back</a>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <form id="revalForm" method="post" action="/revaluation/<%= resultId %>/start">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th></th><th>Code</th><th>Subject</th><th class="text-end">Credits</th><th class="text-end">Marks</th><th class="text-end">Max</th><th>Grade</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% subjects.forEach(s => {
+            const passClass = s.result_status === 'pass' ? 'success' : 'danger'; %>
+          <tr>
+            <td class="text-center">
+              <input class="subjCheck" type="checkbox" name="subject_result_id" value="<%= s.subject_result_id %>">
+            </td>
+            <td><%= s.subject_code %></td>
+            <td><%= s.subject_name %></td>
+            <td class="text-end"><%= s.credits %></td>
+            <td class="text-end"><%= s.marks %></td>
+            <td class="text-end"><%= s.max_marks || 100 %></td>
+            <td><%= s.grade || '—' %></td>
+            <td><span class="badge bg-<%= passClass %>"><%= s.result_status %></span></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <div>
+        <button id="startBtn" type="submit" class="btn btn-primary" disabled>Start Revaluation</button>
+      </div>
+      <small class="text-muted">Select the subject(s) to revalue. Original marks are not modified at this stage.</small>
+    </div>
+  </form>
+</div>
+
+<script src="/js/revaluation.js"></script>

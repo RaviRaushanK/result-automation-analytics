@@ -17,7 +17,8 @@
                 <strong>Duplicate Student Detected</strong>
                 <div class="small mt-1">
                   A result for <strong><%= student.usn %></strong> already exists in this session
-                  (<%= sessionDisplay %>). You cannot save another result for the same student.
+                  (<%= sessionDisplay %>) for attempt <%= attempt.attempt_no %> (<%= attempt.exam_type %>).
+                  You cannot save another result for the same student and attempt.
                 </div>
               </div>
             </div>
@@ -48,6 +49,10 @@
                 <div class="card mb-3">
                   <div class="card-body">
                     <h6 class="text-primary mb-3">Student Information</h6>
+                    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+                      <span class="badge bg-secondary">Attempt <%= attempt.attempt_no %></span>
+                      <span class="badge bg-info text-dark"><%= attempt.exam_type %></span>
+                    </div>
                     <div class="row g-3">
                       <div class="col-md-5">
                         <label class="form-label small fw-semibold">USN</label>
@@ -58,6 +63,10 @@
                         <input type="text" class="form-control" id="nameInput" name="name" value="<%= student.name %>" maxlength="100" required>
                       </div>
                     </div>
+                    <!-- Hidden manner: attempt authority round-trips through validate;
+                         it is re-sanitized server-side, never trusted at import. -->
+                    <input type="hidden" name="attempt_no" value="<%= attempt.attempt_no %>">
+                    <input type="hidden" name="exam_type" value="<%= attempt.exam_type %>">
                   </div>
                 </div>
                 <div class="card">

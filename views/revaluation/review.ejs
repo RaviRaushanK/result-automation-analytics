@@ -1,0 +1,282 @@
+<div class="container-fluid">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h4 class="mb-1"><i class="material-icons me-1">fact_check</i> Revaluation — Review &amp; Validate</h4>
+      <p class="text-muted mb-0">
+        Correct or accept/reject the OCR candidates. Server recalculates every total, status and grade;
+        originals stay untouched until approval.
+      </p>
+    </div>
+    <div class="col-auto">
+      <% if (mode === 'edit') { %><span class="badge bg-primary">EDIT</span>
+      <% } else if (mode === 'confirm') { %><span class="badge bg-warning text-dark">CONFIRM APPROVAL</span>
+      <% } else { %><span class="badge bg-success">VALIDATED — READY TO APPROVE</span><% } %>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+  <% if (notice) { %><div class="alert alert-info"><%= notice %></div><% } %>
+
+  <div class="card mb-3">
+    <div class="card-header">Server-authoritative context (from the database)</div>
+    <div class="card-body">
+      <p class="mb-1"><strong>Import ID:</strong> <%= meta.importId %> &middot; <strong>Result ID:</strong> <%= meta.resultId %></p>
+      <p class="mb-1"><strong>Student:</strong> <%= meta.studentName || '—' %> (<%= meta.studentUsn || '—' %>)</p>
+      <p class="mb-1"><strong>Session:</strong> <%= meta.sessionDisplay || '—' %></p>
+      <p class="mb-0"><strong>Attempt:</strong> #<%= meta.attemptNo %> &middot;
+        <span class="badge bg-info text-dark"><%= meta.examType %></span>
+        <% if (meta.docUrl) { %> &middot;
+          <a href="<%= meta.docUrl %>" target="_blank" class="small">
+            <i class="material-icons align-middle" style="font-size:16px;">picture_as_pdf</i> <%= meta.docName || 'document' %>
+          </a>
+        <% } %>
+      </p>
+    </div>
+  </div>
+
+  <% if (meta.warnings.length) { %>
+    <div class="alert alert-warning py-2">
+      <ul class="mb-0"><% meta.warnings.forEach(w => { %><li><%= w %></li><% }) %></ul>
+    </div>
+  <% } %>
+
+  <form method="POST" action="/revaluation/review/<%= meta.importId %>" id="reviewForm"
+        class="<%= mode === 'edit' ? '' : 'review-frozen' %>">
+    <div class="card mb-3">
+      <div class="card-header">Subjects selected for revaluation (<%= rows.length %>)</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0" id="reviewTable">
+          <thead class="table-light">
+            <tr>
+              <th style="min-width:150px;">Subject</th>
+              <th class="text-end">Original<br>(total)</th>
+              <th style="min-width:200px;">OCR evidence</th>
+              <th style="width:90px;" class="text-center">Rev. Int</th>
+              <th style="width:90px;" class="text-center">Rev. Ext</th>
+              <th style="width:80px;" class="text-center">Derived total</th>
+              <th style="width:110px;" class="text-center">Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+<%
+  const ACK_LETTERS = ['ABSENT', 'WITHHELD', 'NOT_ELIGIBLE', 'A', 'W', 'X', 'NE'];
+  const propBySrid = {};
+  if (review && Array.isArray(review.proposal)) {
+    review.proposal.forEach(p => { propBySrid[p.subject_result_id] = p; });
+  }
+  const editable = (mode === 'edit');
+  const codeOfSrid = {};
+  rows.forEach(r => { codeOfSrid[r.srid] = r.code; });
+%>
+<% rows.forEach(r => { const ev = r.evidence; %>
+<%
+  const entered = (enteredVals && enteredVals[r.srid]) || null;
+  const preInt = entered ? entered.internal
+    : ((ev.match_state === 'MATCHED' && ev.revised_int !== null && ev.revised_int !== undefined) ? String(ev.revised_int) : '');
+  const preExt = entered ? entered.external
+    : ((ev.match_state === 'MATCHED' && ev.revised_ext !== null && ev.revised_ext !== undefined) ? String(ev.revised_ext) : '');
+  const defAccept = (ev.match_state === 'MATCHED' && preInt !== '' && preExt !== '');
+  const needAck = !!ev.raw_letter &&
+    ACK_LETTERS.indexOf(String(ev.raw_letter).trim().toUpperCase()) !== -1;
+  const rowErrs = (errors && errors[r.srid]) ? errors[r.srid] : [];
+  const prop = propBySrid[r.srid] || null;
+%>
+            <tr class="<%= prop && prop.decision === 'reject' ? 'table-light text-muted' : '' %>">
+              <td>
+                <strong><%= r.code %></strong><br>
+                <small class="text-muted"><%= r.name %></small><br>
+                <small>credits <%= r.credits %> &middot; max I/E/T: <%= r.maxInternal %>/<%= r.maxExternal %>/<%= r.maxMarks %></small>
+              </td>
+              <td class="text-end">
+                <span class="fw-bold"><%= r.origMarks !== null ? r.origMarks : '—' %></span><br>
+                <span class="badge bg-<%= r.origStatus === 'pass' ? 'success' : 'danger' %>"><%= r.origStatus || '—' %></span>
+                <% if (r.origGrade) { %><small class="text-muted d-block"><%= r.origGrade %></small><% } %>
+              </td>
+              <td>
+                <span class="badge bg-<%= ev.match_state === 'MATCHED' ? 'success' : (ev.match_state === 'AMBIGUOUS' ? 'warning text-dark' : 'secondary') %>">
+                  <%= ev.match_state %>
+                </span>
+                <% if (ev.ocr_subject_code) { %>
+                  <code><%= ev.ocr_subject_code %></code>
+                  <small class="text-muted d-block">normalized: <%= ev.normalized || '—' %></small>
+                  <% if (ev.raw_line) { %><small class="text-muted d-block" title="<%= ev.raw_line %>">raw line available</small><% } %>
+                <% } else { %>
+                  <small class="text-muted">not found on document</small>
+                <% } %>
+                <div class="mt-1">
+                  <small>doc status:</small>
+                  <% if (ev.raw_letter) { %>
+                    <code><%= ev.raw_letter %></code>
+                    <% if (ev.status_candidate) { %><span class="badge bg-info text-dark"><%= ev.status_candidate %></span><% } else { %><span class="badge bg-dark">unmapped</span><% } %>
+                  <% } else { %><span class="text-muted">—</span><% } %>
+                  <% if (ev.confidence) { %><span class="badge bg-secondary ms-1"><%= ev.confidence %></span><% } %>
+                </div>
+                <% if (editable && ev.ambiguous && r.pickOptions.length) { %>
+                  <div class="mt-1">
+                    <label class="form-label small mb-0" for="pick_<%= r.srid %>">Bind this doc row to:</label>
+                    <select id="pick_<%= r.srid %>" name="ambiguous_pick_<%= r.srid %>" class="form-select form-select-sm">
+                      <option value="">— choose subject —</option>
+                      <% r.pickOptions.forEach(o => { %>
+                        <option value="<%= o.id %>" <%= (entered && entered.pick === String(o.id)) ? 'selected' : '' %>>
+                          <%= o.code %> (#<%= o.id %>)
+                        </option>
+                      <% }) %>
+                    </select>
+                  </div>
+                <% } %>
+              </td>
+<% if (!editable && prop) { %>
+              <td colspan="2" class="text-center">
+                <% if (prop.decision === 'accept') { %>
+                  <span class="fw-bold"><%= prop.proposed_revised_internal_marks %> + <%= prop.proposed_revised_external_marks %> =
+                    <%= prop.proposed_revised_total_marks %></span><br>
+                  <span class="badge bg-<%= prop.proposed_revised_status === 'pass' ? 'success' : 'danger' %>"><%= prop.proposed_revised_status %></span>
+                  <small><%= prop.proposed_revised_grade %></small>
+                  <% if (prop.was_manual_correction) { %><small class="text-muted d-block">manually corrected</small><% } %>
+                  <% if (prop.bound_to_srid && Number(prop.bound_to_srid) !== r.srid) { %>
+                    <small class="text-muted d-block">bound to #<%= prop.bound_to_srid %></small>
+                  <% } %>
+                <% } else { %>
+                  <span class="badge bg-secondary">REJECTED</span>
+                  <small class="d-block text-muted">no event will be created</small>
+                <% } %>
+              </td>
+<% } else { %>
+              <td class="text-center">
+                <input type="number" min="0" max="<%= r.maxInternal %>" step="1"
+                       name="internal_<%= r.srid %>" id="int_<%= r.srid %>"
+                       value="<%= preInt %>" class="form-control form-control-sm rev-int"
+                       data-srid="<%= r.srid %>" <%= editable ? '' : 'disabled' %>>
+              </td>
+              <td class="text-center">
+                <input type="number" min="0" max="<%= r.maxExternal %>" step="1"
+                       name="external_<%= r.srid %>" id="ext_<%= r.srid %>"
+                       value="<%= preExt %>" class="form-control form-control-sm rev-ext"
+                       data-srid="<%= r.srid %>" <%= editable ? '' : 'disabled' %>>
+              </td>
+              <td class="text-center">
+                <span id="tot_<%= r.srid %>" class="fw-bold text-primary">—</span>
+                <small class="text-muted d-block">auto int+ext</small>
+              </td>
+<% } %>
+              <td class="text-center">
+                <% if (editable) { %>
+                  <div class="form-check">
+                    <input class="form-check-input rev-decision" type="radio"
+                           name="decision_<%= r.srid %>" value="accept" data-srid="<%= r.srid %>"
+                           <%= defAccept ? 'checked' : '' %>>
+                    <label class="form-check-label small">Accept</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input rev-decision" type="radio"
+                           name="decision_<%= r.srid %>" value="reject" data-srid="<%= r.srid %>"
+                           <%= defAccept ? '' : 'checked' %>>
+                    <label class="form-check-label small">Reject</label>
+                  </div>
+                  <% if (needAck) { %>
+                    <div class="form-check mt-1 text-start">
+                      <input class="form-check-input" type="checkbox" name="ack_<%= r.srid %>" value="on"
+                             <%= (entered && entered.ack) ? 'checked' : '' %>>
+                      <label class="form-check-label small text-wrap" style="max-width:150px;">
+                        I acknowledge the unrepresentable document letter
+                      </label>
+                    </div>
+                  <% } %>
+                <% } else if (!prop) { %>
+                  <span class="text-muted small">no decision saved</span>
+                <% } else { %>
+                  <span class="badge bg-<%= prop.decision === 'accept' ? 'primary' : 'secondary' %>">
+                    <%= prop.decision.toUpperCase() %>
+                  </span>
+                <% } %>
+                <% if (rowErrs.length) { %>
+                  <div class="text-danger small mt-1 text-start">
+                    <% rowErrs.forEach(e => { %><div><%= e %></div><% }) %>
+                  </div>
+                <% } %>
+              </td>
+            </tr>
+<% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <% if (mode === 'edit') { %>
+      <div class="d-flex gap-2 mb-4">
+        <button type="submit" class="btn btn-primary">
+          <i class="material-icons align-middle me-1" style="font-size:18px;">save</i>Save decisions &amp; validate
+        </button>
+        <a href="/revaluation/extraction/<%= meta.importId %>" class="btn btn-outline-secondary">Back to extraction</a>
+      </div>
+    <% } %>
+  </form>
+
+  <% if (mode !== 'edit' && review) { %>
+    <div class="card mb-3 border-success">
+      <div class="card-header bg-light">Validated decisions snapshot
+        <small class="text-muted">(saved <%= review.submitted_at || '' %> by admin #<%= review.submitted_by || '—' %>)</small></div>
+      <div class="card-body">
+        <% if (review.aggregate_preview) { %>
+          <p class="mb-1"><strong>Derived effective preview:</strong>
+            overall <%= review.aggregate_preview.overall_result %> &middot;
+            SGPA <%= review.aggregate_preview.sgpa %> &middot;
+            CGPA <%= review.aggregate_preview.cgpa === null ? '—' : review.aggregate_preview.cgpa %> &middot;
+            failed <%= review.aggregate_preview.failed_subject_count %>
+            <small class="text-muted">(display analytics — Result rows are never written)</small></p>
+        <% } %>
+      <% if (mode === 'locked') { %>
+        <a href="/revaluation/approve/<%= meta.importId %>" class="btn btn-success btn-lg">
+          <i class="material-icons align-middle me-1">verified</i>Proceed to approval confirmation
+        </a>
+      <% } else { %>
+        <div class="alert alert-danger py-2 mb-2">
+          Approving will create approved + effective <code>RevaluationResult</code> events for every accepted subject
+          and permanently demote any earlier effective event for those subjects. Originals are never modified.
+        </div>
+        <div class="d-flex gap-2">
+          <form method="POST" action="/revaluation/approve/<%= meta.importId %>">
+            <button type="submit" class="btn btn-danger btn-lg">
+              <i class="material-icons align-middle me-1">task_alt</i>Approve &amp; create revaluation events
+            </button>
+          </form>
+          <a href="/revaluation/review/<%= meta.importId %>" class="btn btn-outline-secondary btn-lg align-self-center">Cancel</a>
+        </div>
+      <% } %>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header">Unmatched OCR subject codes (informational)</div>
+        <div class="card-body">
+          <% if (!meta.unmatched.length) { %>
+            <p class="text-success mb-0">None.</p>
+          <% } else { %>
+            <ul class="mb-0"><% meta.unmatched.forEach(u => { %><li><code><%= u.ocr_subject_code %></code></li><% }) %></ul>
+          <% } %>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header">Raw extracted text</div>
+        <div class="card-body">
+          <details>
+            <summary class="text-primary">Show raw text (<%= (meta.rawText || '').length %> chars)</summary>
+            <pre class="small text-muted mb-0" style="white-space:pre-wrap; max-height:360px; overflow:auto;"><%= meta.rawText || '—' %></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-2 mb-4">
+    <a href="/revaluation/pending/<%= meta.importId %>" class="btn btn-outline-secondary btn-sm">
+      <i class="material-icons">arrow_back</i> Back to pending record
+    </a>
+  </div>
+</div>
+<script src="/js/revaluation-review.js"></script>

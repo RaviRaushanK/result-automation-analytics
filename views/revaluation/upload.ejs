@@ -1,0 +1,61 @@
+<div class="container-fluid">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h4 class="mb-1">Upload Revaluation Document</h4>
+      <p class="text-muted mb-0">
+        <%= student.name %> (<%= student.usn %>) &middot;
+        <%= sessionDisplay || '—' %> &middot;
+        Attempt #<%= attempt.attempt_no %> &middot;
+        <span class="badge bg-info text-dark"><%= attempt.exam_type %></span>
+      </p>
+    </div>
+    <div class="col-auto d-flex align-items-start">
+      <a href="/revaluation/<%= resultId %>" class="btn btn-outline-secondary btn-sm">Back</a>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between">
+      <span><i class="material-icons me-1">school</i> Selected subjects (<%= subjectCount %>) — read-only</span>
+      <span class="badge bg-secondary">Original marks will not change</span>
+    </div>
+    <div class="table-responsive mb-0">
+      <table class="table table-sm table-light align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Code</th><th>Subject</th><th class="text-end">Credits</th><th class="text-end">Original Marks</th><th>Grade</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% subjects.forEach(s => {
+            const passClass = s.result_status === 'pass' ? 'success' : 'danger'; %>
+            <tr>
+              <td><%= s.subject_code %></td>
+              <td><%= s.subject_name %></td>
+              <td class="text-end"><%= s.credits %></td>
+              <td class="text-end"><%= s.original_marks %> / <%= s.max_marks || 100 %></td>
+              <td><%= s.grade || '—' %></td>
+              <td><span class="badge bg-<%= passClass %>"><%= s.result_status %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <form id="uploadForm" method="post" action="/revaluation/<%= resultId %>/upload" enctype="multipart/form-data">
+    <div class="mb-3">
+      <label for="revalidationDocument" class="form-label">
+        <i class="material-icons me-1">upload_file</i> Official revaluation document
+      </label>
+      <input class="form-control" type="file" id="revalidationDocument" name="revalidationDocument" accept="application/pdf" required>
+      <div class="form-text">PDF only &middot; maximum 15 MB &middot; This file is stored for the OCR revaluation stage and does not modify existing marks.</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button type="submit" class="btn btn-success">Submit Revaluation</button>
+      <a href="/revaluation/<%= resultId %>" class="btn btn-outline-secondary">Back</a>
+    </div>
+  </form>
+</div>

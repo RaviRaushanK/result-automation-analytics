@@ -25,6 +25,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('pdf', 'jpg', 'jpeg', 'png'),
       allowNull: false
     },
+    import_type: {
+      type: DataTypes.ENUM('ORIGINAL', 'REVALUATION'),
+      allowNull: false,
+      defaultValue: 'ORIGINAL',
+      comment: 'Which upload flow produced this log entry'
+    },
     total_records: {
       type: DataTypes.INTEGER,
       defaultValue: 0

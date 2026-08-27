@@ -89,6 +89,7 @@ const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
+const revaluationRoutes = require('./routes/revaluationRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 
@@ -115,6 +116,7 @@ app.get('/api/health', (req, res) => {
 app.use('/dashboard', authMiddleware, dashboardRoutes);
 app.use('/batches', authMiddleware, batchRoutes);
 app.use('/results', authMiddleware, resultRoutes);
+app.use('/revaluation', authMiddleware, revaluationRoutes);
 app.use('/sessions', authMiddleware, sessionRoutes);
 app.use('/subjects', authMiddleware, subjectRoutes);
 

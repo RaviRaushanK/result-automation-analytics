@@ -29,6 +29,25 @@
               <div class="invalid-feedback">Please select the result session this marks card belongs to.</div>
             </div>
 
+            <!-- 1b. Attempt number + exam type -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label for="attemptNoSelect" class="form-label fw-semibold">Attempt No <span class="text-danger">*</span></label>
+                <input type="number" class="form-control form-control-lg" id="attemptNoInput" name="attempt_no"
+                       value="1" min="1" step="1" required>
+                <div class="form-text">1 = first sitting. No hard-coded upper limit.</div>
+              </div>
+              <div class="col-md-8">
+                <label for="examTypeSelect" class="form-label fw-semibold">Exam Type <span class="text-danger">*</span></label>
+                <select class="form-select form-select-lg" id="examTypeSelect" name="exam_type">
+                  <option value="REGULAR" selected>REGULAR</option>
+                  <option value="BACKLOG">BACKLOG</option>
+                  <option value="SUPPLEMENTARY">SUPPLEMENTARY</option>
+                  <option value="REPEAT">REPEAT</option>
+                </select>
+              </div>
+            </div>
+
             <!-- Selected session summary + expected subjects -->
             <div id="sessionDetailsCard" class="card bg-light border-0 mb-4" style="display: none;">
               <div class="card-body">

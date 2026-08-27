@@ -17,7 +17,11 @@
             <h4 class="mb-0">Validated Preview</h4>
             <small class="text-muted"><%= sessionDisplay %></small>
           </div>
-          <span class="badge bg-info text-dark">Step 3 of 4</span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary">Attempt <%= attempt.attempt_no %></span>
+            <span class="badge bg-info text-dark"><%= attempt.exam_type %></span>
+            <span class="badge bg-warning text-dark">Step 3 of 4</span>
+          </div>
         </div>
 
         <div class="card-body">

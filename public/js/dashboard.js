@@ -78,7 +78,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         try {
-            const json = await fetchJSON('/dashboard/analytics' + buildQuery());
+            const res = await fetch('/dashboard/analytics' + buildQuery());
+            const contentType = (res.headers.get('content-type') || '');
+            if (!res.ok || contentType.indexOf('application/json') === -1) {
+                // Session expired / server error pages return HTML — surface clearly
+                throw new Error('Analytics request failed (HTTP ' + res.status + ', ' + contentType.trim() + '). Try logging in again.');
+            }
+            const json = await res.json();
             const stats = (json.data && json.data.statistics) || {};
             setText('totalStudents', stats.totalStudents != null ? stats.totalStudents : '--');
             setText('totalPass', stats.totalPass != null ? stats.totalPass : '--');
@@ -94,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ids.forEach(function (id) {
                 setText(id, '--');
             });
-            return [];
+            throw err;
         }
     }
 
@@ -139,12 +145,31 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ---------- Subject Average Chart ----------
+    function setSubjectChartMessage(msg) {
+        const el = document.getElementById('subjectAverageMessage');
+        if (!el) return;
+        if (msg) {
+            el.textContent = msg;
+            el.classList.remove('d-none');
+        } else {
+            el.classList.add('d-none');
+        }
+    }
+
     function renderSubjectChart(subjectAverages) {
         const ctx = document.getElementById('subjectAverageChart');
         if (!ctx) return;
-        if (subjectAverageChart) subjectAverageChart.destroy();
 
-        const labels = subjectAverages.map(function (s) { return s.subject_name; });
+        if (!subjectAverages || !subjectAverages.length) {
+            if (subjectAverageChart) { subjectAverageChart.destroy(); subjectAverageChart = null; }
+            setSubjectChartMessage('No subject data available for the selected filter.');
+            return;
+        }
+        setSubjectChartMessage(null);
+
+        try {
+        const labels = subjectAverages.map(function (s) { return s.subject_code; });
+        const names = subjectAverages.map(function (s) { return s.subject_name || ''; });
         const data = subjectAverages.map(function (s) { return s.average_marks; });
 
         subjectAverageChart = new Chart(ctx, {
@@ -165,7 +190,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                const i = items[0].dataIndex;
+                                return labels[i] + (names[i] ? ' — ' + names[i] : '');
+                            },
+                            label: function (context) {
+                                return ' Average Marks: ' + context.parsed.y;
+                            }
+                        }
+                    }
                 },
                 scales: {
                     y: {
@@ -174,10 +210,21 @@ document.addEventListener('DOMContentLoaded', function () {
                         ticks: {
                             callback: function (value) { return value; }
                         }
+                    },
+                    x: {
+                        ticks: {
+                            autoSkip: false,
+                            maxRotation: 0,
+                            minRotation: 0
+                        }
                     }
                 }
             }
         });
+        } catch (err) {
+            console.error('Failed to render subject average chart:', err);
+            setSubjectChartMessage('Chart failed to render — see console for details.');
+        }
     }
 
     // ---------- Pass/Fail Charts ----------
@@ -241,8 +288,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ---------- Load everything ----------
     async function loadDashboard() {
-        const subjectAverages = await loadStatistics();
-        renderSubjectChart(subjectAverages);
+        try {
+            const subjectAverages = await loadStatistics();
+            renderSubjectChart(subjectAverages);
+        } catch (err) {
+            renderSubjectChart([]);
+            setSubjectChartMessage('Could not load subject averages: ' + (err && err.message ? err.message : 'request failed.'));
+        }
         await loadTopScorers();
         await loadPassFail();
     }

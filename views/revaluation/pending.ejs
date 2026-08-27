@@ -1,0 +1,106 @@
+<div class="container-fluid">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h4 class="mb-1"><i class="material-icons me-1">hourglass_bottom</i> Revaluation Registered</h4>
+      <p class="text-muted mb-0">The revaluation document has been uploaded and a processing record has been created. OCR verification will run in the next stage.</p>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <div class="card mb-3">
+    <div class="card-header">Processing record</div>
+    <div class="card-body">
+      <p class="mb-1"><strong>Import ID:</strong> <%= importId %></p>
+      <p class="mb-1"><strong>Type:</strong> <span class="badge bg-primary"><%= import_type %></span></p>
+      <p class="mb-1"><strong>Status:</strong> <span class="badge bg-warning text-dark text-capitalize"><%= status %></span></p>
+      <p class="mb-0"><strong>Uploaded by admin ID:</strong> <%= uploadedBy %><br><small class="text-muted">recorded at <%= createdAt %></small></p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">Context</div>
+    <div class="card-body">
+      <p class="mb-1"><strong>Student:</strong> <%= student.name || '—' %> (<%= student.usn || '—' %>)</p>
+      <p class="mb-1"><strong>Session:</strong> <%= sessionDisplay || '—' %></p>
+      <p class="mb-0"><strong>Attempt:</strong> #<%= attempt.attempt_no %> &middot; <span class="badge bg-info text-dark"><%= attempt.exam_type %></span></p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">Uploaded document</div>
+    <div class="card-body">
+      <% const doc0 = (documents && documents[0]) ? documents[0] : null; %>
+      <% if (doc0) { %>
+        <p class="mb-1"><strong>File:</strong> <%= doc0.file_name || file_name %></p>
+        <% if (doc0.file_url) { %>
+        <p class="mb-0"><a href="<%= doc0.file_url %>" target="_blank"><i class="material-icons me-1">picture_as_pdf</i> View document</a></p>
+        <% } %>
+      <% } else { %>
+        <p class="mb-0 text-muted">No document metadata found in the processing record.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Subjects flagged for revaluation (<%= subjectCount %>)</div>
+    <div class="table-responsive mb-0">
+      <table class="table table-sm table-light align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Code</th><th>Subject</th><th class="text-end">Credits</th><th class="text-end">Original Marks</th><th>Grade</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <% if (!subjects.length) { %><tr><td colspan="6" class="text-muted">No subjects.</td></tr><% } %>
+          <% subjects.forEach(s => {
+            const passClass = s.result_status === 'pass' ? 'success' : 'danger'; %>
+            <tr>
+              <td><%= s.subject_code %></td>
+              <td><%= s.subject_name %></td>
+              <td class="text-end"><%= s.credits %></td>
+              <td class="text-end"><%= s.original_marks %> / <%= s.max_marks || 100 %></td>
+              <td><%= s.grade || '—' %></td>
+              <td><span class="badge bg-<%= passClass %>"><%= s.result_status %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header">Stage 2 — OCR Extraction</div>
+    <div class="card-body">
+      <% if (status === 'extracted' || status === 'success') { %>
+        <p class="mb-2">Extraction has completed for this record.</p>
+        <a class="btn btn-primary" href="/revaluation/extraction/<%= importId %>">
+          <i class="material-icons align-middle me-1" style="font-size:18px;">fact_check</i>View extraction result
+        </a>
+      <% } else if (status === 'failed') { %>
+        <div class="alert alert-warning py-2 mb-2">The previous extraction attempt failed. You can retry safely — no duplicate records will be created.</div>
+        <form method="POST" action="/revaluation/pending/<%= importId %>/extract">
+          <button type="submit" class="btn btn-warning">
+            <i class="material-icons align-middle me-1" style="font-size:18px;">refresh</i>Retry OCR Extraction
+          </button>
+        </form>
+      <% } else { %>
+        <p class="text-muted mb-2">Runs the existing OCR engine over the already-stored document and records candidates only. The original file is never moved or replaced.</p>
+        <form method="POST" action="/revaluation/pending/<%= importId %>/extract">
+          <button type="submit" class="btn btn-primary">
+            <i class="material-icons align-middle me-1" style="font-size:18px;">document_scanner</i>Run OCR Extraction
+          </button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="alert alert-info mt-3 mb-0">
+    <i class="material-icons me-1">info</i>
+    <strong>Candidates only.</strong>
+    Original Result / SubjectResult rows have <strong>not</strong> been modified by OCR.
+    Review/Edit &amp; validation is the next stage; <code>RevaluationResult</code> event rows are created only after approval.
+  </div>
+
+  <div class="mt-3">
+    <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to result selection</a>
+  </div>
+</div>

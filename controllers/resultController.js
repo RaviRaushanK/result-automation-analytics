@@ -44,6 +44,55 @@ const gradeFromPercent = (pct) => {
   if (pct >= 55) return { grade: 'B', point: 6, status: 'pass' };
   if (pct >= PASS_PERCENT) return { grade: 'C', point: 5, status: 'pass' };
   return { grade: 'F', point: 0, status: 'fail' };
+}
+
+// ============================================
+// Attempt parsing & validation (foundation for multi-attempt results)
+// ============================================
+const ALLOWED_EXAM_TYPES = ['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'];
+
+// Sanitize attempt_no / exam_type coming from the browser/form state.
+// - attempt_no: absent (undefined/null omitted) -> default 1. Present but
+//   invalid ('' , '0', negative, non-integer, "abc") -> error. No upper cap.
+// - exam_type : absent            -> default 'REGULAR'.
+//               invalid value     -> error.
+function sanitizeAttempt(rawNo, rawType, defaults = { attempt_no: 1, exam_type: 'REGULAR' }) {
+  let attemptNo, examType;
+
+  // attempt_no: undefined (field absent) -> default. null/'0'/negative/non-int
+  //   -> rejected. Empty string -> rejected. No upper cap.
+  if (rawNo === undefined) {
+    attemptNo = defaults.attempt_no;
+  } else if (rawNo === null) {
+    return { ok: false, errors: ['attempt_no must not be null.'] };
+  } else if (String(rawNo).trim() === '') {
+    return { ok: false, errors: ['attempt_no must not be empty.'] };
+  } else {
+    const parsed = Number(String(rawNo).replace(/,/g, '').trim());
+    if (!Number.isInteger(parsed) || Number.isNaN(parsed)) {
+      return { ok: false, errors: ['attempt_no must be a whole number.'] };
+    }
+    if (parsed <= 0) {
+      return { ok: false, errors: ['attempt_no must be greater than 0.'] };
+    }
+    attemptNo = parsed;
+  }
+
+  // exam_type
+  if (rawType === undefined || rawType === null || String(rawType).trim() === '') {
+    examType = defaults.exam_type;
+  } else {
+    const t = String(rawType).trim().toUpperCase();
+    if (!ALLOWED_EXAM_TYPES.includes(t)) {
+      return {
+        ok: false,
+        errors: [`exam_type must be one of: ${ALLOWED_EXAM_TYPES.join(', ')}.`]
+      };
+    }
+    examType = t;
+  }
+
+  return { ok: true, attempt_no: attemptNo, exam_type: examType };
 };
 
 // Load ImportLog + its session + saved OCR payload
@@ -277,6 +326,13 @@ const resultController = {
       const sessionId = req.body.sessionId;
       const resultType = req.body.resultType || 'original';
 
+      // Attempt authority for this import (validated server-side, never
+      // trusted blindly at import time; persisted into the OCR payload).
+      const attempt = sanitizeAttempt(req.body.attempt_no, req.body.exam_type);
+      if (!attempt.ok) {
+        return res.redirect('/results/upload?error=' + encodeURIComponent(attempt.errors.join(' ')));
+      }
+
       if (!req.file) {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Please choose a marks card file.'));
       }
@@ -346,6 +402,10 @@ const resultController = {
             usn: (ex.student && ex.student.usn) || '',
             name: (ex.student && ex.student.name) || ''
           },
+          attempt: {
+            attempt_no: attempt.attempt_no,
+            exam_type: attempt.exam_type
+          },
           subjects: mappedSubjects,
           warnings: ex.warnings || []
         },
@@ -403,14 +463,25 @@ const resultController = {
         warnings = ctx.saved.warnings;
       }
 
-      // ---- Duplicate student detection ----
+      // ---- Duplicate student detection (per student + session + attempt) ----
       const usn = (ctx.saved.student && ctx.saved.student.usn) || '';
+      const savedAttempt = sanitizeAttempt(
+        (ctx.saved.attempt && ctx.saved.attempt.attempt_no),
+        (ctx.saved.attempt && ctx.saved.attempt.exam_type)
+      );
+      const attemptInfo = savedAttempt.ok
+        ? { attempt_no: savedAttempt.attempt_no, exam_type: savedAttempt.exam_type }
+        : { attempt_no: 1, exam_type: 'REGULAR' };
       let duplicateStudent = false;
       if (usn) {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
         if (existingStudent) {
           const existingResult = await Result.findOne({
-            where: { student_id: existingStudent.student_id, session_id: ctx.session.session_id }
+            where: {
+              student_id: existingStudent.student_id,
+              session_id: ctx.session.session_id,
+              attempt_no: attemptInfo.attempt_no
+            }
           });
           if (existingResult) duplicateStudent = true;
         }
@@ -426,6 +497,7 @@ const resultController = {
         importId: ctx.log.import_id,
         sessionDisplay: ctx.sessionDisplay,
         student: ctx.saved.student || { usn: '', name: '' },
+        attempt: attemptInfo,
         subjects,
         warnings,
         errors: {},
@@ -474,9 +546,50 @@ const resultController = {
         confidence: 'edited'
       }));
 
+      // Attempt preservation: the review UI does not submit attempt fields.
+      // Only overwrite the persisted attempt when a trusted workflow explicitly
+      // submits them; otherwise preserve the attempt recorded at upload time.
+      // Legacy OCR payloads with no attempt info at all still fall back to
+      // 1 / REGULAR (sanitizeAttempt's historical defaults) for compatibility.
+      let attemptNo, examType;
+
+      const attemptSubmitted =
+        req.body.attempt_no !== undefined || req.body.exam_type !== undefined;
+
+      if (attemptSubmitted) {
+        // Explicit submission — validated with the existing sanitizeAttempt
+        // (arbitrary client values are never trusted blindly). On failure,
+        // fall back to the persisted values exactly as before.
+        const attempt = sanitizeAttempt(req.body.attempt_no, req.body.exam_type);
+        if (!attempt.ok) {
+          if (!errors.form) errors.form = [];
+          errors.form = errors.form.concat(attempt.errors);
+          attemptNo = (ctx.saved.attempt && ctx.saved.attempt.attempt_no) || 1;
+          examType = (ctx.saved.attempt && ctx.saved.attempt.exam_type) || 'REGULAR';
+        } else {
+          attemptNo = attempt.attempt_no;
+          examType = attempt.exam_type;
+        }
+      } else {
+        // Fields absent from the review form: preserve the persisted attempt.
+        // Re-sanitized purely as an integrity check on the stored payload.
+        const persisted = sanitizeAttempt(
+          ctx.saved.attempt && ctx.saved.attempt.attempt_no,
+          ctx.saved.attempt && ctx.saved.attempt.exam_type
+        );
+        if (persisted.ok) {
+          attemptNo = persisted.attempt_no;
+          examType = persisted.exam_type;
+        } else {
+          attemptNo = 1;
+          examType = 'REGULAR';
+        }
+      }
+
       await ctx.ocr.update({
         extracted_json: {
           student: payload.student,
+          attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects: mergedSubjects,
           warnings: []
         },
@@ -516,6 +629,7 @@ const resultController = {
           importId: ctx.log.import_id,
           sessionDisplay: ctx.sessionDisplay,
           student: payload.student,
+          attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects,
           warnings: [],
           errors,
@@ -570,6 +684,10 @@ const resultController = {
         ],
         importId: ctx.log.import_id,
         sessionDisplay: ctx.sessionDisplay,
+        attempt: {
+          attempt_no: (ctx.saved.attempt && ctx.saved.attempt.attempt_no) || 1,
+          exam_type: (ctx.saved.attempt && ctx.saved.attempt.exam_type) || 'REGULAR'
+        },
         data: payload,
         fileUrl: ctx.fileUrl,
         fileType: (ctx.log.file_type || '').toLowerCase()
@@ -626,24 +744,44 @@ const resultController = {
         }, { transaction: t });
       }
 
-      // 2) Duplicate guard: block if a result already exists for this student+session
+      // Attempt authority comes ONLY from the persisted OCR payload, which was
+      // validated at upload/validate time (the browser never reaches here).
+      const attempt = sanitizeAttempt(
+        (ctx.saved.attempt && ctx.saved.attempt.attempt_no),
+        (ctx.saved.attempt && ctx.saved.attempt.exam_type)
+      );
+      if (!attempt.ok) {
+        await t.rollback();
+        return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
+      }
+
+      // 2) Duplicate guard: block if this exact attempt already exists for
+      //    this student + session. Attempt 2+ for the same student+session is
+      //    allowed (creates brand-new Result + SubjectResult records).
       const existingResult = await Result.findOne({
-        where: { student_id: student.student_id, session_id: ctx.session.session_id },
+        where: {
+          student_id: student.student_id,
+          session_id: ctx.session.session_id,
+          attempt_no: attempt.attempt_no
+        },
         transaction: t
       });
       if (existingResult) {
         await t.rollback();
         return res.redirect('/results/logs?error=' + encodeURIComponent(
-          'Duplicate blocked: ' + payload.student.usn + ' already has a result in this session. ' +
-          'Delete the existing result from Import Logs before re-uploading.'
+          'Duplicate blocked: ' + payload.student.usn + ' already has attempt ' +
+          attempt.attempt_no + ' (' + attempt.exam_type + ') in this session. ' +
+          'Choose a different attempt number to create a new attempt.'
         ));
       }
 
-      // 3) Insert master result
+      // 3) Insert master result (with attempt identity)
       const result = await Result.create({
         result_uuid: crypto.randomUUID(),
         student_id: student.student_id,
         session_id: ctx.session.session_id,
+        attempt_no: attempt.attempt_no,
+        exam_type: attempt.exam_type,
         sgpa: payload.sgpa,
         cgpa: payload.cgpa, // P.G. 2022/2024: excludes F-grade courses; NULL if all failed
         result_status: payload.overallResult,
@@ -692,9 +830,14 @@ const resultController = {
       }
 
       const usn = (ctx.saved.student && ctx.saved.student.usn) || '';
+      const importedAttemptNo = (ctx.saved.attempt && ctx.saved.attempt.attempt_no) || 1;
       const student = await Student.findOne({ where: { usn } });
       const result = student ? await Result.findOne({
-        where: { student_id: student.student_id, session_id: ctx.session.session_id },
+        where: {
+          student_id: student.student_id,
+          session_id: ctx.session.session_id,
+          attempt_no: importedAttemptNo
+        },
         include: [{
           model: SubjectResult,
           include: [{ model: Subject, attributes: ['subject_code', 'subject_name'] }]
@@ -709,6 +852,8 @@ const resultController = {
           { label: 'Import Successful', active: true }
         ],
         sessionDisplay: ctx.sessionDisplay,
+        attemptNo: importedAttemptNo,
+        examType: (ctx.saved.attempt && ctx.saved.attempt.exam_type) || 'REGULAR',
         studentName: result && student ? student.student_name : (ctx.saved.student.name || ''),
         usn,
         subjectsCount: result ? result.SubjectResults.length : 0,
@@ -784,13 +929,49 @@ const resultController = {
   },
 
   create: async (req, res) => {
-    try { res.status(201).json(await Result.create(req.body)); }
-    catch (err) { res.status(500).json({ error: err.message }); }
+    try {
+      // LEGACY JSON endpoint (intentionally NOT an attempt-authoring surface).
+      // attempt_no / exam_type are always server-controlled: first sitting /
+      // REGULAR. Any client-supplied attempt_no, exam_type or result_uuid in
+      // req.body is silently ignored (explicit allowlist, no mass assignment).
+      const {
+        student_id,
+        session_id,
+        sgpa,
+        cgpa,
+        result_status,
+        failed_subject_count
+      } = req.body;
+
+      const result = await Result.create({
+        result_uuid: crypto.randomUUID(), // server-generated, never client-controlled
+        student_id,
+        session_id,
+        attempt_no: 1,                    // forced — disallow client control
+        exam_type: 'REGULAR',             // forced — disallow client control
+        sgpa,
+        cgpa,
+        result_status,
+        failed_subject_count
+      });
+      res.status(201).json(result);
+    } catch (err) {
+      // DB-level UNIQUE(student_id, session_id, attempt_no) remains the backstop.
+      res.status(500).json({ error: err.message });
+    }
   },
 
   update: async (req, res) => {
     try {
-      const [updated] = await Result.update(req.body, { where: { result_id: req.params.id } });
+      // LEGACY JSON endpoint — only the mutable academic snapshot fields can be
+      // updated here. identity (result_id/student_id/session_id), attempt
+      // (attempt_no/exam_type) and result_uuid are immutable via this route.
+      const { sgpa, cgpa, result_status, failed_subject_count } = req.body;
+
+      const [updated] = await Result.update(
+        { sgpa, cgpa, result_status, failed_subject_count },
+        { where: { result_id: req.params.id } }
+      );
       if (!updated) return res.status(404).json({ error: 'Result not found' });
       res.json({ message: 'Updated successfully' });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -810,6 +991,8 @@ resultController._test = {
   buildValidatedPayload,
   extractMarkInputs,
   gradeFromPercent,
+  sanitizeAttempt,
+  ALLOWED_EXAM_TYPES,
   PASS_PERCENT,
   MAX_INTERNAL,
   MAX_EXTERNAL

@@ -34,6 +34,18 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       defaultValue: 0
     },
+    attempt_no: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+      comment: 'Attempt number for this student+session; 1 = first sitting. No schema-level cap.'
+    },
+    exam_type: {
+      type: DataTypes.ENUM('REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'),
+      allowNull: false,
+      defaultValue: 'REGULAR',
+      comment: 'Kind of exam participation this result belongs to'
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

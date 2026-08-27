@@ -28,6 +28,27 @@ module.exports = (sequelize, DataTypes) => {
     revised_grade: {
       type: DataTypes.STRING(5)
     },
+    revaluation_no: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+      comment: 'Sequence of revaluation events for this subject result (history preserved)'
+    },
+    is_effective: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Exactly one event per subject_result_id feeds effective results'
+    },
+    reviewed_by: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+      comment: 'Admin who approved/rejected this revaluation event'
+    },
+    reviewed_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     revaluation_status: {
       type: DataTypes.ENUM('pending', 'approved', 'rejected'),
       defaultValue: 'pending'
@@ -55,7 +76,12 @@ module.exports = (sequelize, DataTypes) => {
     indexes: [
       {
         unique: true,
-        fields: ['subject_result_id']
+        fields: ['subject_result_id', 'revaluation_no'],
+        name: 'unique_reval_event'
+      },
+      {
+        fields: ['subject_result_id'],
+        name: 'idx_reval_subject_result'
       }
     ]
   });
