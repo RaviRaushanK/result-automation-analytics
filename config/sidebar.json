@@ -21,7 +21,7 @@
       "icon": "assessment",
       "children": [
         { "label": "Upload Results", "icon": "cloud_upload", "route": "/results/upload", "roles": ["admin", "faculty"] },
-        { "label": "Upload Revaluation", "icon": "cloud_upload", "route": "/revaluation/upload", "roles": ["admin", "faculty"] },
+        { "label": "Upload Revaluation", "icon": "cloud_upload", "route": "/revaluation/start", "roles": ["admin", "faculty"] },
         { "label": "Import Logs", "icon": "list_alt", "route": "/results/logs", "roles": ["admin"] }
       ]
     },

@@ -75,6 +75,45 @@
       if (any) syncDisabled(any.getAttribute('data-srid'));
     });
 
+  // PROMPT 15: wire 'Attach' buttons for unmatched OCR rows.
+  Array.prototype.slice.call(document.querySelectorAll('.attach-ocr-btn'))
+    .forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = btn.getAttribute('data-unmatched-index');
+        var container = document.querySelector('[data-unmatched-index="' + idx + '"]');
+        if (!container) return;
+
+        var select = container.querySelector('.attach-target-select');
+        var internalInput = container.querySelector('.attach-internal-input');
+        var externalInput = container.querySelector('.attach-external-input');
+        var targetHidden = container.querySelector('.attach-target-hidden');
+        var internalHidden = container.querySelector('.attach-internal-hidden');
+        var externalHidden = container.querySelector('.attach-external-hidden');
+        var msgEl = container.querySelector('.attach-result-msg');
+
+        var srid = select ? select.value : '';
+        var intVal = internalInput ? (internalInput.value.trim() || '') : '';
+        var extVal = externalInput ? (externalInput.value.trim() || '') : '';
+
+        if (!srid) {
+          msgEl.textContent = 'Please select a SubjectResult first.';
+          msgEl.className = 'attach-result-msg mt-1 small text-danger';
+          return;
+        }
+
+        // Populate hidden fields so the server receives them.
+        if (targetHidden) targetHidden.value = srid;
+        if (internalHidden) internalHidden.value = intVal;
+        if (externalHidden) externalHidden.value = extVal;
+
+        var selectedText = select.options[select.selectedIndex].text;
+        msgEl.textContent = 'Attached to ' + selectedText + ' — marks int=' +
+          (intVal || '—') + ' ext=' + (extVal || '—') +
+          '. Save the form to persist.';
+        msgEl.className = 'attach-result-msg mt-1 small text-success';
+      });
+    });
+
   // Client-side nicety only: block obvious empty-int/ext submits early.
   form.addEventListener('submit', function (ev) {
     var ok = true;

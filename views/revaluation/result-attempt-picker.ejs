@@ -1,0 +1,64 @@
+<div class="container-fluid">
+  <div class="row mb-3 align-items-center">
+    <div class="col">
+      <h4 class="mb-1"><i class="material-icons me-1">assignment_ind</i> Revaluation — Step 3: Select Attempt</h4>
+      <p class="text-muted mb-0">
+        Student <strong><%= studentName %></strong> &middot; Session <strong><%= sessionDisplay %></strong>.
+      </p>
+    </div>
+    <div class="col-auto">
+      <a href="/revaluation/start/students?session=<%= sessionId %>" class="btn btn-outline-secondary btn-sm">Back to students</a>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Attempt</th><th>Exam type</th><th class="text-center">Result status</th><th class="text-end">SGPA</th><th class="text-end">CGPA</th><th>Revaluation submission</th><th class="text-end">Select</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% attempts.forEach(a => {
+          const passClass = a.result_status === 'pass' ? 'success' : 'danger';
+          const st = a.reval_state || 'AVAILABLE'; %>
+        <tr>
+          <td><strong>Attempt #<%= a.attempt_no %></strong></td>
+          <td><span class="badge bg-info text-dark"><%= a.exam_type %></span></td>
+          <td class="text-center"><span class="badge bg-<%= passClass %>"><%= a.result_status %></span></td>
+          <td class="text-end"><%= a.sgpa !== null && a.sgpa !== undefined ? a.sgpa : '—' %></td>
+          <td class="text-end"><%= a.cgpa !== null && a.cgpa !== undefined ? a.cgpa : '—' %></td>
+          <td>
+            <% if (st === 'APPROVED') { %>
+              <span class="badge bg-success">Already submitted</span>
+              <% if (a.reval_import_id) { %><a class="btn btn-sm btn-outline-success ms-1" href="/revaluation/outcome/<%= a.reval_import_id %>">View</a><% } %>
+            <% } else if (st === 'IN_PROGRESS') { %>
+              <span class="badge bg-warning text-dark">Upload in progress</span>
+              <% if (a.reval_import_id) { %><a class="btn btn-sm btn-outline-warning ms-1" href="/revaluation/pending/<%= a.reval_import_id %>">Resume</a><% } %>
+            <% } else if (st === 'RETRY') { %>
+              <span class="badge bg-danger">Previous upload failed</span>
+            <% } else { %>
+              <span class="badge bg-success-subtle text-success">Available</span>
+            <% } %>
+          </td>
+          <td class="text-end">
+            <% if (st === 'APPROVED' || st === 'IN_PROGRESS') { %>
+              <button type="button" class="btn btn-sm btn-secondary" disabled title="A revaluation submission already exists for this attempt">Continue</button>
+            <% } else { %>
+              <form method="post" action="/revaluation/start/attempt">
+                <input type="hidden" name="session" value="<%= sessionId %>">
+                <input type="hidden" name="student" value="<%= studentId %>">
+                <input type="hidden" name="result" value="<%= a.result_id %>">
+                <button type="submit" class="btn btn-sm btn-primary">Continue</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="text-muted">Originating subjects are loaded automatically from the selected Result — no manual subject selection is required.</div>
+</div>

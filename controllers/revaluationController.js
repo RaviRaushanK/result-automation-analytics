@@ -56,170 +56,222 @@ function loadResultContext(resultId) {
     ]
   });
 }
-/**
- * GET /revaluation/upload — Result picker ("find an existing Result").
- */
-exports.showResultPicker = async (req, res) => {
-  const q = (req.query.q || '').trim();
+/** Step 1 — list Result Sessions that contain at least one Result. */
+exports.showSessionPicker = async (req, res) => {
+  let sessions = [];
   try {
-    const studentWhere = q
-      ? { [Op.or]: [
-          { usn: { [Op.like]: `%${q}%` } },
-          { student_name: { [Op.like]: `%${q}%` } }
-        ] }
-      : undefined;
-
-    const results = await Result.findAll({
-      include: [
-        { model: Student, attributes: ['student_name', 'usn'], where: studentWhere },
-        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] }
-      ],
-      limit: 200,
-      order: [['result_id', 'DESC']]
-    });
-
-    const list = results.map(r => ({
-      result_id: r.result_id,
-      student_name: r.Student ? r.Student.student_name : '',
-      usn: r.Student ? r.Student.usn : '',
-      semester: r.ResultSession ? r.ResultSession.semester : '',
-      exam_session: r.ResultSession ? r.ResultSession.exam_session : '',
-      exam_year: r.ResultSession ? r.ResultSession.exam_year : '',
-      attempt_no: r.attempt_no,
-      exam_type: r.exam_type,
-      result_status: r.result_status,
-      cgpa: r.cgpa
-    }));
-
-    return res.render('revaluation/result-picker', {
-      title: 'Revaluation — Select a Result',
-      breadcrumbItems: [
-        { label: 'Result Management' },
-        { label: 'Upload Revaluation', href: '/revaluation/upload', active: true }
-      ],
-      query: q,
-      results: list,
-      error: req.query.error || null
+    sessions = await ResultSession.findAll({
+      attributes: ['session_id', 'semester', 'exam_session', 'exam_year'],
+      include: [{ model: Result, attributes: ['result_id'] }],
+      where: { '$Results.result_id$': { [Op.ne]: null } },
+      order: [['exam_year', 'DESC'], ['exam_session', 'ASC']],
+      distinct: true
     });
   } catch (err) {
-    console.error('[revaluation] showResultPicker error:', err);
-    return res.redirect('/dashboard?error=' + encodeURIComponent('Could not load results.'));
+    console.error('[revaluation] showSessionPicker error:', err);
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load result sessions.'));
   }
+  const list = sessions.filter(s => (s.Results && s.Results.length > 0)).map(s => ({
+    sessionId: s.session_id,
+    semester: s.semester,
+    exam_session: s.exam_session,
+    exam_year: s.exam_year,
+    display: [s.semester, s.exam_session, s.exam_year].filter(Boolean).join(' | ')
+  }));
+  return res.render('revaluation/result-session-picker', {
+    title: 'Revaluation — Step 1: Select Result Session',
+    breadcrumbItems: [{ label: 'Result Management' }, { label: 'Upload Revaluation', href: '/revaluation/start', active: true }],
+    sessions: list,
+    error: req.query.error || null
+  });
 };
 
 /**
- * GET /revaluation/:resultId — Result detail (attempt + subjects w/ marks).
+ * Step 2 — students that have Results in the selected Result Session.
+ * Restricted server-side to the session (inner join on Result.session_id).
  */
-exports.showResultDetail = async (req, res) => {
-  const resultId = Number(req.params.resultId);
-  if (!Number.isInteger(resultId) || resultId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid result.'));
+exports.showSessionStudents = async (req, res) => {
+  const sessionId = Number(req.params.sessionId || req.query.session) || 0;
+  if (!Number.isInteger(sessionId) || sessionId <= 0) {
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid result session.'));
   }
-
-  let result;
+  const session = await ResultSession.findByPk(sessionId);
+  if (!session) {
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Result session not found.'));
+  }
+  const q = (req.query.q || '').trim();
+  const studentWhere = q
+    ? { [Op.or]: [{ usn: { [Op.like]: `%${q}%` } }, { student_name: { [Op.like]: `%${q}%` } }] }
+    : undefined;
+  let students = [];
   try {
-    result = await loadResultContext(resultId);
+    students = await Student.findAll({
+      attributes: ['student_id', 'usn', 'student_name'],
+      where: studentWhere,
+      include: [{ model: Result, attributes: ['result_id'], where: { session_id: sessionId }, required: true }],
+      distinct: true,
+      order: [['student_name', 'ASC']]
+    });
   } catch (err) {
-    console.error('[revaluation] showResultDetail error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load result.'));
+    console.error('[revaluation] showSessionStudents error:', err);
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load students.'));
   }
-  if (!result) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
-  }
-
-  const subjects = (result.SubjectResults || []).map(sr => ({
-    subject_result_id: sr.subject_result_id,
-    result_id: sr.result_id,
-    subject_id: sr.subject_id,
-    subject_code: sr.Subject ? sr.Subject.subject_code : '',
-    subject_name: sr.Subject ? sr.Subject.subject_name : '',
-    credits: sr.Subject ? sr.Subject.credits : '',
-    marks: sr.marks,
-    grade: sr.grade,
-    result_status: sr.result_status,
-    created_at: sr.created_at
-  }));
-
-  return res.render('revaluation/result-detail', {
-    title: 'Revaluation — Result Detail',
+  return res.render('revaluation/result-session-students', {
+    title: 'Revaluation — Step 2: Select Student',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
-      { label: 'Result Detail', active: true }
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
+      { label: 'Step 1: Session', href: '/revaluation/start' },
+      { label: 'Select Student', active: true }
     ],
-    resultId: result.result_id,
-    student: { name: result.Student ? result.Student.student_name : '', usn: result.Student ? result.Student.usn : '' },
-    sessionDisplay: sessionDisplay(result.ResultSession),
-    attempt: { attempt_no: Number(result.attempt_no), exam_type: result.exam_type },
-    result_status: result.result_status,
-    cgpa: result.cgpa,
-    subjects,
+    session: { id: sessionId, display: [session.semester, session.exam_session, session.exam_year].filter(Boolean).join(' | ') },
+    query: q,
+    students: students.map(st => ({ student_id: st.student_id, usn: st.usn, student_name: st.student_name })),
     error: req.query.error || null
   });
 };
 /**
- * POST /revaluation/:resultId/start — "Start Revaluation".
- * Re-validates the selection server-side (exist + belongs-to-this-result)
- * and stashes the verified ids in the session (source of truth on submit).
+ * Step 3 — the selected student's Results/attempts for the selected session.
+ * Restricted server-side to BOTH session_id AND student_id.
  */
-exports.startRevaluation = async (req, res) => {
-  const resultId = Number(req.params.resultId);
-  if (!Number.isInteger(resultId) || resultId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid result.'));
+exports.resolveShowAttempts = async (req, res) => {
+  const sessionId = Number(req.params.sessionId || req.query.session) || 0;
+  const studentId = Number(req.params.studentId || req.query.student) || 0;
+  if (!Number.isInteger(sessionId) || sessionId <= 0 || !Number.isInteger(studentId) || studentId <= 0) {
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid selection.'));
+  }
+  const session = await ResultSession.findByPk(sessionId);
+  const student = await Student.findByPk(studentId, { attributes: ['student_id', 'usn', 'student_name'] });
+  if (!session || !student) {
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Unknown session or student.'));
+  }
+  const results = await Result.findAll({
+    where: { session_id: sessionId, student_id: studentId },
+    attributes: ['result_id', 'attempt_no', 'exam_type', 'result_status', 'sgpa', 'cgpa'],
+    order: [['attempt_no', 'ASC']]
+  });
+  if (!results.length) {
+    return res.redirect(`/revaluation/start/students?session=${sessionId}&error=` +
+      encodeURIComponent('No Results/attempts found for this student in this session.'));
+  }
+
+  // PROMPT 19 — per-attempt revaluation submission state for the UI
+  // (AVAILABLE / APPROVED / IN_PROGRESS / RETRY). Server-authoritative only.
+  let revalStates = {};
+  try {
+    const st = await getRevaluationStatesForResults(results.map(r => r.result_id));
+    if (st && st.ok) revalStates = st.states || {};
+  } catch (err) {
+    console.error('[revaluation] resolveShowAttempts state lookup error:', err);
+    revalStates = {};
+  }
+
+  return res.render('revaluation/result-attempt-picker', {
+    title: 'Revaluation — Step 3: Select Attempt',
+    breadcrumbItems: [
+      { label: 'Result Management' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
+      { label: 'Select Student', href: `/revaluation/start/students?session=${sessionId}` },
+      { label: 'Select Attempt', active: true }
+    ],
+    sessionId,
+    studentId,
+    sessionDisplay: [session.semester, session.exam_session, session.exam_year].filter(Boolean).join(' | '),
+    studentName: student.student_name + ' (' + student.usn + ')',
+    attempts: results.map(r => {
+      const st = revalStates[r.result_id] || { state: 'AVAILABLE', importId: null };
+      return {
+        result_id: r.result_id,
+        attempt_no: r.attempt_no,
+        exam_type: r.exam_type,
+        result_status: r.result_status,
+        sgpa: r.sgpa,
+        cgpa: r.cgpa,
+        reval_state: st.state,
+        reval_import_id: st.importId || null
+      };
+    }),
+    error: req.query.error || null
+  });
+};
+
+/**
+ * Step 4 — POST selecting an attempt. Browser ids are hints only. The
+ * authoritative Result is resolved server-side, the full chain is re-verified
+ * (Result exists; session_id matches; student_id matches; attempt_no/exam_type
+ * come from the DB row), the Prompt-12 open-submission guard runs, then the
+ * server-authoritative draft (incl. the Result's full SubjectResult scope) is
+ * stashed and the existing upload page is opened.
+ */
+exports.confirmAttemptSelection = async (req, res) => {
+  const sessionId = Number(req.body.session || req.body.sessionId || 0);
+  const studentId = Number(req.body.student || req.body.studentId || 0);
+  const resultId = Number(req.body.result || req.body.resultId || 0);
+  if (!Number.isInteger(sessionId) || sessionId <= 0 ||
+      !Number.isInteger(studentId) || studentId <= 0 ||
+      !Number.isInteger(resultId) || resultId <= 0) {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid selection.'));
   }
 
   let result;
-  try {
-    result = await Result.findByPk(resultId, {
-      attributes: ['result_id', 'student_id', 'session_id', 'attempt_no', 'exam_type']
-    });
-  } catch (err) {
-    console.error('[revaluation] startRevaluation lookup error:', err);
+  try { result = await loadResultContext(resultId); }
+  catch (err) {
+    console.error('[revaluation] confirmAttemptSelection load error:', err);
     return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load result.'));
   }
-  if (!result) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
+  if (!result) return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
+
+  // Server-authoritative chain verification (browser ids were hints only).
+  if (Number(result.session_id) !== sessionId) {
+    return res.redirect('/revaluation/upload?error=' +
+      encodeURIComponent('Result does not belong to the selected Result Session. Please re-select.'));
+  }
+  if (Number(result.student_id) !== studentId) {
+    return res.redirect('/revaluation/upload?error=' +
+      encodeURIComponent('Result does not belong to the selected student. Please re-select.'));
   }
 
-  // Parse selection only as a "hint"; it is re-validated below.
-  let ids = req.body.subject_result_id;
-  const arr = Array.isArray(ids) ? ids : (ids ? [ids] : []);
-  const parsed = arr
-    .map(v => Number(String(v || '').trim()))
-    .filter(n => Number.isInteger(n) && n > 0);
-  const unique = [...new Set(parsed)];
-
-  if (unique.length === 0) {
+  // Prompt-12 open-submission guard — unchanged, must run before proceeding.
+  let opr;
+  try { opr = await findOpenRevaluationImportForResult(result.result_id); }
+  catch (err) {
+    console.error('[revaluation] confirmAttemptSelection open-guard error:', err);
     return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('Select at least one subject to revalue.'));
+      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
   }
-
-  // SECURITY: every id must exist AND belong to THIS result.
-  const rows = await SubjectResult.findAll({
-    where: { subject_result_id: unique },
-    attributes: ['subject_result_id', 'result_id']
-  });
-  const byId = new Map(rows.map(r => [r.subject_result_id, r]));
-
-  const missing = unique.filter(id => !byId.has(id));
-  if (missing.length) {
+  if (!opr.ok) {
     return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('One or more selected subjects could not be found.'));
+      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
   }
-  const foreign = unique.filter(id => Number(byId.get(id).result_id) !== Number(result.result_id));
-  if (foreign.length) {
+  if (opr.importId) {
     return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('One or more subjects do not belong to this result. Selection rejected.'));
+      encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
+        opr.importId + '). Complete or retry that submission before starting another.'));
   }
 
-  // Stash the server-verified selection (the source of truth on submit).
+  // PROMPT 19 — Case A: an official revaluation submission was already
+  // approved for this Student + ResultSession + Attempt. Block immediately.
+  let appr;
+  try { appr = await hasApprovedRevaluationForResult(result.result_id); }
+  catch (err) { appr = { ok: false, approved: false }; }
+  if (!appr.ok) {
+    return res.redirect(`/revaluation/${result.result_id}?error=` +
+      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
+  }
+  if (appr.approved) {
+    return res.redirect(`/revaluation/${result.result_id}?error=` +
+      encodeURIComponent('A revaluation result has already been approved for this student for this examination session.'));
+  }
+
+  // Server-authoritative draft — scoped to the chosen Result.
+  // The wizard's upload page re-resolves the FULL subject scope via
+  // loadResultContext(resultId), so caching it in the draft is redundant.
   req.session.revaluationDraft = {
     resultId: Number(result.result_id),
     studentId: Number(result.student_id),
     sessionId: Number(result.session_id),
     attempt_no: Number(result.attempt_no),
     exam_type: result.exam_type,
-    subjectResultIds: unique,
     startedAt: Date.now()
   };
 
@@ -233,16 +285,18 @@ exports.startRevaluation = async (req, res) => {
  */
 exports.showUploadPage = async (req, res) => {
   const resultId = Number(req.params.resultId);
+  // Phase 13B: The draft tracks Result context; subjects are resolved server-side.
   const draft = req.session && req.session.revaluationDraft;
 
   if (!draft || Number(draft.resultId) !== resultId) {
-    return res.redirect(`/revaluation/${resultId}?error=` +
-      encodeURIComponent('No revaluation in progress. Please select subjects first.'));
+    // Not an error about subject selection — the wizard flow provides scope.
+    return res.redirect('/revaluation/start?error=' +
+      encodeURIComponent('No revaluation in progress.'));
   }
   if (Date.now() - (draft.startedAt || 0) > REVAL_PENDING_SECONDS * 1000) {
     delete req.session.revaluationDraft;
-    return res.redirect(`/revaluation/${resultId}?error=` +
-      encodeURIComponent('Your subject selection expired. Please re-select.'));
+    return res.redirect('/revaluation/start?error=' +
+      encodeURIComponent('Your draft has expired. Please re-select the attempt.'));
   }
 
   const result = await loadResultContext(resultId);
@@ -250,18 +304,9 @@ exports.showUploadPage = async (req, res) => {
     return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
   }
 
-  const ids = draft.subjectResultIds || [];
-  const owned = await SubjectResult.findAll({
-    where: { subject_result_id: ids, result_id: Number(result.result_id) },
-    attributes: ['subject_result_id', 'marks', 'grade', 'result_status'],
-    include: [{ model: Subject, attributes: ['subject_code', 'subject_name', 'credits', 'max_marks'] }]
-  });
-  const validSet = new Set(owned.map(s => Number(s.subject_result_id)));
-  if (owned.length !== ids.length) {
-    delete req.session.revaluationDraft;
-    return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('Stashed selection is no longer valid. Please re-select.'));
-  }
+  // Phase 13B: subjects are the full scope of the selected Result, loaded
+  // server-authoritatively. Never use browser-supplied IDs to change scope.
+  const owned = result.SubjectResults || [];
 
   const subjects = owned.map(sr => ({
     subject_result_id: sr.subject_result_id,
@@ -278,11 +323,12 @@ exports.showUploadPage = async (req, res) => {
     title: 'Revaluation — Upload Document',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
-      { label: 'Result Detail', href: `/revaluation/${result.result_id}` },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
       { label: 'Upload Document', active: true }
     ],
     resultId: result.result_id,
+    sessionId: Number(result.session_id),
+    studentId: Number(result.student_id),
     student: { name: result.Student ? result.Student.student_name : '', usn: result.Student ? result.Student.usn : '' },
     sessionDisplay: sessionDisplay(result.ResultSession),
     attempt: { attempt_no: Number(result.attempt_no), exam_type: result.exam_type },
@@ -301,15 +347,9 @@ exports.processUpload = async (req, res) => {
   const resultId = Number(req.params.resultId);
   const adminId = resolveAdminId(req);
   let result;
-
   try {
-    result = await Result.findByPk(resultId, {
-      attributes: ['result_id', 'student_id', 'session_id', 'attempt_no', 'exam_type', 'result_status'],
-      include: [
-        { model: Student, attributes: ['student_name', 'usn'] },
-        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] }
-      ]
-    });
+    // Phase 13B: use server-authoritative loadResultContext to also load SubjectResults
+    result = await loadResultContext(resultId);
   } catch (err) {
     console.error('[revaluation] processUpload lookup error:', err);
     return res.redirect(`/revaluation/${Number.isFinite(resultId) ? resultId : ''}/upload?error=` +
@@ -319,25 +359,10 @@ exports.processUpload = async (req, res) => {
     return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
   }
 
-  // Recover the server-stashed selection and re-validate ownership (DB truth).
-  const draft = req.session && req.session.revaluationDraft;
-  const subjectResultIds = (draft && Number(draft.resultId) === Number(result.result_id))
-    ? (draft.subjectResultIds || [])
-    : [];
-  if (!draft || Number(draft.resultId) !== Number(result.result_id) || subjectResultIds.length === 0) {
-    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('No subjects selected. Please go back and select subjects.'));
-  }
-
-  const owned = await SubjectResult.findAll({
-    where: { subject_result_id: subjectResultIds, result_id: Number(result.result_id) },
-    attributes: ['subject_result_id', 'subject_id', 'marks', 'grade', 'result_status'],
-    include: [{ model: Subject, attributes: ['subject_code', 'subject_name', 'credits', 'max_marks'] }]
-  });
-  if (owned.length !== subjectResultIds.length) {
-    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('Selection validation failed. Please re-select subjects.'));
-  }
+  // Phase 13B: subjects are the full scope of the selected Result, loaded
+  // server-authoritatively. Browser-supplied subjectResultIds are never used
+  // to define, expand, reduce, or replace the Result scope.
+  const owned = result.SubjectResults || [];
 
   // File validation (multer already gates MIME/type/size; verify again here).
   if (!req.file) {
@@ -352,6 +377,49 @@ exports.processUpload = async (req, res) => {
       encodeURIComponent('Only PDF documents are accepted.'));
   }
 
+  // Prompt (11/12) defense-in-depth: refuse the upload if an open submission
+  // already exists for this Result/Attempt (identity from server-stored OCR
+  // JSON only). Clean up the just-staged temp file before redirecting.
+  let guardEarly;
+  try {
+    guardEarly = await findOpenRevaluationImportForResult(result.result_id);
+  } catch (err) {
+    console.error('[revaluation] processUpload open-guard error:', err);
+    guardEarly = { ok: false, importId: null };
+  }
+  if (!guardEarly.ok) {
+    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
+  }
+  if (guardEarly.importId) {
+    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+      encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
+        guardEarly.importId + '). Complete or retry that submission before starting another.'));
+  }
+
+  // PROMPT 19 — Case A: an approved revaluation already exists for this
+  // Student + ResultSession + Attempt. Reject the new submission BEFORE the
+  // document is stored. Fail closed when the lookup itself errors.
+  let apprEarly;
+  try {
+    apprEarly = await hasApprovedRevaluationForResult(result.result_id);
+  } catch (err) {
+    console.error('[revaluation] processUpload approved-guard error:', err);
+    apprEarly = { ok: false, approved: false };
+  }
+  if (!apprEarly.ok) {
+    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
+  }
+  if (apprEarly.approved) {
+    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+      encodeURIComponent('A revaluation result has already been approved for this student for this examination session.'));
+  }
+
   // Move the validated file into the revaluation upload directory.
   ensureRevalDir();
   const secureName = generateSecureFilename(req.file.originalname);
@@ -362,6 +430,39 @@ exports.processUpload = async (req, res) => {
   const t = await sequelize.transaction();
   let importLog;
   try {
+    // PROMPT 19 — race protection: lock the Result row (FOR UPDATE) so two
+    // concurrent submissions for the same Round/Attempt serialize. The lock is
+    // the SAME lock TX-B approval takes on the Result (loadResultContextFull
+    // with t.LOCK.UPDATE), so an upload racing an approval either sees the
+    // pending import (open-guard) or the already-approved event and aborts.
+    const locked = await Result.findByPk(result.result_id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+      attributes: ['result_id']
+    });
+    if (!locked) {
+      throw Object.assign(new Error('RESULT_MISSING'), { resultMissing: true, storedPath });
+    }
+
+    // Defense-in-depth (in-transaction): a concurrent open submission may have
+    // landed in the brief window since the outer check — abort cleanly.
+    const recheck = await findOpenRevaluationImportForResult(result.result_id, t);
+    if (!recheck.ok) {
+      throw Object.assign(new Error('OPEN_GUARD_UNAVAILABLE'), { openGuardUnavailable: true, storedPath });
+    }
+    if (recheck.importId) {
+      throw Object.assign(new Error('OPEN_SUBMISSION_' + recheck.importId), { openImportId: recheck.importId, storedPath });
+    }
+
+    // PROMPT 19 — in-transaction Case A recheck under the Result row lock.
+    const apprInTx = await hasApprovedRevaluationForResult(result.result_id, t);
+    if (!apprInTx.ok) {
+      throw Object.assign(new Error('APPROVED_GUARD_UNAVAILABLE'), { openGuardUnavailable: true, storedPath });
+    }
+    if (apprInTx.approved) {
+      throw Object.assign(new Error('ALREADY_APPROVED'), { alreadyApproved: true, storedPath });
+    }
+
     importLog = await ImportLog.create({
       session_id: Number(result.session_id),
       uploaded_by: adminId,
@@ -425,6 +526,22 @@ exports.processUpload = async (req, res) => {
     await t.rollback();
     try { if (fs.existsSync(storedPath)) fs.unlinkSync(storedPath); } catch { /* ignore */ }
     console.error('[revaluation] processUpload create error:', err);
+    if (err && err.openImportId) {
+      return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+        encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
+          err.openImportId + '). Complete or retry that submission before starting another.'));
+    }
+    if (err && err.alreadyApproved) {
+      return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+        encodeURIComponent('A revaluation result has already been approved for this student for this examination session.'));
+    }
+    if (err && err.resultMissing) {
+      return res.redirect('/revaluation/start?error=' + encodeURIComponent('The selected Result no longer exists.'));
+    }
+    if (err && err.openGuardUnavailable) {
+      return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+        encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
+    }
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
       encodeURIComponent('Failed to register revaluation: ' + (err.message || 'server error')));
   }
@@ -463,7 +580,7 @@ exports.showPending = async (req, res) => {
     title: 'Revaluation — Pending OCR',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
       { label: 'Pending OCR', active: true }
     ],
     importId: log.import_id,
@@ -499,7 +616,178 @@ async function loadRevalImport(importId) {
   });
 }
 
-/** Build the failure variant of extracted_json (context keys preserved, ocr marked failed). */
+/**
+ * Open-submission guard (Prompt 11/12).
+ * A Result/Attempt may have AT MOST ONE open (pending|extracted) REVALUATION
+ * submission at a time. The Result identity is resolved ONLY from the
+ * server-stored ocr_extractions.extracted_json.result_id — never from request
+ * data. Failed / success / unrelated imports never block a future round.
+ *
+ * @param {number} resultId server-authoritative Result id
+ * @param {object} [t] optional Sequelize transaction (used inside upload guard)
+ * @returns {Promise<{ok:boolean, importId:number|null}>} ok=false only when the
+ *   lookup itself failed (callers should fail closed). importId is the earliest
+ *   open REVALUATION import bound to the Result/Attempt, or null.
+ */
+async function findOpenRevaluationImportForResult(resultId, t) {
+  const rn = Number(resultId);
+  if (!Number.isInteger(rn) || rn <= 0) return { ok: true, importId: null };
+  const { QueryTypes } = require('sequelize');
+  let rows;
+  try {
+    rows = await sequelize.query(
+      `SELECT i.import_id AS import_id, x.extracted_json AS extracted_json
+         FROM import_logs i
+         JOIN ocr_extractions x ON x.import_id = i.import_id
+        WHERE i.import_type = 'REVALUATION'
+          AND i.status IN ('pending','extracted')
+        ORDER BY i.import_id ASC`,
+      { type: QueryTypes.SELECT, transaction: t || undefined }
+    );
+  } catch (err) {
+    console.error('[revaluation] findOpenRevaluationImportForResult query error:', err);
+    return { ok: false, importId: null };
+  }
+  for (const row of Array.isArray(rows) ? rows : []) {
+    let j = row && row.extracted_json;
+    if (j === null || j === undefined) continue;
+    try {
+      if (typeof j !== 'string') {
+        // Some drivers hand back a JS object; re-serialize defensively.
+        j = JSON.stringify(j);
+      }
+      const parsed = JSON.parse(j);
+      if (Number(parsed && parsed.result_id) === rn) {
+        return { ok: true, importId: Number(row.import_id) };
+      }
+    } catch (_) {
+      /* identity not safely resolvable -> not attributable, not a conflict */
+    }
+  }
+  return { ok: true, importId: null };
+}
+/**
+ * PROMPT 19 — hasApprovedRevaluationForResult(resultId, [t])
+ *
+ * True when ANY RevaluationResult event already exists for a SubjectResult
+ * belonging to this Result (Student + ResultSession + Attempt). Events are
+ * created only by the approval transaction, so "an event exists" means
+ * "an official revaluation submission was already registered for this
+ * Result/Attempt". Identity is resolved through the database chain
+ *   revaluation_results -> subject_results -> results
+ * and never from browser-supplied data.
+ *
+ * When `t` is supplied the check runs inside that transaction — TX-B holds
+ * the Result row lock (FOR UPDATE) before calling this, so two concurrent
+ * approvals serialize and the loser observes the winner's committed events.
+ *
+ * @returns {Promise<{ok:boolean, approved:boolean}>} ok=false only when the
+ *   lookup itself failed (callers fail closed).
+ */
+async function hasApprovedRevaluationForResult(resultId, t) {
+  const rn = Number(resultId);
+  if (!Number.isInteger(rn) || rn <= 0) return { ok: true, approved: false };
+  const { QueryTypes } = require('sequelize');
+  try {
+    const rows = await sequelize.query(
+      `SELECT rr.revaluation_id
+         FROM revaluation_results rr
+         INNER JOIN subject_results sr ON sr.subject_result_id = rr.subject_result_id
+        WHERE sr.result_id = ?
+        LIMIT 1`,
+      { replacements: [rn], type: QueryTypes.SELECT, transaction: t || undefined });
+    return { ok: true, approved: Array.isArray(rows) && rows.length > 0 };
+  } catch (err) {
+    console.error('[revaluation] hasApprovedRevaluationForResult query error:', err);
+    return { ok: false, approved: false };
+  }
+}
+
+/**
+ * PROMPT 19 — getRevaluationStatesForResults(resultIds)
+ *
+ * UI support for the wizard's attempt list. For each Result id it resolves the
+ * revaluation submission state from server-authoritative data only:
+ *   APPROVED     — events exist for this Result (link to latest success import)
+ *   IN_PROGRESS  — an open (pending|extracted) REVALUATION import exists
+ *   RETRY        — latest import failed; no events; no open import
+ *   AVAILABLE    — no revaluation submission exists
+ *
+ * Import→Result binding uses the server-stored ocr_extractions
+ * extracted_json.result_id exactly like findOpenRevaluationImportForResult.
+ * Fails open (ok:false) so a lookup outage never blanks the attempt list.
+ *
+ * @returns {Promise<{ok:boolean, states:Object<number,{state:string,importId:number|null}>}>}
+ */
+async function getRevaluationStatesForResults(resultIds) {
+  const ids = (Array.isArray(resultIds) ? resultIds : [])
+    .map(n => Number(n)).filter(n => Number.isInteger(n) && n > 0);
+  const states = {};
+  for (const id of ids) states[id] = { state: 'AVAILABLE', importId: null };
+  if (!ids.length) return { ok: true, states };
+  const { QueryTypes } = require('sequelize');
+  try {
+    // 1) Authoritative: any revaluation event for the Result's subjects.
+    const evRows = await sequelize.query(
+      `SELECT DISTINCT sr.result_id AS result_id
+         FROM revaluation_results rr
+         INNER JOIN subject_results sr ON sr.subject_result_id = rr.subject_result_id
+        WHERE sr.result_id IN (${ids.map(() => '?').join(',')})`,
+      { replacements: ids, type: QueryTypes.SELECT });
+    for (const r of evRows) {
+      const rid = Number(r.result_id);
+      if (states[rid]) states[rid] = { state: 'APPROVED', importId: null };
+    }
+
+    // 2) Import lifecycle per Result (from server-stored OCR JSON only).
+    const impRows = await sequelize.query(
+      `SELECT i.import_id AS import_id, i.status AS status, x.extracted_json AS extracted_json
+         FROM import_logs i
+         JOIN ocr_extractions x ON x.import_id = i.import_id
+        WHERE i.import_type = 'REVALUATION'
+        ORDER BY i.import_id ASC`,
+      { type: QueryTypes.SELECT });
+    const idSet = new Set(ids);
+    for (const row of Array.isArray(impRows) ? impRows : []) {
+      let j = row && row.extracted_json;
+      if (j === null || j === undefined) continue;
+      let rid;
+      try {
+        if (typeof j !== 'string') j = JSON.stringify(j);
+        rid = Number(JSON.parse(j) && JSON.parse(j).result_id);
+      } catch (_) { continue; } // not attributable — skip
+      if (!idSet.has(rid)) continue;
+      const st = states[rid];
+      if (!st) continue;
+      const iid = Number(row.import_id);
+      const status = String(row.status || '');
+      if (st.state === 'AVAILABLE') st.importId = iid;
+      if (status === 'success' && st.state === 'APPROVED' && st.importId === null) {
+        st.importId = iid; // outcome link for APPROVED rows
+      }
+      if (st.state === 'APPROVED') continue;
+      if (status === 'pending' || status === 'extracted') {
+        st.state = 'IN_PROGRESS';
+        st.importId = iid;
+      } else if (status === 'failed') {
+        st.state = 'RETRY';
+        st.importId = iid;
+      }
+    }
+    return { ok: true, states };
+  } catch (err) {
+    console.error('[revaluation] getRevaluationStatesForResults query error:', err);
+    return { ok: false, states: {} };
+  }
+}
+
+/**
+ * Build the failure variant of extracted_json (context keys preserved, ocr marked failed).
+ */
+
+/**
+ * Build the failure variant of extracted_json (context keys preserved, ocr marked failed).
+ */
 function failedExtractionJson(saved, reason, message) {
   const ocrBlock = Object.assign({}, (saved && saved.ocr) || {}, {
     extraction_status: 'failed',
@@ -507,7 +795,9 @@ function failedExtractionJson(saved, reason, message) {
     error: message,
     extracted_at: new Date().toISOString()
   });
+  // PROMPT 15: any re-OCR (success or failure) invalidates the saved review.
   const next = Object.assign({}, saved || {}, { ocr: ocrBlock });
+  delete next.review;
   next.warnings = Array.from(new Set([].concat(next.warnings || [], [message]))).filter(Boolean);
   return next;
 }
@@ -633,19 +923,51 @@ exports.runExtraction = async (req, res) => {
   }
 
   // ---- Transactional state write (OcrExtraction + ImportLog together) ----
+  // PROMPT 16: re-fetch both rows under FOR UPDATE inside the transaction so
+  // (a) the writes are guaranteed atomic against a concurrent retry, and
+  // (b) the saved-JSON we transform is the freshest DB value (closing the
+  //     race where another retry commits between our outer load and our TX).
+  // The OCR work itself remains outside the transaction (it can call pdfjs
+  // and/or Tesseract and must NOT hold a connection).
   const t = await sequelize.transaction();
   try {
+    const lockedLog = await ImportLog.findByPk(importId,
+      { transaction: t, lock: t.LOCK.UPDATE });
+    const lockedOcr = await OcrExtraction.findOne(
+      { where: { import_id: importId }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!lockedLog || !lockedOcr) {
+      throw new Error('Extraction rows vanished mid-flight.');
+    }
+
+    // In-TX idempotency backstop: if a concurrent request already finalised
+    // this import to 'success' (e.g. concurrent approval), do not overwrite
+    // that settled state.  'extracted' is left unblocked so an admin can
+    // legitimately re-run OCR to fix a bad first extraction.
+    if (lockedLog.status === 'success') {
+      await t.rollback();
+      return res.redirect(`/revaluation/extraction/${importId}`);
+    }
+
+    // Re-read the authoritative saved JSON from the locked row (not the
+    // pre-TX snapshot in `saved`).
+    const liveSaved = safeJson(lockedOcr.extracted_json);
+
     if (outcome.ok) {
-      const nextJson = Object.assign({}, saved, { ocr: outcome.ocr });
-      await ocrRow.update({
+      // PROMPT 15/16: re-OCR invalidates any previously-frozen review (proposal,
+      // baselines, approved events). The admin must re-validate against the
+      // new OCR evidence. New OCR data + all identity/context fields are kept.
+      const nextJson = Object.assign({}, liveSaved, { ocr: outcome.ocr });
+      delete nextJson.review;
+      await lockedOcr.update({
         raw_text: outcome.ocr.raw_text || '',
         confidence_score: outcome.confidenceScore,
         validation_status: 'pending',
         extracted_json: nextJson
       }, { transaction: t });
-      await log.update({ status: 'extracted' }, { transaction: t });
-      await t.commit();
+      await lockedLog.update({ status: 'extracted' }, { transaction: t });
     } else {
+      // PROMPT 16: a failed retry also invalidates the old review. New
+      // diagnostic OCR block is written; identity/context fields are preserved.
       const block = Object.assign({}, outcome.ocr || {}, {
         extraction_status: 'failed',
         failed_reason: outcome.reason || 'FAILED',
@@ -654,14 +976,15 @@ exports.runExtraction = async (req, res) => {
       if (outcome.reason === 'EMPTY_EXTRACTION' && block.error) {
         block.error = block.error; // message already set by the adapter
       }
-      const nextJson = Object.assign({}, saved, { ocr: block });
+      const nextJson = Object.assign({}, liveSaved, { ocr: block });
+      delete nextJson.review;
       nextJson.warnings = Array.from(new Set([].concat(nextJson.warnings || [], block.warnings || []))).filter(Boolean);
-      await ocrRow.update({ validation_status: 'rejected', extracted_json: nextJson }, { transaction: t });
-      await log.update({ status: 'failed' }, { transaction: t });
-      await t.commit();
+      await lockedOcr.update({ validation_status: 'rejected', extracted_json: nextJson }, { transaction: t });
+      await lockedLog.update({ status: 'failed' }, { transaction: t });
     }
+    await t.commit();
   } catch (err) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     console.error('[revaluation] extraction persist error:', err);
     return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('Could not save extraction state.'));
   }
@@ -710,7 +1033,7 @@ exports.showExtraction = async (req, res) => {
     title: 'Revaluation — OCR Extraction',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
       { label: 'Pending OCR', href: `/revaluation/pending/${log.import_id}` },
       { label: 'OCR Extraction', active: true }
     ],
@@ -1043,6 +1366,19 @@ async function loadReviewState(importId, optsIn) {
     id: Number(s.subject_result_id), norm: normCode(s.subject_code)
   }));
 
+  // Frozen-proposal lookup. PROMPT 14: when the admin re-opens the form to
+  // edit a previously-validated import, the inputs must pre-fill with the
+  // admin's LAST CONFIRMED marks (not the raw OCR marks). Identity-keyed by
+  // bound_to_srid (target) so AMBIGUOUS rebinds round-trip correctly.
+  const priorReview = saved.review || null;
+  const priorPropByTgt = new Map();
+  if (priorReview && Array.isArray(priorReview.proposal)) {
+    for (const p of priorReview.proposal) {
+      const key = String(p.bound_to_srid != null ? p.bound_to_srid : p.subject_result_id);
+      priorPropByTgt.set(key, p);
+    }
+  }
+
   const rows = (saved.subjects || []).map(sv => {
     const srid = Number(sv.subject_result_id);
     const sr = srById.get(srid);
@@ -1058,6 +1394,20 @@ async function loadReviewState(importId, optsIn) {
             code: ((srById.get(x.id) || {}).Subject || {}).subject_code || ('#' + x.id)
           }))
       : [];
+    // PROMPT 14: server-side preference for the pre-fill mark values.
+    // 1. The admin's prior frozen-proposal marks (subject of this edit).
+    // 2. OCR-derived marks when the row was MATCHED and no prior edit exists.
+    // 3. null (no fallback invented by us).
+    const prior = priorPropByTgt.get(String(srid));
+    const priorInt = prior && prior.proposed_revised_internal_marks != null
+      ? Number(prior.proposed_revised_internal_marks) : null;
+    const priorExt = prior && prior.proposed_revised_external_marks != null
+      ? Number(prior.proposed_revised_external_marks) : null;
+    const ocrInt = ev ? ev.revised_internal_marks : null;
+    const ocrExt = ev ? ev.revised_external_marks : null;
+    const revInt = (priorInt != null) ? priorInt : ((ocrInt !== null && ocrInt !== undefined) ? Number(ocrInt) : null);
+    const revExt = (priorExt != null) ? priorExt : ((ocrExt !== null && ocrExt !== undefined) ? Number(ocrExt) : null);
+    const revTotal = (revInt !== null && revExt !== null) ? (revInt + revExt) : null;
     return {
       srid,
       code: sv.subject_code || ((subj && subj.subject_code) || ''),
@@ -1073,15 +1423,20 @@ async function loadReviewState(importId, optsIn) {
         match_state: ev ? ev.match_state : 'SELECTED_BUT_NOT_FOUND',
         ocr_subject_code: ev ? ev.ocr_subject_code : null,
         normalized: ev ? ev.normalized_code : normCode(sv.subject_code),
-        revised_int: ev ? ev.revised_internal_marks : null,
-        revised_ext: ev ? ev.revised_external_marks : null,
-        revised_total: ev ? ev.revised_marks : null,
+        // PROMPT 14: revised_int/ext/total now follow the edit-time preference
+        // (prior proposal > OCR); OCR evidence is preserved in OCR-only fields.
+        revised_int: revInt,
+        revised_ext: revExt,
+        revised_total: revTotal,
         status_candidate: ev ? ev.revised_status_candidate : null,
         raw_letter: ev ? ev.raw_status : null,
         confidence: ev ? ev.confidence : null,
         raw_line: ev ? ev.raw_line : null,
         ambiguous
       },
+      // Edit-time defaults derived from a prior frozen proposal (used by the
+      // template for radio defaults and pre-fill of the number inputs).
+      priorDecision: prior ? (prior.decision || 'accept') : null,
       pickOptions
     };
   });
@@ -1152,6 +1507,73 @@ exports.showReview = async (req, res) => {
     error: req.query.error ? decodeURIComponent(req.query.error) : null
   });
 };
+
+/**
+ * Parse all unmatched_attach_<index> fields from the request body and return
+ * a list of validated attachment descriptors. Throws on any forged target.
+ */
+function collectUnmatchedAttachments(body, unmatched, srById) {
+  const items = [];
+  for (let i = 0; i < unmatched.length; i++) {
+    const rawTarget = body['unmatched_attach_' + i];
+    if (rawTarget === undefined || rawTarget === '' || rawTarget === null) continue;
+    const target = Number(rawTarget);
+    if (!Number.isInteger(target) || target <= 0 || !srById.has(target)) {
+      // Forged/garbage binding identifier — reject entire submission.
+      throw Object.assign(new Error('FORGED_ATTACHMENT_TARGET'), { code: 'FORGED_ATTACHMENT_TARGET' });
+    }
+    const u = unmatched[i];
+    items.push({
+      unmatched_index: i,
+      target_subject_result_id: target,
+      ocr_subject_code: u.ocr_subject_code || null,
+      ocr_raw_text: (u.raw_line || u.raw_text || ''),
+      proposed_revised_internal_marks: body['attach_internal_' + i],
+      proposed_revised_external_marks: body['attach_external_' + i]
+    });
+  }
+  return items;
+}
+
+/**
+ * Validate marks for an attached unmatched OCR row and build a frozen proposal
+ * entry. The entry has source='UNMATCHED_OCR' so approveReview can treat it
+ * like any other proposal when creating RevaluationResult events.
+ */
+function validateAndComputeAttachedUnmatched(att, targetRow) {
+  const errors = [];
+  const warnings = [];
+  if (!targetRow) {
+    errors.push('Attached target SubjectResult no longer exists.');
+    return { ok: false, errors, warnings, entry: null };
+  }
+  // targetRow comes from srById and is the full SubjectResult row (with Subject
+  // association). Pass it through to validateAndComputeRevised so that mark
+  // limits and original-marks comparison are honoured.
+  const out = validateAndComputeRevised({
+    decision: 'accept',
+    internalRaw: att.proposed_revised_internal_marks,
+    externalRaw: att.proposed_revised_external_marks,
+    sr: targetRow,
+    subject: targetRow.Subject || null,
+    ocrRow: null  // unmatched rows have no OCR evidence
+  });
+  if (!out.ok || !out.proposal) {
+    return { ok: false, errors: out.errors, warnings: out.warnings, entry: null };
+  }
+  const p = out.proposal;
+  // Override the result srid with the TARGET (the user picked this to bind to).
+  const srid = Number(targetRow.subject_result_id);
+  const entry = Object.assign({}, p, {
+    subject_result_id: srid,
+    source: 'UNMATCHED_OCR',
+    bound_to_srid: srid,
+    decision: 'accept',
+    ocr_subject_code: att.ocr_subject_code,
+    unmatched_index: att.unmatched_index
+  });
+  return { ok: true, errors, warnings, entry };
+}
 
 /** Shape stored evidence into what validateAndComputeRevised expects. */
 function pseudoOcrEvidence(row) {
@@ -1244,6 +1666,35 @@ exports.submitReview = async (req, res) => {
   }
 
   // Duplicate effective-target guard across ALL accepted rows.
+  // (deferred; merged with unmatched-OCR below)
+  // ---- PROMPT 15: unmatched OCR attachments (bind raw OCR row to existing SR) ----
+  // Server-authoritative: target must belong to the active Result.
+  // The whole submission is rejected (no partial save) on any forged target.
+  let unmatchedAttempts = [];
+  try {
+    const attachments = collectUnmatchedAttachments(body, st.saved.ocr.unmatched_ocr_details || [], st.srById);
+    for (const att of attachments) {
+      const targetRow = st.srById.get(att.target_subject_result_id);
+      const r = validateAndComputeAttachedUnmatched(att, targetRow);
+      if (!r.ok) {
+        // Reject whole submission; preserve current 'edit' state.
+        return res.redirect(`/revaluation/review/${importId}?error=` +
+          enc('Unmatched attachment rejected: ' + r.errors.join(' ')));
+      }
+      unmatchedAttempts.push({ sourceSrid: null, targetSrid: att.target_subject_result_id,
+        unmatchedIndex: att.unmatched_index, proposal: r.entry });
+    }
+  } catch (err) {
+    if (err && err.code === 'FORGED_ATTACHMENT_TARGET') {
+      console.warn('[revaluation] submitReview rejected forged unmatched attachment on import', importId);
+      return res.redirect(`/revaluation/extraction/${importId}?error=` +
+        enc('Unmatched attachment target is invalid. Decision saved nothing.'));
+    }
+    throw err;
+  }
+
+  // Duplicate effective-target guard across ALL accepted rows (regular +
+  // unmatched-OCR attachments). The first wins; later duplicates are flagged.
   const ownerOfTarget = new Map();
   for (const a of attempts) {
     if (a.proposal.decision !== 'accept') continue;
@@ -1257,15 +1708,28 @@ exports.submitReview = async (req, res) => {
       ownerOfTarget.set(a.targetSrid, a.sourceSrid);
     }
   }
+  for (const a of unmatchedAttempts) {
+    if (ownerOfTarget.has(a.targetSrid)) {
+      const firstSrid = ownerOfTarget.get(a.targetSrid);
+      const msg = 'Unmatched attachment target duplicates an existing subject decision.';
+      (fieldErrors[firstSrid] = fieldErrors[firstSrid] || []).push(msg);
+      a.dup = true;
+    } else {
+      ownerOfTarget.set(a.targetSrid, '__unmatched_' + a.unmatchedIndex);
+    }
+  }
+  // Re-filter after the second pass (unmatched may have been marked dup).
   const parsed = attempts.filter(a => !a.dup);
-  const accepts = parsed.filter(a => a.proposal.decision === 'accept');
+  // PROMPT 15: merge regular subject decisions with unmatched-OCR attachments.
+  const accepts = parsed.filter(a => a.proposal.decision === 'accept')
+    .concat(unmatchedAttempts.filter(a => !a.dup));
 
   function failRender(message) {
     return res.status(422).render('revaluation/review', {
       title: 'Revaluation — Review & Validate',
       breadcrumbItems: [
         { label: 'Result Management' },
-        { label: 'Upload Revaluation', href: '/revaluation/upload' },
+        { label: 'Upload Revaluation', href: '/revaluation/start' },
         { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
         { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
         { label: 'Review & Validate', active: true }
@@ -1319,7 +1783,8 @@ exports.submitReview = async (req, res) => {
         version: 1,
         submitted_at: new Date().toISOString(),
         submitted_by: resolveAdminId(req),
-        proposal: parsed.map(a => Object.assign({}, a.proposal)),
+        proposal: parsed.map(a => Object.assign({}, a.proposal))
+          .concat(unmatchedAttempts.filter(a => !a.dup).map(a => Object.assign({}, a.proposal))),
         baselines: baselines,
         aggregate_preview: aggregatePreview
       }
@@ -1371,7 +1836,7 @@ exports.showApproveConfirm = async (req, res) => {
     title: 'Revaluation — Review & Validate',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
       { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
       { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
       { label: 'Review & Validate', active: true }
@@ -1468,6 +1933,49 @@ exports.approveReview = async (req, res) => {
     const doc = (Array.isArray(saved.documents) && saved.documents[0]) || {};
     const createdEvents = [];
 
+    // PROMPT 18 — Concurrency hardening.
+    //
+    // Acquire a row-level write lock on every target SubjectResult BEFORE the
+    // demote+insert critical section. This serializes concurrent approvals
+    // that share one or more targets so that the second approver waits until
+    // the first transaction commits, then re-reads the updated state and
+    // observes the demoted previous effective row.
+    //
+    // Accepts is already sorted by ascending target id (see line ~1909), so
+    // every TX-B iteration locks the same deterministic order. That is the
+    // standard fix for multi-target deadlocks.
+    //
+    // SubjectResult is already imported at the top of this module.
+    const sortedTargets = accepts.map(a => a.tgt).sort((x, y) => x - y);
+    const lockedSRs = await SubjectResult.findAll({
+      where: { subject_result_id: sortedTargets },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+      attributes: ['subject_result_id', 'result_id', 'subject_id', 'marks', 'grade', 'result_status']
+    });
+    const lockedByTgt = new Map(lockedSRs.map(sr => [Number(sr.subject_result_id), sr]));
+    // Any target missing from the locked set either belongs to a different
+    // Result (ownership drift) or was deleted. Reject.
+    for (const tgt of sortedTargets) {
+      if (!lockedByTgt.has(tgt)) {
+        throw new BadState('Accepted subject no longer exists for locking.');
+      }
+      const sr = lockedByTgt.get(tgt);
+      if (Number(sr.result_id) !== Number(result.result_id)) {
+        throw new BadState('Accepted subject no longer belongs to this Result.');
+      }
+    }
+    // Refresh srById with the freshly-locked, freshest snapshot so the loop
+    // below sees the absolute latest marks/status under the row lock.
+    for (const sr of lockedSRs) {
+      const existing = result.SubjectResults.find(x => Number(x.subject_result_id) === Number(sr.subject_result_id));
+      if (existing) {
+        existing.marks = sr.marks;
+        existing.grade = sr.grade;
+        existing.result_status = sr.result_status;
+      }
+    }
+
     for (const a of accepts) {
       const sr = srById.get(a.tgt);
       const subj = (sr && sr.Subject) ? sr.Subject : null;
@@ -1553,6 +2061,19 @@ exports.approveReview = async (req, res) => {
   } catch (err) {
     if (!t.finished) { try { await t.rollback(); } catch (_) { /* noop */ } }
     console.error('[revaluation] approveReview tx error:', err);
+    // PROMPT 18: detect InnoDB deadlock / lock-wait-timeout so the caller
+    // sees a deterministic "please retry" message instead of a generic
+    // approval failure. The transaction has already been rolled back above.
+    const deadlock = err && (err.code === 'ER_LOCK_DEADLOCK' ||
+                             err.code === 'ER_LOCK_WAIT_TIMEOUT' ||
+                             err.parent && (err.parent.code === 'ER_LOCK_DEADLOCK' ||
+                                            err.parent.code === 'ER_LOCK_WAIT_TIMEOUT') ||
+                             err.original && (err.original.code === 'ER_LOCK_DEADLOCK' ||
+                                              err.original.code === 'ER_LOCK_WAIT_TIMEOUT'));
+    if (deadlock) {
+      return res.redirect(`/revaluation/extraction/${importId}?error=` +
+        enc('Approval could not acquire the necessary locks. Please retry.'));
+    }
     const back = (err instanceof StaleState)
       ? `/revaluation/review/${importId}`
       : `/revaluation/extraction/${importId}`;
@@ -1610,7 +2131,7 @@ exports.showOutcome = async (req, res) => {
     title: 'Revaluation — Outcome',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
       { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
       { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
       { label: 'Review & Validate', href: `/revaluation/review/${importId}` },

@@ -5,15 +5,28 @@ const { revaluationUpload } = require('../middlewares/upload');
 
 // Mounted at /revaluation in app.js (auth-gated).
 
-// Sidebar entry point — "Upload Revaluation" → find an existing Result.
-router.get('/upload', rc.showResultPicker);
-router.get('/', (req, res) => res.redirect('/revaluation/upload'));
+// Sidebar entry — the '/revaluation/start' wizard is the SINGLE revaluation
+// workflow. PROMPT 19 retired the legacy Result picker. `/upload` is kept as
+// a redirect (preserving any ?error= query) so error-return paths, old
+// bookmarks and breadcrumbs always land on the wizard instead of a competing
+// picker page.
+router.get('/upload', (req, res) => {
+  const idx = (req.originalUrl || req.url).indexOf('?');
+  const qs = idx >= 0 ? (req.originalUrl || req.url).slice(idx) : '';
+  res.redirect('/revaluation/start' + qs);
+});
+router.get('/', (req, res) => res.redirect('/revaluation/start'));
 
-// Result detail (attempt info + subjects w/ current marks).
-router.get('/:resultId', rc.showResultDetail);
-
-// "Start Revaluation" — validate + stash the server-verified selection.
-router.post('/:resultId/start', rc.startRevaluation);
+// ---------------------------------------------------------------
+// PHASE 13A — new primary entry flow: Result Session → Student → Attempt.
+// CONTEXT SELECTION ONLY (no subject pre-selection).
+// NOTE: these must be declared BEFORE the `/:resultId` catch-alls below.
+// ---------------------------------------------------------------
+router.get('/start', rc.showSessionPicker);
+router.get('/start/students', rc.showSessionStudents);
+router.get('/start/attempts', rc.resolveShowAttempts);
+router.post('/start/attempt', rc.confirmAttemptSelection);
+// ---------------------------------------------------------------
 
 // Upload page (GET) + document submit (POST). The POST uses an explicit
 // multer invocation so file/MIME/size rejections become friendly redirects.

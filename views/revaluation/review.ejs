@@ -71,11 +71,22 @@
 <% rows.forEach(r => { const ev = r.evidence; %>
 <%
   const entered = (enteredVals && enteredVals[r.srid]) || null;
+  // PROMPT 14: pre-fill from server-side preferred values (prior proposal > OCR).
+  // The controller already orders these in r.evidence.revised_int/ext; if a prior
+  // frozen proposal exists for this target, it wins.
+  const hasPrefill = (ev.revised_int !== null && ev.revised_int !== undefined)
+                  || (ev.revised_ext !== null && ev.revised_ext !== undefined);
   const preInt = entered ? entered.internal
-    : ((ev.match_state === 'MATCHED' && ev.revised_int !== null && ev.revised_int !== undefined) ? String(ev.revised_int) : '');
+    : ((ev.revised_int !== null && ev.revised_int !== undefined) ? String(ev.revised_int) : '');
   const preExt = entered ? entered.external
-    : ((ev.match_state === 'MATCHED' && ev.revised_ext !== null && ev.revised_ext !== undefined) ? String(ev.revised_ext) : '');
-  const defAccept = (ev.match_state === 'MATCHED' && preInt !== '' && preExt !== '');
+    : ((ev.revised_ext !== null && ev.revised_ext !== undefined) ? String(ev.revised_ext) : '');
+  // PROMPT 14: default the accept/reject radio to mirror the prior frozen
+  // decision when one exists (so re-edits preserve user intent). When no
+  // prior proposal exists, default to accept only when OCR provided both
+  // components (preserves the previous behaviour for first-time edits).
+  const defAccept = r.priorDecision
+    ? (r.priorDecision === 'accept')
+    : (ev.match_state === 'MATCHED' && preInt !== '' && preExt !== '');
   const needAck = !!ev.raw_letter &&
     ACK_LETTERS.indexOf(String(ev.raw_letter).trim().toUpperCase()) !== -1;
   const rowErrs = (errors && errors[r.srid]) ? errors[r.srid] : [];
@@ -246,6 +257,53 @@
       </div>
     </div>
   <% } %>
+  <div class="row mt-2">
+    <div class="col-md-6">
+      <div class="card mb-0 border-info">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong><i class="material-icons align-middle me-1" style="font-size:16px;">attach_file</i> Attach unmatched OCR row to an existing SubjectResult</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-2 small">Select an unmatched OCR subject code above and bind it to a SubjectResult from the current Result. Server recalculates total/grade before saving.</p>
+          <div id="attach-unmatched-list">
+            <% if (meta.unmatched.length) { %>
+              <% meta.unmatched.forEach(function(u, idx) { %>
+                <div class="border rounded p-2 mb-2 position-relative" style="background:#f8f9fa;" data-unmatched-index="<%= idx %>">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong><code><%= u.ocr_subject_code || '—' %></code></strong>
+                    <% if (u.raw_line) { %>
+                      <small class="text-muted"><%= u.raw_line.length %> chars</small>
+                    <% } %>
+                  </div>
+                  <% if (u.raw_line) { %>
+                    <div class="small text-muted mb-1" style="max-height:60px; overflow:hidden;"><%= u.raw_line %></div>
+                  <% } %>
+                  <input type="hidden" name="unmatched_attach_<%= idx %>" value="" class="attach-target-hidden" />
+                    <input type="hidden" name="attach_internal_<%= idx %>" value="" class="attach-internal-hidden" />
+                    <input type="hidden" name="attach_external_<%= idx %>" value="" class="attach-external-hidden" />
+                    <div class="d-flex gap-2">
+                      <select class="form-control form-control-sm attach-target-select" style="width:auto;" data-unmatched-index="<%= idx %>">
+                        <option value="">Select SubjectResult…</option>
+                        <% rows.forEach(function(r) { %>
+                          <option value="<%= r.srid %>"><%= r.code %> (<%= r.srid %>)</option>
+                        <% }) %>
+                      </select>
+                      <input type="text" class="form-control form-control-sm attach-internal-input" style="width:60px;" placeholder="Int" data-unmatched-index="<%= idx %>" />
+                      <input type="text" class="form-control form-control-sm attach-external-input" style="width:60px;" placeholder="Ext" data-unmatched-index="<%= idx %>" />
+                      <button type="button" class="btn btn-sm btn-outline-primary attach-ocr-btn" data-unmatched-index="<%= idx %>">Attach</button>
+                    </div>
+                  <div class="attach-result-msg mt-1 small" data-unmatched-index="<%= idx %>"></div>
+                </div>
+              <% }) %>
+            <% } else { %>
+              <p class="text-success mb-0 small">No unmatched OCR rows to attach.</p>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
 
   <div class="row">
     <div class="col-lg-6">
