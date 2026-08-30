@@ -82,7 +82,7 @@
     <div class="card-body d-flex gap-4 flex-wrap">
       <div><small class="text-muted d-block">Overall</small>
         <span class="fs-5 badge bg-<%= aggregates.overall_result === 'pass' ? 'success' : 'danger' %>"><%= aggregates.overall_result %></span></div>
-      <div><small class="text-muted d-block">SGPA</small><span class="fs-5"><%= aggregates.sgpa %></span></div>
+      <div><small class="text-muted d-block">SGPA</small><span class="fs-5 "><%= aggregates.sgpa %></span></div>
       <div><small class="text-muted d-block">CGPA</small><span class="fs-5"><%= aggregates.cgpa === null ? '—' : aggregates.cgpa %></span></div>
       <div><small class="text-muted d-block">Failed subjects</small><span class="fs-5"><%= aggregates.failed_subject_count %></span></div>
     </div>

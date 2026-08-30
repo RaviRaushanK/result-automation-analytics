@@ -225,7 +225,7 @@
 
   <% if (mode !== 'edit' && review) { %>
     <div class="card mb-3 border-success">
-      <div class="card-header bg-light">Validated decisions snapshot
+      <div class="card-header">Validated decisions snapshot
         <small class="text-muted">(saved <%= review.submitted_at || '' %> by admin #<%= review.submitted_by || '—' %>)</small></div>
       <div class="card-body">
         <% if (review.aggregate_preview) { %>
