@@ -119,10 +119,15 @@
     <div class="alert alert-secondary">No revaluation events exist yet for this import.</div>
   <% } %>
 
-  <div class="mt-2 mb-4 d-flex gap-2">
+  <div class="mt-2 mb-4 d-flex gap-2 flex-wrap">
     <a href="/revaluation/review/<%= meta.importId %>" class="btn btn-outline-secondary btn-sm">
       <i class="material-icons">arrow_back</i> Review page
     </a>
+    <% if (meta.sessionId) { %>
+      <a href="/revaluation/start/students?session=<%= meta.sessionId %>" class="btn btn-outline-secondary btn-sm">
+        <i class="material-icons">arrow_back</i> Back to Students
+      </a>
+    <% } %>
     <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm">
       <i class="material-icons">arrow_back</i> Back to result selection
     </a>

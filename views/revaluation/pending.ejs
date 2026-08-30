@@ -100,7 +100,10 @@
     Review/Edit &amp; validation is the next stage; <code>RevaluationResult</code> event rows are created only after approval.
   </div>
 
-  <div class="mt-3">
+  <div class="mt-3 d-flex gap-2 flex-wrap">
+    <% if (sessionId) { %>
+      <a href="/revaluation/start/students?session=<%= sessionId %>" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to Students</a>
+    <% } %>
     <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to result selection</a>
   </div>
 </div>

@@ -24,15 +24,57 @@
     </div>
   <% } %>
 
+  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+
   <div class="card mb-3">
     <div class="card-header">Server-authoritative context (from the database)</div>
     <div class="card-body">
       <p class="mb-1"><strong>Import ID:</strong> <%= importId %> &middot; <strong>Result ID:</strong> <%= resultId !== null && resultId !== undefined ? resultId : '—' %></p>
-      <p class="mb-1"><strong>Student:</strong> <%= student.name || '—' %> (<%= student.usn || '—' %>)</p>
+      <p class="mb-1"><strong>Student:</strong> <%= serverStudent.student_name || student.name || '—' %> (<%= serverStudent.usn || student.usn || '—' %>)</p>
       <p class="mb-1"><strong>Session:</strong> <%= sessionDisplay || '—' %></p>
       <p class="mb-0"><strong>Attempt:</strong> #<%= attempt.attempt_no %> &middot; <span class="badge bg-info text-dark"><%= attempt.exam_type %></span></p>
     </div>
   </div>
+
+  <% if (identityCheck) { %>
+    <% if (identityCheck.severity === 'mismatch') { %>
+      <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
+        <i class="material-icons mt-1" aria-hidden="true">warning</i>
+        <div class="flex-grow-1">
+          <div class="fw-bold mb-1">Student identity mismatch — confirmation required</div>
+          <p class="mb-2">
+            <strong>Selected student:</strong> <%= serverStudent.student_name || '—' %> (<%= serverStudent.usn || '—' %>)<br>
+            <strong>On the marks card:</strong> <%= ocrStudent.name || '(not extracted)' %> (<%= ocrStudent.usn || '(not extracted)' %>)
+          </p>
+          <p class="mb-2 small"><%= identityCheck.message %></p>
+          <% if (identityConfirmed) { %>
+            <span class="badge bg-success">Mismatch acknowledged</span>
+          <% } else { %>
+            <form method="POST" action="/revaluation/pending/<%= importId %>/confirm-identity" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-warning"
+                      onclick="return confirm('Confirm that this marks card belongs to the selected student despite a name+USN mismatch? This action applies to the current extraction only.');">
+                <i class="material-icons align-middle" style="font-size:16px;">check_circle</i>
+                Confirm mismatch and continue
+              </button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+    <% } else if (identityCheck.severity === 'warning') { %>
+      <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+        <i class="material-icons mt-1" aria-hidden="true">info</i>
+        <div>
+          <div class="fw-bold mb-1">Identity check — minor difference</div>
+          <p class="mb-0 small"><%= identityCheck.message %></p>
+        </div>
+      </div>
+    <% } else { %>
+      <div class="alert alert-success d-flex align-items-start gap-2" role="alert">
+        <i class="material-icons mt-1" aria-hidden="true">verified</i>
+        <div><span class="fw-bold">Identity verified.</span> <span class="small"><%= identityCheck.message %></span></div>
+      </div>
+    <% } %>
+  <% } %>
 
   <div class="card mb-3">
     <div class="card-header">OCR identity evidence (candidates)</div>
@@ -168,13 +210,21 @@
     <strong>These are OCR candidates only. No marks have been changed. Review/Edit &amp; validation is the next stage.</strong>
   </div>
 
-  <div class="mt-2 mb-4 d-flex gap-2">
-    <% if (logStatus === 'extracted' && extractionStatus === 'extracted') { %>
+  <div class="mt-2 mb-4 d-flex gap-2 flex-wrap">
+    <% if (logStatus === 'extracted' && extractionStatus === 'extracted' && !identityBlocking) { %>
       <a href="/revaluation/review/<%= importId %>" class="btn btn-primary btn-sm">
         <i class="material-icons align-middle">fact_check</i> Proceed to Review &amp; Validate
       </a>
+    <% } else if (identityBlocking) { %>
+      <button type="button" class="btn btn-primary btn-sm" disabled
+              title="Confirm the student identity mismatch above before proceeding.">
+        <i class="material-icons align-middle">block</i> Proceed to Review &amp; Validate
+      </button>
     <% } %>
     <a href="/revaluation/pending/<%= importId %>" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to pending record</a>
+    <% if (sessionId) { %>
+      <a href="/revaluation/start/students?session=<%= sessionId %>" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to Students</a>
+    <% } %>
     <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to result selection</a>
   </div>
 </div>

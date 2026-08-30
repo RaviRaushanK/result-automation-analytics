@@ -17,7 +17,7 @@ const fs = require('fs');
 const { Op } = require('sequelize');
 const {
   Result, Student, ResultSession, SubjectResult, Subject,
-  ImportLog, OcrExtraction, sequelize
+  ImportLog, OcrExtraction, RevaluationResult, sequelize
 } = require('../database/models');
 const {
   ensureRevalDir, generateSecureFilename, REVAL_DIR, REVAL_ALLOWED_EXT
@@ -595,6 +595,7 @@ exports.showPending = async (req, res) => {
         documents: (saved && saved.documents) || [],
     subjects: (saved && saved.subjects) || [],
     subjectCount: (saved && saved.subjects) ? saved.subjects.length : 0,
+    sessionId: (saved && saved.session_id) || null,
     error: req.query.error || null
   });
 };
@@ -605,6 +606,289 @@ exports.showPending = async (req, res) => {
 // the authoritative identity; academic tables are never written.
 // ============================================================
 const revaluationExtractor = require('../services/revaluationExtractor');
+
+/**
+ * POST /pending/:importId/extract — trigger (or retry) OCR extraction.
+ * Always redirects to GET /extraction/:importId.
+ */
+exports.runExtraction = async (req, res) => {
+  const importId = Number(req.params.importId);
+  if (!Number.isInteger(importId) || importId <= 0) {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+  }
+
+  let log;
+  try {
+    log = await ImportLog.findByPk(importId, { include: [{ model: OcrExtraction }] });
+  } catch (err) {
+    console.error('[revaluation] runExtraction load error:', err);
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+  }
+  if (!log || log.import_type !== 'REVALUATION') {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+  }
+  const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
+  if (!ocrRow) {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('No OCR processing record is attached to this import.'));
+  }
+  const saved = safeJson(ocrRow.extracted_json);
+  if (!stored_guardHasContext(saved)) {
+    return res.redirect(`/revaluation/pending/${importId}?error=` +
+      encodeURIComponent('Stored extraction context is incomplete.'));
+  }
+
+  let result;
+  try { result = await loadResultContextFull(saved.result_id); }
+  catch (err) {
+    console.error('[revaluation] runExtraction context error:', err);
+    result = null;
+  }
+  if (!result) {
+    return res.redirect(`/revaluation/pending/${importId}?error=` +
+      encodeURIComponent('The selected Result no longer exists.'));
+  }
+
+  const serverCtx = {
+    studentUsn: result.Student ? result.Student.usn : '',
+    studentName: result.Student ? result.Student.student_name : '',
+    selectedSubjects: (saved.subjects || []).map(s => ({
+      subject_result_id: s.subject_result_id,
+      subject_code: s.subject_code,
+      subject_name: s.subject_name,
+      original_marks: s.original_marks
+    }))
+  };
+
+  const savedDoc = ((saved.documents || [])[0] || {});
+  const filePath = savedDoc.path || savedDoc.file_path || null;
+  if (!filePath) {
+    return res.redirect(`/revaluation/pending/${importId}?error=` +
+      encodeURIComponent('No uploaded document path found. Please re-upload the marks card.'));
+  }
+
+  let extractionResult;
+  try {
+    extractionResult = await revaluationExtractor.extractAndBuild(filePath, serverCtx);
+  } catch (err) {
+    console.error('[revaluation] runExtraction engine error:', err);
+    extractionResult = {
+      ok: false,
+      reason: 'EXTRACTION_ERROR',
+      ocr: {
+        extraction_status: 'failed',
+        failed_reason: 'EXTRACTION_ERROR',
+        error: err.message || 'OCR extraction failed.',
+        warnings: []
+      }
+    };
+  }
+
+  const nextJson = Object.assign({}, saved, {
+    ocr: extractionResult.ocr,
+    student: { name: result.Student ? result.Student.student_name : '', usn: result.Student ? result.Student.usn : '' }
+  });
+  delete nextJson.review;
+
+  const t = await sequelize.transaction();
+  try {
+    await ocrRow.update({ extracted_json: nextJson, validation_status: 'pending' }, { transaction: t });
+    await log.update({ status: 'extracted' }, { transaction: t });
+    await t.commit();
+  } catch (err) {
+    await t.rollback();
+    console.error('[revaluation] runExtraction DB error:', err);
+    return res.redirect(`/revaluation/pending/${importId}?error=` +
+      encodeURIComponent('Failed to save extraction result. Please try again.'));
+  }
+
+  return res.redirect('/revaluation/extraction/' + importId);
+};
+
+/**
+ * Normalise a string for safe comparison:
+ * lowercase, trim whitespace, collapse repeated spaces.
+ */
+function normText(v) {
+  if (!v || typeof v !== 'string') return '';
+  return v.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * PROMPT (Revaluation Identity Check) — compare OCR-extracted
+ * student identity with the authoritative selected student.
+ *
+ * @param {object} ocrCandidates  — ocr.student_candidates { name, usn }
+ * @param {object} serverStudent   — { student_name, usn }
+ * @returns {{severity:string, nameMatch:boolean, usnMatch:boolean,
+ *            bothMissing:boolean, requiresConfirmation:boolean, message:string}}
+ *
+ * severity values:
+ *   'match'       — both name and USN match (or both missing)
+ *   'warning'     — one matches, one differs/missing (warning, allow continue)
+ *   'mismatch'    — both differ or both missing (requires explicit confirmation)
+ */
+function checkOcrIdentity(ocrCandidates, serverStudent) {
+  const serverName = serverStudent && (serverStudent.student_name || serverStudent.name) || '';
+  const serverUsn  = serverStudent && (serverStudent.usn || '') || '';
+  const ocrName    = ocrCandidates && ocrCandidates.name || '';
+  const ocrUsn     = ocrCandidates && ocrCandidates.usn  || '';
+
+  const serverNameOk = !!serverName;
+  const serverUsnOk  = !!serverUsn;
+  const ocrNameOk    = !!ocrName;
+  const ocrUsnOk     = !!ocrUsn;
+
+  const bothMissing = !ocrNameOk && !ocrUsnOk && !serverNameOk && !serverUsnOk;
+
+  const nameMatch = serverNameOk && ocrNameOk && normText(serverName) === normText(ocrName);
+  const usnMatch  = serverUsnOk  && ocrUsnOk  && normText(serverUsn)  === normText(ocrUsn);
+
+  const bothMatch    = nameMatch && usnMatch;
+  const bothMismatch = !nameMatch && !usnMatch;
+
+  let severity = 'match';
+  let requiresConfirmation = false;
+  let message = 'Student identity on the marks card matches the selected student.';
+
+  if (bothMatch) {
+    severity = 'match';
+    message = 'Student identity on the marks card matches the selected student.';
+  } else if (bothMissing) {
+    severity = 'mismatch';
+    requiresConfirmation = true;
+    message = 'Both student name and USN could not be extracted from the marks card. Please confirm this marks card belongs to the selected student.';
+  } else if (bothMismatch) {
+    severity = 'mismatch';
+    requiresConfirmation = true;
+    message = 'Both student name and USN on the marks card differ from the selected student. Please confirm this marks card belongs to the selected student.';
+  } else if (nameMatch && !usnMatch) {
+    severity = 'warning';
+    message = 'Student name matches but USN differs (' + (ocrUsnOk ? '"' + ocrUsn + '"' : 'not extracted') + ' vs "' + serverUsn + '"). You may continue.';
+  } else if (!nameMatch && usnMatch) {
+    severity = 'warning';
+    message = 'USN matches but student name differs ("' + (ocrNameOk ? ocrName : '(not extracted)') + '" vs "' + serverName + '"). You may continue.';
+  } else {
+    severity = 'warning';
+    message = 'Student identity may differ from the selected student. Review carefully before proceeding.';
+  }
+
+  return { severity, nameMatch, usnMatch, bothMissing, requiresConfirmation, message };
+}
+
+/**
+ * GET /extraction/:importId — render the OCR extraction review page.
+ * Reads the stored candidates (no new OCR pass here), derives the
+ * server-authoritative student identity, runs the identity check, and
+ * passes everything needed by views/revaluation/extraction.ejs.
+ */
+exports.showExtraction = async (req, res) => {
+  const importId = Number(req.params.importId);
+  if (!Number.isInteger(importId) || importId <= 0) {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+  }
+
+  let log;
+  try {
+    log = await ImportLog.findByPk(importId, {
+      include: [
+        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] },
+        { model: OcrExtraction }
+      ]
+    });
+  } catch (err) {
+    console.error('[revaluation] showExtraction load error:', err);
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+  }
+  if (!log || log.import_type !== 'REVALUATION') {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+  }
+
+  const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
+  if (!ocrRow) {
+    return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('No OCR processing record is attached.'));
+  }
+
+  const saved = safeJson(ocrRow.extracted_json);
+  if (!stored_guardHasContext(saved)) {
+    return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('Stored extraction context is incomplete.'));
+  }
+
+  const ocr = saved.ocr || {};
+  const ocrCandidates = ocr.student_candidates || {};
+
+  let serverStudent = null;
+  let sessionId = (saved && saved.session_id) || null;
+  let sessionDisplayVal = sessionDisplay(log.ResultSession);
+
+  if (saved && saved.result_id) {
+    try {
+      const full = await loadResultContext(saved.result_id);
+      if (full && full.Student) {
+        serverStudent = { student_name: full.Student.student_name, usn: full.Student.usn };
+        if (!sessionId) sessionId = full.session_id;
+        if (!sessionDisplayVal) sessionDisplayVal = sessionDisplay(full.ResultSession);
+      }
+    } catch (_) {}
+  }
+
+  const identityCheck = checkOcrIdentity(ocrCandidates, serverStudent || {});
+  const identityConfirmed = !!(saved && saved.identity_confirmed === true);
+  const identityBlocking = identityCheck.requiresConfirmation && !identityConfirmed;
+
+  const serverName = serverStudent ? (serverStudent.student_name || '') : '';
+  const serverUsn  = serverStudent ? (serverStudent.usn || '') : '';
+  const ocrName    = ocrCandidates.name || '';
+  const ocrUsn     = ocrCandidates.usn || '';
+  const usnMatch   = serverUsn  && ocrUsn  && normText(serverUsn)  === normText(ocrUsn);
+  const nameMatch  = serverName && ocrName && normText(serverName) === normText(ocrName);
+
+  const savedDocs = (saved && saved.documents) || [];
+  const doc0 = savedDocs[0] || {};
+  const docName = log.file_name || doc0.original_name || doc0.name || '';
+  const docLink = doc0.url || doc0.path || null;
+
+  return res.render('revaluation/extraction', {
+    title: 'Revaluation — OCR Extraction',
+    breadcrumbItems: [
+      { label: 'Result Management' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
+      { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
+      { label: 'OCR Extraction', active: true }
+    ],
+    importId: log.import_id,
+    logStatus: log.status,
+    resultId: saved.result_id || null,
+    serverStudent: serverStudent || {},
+    sessionDisplay: sessionDisplayVal,
+    attempt: (saved && saved.attempt) || {},
+    identityCheck: identityCheck,
+    identityConfirmed: identityConfirmed,
+    identityBlocking: identityBlocking,
+    ocrStudent: {
+      usn: ocrCandidates.usn || null,
+      name: ocrCandidates.name || null,
+      usn_matches_server: usnMatch,
+      name_matches_server: nameMatch
+    },
+    semesterCandidate: (ocr.semester_candidate !== undefined && ocr.semester_candidate !== null) ? ocr.semester_candidate : null,
+    extractionMethod: ocr.extraction_method || null,
+    confidenceScore: ocr.confidence_score || null,
+    extractedAt: ocr.extracted_at || null,
+    subjects: (ocr.subjects && Array.isArray(ocr.subjects)) ? ocr.subjects : [],
+    unmatched: (ocr.unmatched_ocr_details && Array.isArray(ocr.unmatched_ocr_details))
+      ? ocr.unmatched_ocr_details
+      : (ocr.unmatched_ocr_codes || []).map(c => ({ ocr_subject_code: c })),
+    warnings: (ocr.warnings && Array.isArray(ocr.warnings)) ? ocr.warnings : [],
+    docName: docName,
+    docLink: docLink,
+    rawText: ocr.raw_text || '',
+    extractionStatus: ocr.extraction_status || log.status || 'pending',
+    failedReason: ocr.failed_reason || null,
+    errorMsg: ocr.error || null,
+    sessionId: sessionId,
+    error: req.query.error ? decodeURIComponent(req.query.error) : null
+  });
+};
 
 /** Shared loader for the extraction stage (ImportLog + session + extractions). */
 async function loadRevalImport(importId) {
@@ -653,7 +937,6 @@ async function findOpenRevaluationImportForResult(resultId, t) {
     if (j === null || j === undefined) continue;
     try {
       if (typeof j !== 'string') {
-        // Some drivers hand back a JS object; re-serialize defensively.
         j = JSON.stringify(j);
       }
       const parsed = JSON.parse(j);
@@ -661,409 +944,155 @@ async function findOpenRevaluationImportForResult(resultId, t) {
         return { ok: true, importId: Number(row.import_id) };
       }
     } catch (_) {
-      /* identity not safely resolvable -> not attributable, not a conflict */
+      /* not attributable, not a conflict */
     }
   }
   return { ok: true, importId: null };
 }
+
 /**
- * PROMPT 19 — hasApprovedRevaluationForResult(resultId, [t])
+ * PROMPT 19 — check if any revaluation for the given Result has already been
+ * approved (revaluation_status='approved'). Scans via SubjectResult → RevaluationResult
+ * because RevaluationResult links to subject_result_id, not result_id directly.
  *
- * True when ANY RevaluationResult event already exists for a SubjectResult
- * belonging to this Result (Student + ResultSession + Attempt). Events are
- * created only by the approval transaction, so "an event exists" means
- * "an official revaluation submission was already registered for this
- * Result/Attempt". Identity is resolved through the database chain
- *   revaluation_results -> subject_results -> results
- * and never from browser-supplied data.
- *
- * When `t` is supplied the check runs inside that transaction — TX-B holds
- * the Result row lock (FOR UPDATE) before calling this, so two concurrent
- * approvals serialize and the loser observes the winner's committed events.
- *
- * @returns {Promise<{ok:boolean, approved:boolean}>} ok=false only when the
- *   lookup itself failed (callers fail closed).
+ * @param {number} resultId
+ * @param {object} [t] optional transaction
+ * @returns {Promise<{ok:boolean, approved:boolean}>}
  */
 async function hasApprovedRevaluationForResult(resultId, t) {
   const rn = Number(resultId);
   if (!Number.isInteger(rn) || rn <= 0) return { ok: true, approved: false };
-  const { QueryTypes } = require('sequelize');
   try {
-    const rows = await sequelize.query(
-      `SELECT rr.revaluation_id
-         FROM revaluation_results rr
-         INNER JOIN subject_results sr ON sr.subject_result_id = rr.subject_result_id
-        WHERE sr.result_id = ?
-        LIMIT 1`,
-      { replacements: [rn], type: QueryTypes.SELECT, transaction: t || undefined });
-    return { ok: true, approved: Array.isArray(rows) && rows.length > 0 };
+    const count = await RevaluationResult.count({
+      include: [{
+        model: SubjectResult,
+        as: 'SubjectResult',
+        where: { result_id: rn },
+        required: true
+      }],
+      where: { revaluation_status: 'approved' },
+      transaction: t || undefined
+    });
+    return { ok: true, approved: count > 0 };
   } catch (err) {
-    console.error('[revaluation] hasApprovedRevaluationForResult query error:', err);
+    console.error('[revaluation] hasApprovedRevaluationForResult error:', err);
     return { ok: false, approved: false };
   }
 }
 
 /**
- * PROMPT 19 — getRevaluationStatesForResults(resultIds)
+ * PROMPT 19 — derive the per-Result revaluation submission state for the
+ * attempt picker. Server-authoritative ONLY; never trust the browser.
  *
- * UI support for the wizard's attempt list. For each Result id it resolves the
- * revaluation submission state from server-authoritative data only:
- *   APPROVED     — events exist for this Result (link to latest success import)
- *   IN_PROGRESS  — an open (pending|extracted) REVALUATION import exists
- *   RETRY        — latest import failed; no events; no open import
- *   AVAILABLE    — no revaluation submission exists
+ *   APPROVED     — a RevaluationResult joined to one of the Result's
+ *                  SubjectResults is revaluation_status='approved'.
+ *   IN_PROGRESS  — an ImportLog (import_type='REVALUATION') in
+ *                  status IN ('pending','extracted') references this result_id
+ *                  via its OcrExtraction.extracted_json (latest wins).
+ *   RETRY        — the latest import for this Result has status='failed'.
+ *   AVAILABLE    — otherwise.
  *
- * Import→Result binding uses the server-stored ocr_extractions
- * extracted_json.result_id exactly like findOpenRevaluationImportForResult.
- * Fails open (ok:false) so a lookup outage never blanks the attempt list.
- *
- * @returns {Promise<{ok:boolean, states:Object<number,{state:string,importId:number|null}>}>}
+ * Returns { ok: true, states: { [result_id]: { state, importId } } }.
+ * On lookup failure returns { ok: false, states: {} } (caller treats as
+ * fail-soft "no state" but logs the error).
  */
 async function getRevaluationStatesForResults(resultIds) {
-  const ids = (Array.isArray(resultIds) ? resultIds : [])
-    .map(n => Number(n)).filter(n => Number.isInteger(n) && n > 0);
+  const ids = (Array.isArray(resultIds) ? resultIds : [resultIds])
+    .map(Number)
+    .filter(Number.isInteger)
+    .filter(n => n > 0);
+  if (!ids.length) return { ok: true, states: {} };
   const states = {};
   for (const id of ids) states[id] = { state: 'AVAILABLE', importId: null };
-  if (!ids.length) return { ok: true, states };
-  const { QueryTypes } = require('sequelize');
-  try {
-    // 1) Authoritative: any revaluation event for the Result's subjects.
-    const evRows = await sequelize.query(
-      `SELECT DISTINCT sr.result_id AS result_id
-         FROM revaluation_results rr
-         INNER JOIN subject_results sr ON sr.subject_result_id = rr.subject_result_id
-        WHERE sr.result_id IN (${ids.map(() => '?').join(',')})`,
-      { replacements: ids, type: QueryTypes.SELECT });
-    for (const r of evRows) {
-      const rid = Number(r.result_id);
-      if (states[rid]) states[rid] = { state: 'APPROVED', importId: null };
-    }
 
-    // 2) Import lifecycle per Result (from server-stored OCR JSON only).
-    const impRows = await sequelize.query(
+  try {
+    // 1) APPROVED check — any approved RevaluationResult for any SR of this Result?
+    const approvedRows = await RevaluationResult.findAll({
+      attributes: ['revaluation_id', 'subject_result_id'],
+      include: [{
+        model: SubjectResult,
+        as: 'SubjectResult',
+        attributes: ['subject_result_id', 'result_id'],
+        where: { result_id: ids },
+        required: true
+      }],
+      where: { revaluation_status: 'approved' }
+    });
+    const approvedByResult = new Set();
+    for (const r of approvedRows) {
+      const rid = r.SubjectResult && Number(r.SubjectResult.result_id);
+      if (rid) approvedByResult.add(rid);
+    }
+    for (const rid of approvedByResult) {
+      states[rid] = { state: 'APPROVED', importId: null };
+    }
+  } catch (err) {
+    console.error('[revaluation] getRevaluationStatesForResults approved-lookup error:', err);
+    return { ok: false, states };
+  }
+
+  // For non-APPROVED results, look up the latest REVALUATION import.
+  const remaining = ids.filter(id => states[id].state !== 'APPROVED');
+  if (!remaining.length) return { ok: true, states };
+
+  try {
+    // Pull every REVALUATION import joined to its OcrExtraction once,
+    // then attribute by parsing extracted_json.result_id. Latest import
+    // (highest import_id) per Result wins.
+    const { QueryTypes } = require('sequelize');
+    const placeholders = remaining.map(() => '?').join(',');
+    const rows = await sequelize.query(
       `SELECT i.import_id AS import_id, i.status AS status, x.extracted_json AS extracted_json
          FROM import_logs i
          JOIN ocr_extractions x ON x.import_id = i.import_id
         WHERE i.import_type = 'REVALUATION'
-        ORDER BY i.import_id ASC`,
-      { type: QueryTypes.SELECT });
-    const idSet = new Set(ids);
-    for (const row of Array.isArray(impRows) ? impRows : []) {
-      let j = row && row.extracted_json;
-      if (j === null || j === undefined) continue;
-      let rid;
+          AND i.import_id IN (
+            SELECT MAX(i2.import_id)
+              FROM import_logs i2
+              JOIN ocr_extractions x2 ON x2.import_id = i2.import_id
+             WHERE i2.import_type = 'REVALUATION'
+               AND x2.extracted_json IS NOT NULL
+               AND JSON_EXTRACT(x2.extracted_json, '$.result_id') IN (${placeholders})
+             GROUP BY JSON_EXTRACT(x2.extracted_json, '$.result_id')
+          )
+        ORDER BY i.import_id DESC`,
+      { type: QueryTypes.SELECT, replacements: remaining }
+    );
+
+    const latest = new Map();
+    for (const row of rows) {
+      let saved = row && row.extracted_json;
+      if (saved === null || saved === undefined) continue;
+      let parsed = null;
       try {
-        if (typeof j !== 'string') j = JSON.stringify(j);
-        rid = Number(JSON.parse(j) && JSON.parse(j).result_id);
-      } catch (_) { continue; } // not attributable — skip
-      if (!idSet.has(rid)) continue;
-      const st = states[rid];
-      if (!st) continue;
-      const iid = Number(row.import_id);
-      const status = String(row.status || '');
-      if (st.state === 'AVAILABLE') st.importId = iid;
-      if (status === 'success' && st.state === 'APPROVED' && st.importId === null) {
-        st.importId = iid; // outcome link for APPROVED rows
-      }
-      if (st.state === 'APPROVED') continue;
+        parsed = (typeof saved === 'string') ? JSON.parse(saved) : saved;
+      } catch (_) { continue; }
+      const rid = Number(parsed && parsed.result_id);
+      if (!rid || !remaining.includes(rid)) continue;
+      if (!latest.has(rid)) latest.set(rid, row);
+    }
+
+    for (const [rid, row] of latest.entries()) {
+      const status = String(row.status || '').toLowerCase();
+      const importId = Number(row.import_id);
       if (status === 'pending' || status === 'extracted') {
-        st.state = 'IN_PROGRESS';
-        st.importId = iid;
+        states[rid] = { state: 'IN_PROGRESS', importId: importId };
       } else if (status === 'failed') {
-        st.state = 'RETRY';
-        st.importId = iid;
-      }
-    }
-    return { ok: true, states };
-  } catch (err) {
-    console.error('[revaluation] getRevaluationStatesForResults query error:', err);
-    return { ok: false, states: {} };
-  }
-}
-
-/**
- * Build the failure variant of extracted_json (context keys preserved, ocr marked failed).
- */
-
-/**
- * Build the failure variant of extracted_json (context keys preserved, ocr marked failed).
- */
-function failedExtractionJson(saved, reason, message) {
-  const ocrBlock = Object.assign({}, (saved && saved.ocr) || {}, {
-    extraction_status: 'failed',
-    failed_reason: reason,
-    error: message,
-    extracted_at: new Date().toISOString()
-  });
-  // PROMPT 15: any re-OCR (success or failure) invalidates the saved review.
-  const next = Object.assign({}, saved || {}, { ocr: ocrBlock });
-  delete next.review;
-  next.warnings = Array.from(new Set([].concat(next.warnings || [], [message]))).filter(Boolean);
-  return next;
-}
-
-/** Transactionally persist a failed attempt: OcrExtraction=rejected + ImportLog=failed. */
-async function persistExtractionFailure(ocrRow, log, saved, reason, message) {
-  const t = await sequelize.transaction();
-  try {
-    await ocrRow.update({
-      validation_status: 'rejected',
-      extracted_json: failedExtractionJson(saved, reason, message)
-    }, { transaction: t });
-    await log.update({ status: 'failed' }, { transaction: t });
-    await t.commit();
-    return true;
-  } catch (err) {
-    await t.rollback();
-    console.error('[revaluation] persistExtractionFailure error:', err);
-    return false;
-  }
-}
-
-/**
- * POST /revaluation/pending/:importId/extract
- * Runs the shared OCR engine over the ALREADY-STORED revaluation document and
- * records candidates into OcrExtraction.extracted_json.ocr. Request body is
- * ignored entirely — importId is the only input, everything else comes from DB.
- */
-exports.runExtraction = async (req, res) => {
-  const importId = Number(req.params.importId);
-  if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
-  }
-
-  let log;
-  try { log = await loadRevalImport(importId); }
-  catch (err) {
-    console.error('[revaluation] runExtraction load error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
-  }
-  if (!log) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
-  }
-  if (log.import_type !== 'REVALUATION') {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('This record is not a revaluation import.'));
-  }
-  const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
-  if (!ocrRow) {
-    return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('No OCR processing record is attached to this import.'));
-  }
-
-  // Idempotency: a completed extraction is never re-run; failures are retryable.
-  if (log.status === 'extracted' || log.status === 'success') {
-    return res.redirect(`/revaluation/extraction/${importId}`);
-  }
-
-  const saved = safeJson(ocrRow.extracted_json);
-
-  // ---- Server-authoritative context re-validation (DB truth vs stored JSON) ----
-  const ctxErrors = [];
-  let result = null;
-  if (!stored_guardHasContext(saved)) {
-    ctxErrors.push('Stored extraction context is incomplete (result_id/student/session/attempt).');
-  } else {
-    try { result = await loadResultContext(saved.result_id); }
-    catch (err) {
-      console.error('[revaluation] runExtraction context load error:', err);
-      ctxErrors.push('Could not reload the selected Result.');
-    }
-    if (!result && ctxErrors.length === 0) {
-      ctxErrors.push('The selected Result no longer exists.');
-    }
-    if (result) {
-      if (Number(result.student_id) !== Number(saved.student_id)) ctxErrors.push('Stored student no longer matches the Result.');
-      if (Number(result.session_id) !== Number(saved.session_id)) ctxErrors.push('Stored session no longer matches the Result.');
-      if (saved.attempt && (Number(result.attempt_no) !== Number(saved.attempt.attempt_no) || result.exam_type !== saved.attempt.exam_type)) {
-        ctxErrors.push('Stored attempt number/type no longer matches the Result.');
-      }
-      const ownedIds = new Set((result.SubjectResults || []).map(sr => Number(sr.subject_result_id)));
-      for (const s of (saved.subjects || [])) {
-        if (!ownedIds.has(Number(s.subject_result_id))) {
-          ctxErrors.push(`Selected subject ${(s.subject_code || s.subject_result_id)} no longer belongs to this Result.`);
+        states[rid] = { state: 'RETRY', importId: importId };
+      } else {
+        // success / other — leave AVAILABLE (or APPROVED if we already set it)
+        if (states[rid].state !== 'APPROVED') {
+          states[rid] = { state: 'AVAILABLE', importId: importId };
         }
       }
     }
-  }
-  if (ctxErrors.length > 0) {
-    const msg = 'Server-side revaluation context is invalid: ' + ctxErrors.join(' ');
-    const okPersist = await persistExtractionFailure(ocrRow, log, saved, 'CONTEXT_INVALID', msg);
-    return res.redirect(`/revaluation/extraction/${importId}` + (okPersist ? '' : '?error=' + encodeURIComponent('Could not save extraction failure state.')));
-  }
-
-  // ---- Stored document only (never a browser-supplied path; never moved/deleted) ----
-  const doc = (Array.isArray(saved.documents) && saved.documents[0]) || null;
-  const filePath = doc ? doc.file_path : null;
-  if (!filePath || !fs.existsSync(filePath)) {
-    await persistExtractionFailure(ocrRow, log, saved, 'FILE_MISSING',
-      'The stored revaluation document could not be found on disk. Re-upload may be required at the upload stage.');
-    return res.redirect(`/revaluation/extraction/${importId}`);
-  }
-
-  // ---- Run the shared OCR engine through the thin adapter ----
-  const serverCtx = {
-    studentUsn: (result.Student && result.Student.usn) || (saved.student && saved.student.usn) || null,
-    studentName: (result.Student && result.Student.student_name) || (saved.student && saved.student.name) || null,
-    selectedSubjects: (saved.subjects || []).map(s => ({
-      subject_result_id: s.subject_result_id,
-      subject_code: s.subject_code,
-      subject_name: s.subject_name,
-      original_marks: s.original_marks
-    }))
-  };
-
-  let outcome = null;
-  try {
-    outcome = await revaluationExtractor.extractAndBuild(filePath, serverCtx);
   } catch (err) {
-    console.error('[revaluation] extractAndBuild error:', err);
-    outcome = { ok: false, reason: 'EXTRACTION_ERROR', ocr: {} };
-    const okPersist = await persistExtractionFailure(ocrRow, log, saved, 'EXTRACTION_ERROR',
-      'OCR extraction failed' + ((err && err.message) ? ': ' + err.message : '.'));
-    return res.redirect(`/revaluation/extraction/${importId}` + (okPersist ? '' : '?error=' + encodeURIComponent('Could not save extraction failure state.')));
+    console.error('[revaluation] getRevaluationStatesForResults import-lookup error:', err);
+    return { ok: false, states };
   }
 
-  // ---- Transactional state write (OcrExtraction + ImportLog together) ----
-  // PROMPT 16: re-fetch both rows under FOR UPDATE inside the transaction so
-  // (a) the writes are guaranteed atomic against a concurrent retry, and
-  // (b) the saved-JSON we transform is the freshest DB value (closing the
-  //     race where another retry commits between our outer load and our TX).
-  // The OCR work itself remains outside the transaction (it can call pdfjs
-  // and/or Tesseract and must NOT hold a connection).
-  const t = await sequelize.transaction();
-  try {
-    const lockedLog = await ImportLog.findByPk(importId,
-      { transaction: t, lock: t.LOCK.UPDATE });
-    const lockedOcr = await OcrExtraction.findOne(
-      { where: { import_id: importId }, transaction: t, lock: t.LOCK.UPDATE });
-    if (!lockedLog || !lockedOcr) {
-      throw new Error('Extraction rows vanished mid-flight.');
-    }
-
-    // In-TX idempotency backstop: if a concurrent request already finalised
-    // this import to 'success' (e.g. concurrent approval), do not overwrite
-    // that settled state.  'extracted' is left unblocked so an admin can
-    // legitimately re-run OCR to fix a bad first extraction.
-    if (lockedLog.status === 'success') {
-      await t.rollback();
-      return res.redirect(`/revaluation/extraction/${importId}`);
-    }
-
-    // Re-read the authoritative saved JSON from the locked row (not the
-    // pre-TX snapshot in `saved`).
-    const liveSaved = safeJson(lockedOcr.extracted_json);
-
-    if (outcome.ok) {
-      // PROMPT 15/16: re-OCR invalidates any previously-frozen review (proposal,
-      // baselines, approved events). The admin must re-validate against the
-      // new OCR evidence. New OCR data + all identity/context fields are kept.
-      const nextJson = Object.assign({}, liveSaved, { ocr: outcome.ocr });
-      delete nextJson.review;
-      await lockedOcr.update({
-        raw_text: outcome.ocr.raw_text || '',
-        confidence_score: outcome.confidenceScore,
-        validation_status: 'pending',
-        extracted_json: nextJson
-      }, { transaction: t });
-      await lockedLog.update({ status: 'extracted' }, { transaction: t });
-    } else {
-      // PROMPT 16: a failed retry also invalidates the old review. New
-      // diagnostic OCR block is written; identity/context fields are preserved.
-      const block = Object.assign({}, outcome.ocr || {}, {
-        extraction_status: 'failed',
-        failed_reason: outcome.reason || 'FAILED',
-        extracted_at: new Date().toISOString()
-      });
-      if (outcome.reason === 'EMPTY_EXTRACTION' && block.error) {
-        block.error = block.error; // message already set by the adapter
-      }
-      const nextJson = Object.assign({}, liveSaved, { ocr: block });
-      delete nextJson.review;
-      nextJson.warnings = Array.from(new Set([].concat(nextJson.warnings || [], block.warnings || []))).filter(Boolean);
-      await lockedOcr.update({ validation_status: 'rejected', extracted_json: nextJson }, { transaction: t });
-      await lockedLog.update({ status: 'failed' }, { transaction: t });
-    }
-    await t.commit();
-  } catch (err) {
-    if (!t.finished) await t.rollback();
-    console.error('[revaluation] extraction persist error:', err);
-    return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('Could not save extraction state.'));
-  }
-
-  return res.redirect(`/revaluation/extraction/${importId}`);
-};
-
-function stored_guardHasContext(saved) {
-  return !!(saved && saved.result_id && saved.student_id && saved.session_id &&
-             saved.attempt && Array.isArray(saved.subjects));
+  return { ok: true, states };
 }
-
-/**
- * GET /revaluation/extraction/:importId — READ-ONLY extraction result.
- * Shows OCR candidates next to the server-authoritative context. No inputs.
- */
-exports.showExtraction = async (req, res) => {
-  const importId = Number(req.params.importId);
-  if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
-  }
-
-  let log;
-  try { log = await loadRevalImport(importId); }
-  catch (err) {
-    console.error('[revaluation] showExtraction load error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
-  }
-  if (!log) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
-  }
-  if (log.import_type !== 'REVALUATION') {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('This record is not a revaluation import.'));
-  }
-
-  const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
-  const saved = safeJson(ocrRow ? ocrRow.extracted_json : null);
-  const ocr = (saved && saved.ocr) || {};
-  const doc = (saved && Array.isArray(saved.documents) && saved.documents[0]) || null;
-
-  const unmatched = (ocr.unmatched_ocr_details && ocr.unmatched_ocr_details.length)
-    ? ocr.unmatched_ocr_details
-    : ((ocr.unmatched_ocr_codes || []).map(c => ({ ocr_subject_code: c })));
-
-  return res.render('revaluation/extraction', {
-    title: 'Revaluation — OCR Extraction',
-    breadcrumbItems: [
-      { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Pending OCR', href: `/revaluation/pending/${log.import_id}` },
-      { label: 'OCR Extraction', active: true }
-    ],
-    importId: log.import_id,
-    logStatus: log.status,
-    extractionStatus: ocr.extraction_status || null,
-    failedReason: ocr.failed_reason || null,
-    errorMsg: ocr.error || null,
-    resultId: (saved && saved.result_id) || null,
-    student: {
-      name: (saved && saved.student && saved.student.name) || '',
-      usn: (saved && saved.student && saved.student.usn) || ''
-    },
-    sessionDisplay: sessionDisplay(log.ResultSession),
-    attempt: (saved && saved.attempt) || {},
-    docLink: (doc && doc.file_url) ? doc.file_url : null,
-    docName: (doc && doc.file_name) ? doc.file_name : (log.file_name || ''),
-    ocrStudent: ocr.student_candidates || {},
-    semesterCandidate: (ocr.semester_candidate === undefined ? null : ocr.semester_candidate),
-    subjects: ocr.subjects || [],
-    unmatched: unmatched,
-    unmatchedCodes: ocr.unmatched_ocr_codes || [],
-    warnings: ocr.warnings || [],
-    rawText: ocr.raw_text || (ocrRow && ocrRow.raw_text) || '',
-    confidenceScore: ocrRow ? ocrRow.confidence_score : null,
-    extractionMethod: ocr.extraction_method || null,
-    extractedAt: ocr.extracted_at || null,
-    error: req.query.error || null
-  });
-};
 
 // ============================================================
 // PROMPT 5 — REVIEW / VALIDATION / APPROVAL / EFFECTIVE OVERLAY
@@ -1289,6 +1318,82 @@ function normCode(code) {
 }
 
 /**
+ * POST /revaluation/pending/:importId/confirm-identity
+ * Admin explicitly confirms a both-mismatch/both-missing identity situation.
+ * Stores the flag on the OcrExtraction row so submitReview can verify it
+ * server-side. Applies only to the CURRENT extraction for this import.
+ */
+exports.confirmIdentity = async (req, res) => {
+  const importId = Number(req.params.importId);
+  if (!Number.isInteger(importId) || importId <= 0) {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+  }
+  let log;
+  try { log = await loadRevalImport(importId); }
+  catch (err) {
+    console.error('[revaluation] confirmIdentity load error:', err);
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+  }
+  if (!log || log.import_type !== 'REVALUATION') {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+  }
+  const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
+  if (!ocrRow) {
+    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('No OCR record found.'));
+  }
+  const saved = safeJson(ocrRow.extracted_json);
+  const ocr = (saved && saved.ocr) || {};
+  const ocrCandidates = ocr.student_candidates || {};
+  let serverStudent = null;
+  let sessionId = (saved && saved.session_id) || null;
+  if (saved && saved.result_id) {
+    try {
+      const full = await loadResultContext(saved.result_id);
+      if (full && full.Student) {
+        serverStudent = { student_name: full.Student.student_name, usn: full.Student.usn };
+        if (!sessionId) sessionId = full.session_id;
+      }
+    } catch (_) {}
+  }
+  const identityCheck = checkOcrIdentity(ocrCandidates, serverStudent || {});
+  if (!identityCheck.requiresConfirmation) {
+    return res.redirect('/revaluation/extraction/' + importId);
+  }
+  const t = await sequelize.transaction();
+  try {
+    const lockedOcr = await OcrExtraction.findOne(
+      { where: { import_id: importId }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!lockedOcr) throw new Error('OcrExtraction row not found.');
+    const liveSaved = safeJson(lockedOcr.extracted_json);
+    liveSaved.identity_confirmed = true;
+    await lockedOcr.update({ extracted_json: liveSaved }, { transaction: t });
+    await t.commit();
+    return res.redirect('/revaluation/extraction/' + importId);
+  } catch (err) {
+    await t.rollback();
+    console.error('[revaluation] confirmIdentity error:', err);
+    return res.redirect('/revaluation/extraction/' + importId + '?error=' +
+      encodeURIComponent('Could not save confirmation.'));
+  }
+};
+
+/**
+ * Guard: does the stored extracted_json contain a complete, runnable
+ * server-side context (result_id / student_id / session_id / attempt
+ * block / subjects array)? Used by every revaluation handler that
+ * re-derives from the stored row before touching the DB.
+ */
+function stored_guardHasContext(saved) {
+  if (!saved || typeof saved !== 'object') return false;
+  if (!Number.isInteger(Number(saved.result_id)) || Number(saved.result_id) <= 0) return false;
+  if (!Number.isInteger(Number(saved.student_id)) || Number(saved.student_id) <= 0) return false;
+  if (!Number.isInteger(Number(saved.session_id)) || Number(saved.session_id) <= 0) return false;
+  if (!saved.attempt || typeof saved.attempt !== 'object') return false;
+  if (!Array.isArray(saved.subjects)) return false;
+  return true;
+}
+
+/**
  * Shared guard-loader for review/approve/outcome.
  * Re-derives EVERYTHING from the database and fail-closes on any drift
  * between the stored server context and current DB truth (same policy as
@@ -1500,7 +1605,7 @@ exports.showReview = async (req, res) => {
     mode: st.review ? 'locked' : 'edit',
     review: st.review,
     rows: st.rows,
-    meta: st.meta,
+    meta: Object.assign({}, st.meta, { sessionId: (st.saved && st.saved.session_id) || null }),
     errors: {},
     enteredVals: {},
     notice: req.query.notice ? decodeURIComponent(req.query.notice) : null,
@@ -1603,6 +1708,22 @@ exports.submitReview = async (req, res) => {
     return res.redirect('/revaluation/upload?error=' + enc('Could not load revaluation record.'));
   }
   if (!st.ok) return res.redirect(st.redirect);
+
+  // ---- Identity gate: both-mismatch/both-missing requires explicit confirmation ----
+  // Authority: server-side student from the Result row (not browser-supplied values).
+  // identity_confirmed is set only by confirmIdentity (admin POST on /confirm-identity).
+  if (st.saved && st.saved.ocr) {
+    const ocrCandidates = st.saved.ocr.student_candidates || {};
+    const resultStudent = (st.result && st.result.Student)
+      ? { student_name: st.result.Student.student_name, usn: st.result.Student.usn }
+      : {};
+    const idCheck = checkOcrIdentity(ocrCandidates, resultStudent);
+    if (idCheck.requiresConfirmation && !(st.saved.identity_confirmed === true)) {
+      return res.redirect('/revaluation/extraction/' + importId + '?error=' +
+        enc('Student identity on the marks card does not match the selected student. Please confirm the mismatch on the extraction page before proceeding.'));
+    }
+  }
+
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
 
   const body = req.body || {};
@@ -1806,7 +1927,7 @@ exports.submitReview = async (req, res) => {
 };
 
 // ---------------- Approval & outcome ----------------
-const { AdminUser, RevaluationResult } = require('../database/models');
+const { AdminUser } = require('../database/models');
 
 /** Classified failures so TX-B can route friendly, retryable errors. */
 class BadState extends Error {}
@@ -2137,7 +2258,7 @@ exports.showOutcome = async (req, res) => {
       { label: 'Review & Validate', href: `/revaluation/review/${importId}` },
       { label: 'Outcome', active: true }
     ],
-    meta: st.meta,
+    meta: Object.assign({}, st.meta, { sessionId: (st.saved && st.saved.session_id) || null }),
     logStatus: st.log.status,
     reviewedAt: review.approved_at || review.submitted_at || null,
     reviewPresent: !!saved.review,

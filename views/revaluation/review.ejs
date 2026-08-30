@@ -214,11 +214,14 @@
     </div>
 
     <% if (mode === 'edit') { %>
-      <div class="d-flex gap-2 mb-4">
+      <div class="d-flex gap-2 mb-4 flex-wrap">
         <button type="submit" class="btn btn-primary">
           <i class="material-icons align-middle me-1" style="font-size:18px;">save</i>Save decisions &amp; validate
         </button>
         <a href="/revaluation/extraction/<%= meta.importId %>" class="btn btn-outline-secondary">Back to extraction</a>
+        <% if (meta.sessionId) { %>
+          <a href="/revaluation/start/students?session=<%= meta.sessionId %>" class="btn btn-outline-secondary">Back to Students</a>
+        <% } %>
       </div>
     <% } %>
   </form>
@@ -331,9 +334,17 @@
     </div>
   </div>
 
-  <div class="mt-2 mb-4">
+  <div class="mt-2 mb-4 d-flex gap-2 flex-wrap">
     <a href="/revaluation/pending/<%= meta.importId %>" class="btn btn-outline-secondary btn-sm">
       <i class="material-icons">arrow_back</i> Back to pending record
+    </a>
+    <% if (meta.sessionId) { %>
+      <a href="/revaluation/start/students?session=<%= meta.sessionId %>" class="btn btn-outline-secondary btn-sm">
+        <i class="material-icons">arrow_back</i> Back to Students
+      </a>
+    <% } %>
+    <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm">
+      <i class="material-icons">arrow_back</i> Back to result selection
     </a>
   </div>
 </div>

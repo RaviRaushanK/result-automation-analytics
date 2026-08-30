@@ -46,6 +46,11 @@ router.post('/:resultId/upload', (req, res, next) => {
 // Placeholder for the next (OCR) stage.
 router.get('/pending/:importId', rc.showPending);
 
+// POST — admin explicitly confirms a name+USN identity mismatch on the
+// current extraction. The flag is stored on the OcrExtraction row and is
+// the ONLY place the backend can mark a both-mismatch as acknowledged.
+router.post('/pending/:importId/confirm-identity', rc.confirmIdentity);
+
 // PROMPT 4 — OCR extraction stage (candidates only; no academic writes).
 router.post('/pending/:importId/extract', rc.runExtraction);
 router.get('/extraction/:importId', rc.showExtraction);
