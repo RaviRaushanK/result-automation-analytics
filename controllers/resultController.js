@@ -933,6 +933,7 @@ const resultController = {
           session_display: log.ResultSession ?
             `${log.ResultSession.Batch.batch_name} | ${log.ResultSession.semester} | ${log.ResultSession.exam_session} ${log.ResultSession.exam_year}` : 'N/A',
           status: log.status,
+          import_type: log.import_type,
           imported_records: log.imported_records,
           total_records: log.total_records
         }))

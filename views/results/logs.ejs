@@ -46,7 +46,7 @@
                       </td>
                       <td class="text-center">
                         <% if (log.status !== 'failed') { %>
-                          <a href="/uploads/results/<%= log.file_name %>" target="_blank"
+                          <a href="/uploads/<%= (log.import_type === 'REVALUATION') ? 'revaluation' : 'results' %>/<%= log.file_name %>" target="_blank"
                              class="btn btn-sm btn-outline-info" title="View original marks card">
                             <i class="material-icons" style="font-size:16px;">visibility</i>
                           </a>

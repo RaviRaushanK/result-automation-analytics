@@ -153,6 +153,10 @@ async function step6(c) {
   check('redirected to /outcome/', !!r._redirectTo && /\/revaluation\/outcome\//.test(r._redirectTo));
   const evs = await RevaluationResult.findAll({ where:{ subject_result_id: c.srs.map(s => s.subject_result_id) } });
   check('2 events created', evs.length === 2);
+  // Verify the ImportLog imported_records count was updated by approveReview
+  // (3 accepts total: 2 regular + 1 unmatched in this test fixture)
+  const updatedLog = await ImportLog.findByPk(c.importLog.import_id);
+  check('imported_records updated after approval', updatedLog && updatedLog.imported_records === 3);
   const ev0 = evs.find(e => Number(e.subject_result_id) === Number(c.srs[0].subject_result_id));
   const ev1 = evs.find(e => Number(e.subject_result_id) === Number(c.srs[1].subject_result_id));
   check('ev0 is_effective', !!(ev0 && ev0.is_effective));

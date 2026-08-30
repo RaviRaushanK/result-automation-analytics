@@ -2302,7 +2302,11 @@ exports.approveReview = async (req, res) => {
     }));
     await ocrRow.save({ transaction: t });
 
-    await log.update({ status: 'success' }, { transaction: t });
+    await log.update({
+      status: 'success',
+      imported_records: createdEvents.length,
+      skipped_records: 0
+    }, { transaction: t });
     await t.commit();
 
     return res.redirect(`/revaluation/outcome/${importId}`);
