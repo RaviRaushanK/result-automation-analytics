@@ -967,20 +967,6 @@ body {
   color: var(--text-primary);
 }
 
-/* Badge bg-secondary (Select session / Select student) - Light mode: black bg, white text, black border */
-.revaluation-ui .badge.bg-secondary {
-  background-color: #111827 !important;
-  color: #ffffff !important;
-  border: 1px solid #111827 !important;
-}
-
-/* Badge bg-secondary - Dark mode: white bg, dark text, white border */
-:root[data-theme="dark"] .revaluation-ui .badge.bg-secondary {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  border: 1px solid #ffffff !important;
-}
-
 /* btn-outline-secondary (Back to sessions / Back to session) - Light mode */
 .revaluation-ui .btn-outline-secondary {
   background-color: transparent;
@@ -1127,10 +1113,10 @@ body {
   background-color: var(--card-bg);
   color: var(--text-primary);
 }
-:root[data-theme="dark"] .revaluation-ui .table-success {
+/* :root[data-theme="dark"] .revaluation-ui .table-success {
   background-color: rgba(40, 167, 69, 0.15) !important;
   color: var(--text-primary);
-}
+} */
 :root[data-theme="dark"] .revaluation-ui .table-hover > tbody > tr:hover,
 :root[data-theme="dark"] .revaluation-ui .table-striped > tbody > tr:nth-of-type(odd) > td,
 :root[data-theme="dark"] .revaluation-ui .table-striped > tbody > tr:nth-of-type(odd) > th {
@@ -1192,10 +1178,6 @@ body {
 }
 
 /* Badge fixes - Dark mode */
-:root[data-theme="dark"] .revaluation-ui .badge.bg-success {
-  background-color: rgba(16, 185, 129, 0.2) !important;
-  color: #10b981 !important;
-}
 :root[data-theme="dark"] .revaluation-ui .badge.bg-danger {
   background-color: rgba(248, 113, 113, 0.2) !important;
   color: #f87171 !important;
@@ -1286,14 +1268,19 @@ body {
 
 /* Table success rows - Dark mode: keep green tint and use light text for readability */
 :root[data-theme="dark"] .revaluation-ui tr.table-success {
-  background-color: rgba(16, 185, 129, 0.25) !important;
-  color: #ecfdf5 !important;
+  background-color: #d1e7dd !important;
+  color: #212529 !important;
 }
 :root[data-theme="dark"] .revaluation-ui tr.table-success td {
-  color: #ecfdf5 !important;
+  background-color: #d1e7dd !important;
+  color: #212529 !important;
 }
 :root[data-theme="dark"] .revaluation-ui tr.table-success td .badge {
-  color: #ffffff !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: #212529 !important;
+}
+:root[data-theme="dark"] .revaluation-ui tr.table-success .badge {
+  color: #fff !important;
 }
 
 /* Card body analytics values (SGPA, CGPA, Failed subjects spans) - Dark mode text */
@@ -1307,7 +1294,7 @@ body {
 }
 :root[data-theme="dark"] .revaluation-ui .text-muted {
   color: var(--text-secondary) !important;
-}
+} 
 
 /* Code elements - Dark mode color */
 :root[data-theme="dark"] .revaluation-ui code {
@@ -1315,9 +1302,10 @@ body {
   background-color: rgba(251, 191, 36, 0.1);
 }
 
+
 /* Table cells with small text - ensure visibility */
 :root[data-theme="dark"] .revaluation-ui .table td small {
-  color: var(--text-secondary) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Em elements - italic text in dark mode */
@@ -1421,10 +1409,6 @@ body {
 :root[data-theme="dark"] .main-content .table.table-bordered.table-striped tbody tr:hover {
   background-color: var(--sidebar-hover) !important;
 }
-:root[data-theme="dark"] .main-content .table.table-bordered code {
-  color: var(--accent-amber) !important;
-  background-color: rgba(251, 191, 36, 0.1);
-}
 
 /* Preview: Badge fixes (bg-info text-dark, bg-warning text-dark) */
 :root[data-theme="dark"] .main-content .badge.bg-info.text-dark {
@@ -1454,4 +1438,34 @@ body {
 }
 :root[data-theme="dark"] .main-content .alert-success .text-success {
   color: #86efac !important;
+}
+
+/* ========================================
+   CRITICAL: Badge bg-secondary - MUST be last to win cascade
+======================================== */
+
+/* Badge bg-secondary (Select session / Select student) - Light mode: black bg, white text, black border */
+.revaluation-ui .badge.bg-secondary {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  border: 1px solid #111827 !important;
+}
+
+/* Badge bg-secondary - Dark mode: white bg, dark text, white border */
+:root[data-theme="dark"] .revaluation-ui .badge.bg-secondary {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #ffffff !important;
+}
+
+/* Revaluation UI: alert-warning text visibility */
+:root[data-theme="dark"] .revaluation-ui .alert-warning,
+:root[data-theme="dark"] .alert-warning {
+  background-color: rgba(251, 191, 36, 0.2) !important;
+  border-color: var(--accent-amber) !important;
+  color: #fde68a !important;
+}
+:root[data-theme="dark"] .revaluation-ui .alert-warning strong,
+:root[data-theme="dark"] .alert-warning strong {
+  color: #fef3c7 !important;
 }
