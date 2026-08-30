@@ -1,19 +1,30 @@
-<div class="container-fluid">
+<div class="container-fluid revaluation-ui">
   <div class="row mb-3 align-items-center">
     <div class="col">
       <h4 class="mb-1"><i class="material-icons me-1">event</i> Revaluation — Step 1: Select Result Session</h4>
       <p class="text-muted mb-0">Choose the exam/result session. Only sessions that contain results are shown.</p>
     </div>
+    <div class="col-auto">
+      <div class="input-group" style="max-width: 360px;">
+        <span class="input-group-text"><i class="material-icons">search</i></span>
+        <input type="text" id="sessionSearchInput" class="form-control" placeholder="Search sessions..." autocomplete="off">
+        <button type="button" id="sessionSearchClear" class="btn btn-outline-secondary d-none" onclick="this.previousElementSibling.value=''; sessionSearch()">
+          <i class="material-icons">close</i>
+        </button>
+      </div>
+    </div>
   </div>
 
   <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
 
+  <div id="noMatchingSessions" class="alert alert-info mb-0 d-none">No matching sessions found.</div>
+
   <% if (!sessions.length) { %>
     <div class="alert alert-info mb-0">No result sessions with recorded results were found.</div>
   <% } else { %>
-    <div class="list-group">
+    <div class="list-group" id="sessionListGroup">
       <% sessions.forEach(s => { %>
-        <a href="/revaluation/start/students?session=<%= s.sessionId %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+        <a href="/revaluation/start/students?session=<%= s.sessionId %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-session-display="<%= s.display %>">
           <span><i class="material-icons align-middle me-2 text-primary">event</i> <%= s.display %></span>
           <span class="badge bg-secondary">Select session</span>
         </a>
@@ -21,3 +32,135 @@
     </div>
   <% } %>
 </div>
+
+<script>
+(function() {
+  // Store original session order and data
+  const originalSessions = Array.from(document.querySelectorAll('#sessionListGroup .list-group-item')).map(item => item.cloneNode(true));
+  const sessionContainer = document.getElementById('sessionListGroup');
+  const searchInput = document.getElementById('sessionSearchInput');
+  const clearButton = document.getElementById('sessionSearchClear');
+  const noResultsMessage = document.getElementById('noMatchingSessions');
+  
+  // Helper: normalize text for search
+  function normalizeText(text) {
+    return text.toLowerCase()
+      .replace(/\s+/g, ' ') // collapse whitespace
+      .trim();
+  }
+  
+  // Extract searchable text from a session element
+  function extractSessionText(sessionItem) {
+    return normalizeText(sessionItem.getAttribute('data-session-display') || '');
+  }
+  
+  // Get search keywords from query
+  function getSearchKeywords(query) {
+    const normalized = normalizeText(query);
+    if (!normalized) return [];
+    return normalized.split(/\s+/).filter(word => word.length > 0);
+  }
+  
+  // Calculate relevance score
+  function calculateScore(sessionText, keywords) {
+    if (keywords.length === 0) return 0;
+    
+    let score = 0;
+    let matchedKeywords = 0;
+    
+    // Check each keyword
+    keywords.forEach(keyword => {
+      if (sessionText.includes(keyword)) {
+        matchedKeywords++;
+        // Boost score for exact matches (case-insensitive)
+        if (sessionText === keyword) {
+          score += 10;
+        } else {
+          // Partial match gets lower score
+          score += 5;
+        }
+      }
+    });
+    
+    // Bonus for matching all keywords
+    if (matchedKeywords === keywords.length) {
+      score += 20;
+    }
+    
+    return score;
+  }
+  
+  // Filter and rank sessions
+  function filterAndRankSessions(query) {
+    const keywords = getSearchKeywords(query);
+    const sessionItems = Array.from(sessionContainer.querySelectorAll('.list-group-item'));
+    
+    if (keywords.length === 0) {
+      // Show all sessions in original order
+      sessionItems.forEach((item, index) => {
+        item.style.display = 'flex';
+      });
+      // Restore original order
+      originalSessions.forEach((orig, index) => {
+        sessionContainer.appendChild(sessionItems[index]);
+      });
+      noResultsMessage.classList.add('d-none');
+      return;
+    }
+    
+    // Create array with scores and original index
+    const scoredItems = sessionItems.map((item, index) => {
+      const sessionText = extractSessionText(item);
+      return {
+        element: item,
+        score: calculateScore(sessionText, keywords),
+        originalIndex: index
+      };
+    });
+    
+    // Sort by score (descending), then by original index (stable sort)
+    scoredItems.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.originalIndex - b.originalIndex;
+    });
+    
+    // Apply new order
+    scoredItems.forEach(item => {
+      sessionContainer.appendChild(item.element);
+    });
+    
+    // Show/hide no results message
+    const hasVisibleSessions = scoredItems.some(item => item.score > 0);
+    if (!hasVisibleSessions) {
+      noResultsMessage.classList.remove('d-none');
+    } else {
+      noResultsMessage.classList.add('d-none');
+    }
+  }
+  
+  // Public search function
+  function sessionSearch() {
+    const query = searchInput.value.trim();
+    clearButton.classList.toggle('d-none', !query);
+    filterAndRankSessions(query);
+  }
+  
+  // Attach event listeners
+  searchInput.addEventListener('input', sessionSearch);
+  
+  // Initialize clear button visibility
+  searchInput.addEventListener('input', () => {
+    clearButton.classList.toggle('d-none', !searchInput.value.trim());
+  });
+  
+  // Allow Enter key to trigger search (optional)
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sessionSearch();
+    }
+  });
+})();
+</script>

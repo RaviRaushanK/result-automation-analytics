@@ -954,3 +954,164 @@ body {
     transition: none !important;
   }
 }
+
+/* ========================================
+   Revaluation UI - Dark Mode Fixes
+   Scoped to .revaluation-ui container
+   ======================================== */
+
+/* Card header - fix light Bootstrap background in dark mode */
+:root[data-theme="dark"] .revaluation-ui .card-header {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+
+/* Badge bg-secondary (Select session / Select student) - Light mode: black bg, white text, black border */
+.revaluation-ui .badge.bg-secondary {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  border: 1px solid #111827 !important;
+}
+
+/* Badge bg-secondary - Dark mode: white bg, dark text, white border */
+:root[data-theme="dark"] .revaluation-ui .badge.bg-secondary {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #ffffff !important;
+}
+
+/* btn-outline-secondary (Back to sessions / Back to session) - Light mode */
+.revaluation-ui .btn-outline-secondary {
+  background-color: transparent;
+  border-color: #111827;
+  color: #111827;
+}
+.revaluation-ui .btn-outline-secondary:hover,
+.revaluation-ui .btn-outline-secondary:focus,
+.revaluation-ui .btn-outline-secondary:active {
+  background-color: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
+
+/* btn-outline-secondary - Dark mode */
+:root[data-theme="dark"] .revaluation-ui .btn-outline-secondary {
+  background-color: transparent;
+  border-color: #ffffff;
+  color: #ffffff;
+}
+:root[data-theme="dark"] .revaluation-ui .btn-outline-secondary:hover,
+:root[data-theme="dark"] .revaluation-ui .btn-outline-secondary:focus,
+:root[data-theme="dark"] .revaluation-ui .btn-outline-secondary:active {
+  background-color: #ffffff;
+  border-color: #ffffff;
+  color: #111827;
+}
+
+/* Badge bg-warning text-dark - Dark mode fix */
+:root[data-theme="dark"] .revaluation-ui .badge.bg-warning.text-dark {
+  background-color: var(--accent-amber) !important;
+  color: #111827 !important;
+}
+
+/* Badge bg-info text-dark - Dark mode fix */
+:root[data-theme="dark"] .revaluation-ui .badge.bg-info.text-dark {
+  background-color: var(--accent-teal) !important;
+  color: #111827 !important;
+}
+
+/* Badge bg-light text-dark - Dark mode fix */
+:root[data-theme="dark"] .revaluation-ui .badge.bg-light.text-dark {
+  background-color: var(--card-border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Form text (help text) - Dark mode fix */
+:root[data-theme="dark"] .revaluation-ui .form-text {
+  color: var(--text-secondary) !important;
+}
+
+/* List group item - Dark mode fixes */
+:root[data-theme="dark"] .revaluation-ui .list-group-item {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+:root[data-theme="dark"] .revaluation-ui .list-group-item-action:hover,
+:root[data-theme="dark"] .revaluation-ui .list-group-item-action:focus {
+  background-color: var(--sidebar-hover);
+  color: var(--text-primary);
+}
+
+/* Input group - Dark mode fixes */
+:root[data-theme="dark"] .revaluation-ui .input-group-text {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--text-secondary);
+}
+:root[data-theme="dark"] .revaluation-ui .form-control {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+:root[data-theme="dark"] .revaluation-ui .form-control:focus {
+  background-color: var(--card-bg);
+  border-color: var(--primary-brand);
+  box-shadow: 0 0 0 0.25rem rgba(96, 165, 250, 0.25);
+  color: var(--text-primary);
+}
+
+/* Table thead/cells - Dark mode contrast */
+:root[data-theme="dark"] .revaluation-ui .table thead th {
+  background-color: var(--secondary-bg);
+  color: var(--text-primary);
+  border-color: var(--card-border);
+}
+:root[data-theme="dark"] .revaluation-ui .table td,
+:root[data-theme="dark"] .revaluation-ui .table th {
+  border-color: var(--card-border);
+}
+
+/* Alert - Dark mode contrast */
+:root[data-theme="dark"] .revaluation-ui .alert-info {
+  background-color: rgba(34, 211, 238, 0.15);
+  border-color: var(--accent-teal);
+  color: var(--text-primary);
+}
+:root[data-theme="dark"] .revaluation-ui .alert-danger {
+  background-color: rgba(248, 113, 113, 0.15);
+  border-color: var(--accent-red);
+  color: var(--text-primary);
+}
+:root[data-theme="dark"] .revaluation-ui .alert-warning {
+  background-color: rgba(251, 191, 36, 0.15);
+  border-color: var(--accent-amber);
+  color: #111827;
+}
+:root[data-theme="dark"] .revaluation-ui .alert-success {
+  background-color: rgba(74, 222, 128, 0.15);
+  border-color: var(--accent-green);
+  color: var(--text-primary);
+}
+
+/* Search input clear button - ensure visibility */
+:root[data-theme="dark"] .revaluation-ui .btn-outline-secondary {
+  opacity: 1;
+}
+
+/* Pagination - if used in revaluation */
+:root[data-theme="dark"] .revaluation-ui .page-link {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+:root[data-theme="dark"] .revaluation-ui .page-link:hover {
+  background-color: var(--sidebar-hover);
+  color: var(--text-primary);
+}
+:root[data-theme="dark"] .revaluation-ui .page-item.active .page-link {
+  background-color: var(--primary-brand);
+  border-color: var(--primary-brand);
+  color: #ffffff;
+}
