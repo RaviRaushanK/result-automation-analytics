@@ -305,6 +305,60 @@
     height: 1.5rem;
 }
 
+/* ============================================
+   Upload Result Extraction Validation
+   ============================================ */
+
+/* Dark-mode override for the extraction/form-level warning alert.
+   Bootstrap's default alert-warning has poor contrast in dark mode.
+   These overrides are scoped to .extraction-alert so they do not
+   affect other alert-warning instances site-wide. */
+:root[data-theme="dark"] .extraction-alert.alert-warning {
+  background-color: rgba(251, 191, 36, 0.18) !important;
+  border-color: rgba(251, 191, 36, 0.5) !important;
+  color: #fde68a !important;
+}
+:root[data-theme="dark"] .extraction-alert.alert-warning strong {
+  color: #fef3c7 !important;
+}
+:root[data-theme="dark"] .extraction-alert.alert-warning .material-icons {
+  color: #fbbf24 !important;
+}
+
+/* Dark-mode override for the extraction/form-level danger alert. */
+:root[data-theme="dark"] .extraction-alert.alert-danger {
+  background-color: rgba(248, 113, 113, 0.15) !important;
+  border-color: rgba(248, 113, 113, 0.4) !important;
+  color: #fca5a5 !important;
+}
+:root[data-theme="dark"] .extraction-alert.alert-danger strong {
+  color: #fee2e2 !important;
+}
+:root[data-theme="dark"] .extraction-alert.alert-danger .material-icons {
+  color: #f87171 !important;
+}
+
+/* Field-level error message text — always use the semantic red accent
+   so it is readable in both light and dark modes. */
+.field-error-message {
+  color: var(--color-danger);
+}
+:root[data-theme="dark"] .field-error-message {
+  color: #f87171 !important;
+}
+
+/* Bootstrap is-invalid border color override for dark mode:
+   the default Bootstrap danger red can be too bright against dark bg. */
+:root[data-theme="dark"] .form-control.is-invalid,
+:root[data-theme="dark"] .form-select.is-invalid {
+  border-color: rgba(248, 113, 113, 0.6) !important;
+}
+
+/* Highlighted table rows with errors (table-danger class from EJS). */
+:root[data-theme="dark"] table.table-danger > td {
+  background-color: rgba(248, 113, 113, 0.08) !important;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 767.98px) {
     .stat-value {

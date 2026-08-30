@@ -1,6 +1,24 @@
 <div class="container-fluid">
   <div class="row justify-content-center">
     <div class="col-12 col-xl-12">
+
+      <% if (typeof extractionWarning !== 'undefined' && extractionWarning) { %>
+      <div class="alert alert-warning extraction-alert d-flex align-items-start mb-3" role="alert" id="extractionAlert">
+        <i class="material-icons me-2 mt-1 flex-shrink-0">warning</i>
+        <div>
+          <strong>Extraction Incomplete</strong>
+          <div class="small mt-1" id="extractionAlertMessage"><%= extractionWarning %></div>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (typeof formError !== 'undefined' && formError) { %>
+      <div class="alert alert-danger extraction-alert d-flex align-items-start mb-3" role="alert">
+        <i class="material-icons me-2 mt-1 flex-shrink-0">error</i>
+        <div><strong>Validation Failed</strong><div class="small mt-1"><%= formError %></div></div>
+      </div>
+      <% } %>
+
       <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div>
@@ -10,7 +28,7 @@
           <span class="badge bg-warning text-dark">Step 2 of 4 &mdash; compare the card, fix any OCR mistakes</span>
         </div>
         <div class="card-body">
-                    <% if (typeof duplicateStudent !== 'undefined' && duplicateStudent) { %>
+          <% if (typeof duplicateStudent !== 'undefined' && duplicateStudent) { %>
             <div class="alert alert-danger d-flex align-items-start" role="alert">
               <i class="material-icons me-2 mt-1">block</i>
               <div>
@@ -55,12 +73,38 @@
                     </div>
                     <div class="row g-3">
                       <div class="col-md-5">
-                        <label class="form-label small fw-semibold">USN</label>
-                        <input type="text" class="form-control text-uppercase" id="usnInput" name="usn" value="<%= student.usn %>" maxlength="20" required>
+                        <label class="form-label small fw-semibold" for="usnInput">
+                          USN <span class="text-danger">*</span>
+                        </label>
+                        <input type="text"
+                               class="form-control text-uppercase <%= (typeof errors !== 'undefined' && errors['student.usn']) ? 'is-invalid' : '' %>"
+                               id="usnInput"
+                               name="usn"
+                               value="<%= student.usn %>"
+                               maxlength="20"
+                               required
+                               placeholder="e.g. 1MV25MC001"
+                               autocomplete="off">
+                        <% if (typeof errors !== 'undefined' && errors['student.usn']) { %>
+                          <div class="field-error-message text-danger small mt-1"><%= errors['student.usn'] %></div>
+                        <% } %>
                       </div>
                       <div class="col-md-7">
-                        <label class="form-label small fw-semibold">Student Name</label>
-                        <input type="text" class="form-control" id="nameInput" name="name" value="<%= student.name %>" maxlength="100" required>
+                        <label class="form-label small fw-semibold" for="studentNameInput">
+                          Student Name <span class="text-danger">*</span>
+                        </label>
+                        <input type="text"
+                               class="form-control <%= (typeof errors !== 'undefined' && errors['student.name']) ? 'is-invalid' : '' %>"
+                               id="studentNameInput"
+                               name="name"
+                               value="<%= student.name %>"
+                               maxlength="100"
+                               required
+                               placeholder="Full name as on marks card"
+                               autocomplete="off">
+                        <% if (typeof errors !== 'undefined' && errors['student.name']) { %>
+                          <div class="field-error-message text-danger small mt-1"><%= errors['student.name'] %></div>
+                        <% } %>
                       </div>
                     </div>
                     <!-- Hidden manner: attempt authority round-trips through validate;
@@ -91,11 +135,41 @@
                             <% var iVal = (s.internalMarks != null && s.internalMarks !== "") ? s.internalMarks : ""; %>
                             <% var xVal = (s.externalMarks != null && s.externalMarks !== "") ? s.externalMarks : ""; %>
                             <% var total = (iVal !== "" && xVal !== "") ? (parseInt(iVal,10) + parseInt(xVal,10)) : ""; %>
-                            <tr data-max-marks="<%= maxM %>" data-max-internal="<%= maxI %>" data-max-external="<%= maxE %>">
+                            <% var sid = String(s.subject_id); %>
+                            <% var rowErrors = (typeof errors !== 'undefined' && errors['subjects[' + sid + ']']) ? errors['subjects[' + sid + ']'] : null; %>
+                            <tr data-max-marks="<%= maxM %>" data-max-internal="<%= maxI %>" data-max-external="<%= maxE %>" data-subject-id="<%= sid %>" class="<%= rowErrors ? 'table-danger' : '' %>">
                               <td><code><%= s.subject_code %></code></td>
                               <td><%= s.subject_name %></td>
-                              <td><input type="number" min="0" max="<%= maxI %>" class="form-control form-control-sm internal-input" id="internal_<%= s.subject_id %>" name="internal_<%= s.subject_id %>" value="<%= iVal %>" required placeholder="0-<%= maxI %>"><div class="small text-muted">max <%= maxI %></div></td>
-                              <td><input type="number" min="0" max="<%= maxE %>" class="form-control form-control-sm external-input" id="external_<%= s.subject_id %>" name="external_<%= s.subject_id %>" value="<%= xVal %>" required placeholder="0-<%= maxE %>"><div class="small text-muted">max <%= maxE %></div></td>
+                              <td>
+                                <input type="number"
+                                       min="0"
+                                       max="<%= maxI %>"
+                                       class="form-control form-control-sm internal-input <%= rowErrors && rowErrors.internalMarks ? 'is-invalid' : '' %>"
+                                       id="internal_<%= sid %>"
+                                       name="internal_<%= sid %>"
+                                       value="<%= iVal %>"
+                                       required
+                                       placeholder="0-<%= maxI %>">
+                                <div class="small text-muted">max <%= maxI %></div>
+                                <% if (rowErrors && rowErrors.internalMarks) { %>
+                                  <div class="field-error-message text-danger small mt-1"><%= rowErrors.internalMarks %></div>
+                                <% } %>
+                              </td>
+                              <td>
+                                <input type="number"
+                                       min="0"
+                                       max="<%= maxE %>"
+                                       class="form-control form-control-sm external-input <%= rowErrors && rowErrors.externalMarks ? 'is-invalid' : '' %>"
+                                       id="external_<%= sid %>"
+                                       name="external_<%= sid %>"
+                                       value="<%= xVal %>"
+                                       required
+                                       placeholder="0-<%= maxE %>">
+                                <div class="small text-muted">max <%= maxE %></div>
+                                <% if (rowErrors && rowErrors.externalMarks) { %>
+                                  <div class="field-error-message text-danger small mt-1"><%= rowErrors.externalMarks %></div>
+                                <% } %>
+                              </td>
                               <td class="fw-bold total-cell"><%= total !== "" ? total : "—" %></td>
                               <td class="status-cell text-center"><% if (total !== "") { %><% var pct = Math.floor((total/maxM)*100); %><% if (pct >= 50) { %><span class="badge bg-success">PASS</span><% } else { %><span class="badge bg-danger">FAIL</span><% } %><% } else { %><span class="badge bg-secondary">N/A</span><% } %></td>
                             </tr>
@@ -107,7 +181,7 @@
                 </div>
                 <div class="d-flex gap-2 mt-3">
                   <a href="/results/upload" class="btn btn-outline-secondary flex-fill">Cancel</a>
-                  <button type="submit" id="validateButton" class="btn btn-primary btn-lg flex-fill<%= duplicateStudent ? " disabled" : "" %>">
+                  <button type="submit" id="validateButton" class="btn btn-primary btn-lg flex-fill<%= (typeof duplicateStudent !== 'undefined' && duplicateStudent) ? " disabled" : "" %>">
                     Validate <i class="material-icons align-middle ms-1" style="font-size:18px;">arrow_forward</i>
                   </button>
                 </div>

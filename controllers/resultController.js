@@ -163,14 +163,23 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
 
     const iRaw = markInputs[`internal_${s.subject_id}`];
     const eRaw = markInputs[`external_${s.subject_id}`];
-    const internal = parseInt(iRaw, 10);
-    const external = parseInt(eRaw, 10);
+    // Explicitly check for null/undefined/empty-string BEFORE parseInt so that
+    // "0" is NOT incorrectly treated as missing. parseInt returns NaN for empty
+    // string; we treat that as a required-field error rather than a range error.
+    const iMissing = (iRaw === null || iRaw === undefined || iRaw === '');
+    const eMissing = (eRaw === null || eRaw === undefined || eRaw === '');
+    const internal = iMissing ? NaN : parseInt(iRaw, 10);
+    const external = eMissing ? NaN : parseInt(eRaw, 10);
 
     const fieldErrors = {};
-    if (isNaN(internal) || internal < 0 || internal > maxInt) {
+    if (iMissing) {
+      fieldErrors.internalMarks = 'Internal marks are required.';
+    } else if (isNaN(internal) || internal < 0 || internal > maxInt) {
       fieldErrors.internalMarks = `Internal must be between 0 and ${maxInt}.`;
     }
-    if (isNaN(external) || external < 0 || external > maxExt) {
+    if (eMissing) {
+      fieldErrors.externalMarks = 'External marks are required.';
+    } else if (isNaN(external) || external < 0 || external > maxExt) {
       fieldErrors.externalMarks = `External must be between 0 and ${maxExt}.`;
     }
 
@@ -217,6 +226,7 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
 
   return {
     errors,
+    hasErrors,
     payload: {
       student: { usn, name },
       subjects: list,
@@ -463,6 +473,29 @@ const resultController = {
         warnings = ctx.saved.warnings;
       }
 
+      // ---- Compute extraction warning for the frontend ----
+      // Shown when OCR left required fields empty so the admin knows
+      // to manually fill them before submitting.
+      const extractionWarningParts = [];
+      if (!ctx.saved.student || !ctx.saved.student.usn) {
+        extractionWarningParts.push('Student USN is missing from the extracted data.');
+      }
+      if (!ctx.saved.student || !ctx.saved.student.name) {
+        extractionWarningParts.push('Student name is missing from the extracted data.');
+      }
+      const missingSubjectCount = subjects.filter(s =>
+        s.internalMarks === '' || s.externalMarks === ''
+      ).length;
+      if (missingSubjectCount > 0) {
+        const noun = missingSubjectCount === 1 ? 'subject has' : 'subjects have';
+        extractionWarningParts.push(
+          `${missingSubjectCount} ${noun} one or more missing marks values.`
+        );
+      }
+      const extractionWarning = extractionWarningParts.length > 0
+        ? extractionWarningParts.join(' ')
+        : null;
+
       // ---- Duplicate student detection (per student + session + attempt) ----
       const usn = (ctx.saved.student && ctx.saved.student.usn) || '';
       const savedAttempt = sanitizeAttempt(
@@ -500,6 +533,7 @@ const resultController = {
         attempt: attemptInfo,
         subjects,
         warnings,
+        extractionWarning,
         errors: {},
         duplicateStudent,
         fileUrl: ctx.fileUrl,
@@ -632,8 +666,10 @@ const resultController = {
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects,
           warnings: [],
+          extractionWarning: (errors.form ? errors.form + ' Please correct the highlighted fields below.' : 'Some required fields are missing. Please correct the highlighted fields below.'),
           errors,
           formError: errors.form || null,
+          duplicateStudent: false,
           fileUrl: ctx.fileUrl,
           fileType: (ctx.log.file_type || '').toLowerCase(),
           maxInternal: MAX_INTERNAL,
