@@ -24,8 +24,6 @@
     </div>
   <% } %>
 
-  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
-
   <div class="card mb-3">
     <div class="card-header">Server-authoritative context (from the database)</div>
     <div class="card-body">
@@ -48,15 +46,23 @@
           </p>
           <p class="mb-2 small"><%= identityCheck.message %></p>
           <% if (identityConfirmed) { %>
-            <span class="badge bg-success">Mismatch acknowledged</span>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="badge bg-success"><i class="material-icons align-middle" style="font-size:14px;">check_circle</i> Mismatch acknowledged</span>
+              <small class="text-muted">You may now proceed to review, or re-upload a corrected document below.</small>
+            </div>
           <% } else { %>
-            <form method="POST" action="/revaluation/pending/<%= importId %>/confirm-identity" class="d-inline">
-              <button type="submit" class="btn btn-sm btn-warning"
-                      onclick="return confirm('Confirm that this marks card belongs to the selected student despite a name+USN mismatch? This action applies to the current extraction only.');">
+            <div class="d-flex flex-wrap gap-2 mt-1">
+              <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#confirmMismatchModal">
                 <i class="material-icons align-middle" style="font-size:16px;">check_circle</i>
                 Confirm mismatch and continue
               </button>
-            </form>
+              <% if (resultId) { %>
+                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reuploadFromMismatchModal">
+                  <i class="material-icons align-middle" style="font-size:16px;">upload_file</i>
+                  Re-upload Document
+                </button>
+              <% } %>
+            </div>
           <% } %>
         </div>
       </div>
@@ -225,7 +231,110 @@
     <% if (sessionId) { %>
       <a href="/revaluation/start/students?session=<%= sessionId %>" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to Students</a>
     <% } %>
+    <% if (resultId) { %>
+      <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#reuploadFromNavModal">
+        <i class="material-icons">upload_file</i> Re-upload Document
+      </button>
+    <% } %>
     <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm"><i class="material-icons">arrow_back</i> Back to result selection</a>
+  </div>
+</div>
+
+<!-- =============================================================
+     Custom Bootstrap modals (replace ugly native browser dialogs)
+     ============================================================= -->
+
+<!-- Modal 1: Confirm identity mismatch -->
+<div class="modal fade" id="confirmMismatchModal" tabindex="-1" aria-labelledby="confirmMismatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" action="/revaluation/pending/<%= importId %>/confirm-identity" id="confirmMismatchForm">
+        <div class="modal-header bg-warning-subtle">
+          <h5 class="modal-title" id="confirmMismatchModalLabel">
+            <i class="material-icons align-middle">warning_amber</i> Confirm student identity mismatch
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>The marks card you uploaded does not match the selected student. The OCR read:</p>
+          <ul class="mb-2">
+            <li><strong>Name on card:</strong> <%= ocrStudent.name || '(not extracted)' %></li>
+            <li><strong>USN on card:</strong> <%= ocrStudent.usn || '(not extracted)' %></li>
+          </ul>
+          <p>While the selected student is:</p>
+          <ul class="mb-2">
+            <li><strong>Name:</strong> <%= serverStudent.student_name || '—' %></li>
+            <li><strong>USN:</strong> <%= serverStudent.usn || '—' %></li>
+          </ul>
+          <p class="text-muted small mb-0">This confirmation applies only to the current extraction and is required before you can proceed to the review stage.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning">
+            <i class="material-icons align-middle" style="font-size:16px;">check_circle</i>
+            Yes, confirm mismatch
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 2: Re-upload from mismatch alert (small) -->
+<div class="modal fade" id="reuploadFromMismatchModal" tabindex="-1" aria-labelledby="reuploadFromMismatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning-subtle">
+        <h5 class="modal-title" id="reuploadFromMismatchModalLabel">
+          <i class="material-icons align-middle">upload_file</i> Re-upload marks card
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Discard the current OCR extraction and re-upload a corrected marks card for this student?</p>
+        <p class="text-muted small mb-0">The previous ImportLog record and uploaded file will be removed before the new document is registered.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <a href="/revaluation/<%= resultId %>/upload?replace=1" class="btn btn-warning">
+          <i class="material-icons align-middle" style="font-size:16px;">upload_file</i>
+          Re-upload now
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 3: Re-upload from bottom nav (richer context) -->
+<div class="modal fade" id="reuploadFromNavModal" tabindex="-1" aria-labelledby="reuploadFromNavModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning-subtle">
+        <h5 class="modal-title" id="reuploadFromNavModalLabel">
+          <i class="material-icons align-middle">upload_file</i> Re-upload the revaluation document
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to upload a new marks card for this student. The previous document and its OCR data will be discarded.</p>
+        <div class="alert alert-info small mb-0">
+          <strong>What happens next:</strong>
+          <ol class="mb-0 ps-3">
+            <li>Current ImportLog &amp; OcrExtraction are deleted (only if not yet approved).</li>
+            <li>The previous uploaded file is removed from disk.</li>
+            <li>Your new PDF is registered and a fresh OCR pass runs on it.</li>
+            <li>You return to the extraction page to verify the new OCR output.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <a href="/revaluation/<%= resultId %>/upload?replace=1" class="btn btn-warning">
+          <i class="material-icons align-middle" style="font-size:16px;">upload_file</i>
+          Continue to re-upload
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 

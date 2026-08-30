@@ -30,6 +30,8 @@ router.post('/start/attempt', rc.confirmAttemptSelection);
 
 // Upload page (GET) + document submit (POST). The POST uses an explicit
 // multer invocation so file/MIME/size rejections become friendly redirects.
+// ?replace=1 is forwarded so the page can show a re-upload context
+// (re-establishes the wizard draft without re-picking session/student/attempt).
 router.get('/:resultId/upload', rc.showUploadPage);
 router.post('/:resultId/upload', (req, res, next) => {
   revaluationUpload.single('revalidationDocument')(req, res, (err) => {
@@ -39,6 +41,9 @@ router.post('/:resultId/upload', (req, res, next) => {
         : (err.message || 'Invalid document.');
       return res.redirect(`/revaluation/${req.params.resultId}/upload?error=` + encodeURIComponent(msg));
     }
+    // The session.revaluationDraft.replacing flag is already set by the GET
+    // showUploadPage handler when ?replace=1 was used to enter the page.
+    // processUpload reads it directly; no additional query-param forwarding needed.
     return rc.processUpload(req, res, next);
   });
 });

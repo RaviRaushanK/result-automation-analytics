@@ -285,15 +285,37 @@ exports.confirmAttemptSelection = async (req, res) => {
  */
 exports.showUploadPage = async (req, res) => {
   const resultId = Number(req.params.resultId);
+  const isReplace = String(req.query.replace || '') === '1';
   // Phase 13B: The draft tracks Result context; subjects are resolved server-side.
-  const draft = req.session && req.session.revaluationDraft;
+  let draft = req.session && req.session.revaluationDraft;
 
   if (!draft || Number(draft.resultId) !== resultId) {
-    // Not an error about subject selection — the wizard flow provides scope.
-    return res.redirect('/revaluation/start?error=' +
-      encodeURIComponent('No revaluation in progress.'));
+    // Re-upload path: re-establish the draft from the DB so the user can
+    // replace the document without re-picking session → student → attempt.
+    if (isReplace) {
+      const ctx = await loadResultContext(resultId).catch(() => null);
+      if (!ctx) {
+        return res.redirect('/revaluation/start?error=' +
+          encodeURIComponent('Result not found.'));
+      }
+      req.session.revaluationDraft = {
+        resultId: Number(ctx.result_id),
+        studentId: Number(ctx.student_id),
+        sessionId: Number(ctx.session_id),
+        attempt_no: Number(ctx.attempt_no),
+        exam_type: ctx.exam_type,
+        startedAt: Date.now(),
+        replacing: true
+      };
+      // Update the local reference so the expiry check below uses the new draft.
+      draft = req.session.revaluationDraft;
+    } else {
+      // Not an error about subject selection — the wizard flow provides scope.
+      return res.redirect('/revaluation/start?error=' +
+        encodeURIComponent('No revaluation in progress.'));
+    }
   }
-  if (Date.now() - (draft.startedAt || 0) > REVAL_PENDING_SECONDS * 1000) {
+  if (Date.now() - ((draft && draft.startedAt) || 0) > REVAL_PENDING_SECONDS * 1000) {
     delete req.session.revaluationDraft;
     return res.redirect('/revaluation/start?error=' +
       encodeURIComponent('Your draft has expired. Please re-select the attempt.'));
@@ -324,7 +346,7 @@ exports.showUploadPage = async (req, res) => {
     breadcrumbItems: [
       { label: 'Result Management' },
       { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Upload Document', active: true }
+      { label: 'Re-upload Document', active: true }
     ],
     resultId: result.result_id,
     sessionId: Number(result.session_id),
@@ -334,6 +356,7 @@ exports.showUploadPage = async (req, res) => {
     attempt: { attempt_no: Number(result.attempt_no), exam_type: result.exam_type },
     subjects,
     subjectCount: subjects.length,
+    isReplace: !!(req.session.revaluationDraft && req.session.revaluationDraft.replacing),
     error: req.query.error || null
   });
 };
@@ -364,6 +387,11 @@ exports.processUpload = async (req, res) => {
   // to define, expand, reduce, or replace the Result scope.
   const owned = result.SubjectResults || [];
 
+  // Re-upload path: if the draft was created via the "Re-upload Document"
+  // button on the extraction page, we supersede the existing ImportLog rather
+  // than block the upload. Confirmed server-side by the session flag only.
+  const isReplacing = !!(req.session && req.session.revaluationDraft && req.session.revaluationDraft.replacing);
+
   // File validation (multer already gates MIME/type/size; verify again here).
   if (!req.file) {
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
@@ -393,10 +421,16 @@ exports.processUpload = async (req, res) => {
       encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
   }
   if (guardEarly.importId) {
-    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
-    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
-        guardEarly.importId + '). Complete or retry that submission before starting another.'));
+    if (!isReplacing) {
+      // Normal new upload — block.
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+      return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+        encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
+          guardEarly.importId + '). Complete or retry that submission before starting another.'));
+    }
+    // Re-upload: supersede the existing import within a transaction.
+    // The file we just received is staged at req.file.path and will be moved
+    // into the new import after the old one is deleted.
   }
 
   // PROMPT 19 — Case A: an approved revaluation already exists for this
@@ -451,7 +485,15 @@ exports.processUpload = async (req, res) => {
       throw Object.assign(new Error('OPEN_GUARD_UNAVAILABLE'), { openGuardUnavailable: true, storedPath });
     }
     if (recheck.importId) {
-      throw Object.assign(new Error('OPEN_SUBMISSION_' + recheck.importId), { openImportId: recheck.importId, storedPath });
+      if (!isReplacing) {
+        throw Object.assign(new Error('OPEN_SUBMISSION_' + recheck.importId), { openImportId: recheck.importId, storedPath });
+      }
+      // Re-upload: supersede the existing import in the same transaction.
+      const sup = await supersedeRevaluationImport(result.result_id, t);
+      if (!sup.ok) {
+        throw Object.assign(new Error('SUPERSEDE_FAILED'), { supersedeFailed: true, storedPath });
+      }
+      console.log(`[revaluation] processUpload re-upload: superseded import #${sup.deletedImportId} for result #${result.result_id}.`);
     }
 
     // PROMPT 19 — in-transaction Case A recheck under the Result row lock.
@@ -541,6 +583,10 @@ exports.processUpload = async (req, res) => {
     if (err && err.openGuardUnavailable) {
       return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
         encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
+    }
+    if (err && err.supersedeFailed) {
+      return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
+        encodeURIComponent('Could not replace the previous document. Please try again.'));
     }
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
       encodeURIComponent('Failed to register revaluation: ' + (err.message || 'server error')));
@@ -981,6 +1027,59 @@ async function hasApprovedRevaluationForResult(resultId, t) {
 }
 
 /**
+ * PROMPT 19 — RE-UPLOAD SUPPORT.
+ * Deletes the existing REVALUATION ImportLog + OcrExtraction for a Result,
+ * along with the uploaded file. Called when an admin re-uploads a new document
+ * from the extraction page (or directly from the upload page via ?replace=1).
+ * Only deletes imports whose status != 'approved'.
+ *
+ * @param {number} resultId
+ * @param {object} [t] optional transaction
+ * @returns {Promise<{ok:boolean, deletedImportId:number|null}>}
+ */
+async function supersedeRevaluationImport(resultId, t) {
+  const rn = Number(resultId);
+  if (!Number.isInteger(rn) || rn <= 0) return { ok: true, deletedImportId: null };
+  try {
+    const rows = await sequelize.query(
+      `SELECT i.import_id, i.file_path, i.status, x.extracted_json
+         FROM import_logs i
+         JOIN ocr_extractions x ON x.import_id = i.import_id
+        WHERE i.import_type = 'REVALUATION'
+          AND i.status != 'approved'
+        ORDER BY i.import_id ASC`,
+      { type: require('sequelize').QueryTypes.SELECT, transaction: t || undefined }
+    );
+    for (const row of Array.isArray(rows) ? rows : []) {
+      let j = row && row.extracted_json;
+      if (j === null || j === undefined) continue;
+      try {
+        if (typeof j !== 'string') j = JSON.stringify(j);
+        const parsed = JSON.parse(j);
+        if (Number(parsed && parsed.result_id) !== rn) continue;
+      } catch (_) { continue; }
+
+      const importId = Number(row.import_id);
+      const filePath = row.file_path;
+
+      await OcrExtraction.destroy({ where: { import_id: importId }, transaction: t || undefined, force: true });
+      await ImportLog.destroy({ where: { import_id: importId }, transaction: t || undefined, force: true });
+
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch (_f) { /* ignore if already gone */ }
+      }
+
+      console.log(`[revaluation] Superseded import #${importId} for result #${rn}.`);
+      return { ok: true, deletedImportId: importId };
+    }
+    return { ok: true, deletedImportId: null };
+  } catch (err) {
+    console.error('[revaluation] supersedeRevaluationImport error:', err);
+    return { ok: false, deletedImportId: null };
+  }
+}
+
+/**
  * PROMPT 19 — derive the per-Result revaluation submission state for the
  * attempt picker. Server-authoritative ONLY; never trust the browser.
  *
@@ -1359,14 +1458,40 @@ exports.confirmIdentity = async (req, res) => {
   if (!identityCheck.requiresConfirmation) {
     return res.redirect('/revaluation/extraction/' + importId);
   }
+  // Use a raw UPDATE to guarantee the JSON field is written to the DB.
+  // The ORM's .save() / .update() on JSON columns silently fails to emit
+  // an UPDATE when the safeJson-parsed object reference is mutated in-place
+  // (Sequelize v6 JSON dirty-check misses the mutation). The raw query sends
+  // the full merged JSON as a bound parameter, ensuring identity_confirmed
+  // is persisted and unblocks progression to the Review step.
   const t = await sequelize.transaction();
   try {
-    const lockedOcr = await OcrExtraction.findOne(
-      { where: { import_id: importId }, transaction: t, lock: t.LOCK.UPDATE });
-    if (!lockedOcr) throw new Error('OcrExtraction row not found.');
-    const liveSaved = safeJson(lockedOcr.extracted_json);
-    liveSaved.identity_confirmed = true;
-    await lockedOcr.update({ extracted_json: liveSaved }, { transaction: t });
+    // Use a raw UPDATE to guarantee the JSON field is written to the DB.
+    // The ORM's .save() / .update() on JSON columns silently fails to emit
+    // an UPDATE when the safeJson-parsed object reference is mutated in-place
+    // (Sequelize v6 JSON dirty-check misses the mutation). The raw query uses
+    // JSON_SET with a CAST to explicitly attach the identity_confirmed flag,
+    // ensuring it is persisted and unblocks progression to the Review step.
+    // CAST(... AS JSON) is needed so MySQL treats the bound :flagValue as a
+    // JSON boolean literal rather than a string.
+    const updated = await sequelize.query(
+      `UPDATE ocr_extractions
+         SET extracted_json = JSON_SET(
+               COALESCE(extracted_json, JSON_OBJECT()),
+               '$.identity_confirmed', CAST(:flagValue AS JSON)
+             )
+         WHERE import_id = :importId`,
+      { replacements: {
+          flagValue: 'true',
+          importId:  importId
+        },
+        type: sequelize.QueryTypes.UPDATE,
+        transaction: t
+      });
+    // MySQL2 UPDATE returns [null, info] — info.affectedRows says if a row matched.
+    // updated[0] can be null even on success, so check updated[1] instead.
+    const affected = Array.isArray(updated) ? updated[1] : updated;
+    if (!affected || affected.affectedRows === 0) throw new Error('OcrExtraction row not found for confirmIdentity.');
     await t.commit();
     return res.redirect('/revaluation/extraction/' + importId);
   } catch (err) {
@@ -1376,6 +1501,8 @@ exports.confirmIdentity = async (req, res) => {
       encodeURIComponent('Could not save confirmation.'));
   }
 };
+
+
 
 /**
  * Guard: does the stored extracted_json contain a complete, runnable
@@ -2276,10 +2403,3 @@ exports.showOutcome = async (req, res) => {
     error: req.query.error ? decodeURIComponent(req.query.error) : null
   });
 };
-
-
-
-
-
-
-

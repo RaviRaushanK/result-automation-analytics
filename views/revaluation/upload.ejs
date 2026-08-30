@@ -15,6 +15,16 @@
   </div>
 
   <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+  <% if (isReplace) { %>
+    <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+      <i class="material-icons mt-1" aria-hidden="true">upload_file</i>
+      <div>
+        <strong>Re-uploading the marks card.</strong>
+        The previous OCR extraction will be discarded and replaced with the new document you are about to upload.
+        After uploading, you will be taken back to the extraction page to re-run OCR.
+      </div>
+    </div>
+  <% } %>
 
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
@@ -46,16 +56,120 @@
   </div>
 
   <form id="uploadForm" method="post" action="/revaluation/<%= resultId %>/upload" enctype="multipart/form-data">
-    <div class="mb-3">
-      <label for="revalidationDocument" class="form-label">
+    <div class="card mb-3">
+      <div class="card-header">
         <i class="material-icons me-1">upload_file</i> Official revaluation document
-      </label>
-      <input class="form-control" type="file" id="revalidationDocument" name="revalidationDocument" accept="application/pdf" required>
-      <div class="form-text">PDF only &middot; maximum 15 MB &middot; This file is stored for the OCR revaluation stage and does not modify existing marks.</div>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="revalidationDocument" class="form-label fw-semibold">Choose PDF file</label>
+          <input class="form-control form-control-lg" type="file" id="revalidationDocument" name="revalidationDocument" accept="application/pdf" required>
+          <div class="form-text">
+            <span class="badge bg-light text-dark border me-1">PDF only</span>
+            <span class="badge bg-light text-dark border me-1">Maximum 15 MB</span>
+            The file is stored for the OCR revaluation stage and does not modify existing marks.
+          </div>
+        </div>
+        <div id="selectedFile" class="alert alert-info d-none mb-3">
+          <i class="material-icons align-middle me-1">description</i>
+          <strong>Selected:</strong> <span id="selectedFileName"></span>
+          <span class="text-muted small ms-2">(<span id="selectedFileSize"></span>)</span>
+        </div>
+      </div>
     </div>
     <div class="d-flex align-items-center gap-2">
-      <button type="submit" class="btn btn-success">Submit Revaluation</button>
+      <button type="submit" class="btn btn-success" id="submitUploadBtn" disabled>
+        <i class="material-icons align-middle">cloud_upload</i> Submit Revaluation
+      </button>
       <a href="/revaluation/start/attempts?session=<%= sessionId %>&student=<%= studentId %>" class="btn btn-outline-secondary">Back</a>
     </div>
   </form>
 </div>
+
+<!-- Submit confirmation modal -->
+<div class="modal fade" id="submitConfirmModal" tabindex="-1" aria-labelledby="submitConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-success-subtle">
+        <h5 class="modal-title" id="submitConfirmModalLabel">
+          <i class="material-icons align-middle">cloud_upload</i> Submit revaluation document
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Register this revaluation document and proceed to the OCR extraction stage?</p>
+        <% if (isReplace) { %>
+          <div class="alert alert-warning small">
+            <i class="material-icons align-middle">warning_amber</i>
+            The previous document and its OCR data will be discarded before this file is registered.
+          </div>
+        <% } %>
+        <p class="text-muted small mb-0">The file will be validated (PDF &middot; ≤ 15 MB) and stored. No marks are modified at this stage.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="submitConfirmBtn">
+          <i class="material-icons align-middle">check_circle</i> Yes, register document
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var fileInput = document.getElementById('revalidationDocument');
+  var submitBtn = document.getElementById('submitUploadBtn');
+  var form = document.getElementById('uploadForm');
+  var selectedFile = document.getElementById('selectedFile');
+  var selectedFileName = document.getElementById('selectedFileName');
+  var selectedFileSize = document.getElementById('selectedFileSize');
+  var submitConfirmBtn = document.getElementById('submitConfirmBtn');
+
+  if (!fileInput || !submitBtn || !form) return;
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  fileInput.addEventListener('change', function() {
+    if (fileInput.files && fileInput.files.length > 0) {
+      var f = fileInput.files[0];
+      selectedFileName.textContent = f.name;
+      selectedFileSize.textContent = formatSize(f.size);
+      selectedFile.classList.remove('d-none');
+      submitBtn.disabled = false;
+    } else {
+      selectedFile.classList.add('d-none');
+      submitBtn.disabled = true;
+    }
+  });
+
+  // Intercept the submit button: open a confirmation modal first.
+  submitBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (submitBtn.disabled) return;
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+      var m = new bootstrap.Modal(document.getElementById('submitConfirmModal'));
+      m.show();
+    } else {
+      // Bootstrap JS unavailable: fall back to native confirm.
+      if (window.confirm('Register this revaluation document?')) {
+        form.submit();
+      }
+    }
+  });
+
+  // Confirm button: actually submit the form.
+  if (submitConfirmBtn) {
+    submitConfirmBtn.addEventListener('click', function() {
+      submitBtn.disabled = true;
+      submitConfirmBtn.disabled = true;
+      submitConfirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Uploading…';
+      form.submit();
+    });
+  }
+})();
+</script>
