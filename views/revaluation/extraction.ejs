@@ -86,24 +86,29 @@
     <div class="card-header">OCR identity evidence (candidates)</div>
     <div class="card-body">
       <p class="mb-1">
-        <strong>OCR USN (raw):</strong> <code><%= ocrStudent.usn || '—' %></code>
+        <strong>OCR USN (normalized, I→1, O→0):</strong> <code><%= ocrStudent.usn_normalized || ocrStudent.usn || '—' %></code>
         <% if (ocrStudent.usn) { %>
-          <% if (ocrStudent.usn_matches_server) { %><span class="badge bg-success ms-1">matches</span><% } else { %><span class="badge bg-danger ms-1">MISMATCH</span><% } %>
+          <% if (ocrStudent.usnStatus === 'EXACT_MATCH') { %>
+            <span class="badge bg-success ms-1">MATCH (exact)</span>
+          <% } else if (ocrStudent.usnStatus === 'MATCH_AFTER_NORMALIZATION') { %>
+            <span class="badge bg-success ms-1">MATCH (after I/O normalization)</span>
+          <% } else if (ocrStudent.usnStatus === 'MISMATCH') { %>
+            <span class="badge bg-danger ms-1">MISMATCH</span>
+          <% } else { %>
+            <span class="badge bg-secondary ms-1">unverified</span>
+          <% } %>
         <% } %>
       </p>
-      <% if (ocrStudent.usn_normalized && ocrStudent.usn_normalized !== ocrStudent.usn) { %>
+      <% if (ocrStudent.usn && ocrStudent.usn !== ocrStudent.usn_normalized) { %>
         <p class="mb-1 small text-muted">
-          <strong>OCR USN (normalized, I→1, O→0):</strong>
-          <code><%= ocrStudent.usn_normalized %></code>
-          <span class="ms-1" title="Used for server-identity comparison only. Not written to the Student record.">
-            <i class="material-icons" style="font-size:14px;vertical-align:middle">compare_arrows</i>
-          </span>
+          <strong>OCR USN (raw evidence):</strong> <code><%= ocrStudent.usn %></code>
+          <span class="ms-1 text-muted">(OCR captured I/O where the server has 1/0; identity still matches after normalization)</span>
         </p>
       <% } %>
       <p class="mb-1">
         <strong>OCR name:</strong> <%= ocrStudent.name || '—' %>
         <% if (ocrStudent.name) { %>
-          <% if (ocrStudent.name_matches_server) { %><span class="badge bg-success ms-1">matches</span><% } else { %><span class="badge bg-warning text-dark ms-1">differs</span><% } %>
+          <% if (ocrStudent.name_matches_server) { %><span class="badge bg-success ms-1">MATCH</span><% } else { %><span class="badge bg-warning text-dark ms-1">differs</span><% } %>
         <% } %>
       </p>
       <p class="mb-1"><strong>Semester candidate:</strong> <%= semesterCandidate !== null && semesterCandidate !== undefined ? semesterCandidate : '—' %></p>

@@ -939,6 +939,27 @@ exports.showExtraction = async (req, res) => {
   const docName = log.file_name || doc0.original_name || doc0.name || '';
   const docLink = doc0.url || doc0.path || null;
 
+  // Derive a human-readable USN identity status.
+  // usn_normalized is already corrected by documentExtractor (I->1, O->0),
+  // so we compare it directly to the authoritative server USN.
+  // EXACT_MATCH:                 usn_normalized exactly equals server USN (no I/O drift)
+  // MATCH_AFTER_NORMALIZATION:  usn_normalized matches server USN, but raw OCR
+  //                              differed (I/O correction was needed/applied)
+  // MISMATCH:                   usn_normalized does not equal server USN (genuine diff)
+  // null:                       no USN extracted from the document
+  const usnStatus = (function() {
+    const normU = (ocr.student_candidates && ocr.student_candidates.usn_normalized) || null;
+    if (!normU) return null;
+    const serverU = serverUsn || '';
+    if (normU === serverU) {
+      // Normalized USN matches server. Check if raw OCR needed I/O correction.
+      const rawU = ocrCandidates.usn || '';
+      if (rawU && rawU !== normU) return 'MATCH_AFTER_NORMALIZATION';
+      return 'EXACT_MATCH';
+    }
+    return 'MISMATCH';
+  })();
+
   return res.render('revaluation/extraction', {
     title: 'Revaluation — OCR Extraction',
     breadcrumbItems: [
@@ -957,10 +978,13 @@ exports.showExtraction = async (req, res) => {
     identityConfirmed: identityConfirmed,
     identityBlocking: identityBlocking,
     ocrStudent: {
+      // Raw OCR USN as captured on the document — preserved for audit evidence
       usn: ocrCandidates.usn || null,
+      // Normalized USN (I→1, O→0) used for server identity comparison
       usn_normalized: (ocr.student_candidates && ocr.student_candidates.usn_normalized) || null,
+      // Human-readable status: EXACT_MATCH | MATCH_AFTER_NORMALIZATION | MISMATCH | null
+      usnStatus: usnStatus,
       name: ocrCandidates.name || null,
-      usn_matches_server: usnMatch,
       name_matches_server: nameMatch
     },
     semesterCandidate: (ocr.semester_candidate !== undefined && ocr.semester_candidate !== null) ? ocr.semester_candidate : null,

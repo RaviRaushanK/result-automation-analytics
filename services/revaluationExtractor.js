@@ -207,10 +207,14 @@ function buildCandidates(engineOut, serverCtx) {
       ocr_subject_code: rawCode,
       normalized_code: nc,
       subject_name_candidate: s.subjectName || '',
-      // Legacy "revised_*" mappings: oldMarks → revised_external_marks, finalMarks → revised_marks
-      // These are PRESERVED FOR BACKWARD COMPATIBILITY ONLY, not calculated from other fields.
+      // Legacy "revised_*" compatibility aliases for the review/edit workflow.
+      // internalMarks → revised_internal_marks
+      // rvMarks       → revised_external_marks  (the revaluation mark on the card,
+      //                                          NOT oldMarks; oldMarks is the original
+      //                                          attempt mark which has a different meaning)
+      // finalMarks    → revised_marks
       revised_internal_marks: (s.internalMarks === undefined ? null : s.internalMarks),
-      revised_external_marks: (s.oldMarks === undefined ? null : s.oldMarks),
+      revised_external_marks: (s.rvMarks === undefined ? null : s.rvMarks),
       revised_marks: (s.finalMarks === undefined ? null : s.finalMarks),
       revised_status_candidate: statusCanon,
       raw_status: rawStatus,

@@ -85,7 +85,14 @@
               <td class="text-center"><%= ev.rvResult || '—' %></td>
               <td class="text-center fw-bold"><%= ev.finalMarks != null ? ev.finalMarks : '—' %></td>
               <td class="text-center"><% if (ev.finalResult) { %>
-                  <span class="badge bg-<%= String(ev.finalResult).toLowerCase() === 'pass' ? 'success' : 'danger' %>"><%= ev.finalResult %></span>
+                  <% const _frColor = (function() {
+                       const u = String(ev.finalResult).toUpperCase();
+                       if (u === 'P' || u === 'PASS') return 'success';
+                       if (u === 'F' || u === 'FAIL' || u === 'ABSENT') return 'danger';
+                       if (u === 'NE' || u === 'X') return 'warning text-dark';
+                       return 'secondary';
+                     })(); %>
+                  <span class="badge bg-<%= _frColor %>"><%= ev.finalResult %></span>
                 <% } else { %>—<% } %></td>
               <td><span class="badge bg-success">MATCHED</span>
                 <% if (ev.confidence) { %><span class="badge bg-secondary ms-1"><%= ev.confidence %></span><% } %>
@@ -431,153 +438,6 @@
       </div>
     </div>
   <% } %>
-  <div class="row mt-2">
-    <div class="col-md-6">
-      <div class="card mb-0 border-info">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <strong><i class="material-icons align-middle me-1" style="font-size:16px;">attach_file</i> Attach unmatched OCR row to an existing SubjectResult</strong>
-        </div>
-        <div class="card-body">
-          <p class="text-muted mb-2 small">Select an unmatched OCR subject code above and bind it to a SubjectResult from the current Result. Server recalculates total/grade before saving.</p>
-          <div id="attach-unmatched-list">
-            <% if (meta.unmatched.length) { %>
-              <% meta.unmatched.forEach(function(u, idx) { %>
-                <div class="border rounded p-2 mb-2 position-relative" style="background:#f8f9fa;" data-unmatched-index="<%= idx %>">
-                  <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong><code><%= u.ocr_subject_code || '—' %></code></strong>
-                    <% if (u.raw_line) { %>
-                      <small class="text-muted"><%= u.raw_line.length %> chars</small>
-                    <% } %>
-                  </div>
-                  <% if (u.raw_line) { %>
-                    <div class="small text-muted mb-1" style="max-height:60px; overflow:hidden;"><%= u.raw_line %></div>
-                  <% } %>
-                  <input type="hidden" name="unmatched_attach_<%= idx %>" value="" class="attach-target-hidden" />
-                    <input type="hidden" name="attach_internal_<%= idx %>" value="" class="attach-internal-hidden" />
-                    <input type="hidden" name="attach_external_<%= idx %>" value="" class="attach-external-hidden" />
-                    <div class="d-flex gap-2">
-                      <select class="form-control form-control-sm attach-target-select" style="width:auto;" data-unmatched-index="<%= idx %>">
-                        <option value="">Select SubjectResult…</option>
-                        <% rows.forEach(function(r) { %>
-                          <option value="<%= r.srid %>"><%= r.code %> (<%= r.srid %>)</option>
-                        <% }) %>
-                      </select>
-                      <input type="text" class="form-control form-control-sm attach-internal-input" style="width:60px;" placeholder="Int" data-unmatched-index="<%= idx %>" />
-                      <input type="text" class="form-control form-control-sm attach-external-input" style="width:60px;" placeholder="Ext" data-unmatched-index="<%= idx %>" />
-                      <button type="button" class="btn btn-sm btn-outline-primary attach-ocr-btn" data-unmatched-index="<%= idx %>">Attach</button>
-                    </div>
-                  <div class="attach-result-msg mt-1 small" data-unmatched-index="<%= idx %>"></div>
-                </div>
-              <% }) %>
-            <% } else { %>
-              <p class="text-success mb-0 small">No unmatched OCR rows to attach.</p>
-            <% } %>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <%# PHASE 4: Missing (not detected) selected subjects — manual add flow %>
-  <div class="card mb-3 border-warning">
-    <div class="card-header bg-warning-subtle">
-      <strong>Missing selected subjects</strong>
-      <small class="text-muted">— selected for revaluation but not detected by OCR. Add marks manually.</small>
-      <span class="badge bg-secondary float-end"><%= (missingSubjects || []).length %></span>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th style="min-width:160px;">Subject</th>
-            <th>Original (total)</th>
-            <th>Original result</th>
-            <th style="width:140px;" class="text-center">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if (!(missingSubjects && missingSubjects.length)) { %>
-            <tr><td colspan="4" class="text-success text-center small py-3">No missing subjects — every selected subject was detected by OCR.</td></tr>
-          <% } else { %>
-            <% (missingSubjects || []).forEach(function(m, idx) { %>
-              <% const srid = m.subject_result_id; %>
-              <tr>
-                <td>
-                  <strong><%= m.subject_code || '—' %></strong><br>
-                  <small class="text-muted"><%= m.subject_name || '' %></small><br>
-                  <small class="text-muted">srid: <%= srid %></small>
-                </td>
-                <td><span class="fw-bold"><%= m.original_marks !== null && m.original_marks !== undefined ? m.original_marks : '—' %></span></td>
-                <td>
-                  <span class="badge bg-<%= m.original_status === 'pass' ? 'success' : 'danger' %>">
-                    <%= m.original_status || '—' %>
-                  </span>
-                </td>
-                <td class="text-center">
-                  <button type="button" class="btn btn-sm btn-primary add-missing-btn" data-missing-idx="<%= idx %>">
-                    <i class="material-icons align-middle" style="font-size:16px;">add</i> Add
-                  </button>
-                </td>
-              </tr>
-              <tr class="add-missing-form-row" data-missing-idx="<%= idx %>" style="display:none;">
-                <td colspan="4" class="bg-light">
-                  <form method="POST" action="/revaluation/review/<%= meta.importId %>/add-missing" class="add-missing-form">
-                    <input type="hidden" name="subject_result_id" value="<%= srid %>">
-                    <div class="row g-2 align-items-end">
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">Card internal</label>
-                        <input type="number" name="card_internal_marks" class="form-control form-control-sm" min="0" step="1">
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">Old marks</label>
-                        <input type="number" name="card_old_marks" class="form-control form-control-sm" min="0" step="1">
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">Old result</label>
-                        <select name="card_old_result" class="form-select form-select-sm">
-                          <option value="">—</option>
-                          <option value="pass">pass</option>
-                          <option value="fail">fail</option>
-                        </select>
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">RV marks</label>
-                        <input type="number" name="card_rv_marks" class="form-control form-control-sm" min="0" step="1">
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">RV result</label>
-                        <select name="card_rv_result" class="form-select form-select-sm">
-                          <option value="">—</option>
-                          <option value="pass">pass</option>
-                          <option value="fail">fail</option>
-                        </select>
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">Final marks *</label>
-                        <input type="number" name="card_final_marks" class="form-control form-control-sm" min="0" step="1" required>
-                      </div>
-                      <div class="col-md-2">
-                        <label class="form-label small mb-0">Final result *</label>
-                        <select name="card_final_result" class="form-select form-select-sm" required>
-                          <option value="">—</option>
-                          <option value="pass">pass</option>
-                          <option value="fail">fail</option>
-                        </select>
-                      </div>
-                      <div class="col-md-2 d-flex gap-1">
-                        <button type="submit" class="btn btn-sm btn-success">Save</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary cancel-missing-btn" data-missing-idx="<%= idx %>">Cancel</button>
-                      </div>
-                    </div>
-                  </form>
-                </td>
-              </tr>
-            <% }) %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
-  </div>
 
   <%# PHASE 4: Unmatched OCR section header (detected + unmatched already shown above) %>
   <div class="row">
