@@ -22,6 +22,8 @@ const {
 const {
   ensureRevalDir, generateSecureFilename, REVAL_DIR, REVAL_ALLOWED_EXT
 } = require('../middlewares/upload');
+const revaluationValidator = require('../services/revaluationValidator');
+const revaluationPersistence = require('../services/revaluationPersistence');
 
 const REVAL_PENDING_SECONDS = 15 * 60;
 
@@ -531,6 +533,29 @@ exports.processUpload = async (req, res) => {
       result_status: sr.result_status
     }));
 
+    // BUG 3 FIX (REVERTED — workflow correction):
+    // The current workflow has NO pre-upload subject selection. The
+    // "subjects selected for revaluation" concept does not exist at this
+    // stage. The previous fix filtered stored subjects to only failed
+    // ones, which made the "Missing / Not Detected" section on the
+    // extraction page look like a pre-selection.
+    //
+    // The correct model is:
+    //   - extracted_json.subjects  =  full student SubjectResults set
+    //     (used by the review page's "Add Subject" feature so the admin
+    //     can manually add any subject the candidate applied for that OCR
+    //     didn't detect)
+    //   - the OCR Extraction page shows ONLY what was detected on the card;
+    //     it does NOT show a missing list and does NOT compute
+    //     "all - detected = missing".
+    //
+    // We store the full scope (no filter by failed). This is a safe change
+    // because the review page's existing `loadReviewState` only iterates
+    // `saved.subjects` to build the row table; it does not assume the
+    // list is filtered. The "Add Subject" flow is preserved (admin can
+    // still add any of the student's other subjects).
+    const selectedSubjects = subjectJson;
+
     await OcrExtraction.create({
       import_id: importLog.import_id,
       raw_text: '',
@@ -555,7 +580,11 @@ exports.processUpload = async (req, res) => {
           exam_session: result.ResultSession ? result.ResultSession.exam_session : null,
           exam_year: result.ResultSession ? result.ResultSession.exam_year : null
         },
-        subjects: subjectJson
+        // The full student SubjectResults set is persisted. The review
+        // page uses this to offer "Add Subject" candidates (admin manual
+        // entry for subjects OCR did not detect). The Extraction page
+        // does not render a Missing list — see views/revaluation/extraction.ejs.
+        subjects: selectedSubjects
       },
       confidence_score: 0,
       validation_status: 'pending'
@@ -697,11 +726,20 @@ exports.runExtraction = async (req, res) => {
   const serverCtx = {
     studentUsn: result.Student ? result.Student.usn : '',
     studentName: result.Student ? result.Student.student_name : '',
-    selectedSubjects: (saved.subjects || []).map(s => ({
-      subject_result_id: s.subject_result_id,
-      subject_code: s.subject_code,
-      subject_name: s.subject_name,
-      original_marks: s.original_marks
+    // The student's full authoritative SubjectResults set. This is the
+    // matching universe for OCR-detected rows. NOTE: there is no
+    // pre-upload subject selection in the current workflow, so this is
+    // every subject the student was registered for in the attempt.
+    // The previous "selectedSubjects" key is intentionally NOT set — the
+    // extraction stage now uses allSubjectResults exclusively.
+    allSubjectResults: (result.SubjectResults || []).map(sr => ({
+      subject_result_id: sr.subject_result_id,
+      subject_code: sr.Subject ? sr.Subject.subject_code : null,
+      subject_name: sr.Subject ? sr.Subject.subject_name : null,
+      credits: sr.Subject ? (sr.Subject.credits || 0) : 0,
+      marks: sr.marks,
+      result_status: sr.result_status,
+      grade: sr.grade
     }))
   };
 
@@ -787,7 +825,10 @@ function checkOcrIdentity(ocrCandidates, serverStudent) {
   const bothMissing = !ocrNameOk && !ocrUsnOk && !serverNameOk && !serverUsnOk;
 
   const nameMatch = serverNameOk && ocrNameOk && normText(serverName) === normText(ocrName);
-  const usnMatch  = serverUsnOk  && ocrUsnOk  && normText(serverUsn)  === normText(ocrUsn);
+  // I/O-tolerant USN comparison (I→1, O→0) so OCR I↔1 / O↔0 drift
+  // does not produce false mismatches. Mirrors normalizeUsnForCompare.
+  const normUsn = v => String(v || '').toUpperCase().replace(/I/g, '1').replace(/O/g, '0').replace(/[^A-Z0-9]/g, '');
+  const usnMatch  = serverUsnOk  && ocrUsnOk  && normUsn(serverUsn)  === normUsn(ocrUsn);
 
   const bothMatch    = nameMatch && usnMatch;
   const bothMismatch = !nameMatch && !usnMatch;
@@ -885,7 +926,12 @@ exports.showExtraction = async (req, res) => {
   const serverUsn  = serverStudent ? (serverStudent.usn || '') : '';
   const ocrName    = ocrCandidates.name || '';
   const ocrUsn     = ocrCandidates.usn || '';
-  const usnMatch   = serverUsn  && ocrUsn  && normText(serverUsn)  === normText(ocrUsn);
+  // I/O-tolerant USN comparison (mirrors normalizeUsnForCompare in the extractor).
+  // I→1 and O→0 on both sides so OCR drift does not cause false mismatches.
+  // normText is NOT used for USN — it lacks I/O folding and would produce
+  // false mismatches when OCR reads 'I'/'O' vs the DB's '1'/'0'.
+  const normUsn = v => String(v || '').toUpperCase().replace(/I/g, '1').replace(/O/g, '0').replace(/[^A-Z0-9]/g, '');
+  const usnMatch   = serverUsn  && ocrUsn  && normUsn(serverUsn)  === normUsn(ocrUsn);
   const nameMatch  = serverName && ocrName && normText(serverName) === normText(ocrName);
 
   const savedDocs = (saved && saved.documents) || [];
@@ -912,6 +958,7 @@ exports.showExtraction = async (req, res) => {
     identityBlocking: identityBlocking,
     ocrStudent: {
       usn: ocrCandidates.usn || null,
+      usn_normalized: (ocr.student_candidates && ocr.student_candidates.usn_normalized) || null,
       name: ocrCandidates.name || null,
       usn_matches_server: usnMatch,
       name_matches_server: nameMatch
@@ -921,6 +968,10 @@ exports.showExtraction = async (req, res) => {
     confidenceScore: ocr.confidence_score || null,
     extractedAt: ocr.extracted_at || null,
     subjects: (ocr.subjects && Array.isArray(ocr.subjects)) ? ocr.subjects : [],
+    // NOTE: missing_subjects is NOT passed to the extraction view.
+    // There is no pre-upload subject selection; the Extraction page must not
+    // render a "Missing / Not Detected" section. The review page gets
+    // missing_subjects from the same ocr record via loadReviewState.
     unmatched: (ocr.unmatched_ocr_details && Array.isArray(ocr.unmatched_ocr_details))
       ? ocr.unmatched_ocr_details
       : (ocr.unmatched_ocr_codes || []).map(c => ({ ocr_subject_code: c })),
@@ -1664,7 +1715,17 @@ async function loadReviewState(importId, optsIn) {
         raw_letter: ev ? ev.raw_status : null,
         confidence: ev ? ev.confidence : null,
         raw_line: ev ? ev.raw_line : null,
-        ambiguous
+        ambiguous,
+        // PHASE 4: canonical 9-card fields — authoritative, never calculated
+        subjectCode:   ev ? (ev.subjectCode   || ev.subject_code   || null) : null,
+        subjectName:   ev ? (ev.subjectName   || ev.subject_name   || null) : null,
+        internalMarks: ev ? (ev.internalMarks || ev.revised_internal_marks || null) : null,
+        oldMarks:      ev ? (ev.oldMarks      || null) : null,
+        oldResult:     ev ? (ev.oldResult     || null) : null,
+        rvMarks:       ev ? (ev.rvMarks       || null) : null,
+        rvResult:      ev ? (ev.rvResult      || null) : null,
+        finalMarks:    ev ? (ev.finalMarks    || ev.revised_marks || null) : null,
+        finalResult:   ev ? (ev.finalResult   || ev.revised_status_candidate || null) : null
       },
       // Edit-time defaults derived from a prior frozen proposal (used by the
       // template for radio defaults and pre-fill of the number inputs).
@@ -1688,6 +1749,9 @@ async function loadReviewState(importId, optsIn) {
       sessionDisplay: sessionDisplay(result.ResultSession),
       attemptNo: Number(result.attempt_no),
       examType: result.exam_type,
+    // PHASE 4: selected subjects NOT detected by OCR (no card data available)
+    missingSubjects: (ocr.missing_subjects && Array.isArray(ocr.missing_subjects))
+      ? ocr.missing_subjects : [],
       docName: doc.file_name || log.file_name || '',
       docUrl: doc.file_url || null,
       ocrStudent: ocr.student_candidates || {},
@@ -1732,6 +1796,7 @@ exports.showReview = async (req, res) => {
     mode: st.review ? 'locked' : 'edit',
     review: st.review,
     rows: st.rows,
+    missingSubjects: (st.meta && st.meta.missingSubjects) || [],
     meta: Object.assign({}, st.meta, { sessionId: (st.saved && st.saved.session_id) || null }),
     errors: {},
     enteredVals: {},
@@ -2041,7 +2106,7 @@ exports.submitReview = async (req, res) => {
     await freshOcr.update({
       validation_status: 'validated',
       extracted_json: nextJson
-    }, { transaction: t });
+    });
 
     await t.commit();
     return res.redirect(`/revaluation/review/${importId}`);
@@ -2050,6 +2115,123 @@ exports.submitReview = async (req, res) => {
     console.error('[revaluation] submitReview tx error:', err);
     return res.redirect(`/revaluation/review/${importId}?error=` +
       enc('Could not save decisions: ' + (err.message || 'server error')));
+  }
+};
+
+/**
+ * POST /revaluation/review/:importId/add-missing
+ * PHASE 4: Manually add a missing selected subject (not detected by OCR).
+ *
+ * Receives the 9-card-field values from the inline "Add" form.
+ * The subject_result_id is validated against the current Result (ownership check).
+ * The server re-reads authoritative data from the DB. Never trusts browser-supplied data.
+ */
+exports.addMissing = async (req, res) => {
+  const importId = Number(req.params.importId);
+  let st;
+  try { st = await loadReviewState(importId, { requireExtracted: true }); }
+  catch (err) {
+    console.error('[revaluation] addMissing load error:', err);
+    return res.redirect('/revaluation/upload?error=' + enc('Could not load revaluation record.'));
+  }
+  if (!st.ok) return res.redirect(st.redirect);
+  if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
+
+  const body = req.body || {};
+  const srid = Number(body.subject_result_id);
+
+  // SECURITY: validate ownership — srid must belong to the current Result
+  if (!Number.isInteger(srid) || srid <= 0 || !st.srById.has(srid)) {
+    return res.redirect(`/revaluation/review/${importId}?error=` +
+      enc('Subject not found or does not belong to this result.'));
+  }
+
+  const sr = st.srById.get(srid);
+  const subj = (sr && sr.Subject) ? sr.Subject : null;
+  const limits = subjectLimits(subj);
+
+  // Parse 9-card-field values
+  const fm = normalizeIntInput(body.card_final_marks);
+  const fr = body.card_final_result ? String(body.card_final_result).trim().toLowerCase() : null;
+  const errors = [], warnings = [];
+
+  if (!fm.present) errors.push('Final Marks are required.');
+  else if (fm.invalid) errors.push('Final Marks must be a whole number.');
+  else if (fm.value < 0 || fm.value > limits.maxTotal)
+    errors.push('Final Marks must be between 0 and ' + limits.maxTotal + '.');
+
+  if (!fr) errors.push('Final Result is required.');
+  else if (fr !== 'pass' && fr !== 'fail')
+    errors.push('Final Result must be "pass" or "fail".');
+
+  // PHASE 5: Server-side validation of all nine card fields.
+  const cardValidation = revaluationValidator.validateNineCardFields(body, subj || {});
+  errors.push(...cardValidation.errors);
+  warnings.push(...cardValidation.warnings);
+
+  if (errors.length > 0) {
+    return res.redirect(`/revaluation/review/${importId}?error=` +
+      enc('Could not add subject: ' + errors.join(' ')));
+  }
+
+  // Authoritative values: finalMarks and finalResult
+  const pct = limits.maxTotal > 0 ? Math.floor((fm.value / limits.maxTotal) * 100) : 0;
+  const g = gradeFromPercent(pct);
+
+  const entry = {
+    subject_result_id: srid,
+    source: 'MISSING_MANUAL',
+    decision: 'accept',
+    was_manual_correction: true,
+    proposed_card_internal_marks: normalizeIntInput(body.card_internal_marks).value,
+    proposed_card_old_marks:      normalizeIntInput(body.card_old_marks).value,
+    proposed_card_old_result:     body.card_old_result || null,
+    proposed_card_rv_marks:      normalizeIntInput(body.card_rv_marks).value,
+    proposed_card_rv_result:     body.card_rv_result || null,
+    proposed_revised_total_marks: fm.value,
+    proposed_revised_percent: pct,
+    proposed_revised_status: g.status,
+    proposed_revised_grade: g.grade,
+    warnings: warnings
+  };
+
+  // Duplicate guard: srid already accepted in this review
+  if (st.saved && st.saved.review && Array.isArray(st.saved.review.proposal)) {
+    const existing = st.saved.review.proposal.find(p =>
+      p && p.decision === 'accept' &&
+      Number(p.bound_to_srid || p.subject_result_id) === srid
+    );
+    if (existing) {
+      return res.redirect(`/revaluation/review/${importId}?error=` +
+        enc('This subject is already in the proposal. Edit or remove the existing entry first.'));
+    }
+  }
+
+  // Merge into existing review proposal
+  const t = await sequelize.transaction();
+  try {
+    const freshOcr = await OcrExtraction.findByPk(st.ocrRow.extraction_id,
+      { transaction: t, lock: t.LOCK.UPDATE });
+    if (!freshOcr) throw new Error('OcrExtraction record disappeared.');
+    const currentJson = safeJson(freshOcr.extracted_json);
+    const existingProposal = (currentJson.review && Array.isArray(currentJson.review.proposal))
+      ? currentJson.review.proposal : [];
+    const nextProposal = existingProposal.concat(entry);
+    const nextJson = Object.assign({}, currentJson, {
+      review: Object.assign({}, currentJson.review || {}, {
+        version: ((currentJson.review && currentJson.review.version) || 0) + 1,
+        proposal: nextProposal
+      })
+    });
+    await freshOcr.update({ validation_status: 'validated', extracted_json: nextJson }, { transaction: t });
+    await t.commit();
+    return res.redirect(`/revaluation/review/${importId}?notice=` +
+      enc('Subject added to the review proposal.'));
+  } catch (err) {
+    if (!t.finished) await t.rollback();
+    console.error('[revaluation] addMissing tx error:', err);
+    return res.redirect(`/revaluation/review/${importId}?error=` +
+      enc('Could not save: ' + (err.message || 'server error')));
   }
 };
 
@@ -2262,6 +2444,28 @@ exports.approveReview = async (req, res) => {
       }
       const P = rec.proposal;
 
+      // PHASE 6: Re-validate all nine canonical card fields under the lock.
+      // If the proposal came from MISSING_MANUAL (Phase 4 manual add), the
+      // admin-supplied card fields must still pass Phase 5 validation.
+      // We use the same P.proposed_revised_* values because the proposal has
+      // already been normalised at submit time.
+      if (a.p.source === 'MISSING_MANUAL' || a.p.was_manual_correction) {
+        const card = {
+          card_internal_marks: a.p.proposed_card_internal_marks,
+          card_old_marks:      a.p.proposed_card_old_marks,
+          card_old_result:     a.p.proposed_card_old_result,
+          card_rv_marks:       a.p.proposed_card_rv_marks,
+          card_rv_result:      a.p.proposed_card_rv_result,
+          card_final_marks:    P.proposed_revised_total_marks,
+          card_final_result:   P.proposed_revised_status
+        };
+        const cardV = revaluationValidator.validateNineCardFields(card, subj || {});
+        if (!cardV.ok) {
+          throw new BadState('Card validation failed for ' + codeOf +
+            ' at approval: ' + cardV.errors.join(' '));
+        }
+      }
+
       // Event number per target subject, computed inside this locked tx.
       const [[numRow]] = await sequelize.query(
         'SELECT COALESCE(MAX(revaluation_no),0)+1 AS next_no FROM revaluation_results WHERE subject_result_id = ?',
@@ -2271,6 +2475,13 @@ exports.approveReview = async (req, res) => {
       // Exactly-one-effective invariant: demote, then insert as effective.
       await RevaluationResult.update({ is_effective: false },
         { where: { subject_result_id: a.tgt, is_effective: true }, transaction: t });
+
+      // PHASE 6: Determine source provenance for the audit trail.
+      //   'MISSING_MANUAL'      — manually added in Phase 4 (always manual)
+      //   'OCR_DETECTED'        — matched OCR row
+      //   'UNMATCHED_ATTACH'    — unmatched OCR row bound to a selected subject
+      const source = a.p.source ||
+        (evRaw ? 'OCR_DETECTED' : 'OCR_DETECTED');
 
       const createdEvent = await RevaluationResult.create({
         subject_result_id: a.tgt,
@@ -2287,9 +2498,31 @@ exports.approveReview = async (req, res) => {
         uploaded_by: Number(review.submitted_by) || approver.admin_id,
         file_name: doc.file_name || null,
         file_path: doc.file_path || null,
-        remarks: buildEventRemarks(importId, ocr.extraction_method)
+        remarks: revaluationPersistence.buildEventRemarksEx(importId, ocr.extraction_method, {
+          source: source,
+          decision: 'accept',
+          was_manual_correction: !!a.p.was_manual_correction,
+          event_ids: []  // filled in after the loop, see below
+        })
       }, { transaction: t });
       createdEvents.push(createdEvent.revaluation_id);
+    }
+
+    // PHASE 6: Back-fill the event_ids array into each created event's remarks.
+    // The first pass writes the per-event JSON without knowing all sibling
+    // IDs; this second pass updates each event with the complete list so the
+    // audit trail is self-contained.
+    for (let i = 0; i < createdEvents.length; i++) {
+      const evRow = await RevaluationResult.findByPk(createdEvents[i],
+        { transaction: t, lock: t.LOCK.UPDATE });
+      if (!evRow) continue;
+      let parsed = null;
+      try { parsed = JSON.parse(evRow.remarks || '{}'); } catch (_) { parsed = null; }
+      if (parsed) {
+        parsed.event_ids = createdEvents.slice();
+        evRow.remarks = JSON.stringify(parsed);
+        await evRow.save({ transaction: t });
+      }
     }
 
     // Stamp approval audit onto persisted JSON; validation_status stays 'validated'.

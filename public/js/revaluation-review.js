@@ -114,6 +114,34 @@
       });
     });
 
+  // PHASE 4: wire 'Add' buttons for missing/not-detected subjects.
+  Array.prototype.slice.call(document.querySelectorAll('.add-missing-btn'))
+    .forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = btn.getAttribute('data-missing-idx');
+        var formRow = document.querySelector('.add-missing-form-row[data-missing-idx="' + idx + '"]');
+        if (formRow) {
+          formRow.style.display = 'table-row';
+          var firstInput = formRow.querySelector('input[name="card_final_marks"]');
+          if (firstInput) firstInput.focus();
+        }
+      });
+    });
+
+  Array.prototype.slice.call(document.querySelectorAll('.cancel-missing-btn'))
+    .forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = btn.getAttribute('data-missing-idx');
+        var formRow = document.querySelector('.add-missing-form-row[data-missing-idx="' + idx + '"]');
+        if (formRow) {
+          formRow.style.display = 'none';
+          var form = formRow.querySelector('.add-missing-form');
+          if (form) form.reset();
+        }
+      });
+    });
+
+  // Client-side nicety only: block obvious empty-int/ext submits early.
   // Client-side nicety only: block obvious empty-int/ext submits early.
   form.addEventListener('submit', function (ev) {
     var ok = true;

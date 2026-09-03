@@ -60,7 +60,8 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(255)
     },
     remarks: {
-      type: DataTypes.TEXT
+      type: DataTypes.TEXT,
+      comment: 'Phase 6: JSON {source,decision,was_manual_correction,event_ids,import_id} + base remarks'
     },
     uploaded_by: {
       type: DataTypes.BIGINT,

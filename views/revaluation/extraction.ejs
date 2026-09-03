@@ -86,11 +86,20 @@
     <div class="card-header">OCR identity evidence (candidates)</div>
     <div class="card-body">
       <p class="mb-1">
-        <strong>OCR USN:</strong> <%= ocrStudent.usn || '—' %>
+        <strong>OCR USN (raw):</strong> <code><%= ocrStudent.usn || '—' %></code>
         <% if (ocrStudent.usn) { %>
           <% if (ocrStudent.usn_matches_server) { %><span class="badge bg-success ms-1">matches</span><% } else { %><span class="badge bg-danger ms-1">MISMATCH</span><% } %>
         <% } %>
       </p>
+      <% if (ocrStudent.usn_normalized && ocrStudent.usn_normalized !== ocrStudent.usn) { %>
+        <p class="mb-1 small text-muted">
+          <strong>OCR USN (normalized, I→1, O→0):</strong>
+          <code><%= ocrStudent.usn_normalized %></code>
+          <span class="ms-1" title="Used for server-identity comparison only. Not written to the Student record.">
+            <i class="material-icons" style="font-size:14px;vertical-align:middle">compare_arrows</i>
+          </span>
+        </p>
+      <% } %>
       <p class="mb-1">
         <strong>OCR name:</strong> <%= ocrStudent.name || '—' %>
         <% if (ocrStudent.name) { %>
@@ -98,54 +107,161 @@
         <% } %>
       </p>
       <p class="mb-1"><strong>Semester candidate:</strong> <%= semesterCandidate !== null && semesterCandidate !== undefined ? semesterCandidate : '—' %></p>
-      <p class="mb-0"><strong>Method:</strong> <%= extractionMethod || '—' %> &middot; <strong>Aggregate confidence:</strong> <%= confidenceScore !== null && confidenceScore !== undefined ? confidenceScore : '—' %> &middot; <strong>At:</strong> <%= extractedAt || '—' %></p>
+      <% const _aggPct = (function() {
+           const c = confidenceScore;
+           if (c === null || c === undefined) return '—';
+           const n = Number(c);
+           if (!Number.isFinite(n)) return '—';
+           return Math.round(n * 100) + '%';
+         })(); %>
+      <p class="mb-0"><strong>Method:</strong> <%= extractionMethod || '—' %> &middot; <strong>Aggregate confidence:</strong> <%= _aggPct %> &middot; <strong>At:</strong> <%= extractedAt || '—' %></p>
     </div>
   </div>
 
+  <!--
+    ARCHITECTURE (workflow correction — no pre-upload subject selection):
+
+    subjects[] = OCR-detected rows from the uploaded revaluation card only.
+    The Extraction page shows ONLY what was detected on the card.
+    There is NO "Missing / Not Detected" section because there is no
+    pre-upload subject selection to diff against.
+    The Review/Edit page's "Add Subject" feature (on the next page) lets
+    the admin manually add a subject row when OCR did not detect one.
+  -->
+  <% const hasDetected   = subjects && subjects.length > 0; %>
+  <% const hasMatched    = hasDetected && subjects.some(s => s.match_state === 'MATCHED'); %>
+  <% const hasUnmatched  = hasDetected && subjects.some(s => s.match_state === 'UNMATCHED_NOT_IN_RESULT'); %>
+
+  <% if (hasDetected) { %>
   <div class="card mb-3">
-    <div class="card-header">Selected subjects — original vs OCR candidates</div>
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-1">
+      <span>
+        <i class="material-icons align-middle me-1">document_scanner</i>
+        Subjects detected on the revaluation card
+        <span class="badge bg-primary ms-1"><%= subjects.length %></span>
+      </span>
+      <div class="d-flex gap-2 flex-wrap">
+        <% if (hasMatched) { %>
+          <span class="badge bg-success-subtle text-success border border-success-subtle">
+            Matched: <%= subjects.filter(s => s.match_state === 'MATCHED').length %>
+          </span>
+        <% } %>
+        <% if (hasUnmatched) { %>
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+            Not in result: <%= subjects.filter(s => s.match_state === 'UNMATCHED_NOT_IN_RESULT').length %>
+          </span>
+        <% } %>
+      </div>
+    </div>
     <div class="table-responsive">
-      <table class="table table-sm table-bordered align-middle mb-0">
+      <table class="table table-sm table-bordered align-middle mb-0" id="detected-subjects-table">
         <thead class="table-light">
           <tr>
-            <th>Code (original)</th>
-            <th>OCR code</th>
-            <th>Normalized</th>
-            <th>Match</th>
-            <th class="text-end">Original marks</th>
-            <th class="text-end">Rev. Int</th>
-            <th class="text-end">Rev. Ext</th>
-            <th class="text-end">Rev. Total</th>
-            <th>Rev. Status</th>
-            <th>Confidence</th>
+            <th class="text-nowrap">#</th>
+            <th class="text-nowrap">Code</th>
+            <th class="text-nowrap">Name</th>
+            <th class="text-nowrap text-center">Internal</th>
+            <th class="text-nowrap text-center">Old</th>
+            <th class="text-nowrap text-center">Old Result</th>
+            <th class="text-nowrap text-center">RV</th>
+            <th class="text-nowrap text-center">RV Result</th>
+            <th class="text-nowrap text-center">Final</th>
+            <th class="text-nowrap text-center">Final Result</th>
+            <th class="text-nowrap text-center">Conf.</th>
+            <th class="text-nowrap">Match</th>
           </tr>
         </thead>
         <tbody>
-          <% if (!subjects.length) { %><tr><td colspan="10" class="text-muted">No selected subjects recorded.</td></tr><% } %>
-          <% subjects.forEach(s => {
-               const badge = s.match_state === 'MATCHED' ? 'success'
-                           : s.match_state === 'AMBIGUOUS' ? 'dark'
-                           : 'danger'; %>
-            <tr>
-              <td><code><%= s.original_subject_code %></code><div class="small text-muted"><%= s.original_subject_name || '' %></div></td>
-              <td><%= s.ocr_subject_code || '—' %></td>
-              <td><code><%= s.normalized_code || '—' %></code></td>
-              <td><span class="badge bg-<%= badge %>"><%= s.match_state || '—' %></span></td>
-              <td class="text-end"><%= (s.original_marks !== null && s.original_marks !== undefined) ? s.original_marks : '—' %></td>
-              <td class="text-end"><%= (s.revised_internal_marks !== null && s.revised_internal_marks !== undefined) ? s.revised_internal_marks : '—' %></td>
-              <td class="text-end"><%= (s.revised_external_marks !== null && s.revised_external_marks !== undefined) ? s.revised_external_marks : '—' %></td>
-              <td class="text-end"><%= (s.revised_marks !== null && s.revised_marks !== undefined) ? s.revised_marks : '—' %></td>
-              <td>
-                <%= s.revised_status_candidate || '—' %>
-                <% if (s.raw_status && s.raw_status !== s.revised_status_candidate) { %><div class="small text-muted">raw: <%= s.raw_status %></div><% } %>
+          <% subjects.forEach(function(s, idx) { %>
+            <% const isMatched   = s.match_state === 'MATCHED'; %>
+            <% const isUnmatched = s.match_state === 'UNMATCHED_NOT_IN_RESULT'; %>
+            <% const confidence  = (s.confidence !== null && s.confidence !== undefined) ? s.confidence : null; %>
+            <% const _confNum = (function() {
+                 if (confidence === null || confidence === undefined) return null;
+                 const n = Number(confidence);
+                 if (!Number.isFinite(n)) return null;
+                 return n;
+               })();
+               const _confPct = _confNum === null ? '—' : Math.round(_confNum * 100) + '%';
+               // Map the canonical result letter to a badge color. The status
+               // was normalized upstream to P / F / ABSENT / NE / X (or the raw
+               // legacy 'pass' / 'fail' words for backward compatibility).
+               const _resColor = function(r) {
+                 if (!r) return 'secondary';
+                 const u = String(r).toUpperCase();
+                 if (u === 'P' || u === 'PASS') return 'success';
+                 if (u === 'F' || u === 'FAIL' || u === 'ABSENT') return 'danger';
+                 if (u === 'NE' || u === 'X') return 'warning text-dark';
+                 return 'secondary';
+               }; %>
+            <% const rowClass    = isMatched ? '' : 'table-warning'; %>
+            <tr class="<%= rowClass %>">
+              <td class="text-muted"><%= idx + 1 %></td>
+              <td><code class="small"><%= s.subjectCode || s.subject_code || s.ocr_subject_code || '—' %></code></td>
+              <td><span class="small"><%= s.subjectName || s.subject_name || '—' %></span></td>
+              <td class="text-center"><%= (s.internalMarks !== null && s.internalMarks !== undefined) ? s.internalMarks : '—' %></td>
+              <td class="text-center"><%= (s.oldMarks !== null && s.oldMarks !== undefined) ? s.oldMarks : '—' %></td>
+              <td class="text-center">
+                <% if (s.oldResult) { %>
+                  <span class="badge bg-<%= _resColor(s.oldResult) %>"><%= s.oldResult %></span>
+                <% } else { %>
+                  <span class="text-muted">—</span>
+                <% } %>
               </td>
-              <td><span class="badge bg-secondary"><%= s.confidence || '—' %></span></td>
+              <td class="text-center"><%= (s.rvMarks !== null && s.rvMarks !== undefined) ? s.rvMarks : '—' %></td>
+              <td class="text-center">
+                <% if (s.rvResult) { %>
+                  <span class="badge bg-<%= _resColor(s.rvResult) %>"><%= s.rvResult %></span>
+                <% } else { %>
+                  <span class="text-muted">—</span>
+                <% } %>
+              </td>
+              <td class="text-center fw-bold"><%= (s.finalMarks !== null && s.finalMarks !== undefined) ? s.finalMarks : '—' %></td>
+              <td class="text-center">
+                <% if (s.finalResult) { %>
+                  <span class="badge bg-<%= _resColor(s.finalResult) %>"><%= s.finalResult %></span>
+                <% } else { %>
+                  <span class="text-muted">—</span>
+                <% } %>
+              </td>
+              <td class="text-center">
+                <% if (_confNum !== null) { %>
+                  <span class="badge bg-secondary"><%= _confPct %></span>
+                <% } else { %>
+                  <span class="text-muted">—</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (isMatched) { %>
+                  <span class="badge bg-success">Matched</span>
+                <% } else if (isUnmatched) { %>
+                  <span class="badge bg-warning text-dark">Not In Result</span>
+                <% } else { %>
+                  <span class="badge bg-secondary"><%= s.match_state || '—' %></span>
+                <% } %>
+              </td>
             </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
   </div>
+  <% } else { %>
+  <div class="card mb-3">
+    <div class="card-header">Subjects detected on the revaluation card</div>
+    <div class="card-body text-center text-muted py-4">
+      <i class="material-icons" style="font-size:2rem">search_off</i>
+      <p class="mb-0 mt-2">No subjects were detected on the revaluation card.</p>
+    </div>
+  </div>
+  <% } %>
+
+  <!--
+    No "Missing / Not Detected" section here.
+    There is no pre-upload subject selection in the current workflow.
+    The next page (Review/Edit) exposes the student's full subject list
+    via its existing "Add Subject" feature for admin manual entry.
+  -->
 
   <div class="row">
     <div class="col-lg-6">

@@ -63,6 +63,7 @@ router.get('/extraction/:importId', rc.showExtraction);
 // PROMPT 5 — Review/Edit → Validation → Approval → Outcome.
 // All handlers are server-authoritative; the browser submits proposals only.
 router.get('/review/:importId', rc.showReview);
+router.post('/review/:importId/add-missing', rc.addMissing);
 router.post('/review/:importId', rc.submitReview);
 router.get('/approve/:importId', rc.showApproveConfirm);
 router.post('/approve/:importId', rc.approveReview);
