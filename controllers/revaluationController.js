@@ -14,7 +14,7 @@
  */
 const path = require('path');
 const fs = require('fs');
-const { Op } = require('sequelize');
+const { Op, Transaction } = require('sequelize');
 const {
   Result, Student, ResultSession, SubjectResult, Subject,
   ImportLog, OcrExtraction, RevaluationResult, sequelize
@@ -36,6 +36,73 @@ function safeJson(v) {
   try {
     return typeof v === 'object' && v !== null ? v : JSON.parse(v || '{}');
   } catch { return {}; }
+}
+
+/**
+ * PHASE 7 — Lock-aware transaction wrapper.
+ *
+ * - Opens a Sequelize transaction at READ COMMITTED isolation so that
+ *   writes in this transaction only see data committed before they started
+ *   and (critically) the row locks it takes do NOT block readers, while
+ *   write locks it takes are released as soon as the transaction ends.
+ * - Retries the wrapped unit of work ONCE on InnoDB lock-wait timeout
+ *   (ER_LOCK_WAIT_TIMEOUT) or deadlock (ER_LOCK_DEADLOCK). These are
+ *   transient, and a single retry after a small back-off almost always
+ *   succeeds once the contending transaction has completed.
+ * - If the retry also fails, the original error is re-thrown to the
+ *   caller. A structured error log is written for observability.
+ *
+ * Usage:
+ *   const result = await withRetryableTransaction(async (t) => {
+ *     const row = await OcrExtraction.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+ *     await row.update({ ... }, { transaction: t });
+ *     return row;
+ *   });
+ */
+async function withRetryableTransaction(label, fn) {
+  const MAX_ATTEMPTS = 2;          // initial attempt + exactly one retry
+  const RETRY_BACKOFF_MS = 75;     // brief wait before the retry
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const t = await sequelize.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    try {
+      const out = await fn(t);
+      await t.commit();
+      return out;
+    } catch (err) {
+      if (!t.finished) { try { await t.rollback(); } catch (_) { /* noop */ } }
+      lastErr = err;
+
+      const code = err && (err.code || (err.parent && err.parent.code) || (err.original && err.original.code));
+      const isLockContention = code === 'ER_LOCK_WAIT_TIMEOUT' || code === 'ER_LOCK_DEADLOCK';
+
+      if (isLockContention && attempt < MAX_ATTEMPTS) {
+        console.warn(
+          '[revaluation] ' + label + ' hit ' + code +
+          ' on attempt ' + attempt + '/' + MAX_ATTEMPTS +
+          ' — retrying in ' + RETRY_BACKOFF_MS + 'ms'
+        );
+        await new Promise(r => setTimeout(r, RETRY_BACKOFF_MS));
+        continue;
+      }
+
+      // Non-lock error, or both attempts exhausted.
+      if (isLockContention) {
+        console.error(
+          '[revaluation] ' + label + ' failed with ' + code +
+          ' after ' + MAX_ATTEMPTS + ' attempts. Giving up.'
+        );
+      } else {
+        console.error('[revaluation] ' + label + ' tx error:', err);
+      }
+      throw err;
+    }
+  }
+  // Unreachable, but keeps linters happy.
+  throw lastErr;
 }
 
 function sessionDisplay(rs) {
@@ -2108,35 +2175,34 @@ exports.submitReview = async (req, res) => {
   const aggregatePreview = computeOverlayAggregates(previewMix);
 
   // ---- TX-A: freeze decisions on the OcrExtraction record ONLY ----
-  const t = await sequelize.transaction();
+  // Uses READ COMMITTED isolation so the UPDATE lock is released immediately on
+  // commit, and retries once on transient lock-wait timeout / deadlock.
   try {
-    const freshOcr = await OcrExtraction.findByPk(st.ocrRow.extraction_id,
-      { transaction: t, lock: t.LOCK.UPDATE });
-    if (!freshOcr) throw new Error('OcrExtraction record disappeared during submission.');
-    const currentJson = safeJson(freshOcr.extracted_json);
+    await withRetryableTransaction('submitReview', async (t) => {
+      const freshOcr = await OcrExtraction.findByPk(st.ocrRow.extraction_id,
+        { transaction: t, lock: t.LOCK.UPDATE });
+      if (!freshOcr) throw new Error('OcrExtraction record disappeared during submission.');
+      const currentJson = safeJson(freshOcr.extracted_json);
 
-    const nextJson = Object.assign({}, currentJson, {
-      review: {
-        version: 1,
-        submitted_at: new Date().toISOString(),
-        submitted_by: resolveAdminId(req),
-        proposal: parsed.map(a => Object.assign({}, a.proposal))
-          .concat(unmatchedAttempts.filter(a => !a.dup).map(a => Object.assign({}, a.proposal))),
-        baselines: baselines,
-        aggregate_preview: aggregatePreview
-      }
+      const nextJson = Object.assign({}, currentJson, {
+        review: {
+          version: 1,
+          submitted_at: new Date().toISOString(),
+          submitted_by: resolveAdminId(req),
+          proposal: parsed.map(a => Object.assign({}, a.proposal))
+            .concat(unmatchedAttempts.filter(a => !a.dup).map(a => Object.assign({}, a.proposal))),
+          baselines: baselines,
+          aggregate_preview: aggregatePreview
+        }
+      });
+
+      await freshOcr.update({
+        validation_status: 'validated',
+        extracted_json: nextJson
+      }, { transaction: t });
     });
-
-    await freshOcr.update({
-      validation_status: 'validated',
-      extracted_json: nextJson
-    });
-
-    await t.commit();
     return res.redirect(`/revaluation/review/${importId}`);
   } catch (err) {
-    if (!t.finished) await t.rollback();
-    console.error('[revaluation] submitReview tx error:', err);
     return res.redirect(`/revaluation/review/${importId}?error=` +
       enc('Could not save decisions: ' + (err.message || 'server error')));
   }
@@ -2299,6 +2365,8 @@ exports.showApproveConfirm = async (req, res) => {
     review: st.review,
     rows: st.rows,
     meta: st.meta,
+    missingSubjects: (st.meta && Array.isArray(st.meta.missingSubjects))
+      ? st.meta.missingSubjects : [],
     errors: {},
     enteredVals: {},
     notice: null,
@@ -2316,10 +2384,19 @@ exports.showApproveConfirm = async (req, res) => {
  */
 exports.approveReview = async (req, res) => {
   const importId = Number(req.params.importId);
-  const t = await sequelize.transaction();
-  try {
-    const log = await ImportLog.findByPk(importId,
-      { transaction: t, lock: t.LOCK.UPDATE, include: [{ model: OcrExtraction }] });
+
+  // PHASE 7: READ COMMITTED isolation so row locks are released immediately on
+  // commit rather than held until statement end, plus one retry on transient
+  // lock-wait timeout / deadlock (ER_LOCK_WAIT_TIMEOUT / ER_LOCK_DEADLOCK).
+  let lastErr = null;
+  let t;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    t = await sequelize.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    try {
+      const log = await ImportLog.findByPk(importId,
+        { transaction: t, lock: t.LOCK.UPDATE, include: [{ model: OcrExtraction }] });
     if (!log || log.import_type !== 'REVALUATION') {
       throw new BadState('Import record is not a valid revaluation import.');
     }
@@ -2565,29 +2642,41 @@ exports.approveReview = async (req, res) => {
       skipped_records: 0
     }, { transaction: t });
     await t.commit();
-
     return res.redirect(`/revaluation/outcome/${importId}`);
-  } catch (err) {
-    if (!t.finished) { try { await t.rollback(); } catch (_) { /* noop */ } }
-    console.error('[revaluation] approveReview tx error:', err);
-    // PROMPT 18: detect InnoDB deadlock / lock-wait-timeout so the caller
-    // sees a deterministic "please retry" message instead of a generic
-    // approval failure. The transaction has already been rolled back above.
-    const deadlock = err && (err.code === 'ER_LOCK_DEADLOCK' ||
-                             err.code === 'ER_LOCK_WAIT_TIMEOUT' ||
-                             err.parent && (err.parent.code === 'ER_LOCK_DEADLOCK' ||
-                                            err.parent.code === 'ER_LOCK_WAIT_TIMEOUT') ||
-                             err.original && (err.original.code === 'ER_LOCK_DEADLOCK' ||
-                                              err.original.code === 'ER_LOCK_WAIT_TIMEOUT'));
-    if (deadlock) {
-      return res.redirect(`/revaluation/extraction/${importId}?error=` +
-        enc('Approval could not acquire the necessary locks. Please retry.'));
+    } catch (err) {
+      lastErr = err;
+      if (!t.finished) { try { await t.rollback(); } catch (_) { /* noop */ } }
+      const code = err && (err.code || (err.parent && err.parent.code) || (err.original && err.original.code));
+      const isLockContention = code === 'ER_LOCK_WAIT_TIMEOUT' || code === 'ER_LOCK_DEADLOCK';
+      if (isLockContention && attempt < 2) {
+        console.warn(
+          '[revaluation] approveReview hit ' + code +
+          ' on attempt ' + attempt + '/2 — retrying in 75ms'
+        );
+        await new Promise(r => setTimeout(r, 75));
+        continue;
+      }
+      if (isLockContention) {
+        console.error(
+          '[revaluation] approveReview: ER_LOCK_WAIT_TIMEOUT/DEADLOCK failed after 2 attempts. Giving up.'
+        );
+      } else {
+        console.error('[revaluation] approveReview tx error:', err);
+      }
+      break;
     }
-    const back = (err instanceof StaleState)
-      ? `/revaluation/review/${importId}`
-      : `/revaluation/extraction/${importId}`;
-    return res.redirect(back + '?error=' + enc(err.message || 'Approval failed.'));
+  } // end retry loop
+
+  const code = lastErr && (lastErr.code || (lastErr.parent && lastErr.parent.code) || (lastErr.original && lastErr.original.code));
+  const isLockContention = code === 'ER_LOCK_WAIT_TIMEOUT' || code === 'ER_LOCK_DEADLOCK';
+  if (isLockContention) {
+    return res.redirect(`/revaluation/extraction/${importId}?error=` +
+      enc('Approval could not acquire the necessary locks. Please retry.'));
   }
+  const back = (lastErr instanceof StaleState)
+    ? `/revaluation/review/${importId}`
+    : `/revaluation/extraction/${importId}`;
+  return res.redirect(back + '?error=' + enc(lastErr.message || 'Approval failed.'));
 };
 
 /**
