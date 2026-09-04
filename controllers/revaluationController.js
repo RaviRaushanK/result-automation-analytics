@@ -138,7 +138,7 @@ exports.showSessionPicker = async (req, res) => {
     });
   } catch (err) {
     console.error('[revaluation] showSessionPicker error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load result sessions.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load result sessions.'));
   }
   const list = sessions.filter(s => (s.Results && s.Results.length > 0)).map(s => ({
     sessionId: s.session_id,
@@ -279,24 +279,24 @@ exports.confirmAttemptSelection = async (req, res) => {
   if (!Number.isInteger(sessionId) || sessionId <= 0 ||
       !Number.isInteger(studentId) || studentId <= 0 ||
       !Number.isInteger(resultId) || resultId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid selection.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid selection.'));
   }
 
   let result;
   try { result = await loadResultContext(resultId); }
   catch (err) {
     console.error('[revaluation] confirmAttemptSelection load error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load result.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load result.'));
   }
-  if (!result) return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
+  if (!result) return res.redirect('/revaluation/start?error=' + encodeURIComponent('Result not found.'));
 
   // Server-authoritative chain verification (browser ids were hints only).
   if (Number(result.session_id) !== sessionId) {
-    return res.redirect('/revaluation/upload?error=' +
+    return res.redirect('/revaluation/start?error=' +
       encodeURIComponent('Result does not belong to the selected Result Session. Please re-select.'));
   }
   if (Number(result.student_id) !== studentId) {
-    return res.redirect('/revaluation/upload?error=' +
+    return res.redirect('/revaluation/start?error=' +
       encodeURIComponent('Result does not belong to the selected student. Please re-select.'));
   }
 
@@ -392,7 +392,7 @@ exports.showUploadPage = async (req, res) => {
 
   const result = await loadResultContext(resultId);
   if (!result) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Result not found.'));
   }
 
   // Phase 13B: subjects are the full scope of the selected Result, loaded
@@ -448,7 +448,7 @@ exports.processUpload = async (req, res) => {
       encodeURIComponent('Could not load result.'));
   }
   if (!result) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Result not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Result not found.'));
   }
 
   // Phase 13B: subjects are the full scope of the selected Result, loaded
@@ -696,7 +696,7 @@ exports.processUpload = async (req, res) => {
 exports.showPending = async (req, res) => {
   const importId = Number(req.params.importId);
   if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid revaluation record.'));
   }
 
   let log;
@@ -709,10 +709,10 @@ exports.showPending = async (req, res) => {
     });
   } catch (err) {
     console.error('[revaluation] showPending error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load revaluation record.'));
   }
   if (!log) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Revaluation record not found.'));
   }
 
   const ocr = log.OcrExtractions && log.OcrExtractions[0];
@@ -756,7 +756,7 @@ const revaluationExtractor = require('../services/revaluationExtractor');
 exports.runExtraction = async (req, res) => {
   const importId = Number(req.params.importId);
   if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid revaluation record.'));
   }
 
   let log;
@@ -764,14 +764,14 @@ exports.runExtraction = async (req, res) => {
     log = await ImportLog.findByPk(importId, { include: [{ model: OcrExtraction }] });
   } catch (err) {
     console.error('[revaluation] runExtraction load error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load revaluation record.'));
   }
   if (!log || log.import_type !== 'REVALUATION') {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Revaluation record not found.'));
   }
   const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
   if (!ocrRow) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('No OCR processing record is attached to this import.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('No OCR processing record is attached to this import.'));
   }
   const saved = safeJson(ocrRow.extracted_json);
   if (!stored_guardHasContext(saved)) {
@@ -938,7 +938,7 @@ function checkOcrIdentity(ocrCandidates, serverStudent) {
 exports.showExtraction = async (req, res) => {
   const importId = Number(req.params.importId);
   if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid revaluation record.'));
   }
 
   let log;
@@ -951,10 +951,10 @@ exports.showExtraction = async (req, res) => {
     });
   } catch (err) {
     console.error('[revaluation] showExtraction load error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load revaluation record.'));
   }
   if (!log || log.import_type !== 'REVALUATION') {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Revaluation record not found.'));
   }
 
   const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
@@ -1567,20 +1567,20 @@ function normCode(code) {
 exports.confirmIdentity = async (req, res) => {
   const importId = Number(req.params.importId);
   if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Invalid revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid revaluation record.'));
   }
   let log;
   try { log = await loadRevalImport(importId); }
   catch (err) {
     console.error('[revaluation] confirmIdentity load error:', err);
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load revaluation record.'));
   }
   if (!log || log.import_type !== 'REVALUATION') {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('Revaluation record not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Revaluation record not found.'));
   }
   const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
   if (!ocrRow) {
-    return res.redirect('/revaluation/upload?error=' + encodeURIComponent('No OCR record found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('No OCR record found.'));
   }
   const saved = safeJson(ocrRow.extracted_json);
   const ocr = (saved && saved.ocr) || {};
@@ -1673,15 +1673,15 @@ function stored_guardHasContext(saved) {
 async function loadReviewState(importId, optsIn) {
   const opts = optsIn || {};
   if (!Number.isInteger(importId) || importId <= 0) {
-    return { ok: false, redirect: '/revaluation/upload?error=' + enc('Invalid revaluation record.') };
+    return { ok: false, redirect: '/revaluation/start?error=' + enc('Invalid revaluation record.') };
   }
 
   const log = await loadRevalImport(importId);
   if (!log) {
-    return { ok: false, redirect: '/revaluation/upload?error=' + enc('Revaluation record not found.') };
+    return { ok: false, redirect: '/revaluation/start?error=' + enc('Revaluation record not found.') };
   }
   if (log.import_type !== 'REVALUATION') {
-    return { ok: false, redirect: '/revaluation/upload?error=' + enc('This record is not a revaluation import.') };
+    return { ok: false, redirect: '/revaluation/start?error=' + enc('This record is not a revaluation import.') };
   }
   const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
   if (!ocrRow) {
@@ -1828,6 +1828,7 @@ async function loadReviewState(importId, optsIn) {
   const doc = (Array.isArray(saved.documents) && saved.documents[0]) || {};
   const review = saved.review || null;
 
+
   return {
     ok: true, log, ocrRow, saved, ocr, review,
     approved: log.status === 'success',
@@ -1869,7 +1870,7 @@ exports.showReview = async (req, res) => {
   try { st = await loadReviewState(importId, { requireExtracted: true }); }
   catch (err) {
     console.error('[revaluation] showReview error:', err);
-    return res.redirect('/revaluation/upload?error=' +
+    return res.redirect('/revaluation/start?error=' +
       enc('Could not load revaluation record.'));
   }
   if (!st.ok) return res.redirect(st.redirect);
@@ -1879,7 +1880,7 @@ exports.showReview = async (req, res) => {
     title: 'Revaluation — Review & Validate',
     breadcrumbItems: [
       { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/upload' },
+      { label: 'Upload Revaluation', href: '/revaluation/start' },
       { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
       { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
       { label: 'Review & Validate', active: true }
@@ -1988,7 +1989,7 @@ exports.submitReview = async (req, res) => {
   try { st = await loadReviewState(importId, { requireExtracted: true }); }
   catch (err) {
     console.error('[revaluation] submitReview load error:', err);
-    return res.redirect('/revaluation/upload?error=' + enc('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + enc('Could not load revaluation record.'));
   }
   if (!st.ok) return res.redirect(st.redirect);
 
@@ -2222,7 +2223,7 @@ exports.addMissing = async (req, res) => {
   try { st = await loadReviewState(importId, { requireExtracted: true }); }
   catch (err) {
     console.error('[revaluation] addMissing load error:', err);
-    return res.redirect('/revaluation/upload?error=' + enc('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + enc('Could not load revaluation record.'));
   }
   if (!st.ok) return res.redirect(st.redirect);
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
@@ -2240,22 +2241,68 @@ exports.addMissing = async (req, res) => {
   const subj = (sr && sr.Subject) ? sr.Subject : null;
   const limits = subjectLimits(subj);
 
-  // Parse 9-card-field values
-  const fm = normalizeIntInput(body.card_final_marks);
-  const fr = body.card_final_result ? String(body.card_final_result).trim().toLowerCase() : null;
+  // Parse card fields. Old Marks / Old Result are NOT taken from the browser
+  // form anymore — they come from the authoritative SubjectResult row.
+  const im = normalizeIntInput(body.card_internal_marks);
+  const em = normalizeIntInput(body.card_rv_marks);
   const errors = [], warnings = [];
 
-  if (!fm.present) errors.push('Final Marks are required.');
-  else if (fm.invalid) errors.push('Final Marks must be a whole number.');
-  else if (fm.value < 0 || fm.value > limits.maxTotal)
-    errors.push('Final Marks must be between 0 and ' + limits.maxTotal + '.');
+  // Authoritative original values from DB (SubjectResult row).
+  // These were never entered by the admin; the form reads them from DB.
+  const origMarks = (sr && sr.marks !== null && sr.marks !== undefined) ? Number(sr.marks) : null;
+  const origStatusRaw = (sr && sr.result_status) ? String(sr.result_status).trim().toLowerCase() : null;
+  const oldMarks = origMarks;
+  const oldResult = (origStatusRaw === 'pass' || origStatusRaw === 'fail') ? origStatusRaw : null;
 
-  if (!fr) errors.push('Final Result is required.');
-  else if (fr !== 'pass' && fr !== 'fail')
-    errors.push('Final Result must be "pass" or "fail".');
+  // Validate Internal Marks against DB maxInt
+  if (!im.present) {
+    errors.push('Internal Marks are required.');
+  } else if (im.invalid) {
+    errors.push('Internal Marks must be a whole number.');
+  } else if (im.value < 0 || im.value > limits.maxInt) {
+    errors.push('Internal Marks must be between 0 and ' + limits.maxInt + '.');
+  }
+
+  // Validate RV Marks against DB maxExt
+  if (!em.present) {
+    errors.push('RV Marks are required.');
+  } else if (em.invalid) {
+    errors.push('RV Marks must be a whole number.');
+  } else if (em.value < 0 || em.value > limits.maxExt) {
+    errors.push('RV Marks must be between 0 and ' + limits.maxExt + '.');
+  }
+
+  // Auto-calculate Final Marks = Internal + RV Marks
+  const fm = (im.present && !im.invalid && em.present && !em.invalid)
+    ? { present: true, invalid: false, value: im.value + em.value }
+    : { present: false, invalid: true, value: null };
+
+  if (!fm.present) {
+    errors.push('Could not auto-calculate Final Marks. Please enter Internal and RV marks correctly.');
+  } else if (fm.value > limits.maxTotal) {
+    errors.push('Final Marks (Internal + RV) exceed the subject maximum of ' + limits.maxTotal + '.');
+  }
+
+  // Auto-calculate Final Result from Final Marks against 50% threshold.
+  const fr = fm.present && fm.value !== null
+    ? (fm.value >= limits.maxTotal * 0.5 ? 'pass' : 'fail')
+    : null;
 
   // PHASE 5: Server-side validation of all nine card fields.
-  const cardValidation = revaluationValidator.validateNineCardFields(body, subj || {});
+  // The browser only submits Internal + RV; the rest of the nine fields
+  // (old_marks, old_result, final_marks, final_result) are derived
+  // server-side from the DB or from the auto-calculation above, so we
+  // override them in the body that the validator sees.
+  const cardBody = Object.assign({}, body, {
+    card_internal_marks: im.present ? im.value : null,
+    card_old_marks:      oldMarks,
+    card_old_result:     oldResult,
+    card_rv_marks:       em.present ? em.value : null,
+    card_rv_result:      fr, // RV result is auto-derived
+    card_final_marks:    fm.present ? fm.value : null,
+    card_final_result:   fr
+  });
+  const cardValidation = revaluationValidator.validateNineCardFields(cardBody, subj || {});
   errors.push(...cardValidation.errors);
   warnings.push(...cardValidation.warnings);
 
@@ -2273,11 +2320,12 @@ exports.addMissing = async (req, res) => {
     source: 'MISSING_MANUAL',
     decision: 'accept',
     was_manual_correction: true,
-    proposed_card_internal_marks: normalizeIntInput(body.card_internal_marks).value,
-    proposed_card_old_marks:      normalizeIntInput(body.card_old_marks).value,
-    proposed_card_old_result:     body.card_old_result || null,
-    proposed_card_rv_marks:      normalizeIntInput(body.card_rv_marks).value,
-    proposed_card_rv_result:     body.card_rv_result || null,
+    // Values from auto-calculation
+    proposed_card_internal_marks: im.value,
+    proposed_card_old_marks:      oldMarks,
+    proposed_card_old_result:     oldResult,
+    proposed_card_rv_marks:      em.value,
+    proposed_card_rv_result:     fr,
     proposed_revised_total_marks: fm.value,
     proposed_revised_percent: pct,
     proposed_revised_status: g.status,
@@ -2286,6 +2334,7 @@ exports.addMissing = async (req, res) => {
   };
 
   // Duplicate guard: srid already accepted in this review
+  // (already excluded in loadReviewState, retained as server-side defence)
   if (st.saved && st.saved.review && Array.isArray(st.saved.review.proposal)) {
     const existing = st.saved.review.proposal.find(p =>
       p && p.decision === 'accept' &&
@@ -2343,7 +2392,7 @@ exports.showApproveConfirm = async (req, res) => {
   try { st = await loadReviewState(importId, { requireExtracted: true }); }
   catch (err) {
     console.error('[revaluation] showApproveConfirm error:', err);
-    return res.redirect('/revaluation/upload?error=' + enc('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + enc('Could not load revaluation record.'));
   }
   if (!st.ok) return res.redirect(st.redirect);
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
@@ -2690,7 +2739,7 @@ exports.showOutcome = async (req, res) => {
   try { st = await loadReviewState(importId); }
   catch (err) {
     console.error('[revaluation] showOutcome error:', err);
-    return res.redirect('/revaluation/upload?error=' + enc('Could not load revaluation record.'));
+    return res.redirect('/revaluation/start?error=' + enc('Could not load revaluation record.'));
   }
   if (!st.ok) return res.redirect(st.redirect);
 

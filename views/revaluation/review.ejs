@@ -42,18 +42,21 @@
 
   <%#
     PHASE 4 — OCR state summary. Sections below are READ-ONLY reference
-    views except the missing-section "Add" button.
-    1. Detected (matched) subjects
-    2. Unmatched OCR rows (not selected)
-    3. Missing subjects (selected, not detected)
+    views except the "Add Subject" UI further below.
+    1. Revaluation Subjects  (OCR-detected + manually added via the "Add
+       Subject" button; the only "missing" concept is what OCR didn't
+       capture, which the admin can add manually — there is no
+       automatic "Missing / Not Detected" list because there is no
+       pre-upload subject selection to diff against)
+    2. Unmatched OCR rows (detected on the card but not in the
+       student's SubjectResults)
   %>
   <% const detectedRows = rows.filter(r => r.evidence && r.evidence.match_state === 'MATCHED'); %>
   <% const unmatchedRows = meta.unmatched || []; %>
-  <% const missingRows = missingSubjects || []; %>
 
   <div class="card mb-3 border-success">
     <div class="card-header bg-success text-white">
-      <strong><i class="material-icons align-middle me-1" style="font-size:16px;">check_circle</i> Detected Subjects (matched on the revaluation card)</strong>
+      <strong><i class="material-icons align-middle me-1" style="font-size:16px;">check_circle</i> Revaluation Subjects</strong>
       <span class="badge bg-light text-dark ms-2"><%= detectedRows.length %></span>
     </div>
     <div class="table-responsive">
@@ -130,93 +133,13 @@
     </div>
   <% } %>
 
-  <div class="card mb-3 border-danger">
-    <div class="card-header bg-danger text-white">
-      <strong><i class="material-icons align-middle me-1" style="font-size:16px;">error</i>
-        Missing / Not Detected (selected subjects OCR did not find on the card)</strong>
-      <span class="badge bg-light text-dark ms-2"><%= missingRows.length %></span>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered align-middle mb-0">
-        <thead class="table-light">
-          <tr><th>Subject Code</th><th>Subject Name</th><th class="text-center">Original Marks</th>
-              <th class="text-center">Original Status</th><th>State</th><th class="text-center">Action</th></tr>
-        </thead>
-        <tbody>
-          <% if (missingRows.length === 0) { %>
-            <tr><td colspan="6" class="text-center text-success py-3">No missing subjects.</td></tr>
-          <% } else { missingRows.forEach(function(m, idx) {
-              const mSrid  = Number(m.subject_result_id || m.srid || 0);
-              const mCode  = m.subject_code  || m.code  || ('#' + mSrid);
-              const mName  = m.subject_name  || m.name  || '—';
-              const mMarks = (m.original_marks != null ? m.original_marks : (m.marks != null ? m.marks : '—'));
-              const mStat  = m.original_status || m.result_status || '—';
-          %>
-            <tr>
-              <td><code><%= mCode %></code></td>
-              <td><%= mName %></td>
-              <td class="text-center"><%= mMarks %></td>
-              <td class="text-center">
-                <span class="badge bg-<%= String(mStat).toLowerCase() === 'pass' ? 'success' : 'danger' %>"><%= mStat %></span>
-              </td>
-              <td><span class="badge bg-dark">NOT DETECTED</span></td>
-              <td class="text-center">
-                <% if (mode === 'edit') { %>
-                  <button type="button" class="btn btn-sm btn-outline-primary add-missing-btn"
-                    data-missing-idx="<%= idx %>" data-srid="<%= mSrid %>"
-                    data-code="<%= mCode %>" data-name="<%= mName.replace(/"/g, '&quot;') %>">
-                    <i class="material-icons align-middle" style="font-size:14px;">add</i> Add
-                  </button>
-                <% } else { %><span class="text-muted small">edit mode only</span><% } %>
-              </td>
-            </tr>
-
-            <% if (mode === 'edit') { %>
-              <tr class="add-missing-form-row" data-missing-idx="<%= idx %>" style="display:none; background:#fffbea;">
-                <td colspan="6">
-                  <form method="POST" action="/revaluation/review/<%= meta.importId %>/add-missing" class="add-missing-form p-2" data-missing-idx="<%= idx %>">
-                    <input type="hidden" name="subject_result_id" value="<%= mSrid %>" />
-                    <p class="mb-2 small">
-                      <strong>Manual entry for <code><%= mCode %></code> — <%= mName %></strong>
-                      <span class="text-muted">(#<%= mSrid %> · server re-reads authoritative data)</span>
-                    </p>
-                    <div class="row g-2 align-items-end">
-                      <div class="col-auto"><label class="form-label small mb-1">Internal</label>
-                        <input type="number" min="0" class="form-control form-control-sm" name="card_internal_marks" placeholder="Int" /></div>
-                      <div class="col-auto"><label class="form-label small mb-1">Old Marks</label>
-                        <input type="number" min="0" class="form-control form-control-sm" name="card_old_marks" value="<%= mMarks !== '—' ? mMarks : '' %>" placeholder="Old" /></div>
-                      <div class="col-auto"><label class="form-label small mb-1">Old Result</label>
-                        <select class="form-select form-select-sm" name="card_old_result">
-                          <option value="">—</option>
-                          <option value="pass" <%= String(mStat).toLowerCase() === 'pass' ? 'selected' : '' %>>pass</option>
-                          <option value="fail" <%= String(mStat).toLowerCase() === 'fail' ? 'selected' : '' %>>fail</option>
-                        </select></div>
-                      <div class="col-auto"><label class="form-label small mb-1">RV Marks</label>
-                        <input type="number" min="0" class="form-control form-control-sm" name="card_rv_marks" placeholder="RV" /></div>
-                      <div class="col-auto"><label class="form-label small mb-1">RV Result</label>
-                        <select class="form-select form-select-sm" name="card_rv_result">
-                          <option value="">—</option><option value="pass">pass</option><option value="fail">fail</option>
-                        </select></div>
-                      <div class="col-auto"><label class="form-label small mb-1 text-danger fw-bold">Final Marks *</label>
-                        <input type="number" min="0" class="form-control form-control-sm" name="card_final_marks" placeholder="Final" required /></div>
-                      <div class="col-auto"><label class="form-label small mb-1 text-danger fw-bold">Final Result *</label>
-                        <select class="form-select form-select-sm" name="card_final_result" required>
-                          <option value="">—</option><option value="pass">pass</option><option value="fail">fail</option>
-                        </select></div>
-                      <div class="col-auto">
-                        <button type="submit" class="btn btn-sm btn-primary"><i class="material-icons align-middle" style="font-size:14px;">save</i> Save</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary ms-1 cancel-missing-btn" data-missing-idx="<%= idx %>">Cancel</button>
-                      </div>
-                    </div>
-                  </form>
-                </td>
-              </tr>
-            <% } %>
-          <% }) } %>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  <%#
+    PHASE 4 REMOVAL — The "Add Subject" section was removed. Subjects that OCR
+    did not detect are now handled by selecting "Accept" in the table below
+    and entering Internal + Rev. Ext marks. The Internal field auto-fills from
+    the database total marks when Accept is selected; the Derived total auto-updates
+    as Rev. Ext is entered.
+  %>
 
   <form method="POST" action="/revaluation/review/<%= meta.importId %>" id="reviewForm"
         class="<%= mode === 'edit' ? '' : 'review-frozen' %>">
@@ -229,7 +152,7 @@
               <th style="min-width:150px;">Subject</th>
               <th class="text-start">Original<br>(total)</th>
               <th style="min-width:200px;">OCR evidence</th>
-              <th style="width:90px;" class="text-center">Rev. Int</th>
+              <th style="width:90px;" class="text-center">Internal</th>
               <th style="width:90px;" class="text-center">Rev. Ext</th>
               <th style="width:80px;" class="text-center">Derived total</th>
               <th style="width:110px;" class="text-center">Decision</th>
@@ -315,10 +238,15 @@
                 <% } %>
               </td>
 <% if (!editable && prop) { %>
-              <td colspan="2" class="text-center">
+              <td class="text-center">
+                <span class="fw-bold"><%= prop.decision === 'accept' ? prop.proposed_revised_internal_marks : '—' %></span>
+              </td>
+              <td class="text-center">
+                <span class="fw-bold"><%= prop.decision === 'accept' ? prop.proposed_revised_external_marks : '—' %></span>
+              </td>
+              <td class="text-center">
                 <% if (prop.decision === 'accept') { %>
-                  <span class="fw-bold"><%= prop.proposed_revised_internal_marks %> + <%= prop.proposed_revised_external_marks %> =
-                    <%= prop.proposed_revised_total_marks %></span><br>
+                  <span class="fw-bold text-primary"><%= prop.proposed_revised_total_marks %></span><br>
                   <span class="badge bg-<%= prop.proposed_revised_status === 'pass' ? 'success' : 'danger' %>"><%= prop.proposed_revised_status %></span>
                   <small><%= prop.proposed_revised_grade %></small>
                   <% if (prop.was_manual_correction) { %><small class="text-muted d-block">manually corrected</small><% } %>
@@ -326,8 +254,7 @@
                     <small class="text-muted d-block">bound to #<%= prop.bound_to_srid %></small>
                   <% } %>
                 <% } else { %>
-                  <span class="badge bg-secondary">REJECTED</span>
-                  <small class="d-block text-muted">no event will be created</small>
+                  <span class="text-muted">—</span>
                 <% } %>
               </td>
 <% } else { %>
@@ -335,7 +262,8 @@
                 <input type="number" min="0" max="<%= r.maxInternal %>" step="1"
                        name="internal_<%= r.srid %>" id="int_<%= r.srid %>"
                        value="<%= preInt %>" class="form-control form-control-sm rev-int"
-                       data-srid="<%= r.srid %>" <%= editable ? '' : 'disabled' %>>
+                       data-srid="<%= r.srid %>"
+                       <%= editable ? '' : 'disabled' %>>
               </td>
               <td class="text-center">
                 <input type="number" min="0" max="<%= r.maxExternal %>" step="1"
@@ -371,12 +299,25 @@
                       </label>
                     </div>
                   <% } %>
+                <%# In locked/confirm mode: prop === null means the frozen proposal
+                    entry was not found by srid — but r.priorDecision was already
+                    populated from that same prior proposal during loadReviewState,
+                    so it is the correct authoritative decision for this row. %>
                 <% } else if (!prop) { %>
-                  <span class="text-muted small">no decision saved</span>
+                  <% if (r.priorDecision) { %>
+                    <span class="badge bg-<%= r.priorDecision === 'accept' ? 'primary' : 'secondary' %>">
+                      <%= r.priorDecision.toUpperCase() %>
+                    </span>
+                  <% } else { %>
+                    <span class="text-muted small">no decision saved</span>
+                  <% } %>
                 <% } else { %>
-                  <span class="badge bg-<%= prop.decision === 'accept' ? 'primary' : 'secondary' %>">
-                    <%= prop.decision.toUpperCase() %>
-                  </span>
+                  <% if (prop.decision === 'accept') { %>
+                    <span class="badge bg-primary">ACCEPT</span>
+                  <% } else { %>
+                    <span class="badge bg-secondary">REJECTED</span>
+                    <small class="d-block text-muted">no event will be created</small>
+                  <% } %>
                 <% } %>
                 <% if (rowErrs.length) { %>
                   <div class="text-danger small mt-1 text-start">
@@ -475,7 +416,7 @@
         <i class="material-icons">arrow_back</i> Back to Students
       </a>
     <% } %>
-    <a href="/revaluation/upload" class="btn btn-outline-secondary btn-sm">
+    <a href="/revaluation/start" class="btn btn-outline-secondary btn-sm">
       <i class="material-icons">arrow_back</i> Back to result selection
     </a>
   </div>

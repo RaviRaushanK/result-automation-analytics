@@ -180,13 +180,17 @@
           <% subjects.forEach(function(s, idx) { %>
             <% const isMatched   = s.match_state === 'MATCHED'; %>
             <% const isUnmatched = s.match_state === 'UNMATCHED_NOT_IN_RESULT'; %>
-            <% const confidence  = (s.confidence !== null && s.confidence !== undefined) ? s.confidence : null; %>
-            <% const _confNum = (function() {
-                 if (confidence === null || confidence === undefined) return null;
-                 const n = Number(confidence);
-                 if (!Number.isFinite(n)) return null;
-                 return n;
-               })();
+            <% // The OCR extractor emits confidence as a STRING ('high'|'medium'|'low').
+               // Map it to a numeric score so the template can render a percentage.
+               // Number('high')→NaN without this mapping (which is why the column
+               // was always empty). The raw string is preserved in s.confidence.
+               const CONFIDENCE_SCORES = { high: 0.9, medium: 0.7, low: 0.4 };
+               const _rawConf = (s.confidence !== null && s.confidence !== undefined) ? s.confidence : null;
+               const _confNum = (_rawConf === null || _rawConf === undefined) ? null
+                 : (typeof _rawConf === 'number' ? _rawConf
+                   : (CONFIDENCE_SCORES[String(_rawConf).toLowerCase()] != null
+                       ? CONFIDENCE_SCORES[String(_rawConf).toLowerCase()]
+                       : null));
                const _confPct = _confNum === null ? '—' : Math.round(_confNum * 100) + '%';
                // Map the canonical result letter to a badge color. The status
                // was normalized upstream to P / F / ABSENT / NE / X (or the raw

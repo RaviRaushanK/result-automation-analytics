@@ -1,0 +1,116 @@
+var http = require('http'), path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../config/.env') });
+var db = require('../database/models');
+var RS = db.ResultSession, St = db.Student, Res = db.Result, SR = db.SubjectResult;
+var IL = db.ImportLog, OE = db.OcrExtraction, RevR = db.RevaluationResult;
+var sequelize = db.sequelize;
+var HOST = '127.0.0.1', PORT = 3000, COOKIE = '';
+function req(method, urlPath, body) {
+  return new Promise(function(resolve, reject) {
+    var opts = { method: method, host: HOST, port: PORT, path: urlPath, headers: {} };
+    if (COOKIE) opts.headers['Cookie'] = COOKIE;
+    if (body) { var jb = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; opts.headers['Content-Length'] = Buffer.byteLength(jb); }
+    var r = http.request(opts, function(res) {
+      var chunks = []; res.on('data', function(c) { chunks.push(c); });
+      res.on('end', function() {
+        var buf = Buffer.concat(chunks);
+        if (res.headers['set-cookie']) res.headers['set-cookie'].forEach(function(c) { if (c.indexOf('connect.sid') !== -1) COOKIE = c.split(';')[0]; });
+        resolve({ status: res.statusCode, headers: res.headers, body: buf.toString('utf8') });
+      });
+    });
+    r.on('error', reject);
+    if (body) r.write(JSON.stringify(body));
+    r.end();
+  });
+}
+function get(p) { return req('GET', p, null); }
+function postJson(p, b) { return req('POST', p, b); }
+
+async function main() {
+  await sequelize.authenticate();
+  var targetUsn = process.env.TARGET_USN || '1MV25MC061';
+  console.log('=== DB: ' + targetUsn + ' ===');
+  var stuMatch = await St.findOne({ where: { usn: targetUsn } });
+  if (!stuMatch) { console.log('No student: ' + targetUsn); await sequelize.close(); return; }
+  console.log('Student: id=' + stuMatch.student_id + ' ' + stuMatch.usn + ' ' + stuMatch.student_name);
+  var results = await Res.findAll({ where: { student_id: stuMatch.student_id } });
+  if (!results.length) { console.log('No results'); await sequelize.close(); return; }
+  var result = results[0];
+  var sess = await RS.findOne({ where: { session_id: result.session_id } });
+  console.log('Result: result_id=' + result.result_id + ' session=' + sess.session_name);
+  var srs = await SR.findAll({ where: { result_id: result.result_id }, order: [['subject_result_id','ASC']] });
+  console.log('SubjectResults: ' + srs.length);
+  srs.forEach(function(s) { console.log('  srid=' + s.subject_result_id + ' code=' + s.subject_code + ' marks=' + s.marks + ' status=' + s.result_status); });
+  var logs = await IL.findAll({ where: { session_id: sess.session_id }, order: [['created_at','DESC']] });
+  console.log('ImportLogs: ' + logs.length);
+  logs.forEach(function(l) { console.log('  import_id=' + l.import_id + ' type=' + l.import_type + ' status=' + l.status); });
+  var ocrs = await OE.findAll({ where: { import_id: logs.map(function(l){return l.import_id;}) }, order: [['created_at','DESC']] });
+  console.log('OcrExtractions: ' + ocrs.length);
+  for (var oi = 0; oi < ocrs.length; oi++) {
+    var o = ocrs[oi]; var ej = o.extracted_json || {}; var ocr = ej.ocr || {}; var subs = ocr.subjects || [];
+    console.log('  ocr_id=' + o.extraction_id + ' status=' + o.extraction_status + ' method=' + ocr.extraction_method);
+    for (var si = 0; si < subs.length; si++) { var s = subs[si]; console.log('    code=' + (s.subjectCode||'') + ' int=' + s.internalMarks + ' old=' + s.oldMarks + ' rv=' + s.rvMarks + ' final=' + s.finalMarks + ' conf=' + s.confidence + ' match=' + s.match_state); }
+    console.log('    missing: ' + (ocr.missing_subjects||[]).length);
+  }
+  var rr = await RevR.findAll({ where: { subject_result_id: srs.map(function(s){return s.subject_result_id;}) } });
+  console.log('RevaluationResult rows: ' + rr.length);
+  rr.forEach(function(r) { console.log('  srid=' + r.subject_result_id + ' old=' + r.original_marks + ' rev=' + r.revised_marks + ' status=' + r.revised_status); });
+  // Use import_id=100047 as the primary test target (latest REVALUATION for 1MV25MC061)
+  var targetImportId = parseInt(process.env.TARGET_IMPORT_ID || '100047', 10);
+  console.log('\n=== HTTP: Admin login ===');
+  var targetImportId = logs.length ? logs[0].import_id : null;
+  console.log('\n=== HTTP: Admin login ===');
+  var login = await postJson('/admin/login', { username: 'admin', password: 'admin123' });
+  console.log('login status=' + login.status + ' cookie=' + (COOKIE ? 'YES' : 'no'));
+  if (!COOKIE) {
+    ['admin@123','Admin@123','admin',''].forEach(function(pw) {
+      COOKIE = ''; var l = postJson('/admin/login', { username: 'admin', password: pw });
+      l.then(function(r) { console.log('  "' + pw + '" => status=' + r.status + ' cookie=' + (COOKIE ? 'YES' : 'no')); });
+    });
+  }
+  if (!COOKIE) { var lp = await get('/admin/login'); console.log('  login page snippet:', stripHtml(lp.body).substring(0, 200)); }
+  if (targetImportId) {
+    var ext = await get('/revaluation/extraction/' + targetImportId);
+    console.log('\n=== HTTP: /revaluation/extraction/' + targetImportId + ' => ' + ext.status + ' ===');
+    if (ext.status < 300) {
+      var eb = ext.body;
+      console.log('  "Subjects detected on the revaluation card":', eb.indexOf('Subjects detected on the revaluation card') !== -1);
+      console.log('  Conf badges:', (eb.match(/<span class="badge bg-secondary">(\d+%)<\/span>/g)||[]).join(', ') || '(none)');
+      console.log('  "Missing / Not Detected" on extraction:', eb.indexOf('Missing / Not Detected') !== -1);
+      console.log('  MMC105:', eb.indexOf('MMC105') !== -1);
+    }
+  }
+  if (targetImportId) {
+    var rev = await get('/revaluation/review/' + targetImportId);
+    console.log('\n=== HTTP: /revaluation/review/' + targetImportId + ' => ' + rev.status + ' ===');
+    if (rev.status < 300) {
+      var rb = rev.body;
+      console.log('  "Revaluation Subjects" header:', rb.indexOf('Revaluation Subjects') !== -1);
+      console.log('  Old "Detected Subjects (matched on":', rb.indexOf('Detected Subjects (matched on') !== -1);
+      console.log('  "Missing / Not Detected":', rb.indexOf('Missing / Not Detected') !== -1);
+      console.log('  "NOT DETECTED" badge:', rb.indexOf('NOT DETECTED') !== -1);
+      console.log('  "Add Subject" card:', rb.indexOf('Add Subject') !== -1);
+      console.log('  "<th>Action</th>" in main table:', /<th[^>]*>Action<\/th>/.test(rb));
+      console.log('  "no decision saved" fallback:', rb.indexOf('no decision saved') !== -1);
+      console.log('  "Decision" column:', rb.indexOf('Decision</th>') !== -1);
+      console.log('  MMC105 in review:', rb.indexOf('MMC105') !== -1);
+      var preInt = find(rb, /id="int_\d+"[^>]*value="(\d+)"/);
+      var preExt = find(rb, /id="ext_\d+"[^>]*value="(\d+)"/);
+      console.log('  Rev.Int pre-fill:', preInt || '(not found)');
+      console.log('  Rev.Ext pre-fill:', preExt || '(not found)');
+      if (preInt && preExt) console.log('  Derived total:', parseInt(preInt,10) + parseInt(preExt,10));
+      var usnStatus = find(rb, /usnStatus[^A-Za-z]+([A-Z_]+)/);
+      console.log('  OCR USN status:', usnStatus || '(element present=' + (rb.indexOf('usnStatus') !== -1) + ')');
+    } else { console.log('  redirect:', rev.headers['location'] || '(none)'); }
+  }
+  var start = await get('/revaluation/start');
+  console.log('\n=== HTTP: /revaluation/start => ' + start.status + ' ===');
+  console.log('\n=== DONE ===');
+  await sequelize.close();
+}
+main().then(function(){process.exit(0);}).catch(function(e){console.error('FATAL:',e);process.exit(1);});
+
+function find(s, pattern) { var m = s.match(pattern); return m ? m[1] : null; }
+function stripHtml(s) { return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+function findAll(s, pattern) { var re = new RegExp(pattern, 'g'); var out = []; var m; while ((m = re.exec(s)) !== null) out.push(m[1] || m[0]); return out; }
+

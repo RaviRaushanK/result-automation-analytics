@@ -1,0 +1,52 @@
+◇ injected env (11) from config\.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+◇ injected env (0) from config\.env // tip: ⌘ enable debugging { debug: true }
+
+[T1] showExtraction — subjects carry string confidence
+  PASS: showExtraction renders extraction.ejs
+  PASS: subjects[0].confidence === "high" (string)
+
+[T2] showExtraction — medium and low confidence
+  PASS: subjects[0].confidence === "medium" (string)
+  PASS: subjects[1].confidence === "low" (string)
+
+[T3] showReview (edit mode) — evidence.confidence is string
+  PASS: showReview renders review.ejs
+  PASS: mode === "edit"
+  PASS: rows.length === 2
+  PASS: row[0].evidence.confidence === "high"
+  PASS: row[0].priorDecision === null
+
+[T4] showReview (locked mode) — priorDecision from frozen proposal
+  PASS: mode === "locked"
+  PASS: SR1 priorDecision === "accept"
+  PASS: SR2 priorDecision === "reject"
+
+[T5] CONFIDENCE_SCORES mapping — "high" renders as "90%"
+  PASS: "high" → 90%
+  PASS: "medium" → 70%
+  PASS: "low" → 40%
+  PASS: null → "—"
+  PASS: number 0.85 → 85%
+  PASS: "HIGH" (uppercase) → 90%
+
+[T6] Decision column fallback — prop null, pd non-null
+  PASS: prop=null, pd=accept → ACCEPT
+  PASS: prop=null, pd=reject → REJECT
+  PASS: prop=null, pd=null → no decision saved
+  PASS: prop.accept → ACCEPT
+  PASS: prop.reject → REJECT
+
+[T7] extractor CONFIDENCE_SCORES aligns with template
+  PASS: extractor high=0.9
+  PASS: extractor medium=0.7
+  PASS: extractor low=0.4
+
+[T8] extraction.ejs template has CONFIDENCE_SCORES mapping
+  PASS: template has CONFIDENCE_SCORES map
+  PASS: template no longer calls Number() on raw confidence
+
+[T9] review.ejs has priorDecision fallback for Decision column
+  PASS: review.ejs references r.priorDecision
+  PASS: review.ejs renders badge with priorDecision.toUpperCase()
+
+==== PHASE 8 UI Columns: 30 passed, 0 failed ====

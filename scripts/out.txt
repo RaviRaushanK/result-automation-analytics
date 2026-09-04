@@ -1,0 +1,2 @@
+◇ injected env (11) from config\.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+◇ injected env (0) from config\.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }

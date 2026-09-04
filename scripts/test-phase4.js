@@ -33,25 +33,28 @@ var init = async function() {
     console.log('\n[T1] forged srid rejected');
     await setJ(99901, BJ2());
     var r1 = mkR();
-    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '999999', card_final_marks: '70', card_final_result: 'pass' } }), r1);
+    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '999999', card_internal_marks: '30', card_rv_marks: '40' } }), r1);
     check('Status >= 300', r1._s >= 300);
     check('Redirect to review', r1._r && r1._r.indexOf('99901') !== -1);
     console.log('\n[T2] empty required rejected');
     var r2 = mkR();
-    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99981', card_final_marks: '', card_final_result: '' } }), r2);
+    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99981', card_internal_marks: '', card_rv_marks: '' } }), r2);
     check('Status >= 300 on empty', r2._s >= 300);
     console.log('\n[T3] out-of-range rejected');
     var r3 = mkR();
-    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99981', card_final_marks: '9999', card_final_result: 'pass' } }), r3);
+    // internal=50 (OK, maxInt=50), rv=51 (FAIL, maxExt=50)
+    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99981', card_internal_marks: '50', card_rv_marks: '51' } }), r3);
     check('Status >= 300 on out-of-range', r3._s >= 300);
-    console.log('\n[T4] invalid result rejected');
+    console.log('\n[T4] invalid marks (NaN) rejected');
     var r4 = mkR();
-    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99981', card_final_marks: '70', card_final_result: 'maybe' } }), r4);
-    check('Status >= 300 on invalid result', r4._s >= 300);
+    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99981', card_internal_marks: 'abc', card_rv_marks: 'def' } }), r4);
+    check('Status >= 300 on invalid marks', r4._s >= 300);
     console.log('\n[T5] happy path creates MISSING_MANUAL entry');
     await clrR(99901);
     var r5 = mkR();
-    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99982', card_internal_marks: '30', card_old_marks: '55', card_old_result: 'pass', card_rv_marks: '35', card_rv_result: 'pass', card_final_marks: '80', card_final_result: 'pass' } }), r5);
+    // New behavior: only Internal + RV marks are entered; Final is auto-calculated (30+50=80).
+    // Old marks/result come from DB (sr.marks=55, sr.result_status='pass').
+    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99982', card_internal_marks: '30', card_rv_marks: '50' } }), r5);
     check('Status >= 300 on success', r5._s >= 300);
     check('Redirect has notice param', r5._r && r5._r.indexOf('notice=') !== -1);
     var ocr5 = await OcrExtraction.findOne({ where: { import_id: 99901 } });
@@ -61,11 +64,16 @@ var init = async function() {
     check('Proposal has srid=99982 entry', !!e5);
     check('Entry.source=MISSING_MANUAL', e5 && e5.source === 'MISSING_MANUAL');
     check('Entry.decision=accept', e5 && e5.decision === 'accept');
-    check('Entry.final_marks=80', e5 && e5.proposed_revised_total_marks === 80);
+    check('Entry.final_marks=80 (auto=30+50)', e5 && e5.proposed_revised_total_marks === 80);
+    check('Entry.card_internal_marks=30', e5 && e5.proposed_card_internal_marks === 30);
+    check('Entry.card_rv_marks=50', e5 && e5.proposed_card_rv_marks === 50);
+    check('Entry.card_old_marks from DB=55', e5 && e5.proposed_card_old_marks === 55);
+    check('Entry.card_old_result from DB=pass', e5 && e5.proposed_card_old_result === 'pass');
+    check('Entry.card_final_result=pass (auto)', e5 && e5.proposed_card_final_result === 'pass' || e5 && e5.proposed_card_rv_result === 'pass');
     check('Entry.was_manual_correction=true', e5 && e5.was_manual_correction === true);
     console.log('\n[T6] duplicate srid rejected');
     var r6 = mkR();
-    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99982', card_final_marks: '75', card_final_result: 'pass' } }), r6);
+    await ctrl.addMissing(mkReq({ params: { importId: 99901 }, body: { subject_result_id: '99982', card_internal_marks: '30', card_rv_marks: '40' } }), r6);
     check('Status >= 300 on duplicate', r6._s >= 300);
     check('Error mentions already', r6._r && r6._r.indexOf('already') !== -1);
     console.log('\n[T7] showReview: missingSubjects + 9-card fields');
