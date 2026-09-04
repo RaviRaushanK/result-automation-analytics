@@ -1,0 +1,14 @@
+{
+  "name": "seed",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-off database seed scripts for testing the result-automation-analytics system. NOT loaded by the running app.",
+  "scripts": {
+    "all": "node seed_all.js",
+    "students": "node seed_students.js",
+    "subjects": "node seed_subjects.js",
+    "results": "node seed_results.js",
+    "clean": "node seed_clean.js",
+    "summary": "node seed_summary.js"
+  }
+}

@@ -1,256 +1,171 @@
 # Result Automation Analytics (SRAAS)
 
-## Overview
+A Node.js/Express + MySQL application for managing academic results, students, subjects, revaluations, and analytics.
 
-A full-stack Node.js/Express application for managing academic results, students, subjects, and revaluations.
+---
+
+## Prerequisites
+
+- **Node.js** v18+ with npm v9+
+- **MySQL** v8.0+ (must be running before setup)
+- **Tesseract OCR** (required for PDF/table extraction in the revaluation workflow)
+
+---
+
+## Required `.env` variables
+
+Create `config/.env` and set these:
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `DB_HOST` | `localhost` | MySQL host |
+| `DB_PORT` | `3306` | MySQL port |
+| `DB_USER` | `root` | MySQL user |
+| `DB_PASSWORD` | — | MySQL password |
+| `DB_NAME` | `academic_result_analytics_db` | Database name |
+| `SESSION_SECRET` | — | **Change for production.** Long random string recommended. |
+| `APP_PORT` | `3000` | App listen port |
+| `MAX_UPLOAD_SIZE` | `20MB` | Max file upload size |
+| `OCR_PROVIDER` | `tesseract` | OCR engine |
+
+---
 
 ## Features
 
-- Manage departments, batches, students, faculty, and subjects
-- Record semester results with optional SGPA and CGPA values
-- Handle revaluation requests with file uploads
-- Generate analytics and reports
-- Role-based access control (admin, faculty, student)
-- Dashboard with sidebar navigation
-- Session and academic management
+- Manage **departments, batches, students, faculty, and subjects**
+- Record **semester results** with SGPA, CGPA, and grade tracking
+- **Revaluation workflow** with PDF upload, OCR extraction, and manual review
+- **Analytics dashboards** — toppers, failed students, subject performance
+- **Role-based access control** (admin, faculty, student)
+- Idempotent seed scripts for demo data (`seed/`)
 
-## Technology Stack
+---
 
-- **Runtime**: Node.js
-- **View Engine**: EJS (Embedded JavaScript)
-- **Database**: MySQL
-- **ORM**: Sequelize
-- **Authentication**: express-session with bcryptjs
-- **UI**: Bootstrap 5, Material Icons
+## Tech stack
 
-## Project Structure
+- Node.js / Express 5
+- EJS templates (with `express-ejs-layouts`)
+- MySQL via Sequelize 6
+- `express-session` + `bcryptjs` authentication
+- Bootstrap 5, Material Icons
+- `tesseract.js` + `pdfjs-dist` for OCR / PDF extraction
 
-```text
-result-automation-analytics/
-├── app.js                          # Express application entry point
-├── package.json                    # Project metadata and dependencies
-├── package-lock.json               # Dependency lock file
-├── README.md                       # Main project documentation
-├── .gitignore                      # Git ignore rules
-├── .sequelizerc                    # Sequelize CLI configuration
-├── config/
-│   ├── .env.example                # Environment variables template
-│   ├── config.js                   # Application configuration
-│   ├── db.js                       # Database connection
-│   ├── session.js                  # Session configuration
-│   ├── sidebar.json                # Sidebar menu configuration
-│   └── README.md                   # Configuration documentation
-├── controllers/
-│   ├── authController.js
-│   ├── batchController.js
-│   ├── resultController.js
-│   ├── sessionController.js
-│   └── subjectController.js
-├── database/
-│   ├── schema.sql                  # Database schema
-│   └── models/
-│       ├── index.js
-│       ├── AdminUser.js
-│       ├── Batch.js
-│       ├── Department.js
-│       ├── Faculty.js
-│       ├── ImportLog.js
-│       ├── OcrExtraction.js
-│       ├── Result.js
-│       ├── ResultSession.js
-│       ├── RevaluationResult.js
-│       ├── Student.js
-│       ├── Subject.js
-│       ├── SubjectFaculty.js
-│       ├── SubjectResult.js
-│       └── SystemSetting.js
-├── docs/
-│   ├── database-structure.md
-│   ├── er-diagram.md
-│   ├── implementation-status.md
-│   └── project-structure.md
-├── init/
-│   ├── 01-default-settings.js
-│   ├── 02-default-admin.js
-│   └── README.md
-├── middlewares/
-│   ├── authMiddleware.js
-│   ├── layoutMiddleware.js
-│   ├── menuMiddleware.js
-│   ├── themeMiddleware.js
-│   └── userMiddleware.js
-├── migrations/
-│   ├── 20231001000000-create-all-tables.js
-│   └── 20231101000000-modify-schema.js
-├── public/
-│   ├── charts/
-│   ├── css/
-│   │   ├── dashboard.css
-│   │   ├── landing.css
-│   │   ├── login.css
-│   │   └── tokens.css
-│   ├── images/
-│   └── js/
-│       ├── landing.js
-│       ├── sidebar.js
-│       └── themeSwitcher.js
-├── routes/
-│   ├── authRoutes.js
-│   ├── batchRoutes.js
-│   ├── dashboardRoutes.js
-│   ├── landingRoutes.js
-│   ├── resultRoutes.js
-│   ├── sessionRoutes.js
-│   ├── subjectRoutes.js
-├── scripts/
-│   ├── bootstrap-db.js
-│   └── runInit.js
-├── seeders/
-│   └── 20231001000100-seed-mca.js
-├── services/
-├── uploads/
-└── views/
-    ├── README.md
-    ├── analytics/
-    ├── auth/
-    ├── batches/
-    ├── chat/
-    ├── dashboard/
-    ├── departments/
-    ├── errors/
-    ├── faculty/
-    ├── landing/
-    ├── layouts/
-    ├── partials/
-    ├── reports/
-    ├── results/
-    ├── revaluation/
-    ├── sessions/
-    ├── students/
-    ├── subjects/
-```
+---
 
-## Installation
-
-### Prerequisites
-
-* Node.js (v18 or later recommended)
-* npm (v9 or later)
-* MySQL (v8.0 or later)
-
-### Clone the Repository
+## Quick start
 
 ```bash
-git clone https://github.com/RaviRaushanK/result-automation-analytics.git
-cd result-automation-analytics
-```
-
-### Install Dependencies
-
-```bash
+# 1. Install
 npm install
-```
 
-### Configure Environment
+# 2. Configure (copy + edit credentials)
+cp config/.env.example config/.env      # macOS / Linux
+# On Windows, create config/.env manually
 
-Copy the example environment file and update the required values.
-
-```bash
-cp config/.env.example config/.env
-```
-
-> **Note:** On Windows, create `config/.env` manually or use File Explorer if the `cp` command is unavailable.
-
-Update the database credentials and other environment variables inside `config/.env`.
-
-### Initialize the Database
-Run the initialization script to create the database schema, seed default data, and prepare the application.
-
-```bash
+# 3. Initialize the database (create DB + run migrations + init scripts)
 npm run setup
-```
 
-### Run Database Seeders (Insert Demo Data Into DB)
-```bash
-npm run seed
-```
+# 4. (optional) populate with test data
+node seed/seed_all.js                   # see seed/README.md for details
 
-### Start the Application
-```bash
+# 5. Start the app
 npm start
 ```
 
-or during development:
+The app is served at <http://localhost:3000>.
 
-```bash
-npm run dev <- Not working
-```
+---
 
-The application will be available at:
+## Default admin account
+
+| Field    | Value               |
+|----------|---------------------|
+| Username | `admin`             |
+| Email    | `admin@example.com` |
+| Password | `admin123`          |
+
+(Seeded by `init/02-default-admin.js`. Change immediately in production.)
+
+---
+
+## npm scripts
+
+| Script              | What it does                                                |
+|---------------------|-------------------------------------------------------------|
+| `npm run setup`     | Create DB → run migrations → run init scripts               |
+| `npm run migrate`   | Run Sequelize migrations only                               |
+| `npm run init-db`   | Run `init/*.js` initialization scripts (settings, admin)   |
+| `npm start`         | Start the Express server (`node app.js`)                    |
+
+`npm run seed` is reserved for the (optional) `seeders/` directory; **demo data lives in `seed/`** and is run manually via `node seed/seed_all.js`.
+
+---
+
+## Project layout
 
 ```text
-http://localhost:3000
+result-automation-analytics/
+├── app.js                       # Express entry point
+├── config/                      # .env, db, session, sidebar
+├── controllers/                 # Route handlers (auth, dashboard, results, revaluation, …)
+├── database/models/             # Sequelize models
+├── docs/                        # Database ER diagram, project structure
+├── init/                        # 01-default-settings, 02-default-admin
+├── middlewares/                 # auth, layout, menu, theme, user
+├── migrations/                  # Sequelize CLI migrations
+├── public/                      # css, js, images, charts
+├── routes/                      # Express route modules
+├── scripts/                     # bootstrap-db.js, runInit.js
+├── seed/                        # Manual test-data seeder (see seed/README.md)
+├── services/                    # OCR, document/revaluation extractors
+├── uploads/                     # Uploaded revaluation files
+└── views/                       # EJS templates
 ```
 
-## Default Login Credentials
+---
 
-After completing the setup, log in using the default administrator account configured by the initialization script.
+## Routes (high level)
 
-| Field        | Value               |
-| ------------ | ------------------- |
-| **Username** | `admin`             |
-| **Email**    | `admin@example.com` |
-| **Password** | `admin123`          |
+| Path           | Purpose                  | Access          |
+|----------------|--------------------------|-----------------|
+| `/`            | Landing page             | Public          |
+| `/login`       | Login                    | Public          |
+| `/dashboard`   | Admin/faculty dashboard  | Authenticated   |
+| `/batches`     | Batch management         | Authenticated   |
+| `/subjects`    | Subject management       | Authenticated   |
+| `/sessions`    | Result session mgmt      | Authenticated   |
+| `/results`     | Result entry & review    | Authenticated   |
+| `/revaluation` | Revaluation workflow     | Authenticated   |
+| `/analytics/*` | Reports & analytics      | Authenticated   |
 
+---
 
-## Available npm Scripts
+## User roles
 
-npm install - Install dependencies
-npm run setup - Setup database, run migrations, init data
-npm run migrate - Run migrations
-npm run seed - Run seeders
-npm run init-db - Run initialization scripts
-npm start - Start the application
+| Role | Access |
+|------|--------|
+| `admin` | Full CRUD on all entities, revaluation review, settings |
+| `faculty` | View dashboard, results, analytics; no admin settings |
+| `student` | Read-only access to own results |
 
-## Authentication
+---
 
-The application uses session-based authentication with bcryptjs for password hashing.
+## Troubleshooting
 
-## Routes
+### `subject_code must be unique` on seed
 
-/ - Landing page - Public
-/login - Login page - Public
-/logout - Logout - Authenticated
-/dashboard - Dashboard - Authenticated
-/batches - Batch management - Authenticated
-/subjects - Subject management - Authenticated
-/results - Result management - Authenticated
-/sessions - Session management - Authenticated
+The database may have a stale single-column unique index on `subjects.subject_code` that prevents the same code from appearing in multiple sessions. Fix:
 
-## Current Project Status
+```sql
+ALTER TABLE subjects DROP INDEX subject_code;
+```
 
-- Core architecture implemented with Express.js and Sequelize
-- Database models and associations defined
-- Dashboard with sidebar navigation
-- CRUD operations for batches, subjects, results, sessions
-- EJS views with layout system
+The composite index `UNIQUE(session_id, subject_code)` remains and is correct.
 
-## Future Roadmap
+---
 
-- Add pagination and filtering to result listings
-- Implement role-based access control for admin, faculty, and student roles
-- Add file upload functionality for revaluation documents
-- Implement OCR extraction for result processing
-- Implement automated tests
-- Add API endpoints for mobile applications
+## Documentation
 
-## License
-This project is licensed under the ISC License.
-
-## Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-Password: admin123
+- `docs/er-diagram.md` — entity-relationship diagram
+- `docs/database-structure.md` — schema and constraints
+- `seed/README.md` — how to populate test data
