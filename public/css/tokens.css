@@ -1113,10 +1113,6 @@ body {
   background-color: var(--card-bg);
   color: var(--text-primary);
 }
-/* :root[data-theme="dark"] .revaluation-ui .table-success {
-  background-color: rgba(40, 167, 69, 0.15) !important;
-  color: var(--text-primary);
-} */
 :root[data-theme="dark"] .revaluation-ui .table-hover > tbody > tr:hover,
 :root[data-theme="dark"] .revaluation-ui .table-striped > tbody > tr:nth-of-type(odd) > td,
 :root[data-theme="dark"] .revaluation-ui .table-striped > tbody > tr:nth-of-type(odd) > th {
@@ -1182,6 +1178,12 @@ body {
   background-color: rgba(248, 113, 113, 0.2) !important;
   color: #f87171 !important;
 }
+
+:root[data-theme="dark"] .revaluation-ui .badge.bg-success {
+  background-color: rgba(74, 222, 128, 0.2) !important; /* Soft transparent green */
+  color: #4ade80 !important;                            /* Crisp light green text */
+}
+
 :root[data-theme="dark"] .revaluation-ui .badge.bg-warning {
   background-color: rgba(251, 191, 36, 0.2) !important;
   color: #fbbf24 !important;
@@ -1262,31 +1264,20 @@ body {
   color: #ffffff;
 }
 
-/* ========================================
-   Additional fixes for specific elements
-   ======================================== */
 
-/* Table success rows - Dark mode: keep green tint and use light text for readability */
-:root[data-theme="dark"] .revaluation-ui tr.table-success {
-  background-color: #d1e7dd !important;
-  color: #212529 !important;
-}
-:root[data-theme="dark"] .revaluation-ui tr.table-success td {
-  background-color: #d1e7dd !important;
-  color: #212529 !important;
-}
-:root[data-theme="dark"] .revaluation-ui tr.table-success td .badge {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-  color: #212529 !important;
-}
-:root[data-theme="dark"] .revaluation-ui tr.table-success .badge {
-  color: #fff !important;
-}
+/* ======================================== Additional fixes for specific elements ======================================== */ 
 
-/* Card body analytics values (SGPA, CGPA, Failed subjects spans) - Dark mode text */
-:root[data-theme="dark"] .revaluation-ui .card-body .fs-5 {
-  color: var(--text-primary) !important;
-}
+/* Table success rows - Dark mode: dark green background with crisp light text */ 
+:root[data-theme="dark"] .revaluation-ui tr.table-success { 
+  background-color: #0f3d24 !important; /* Dark forest green */
+  color: #e1f5fe !important;            /* Off-white / light green-tinted text */
+} 
+
+:root[data-theme="dark"] .revaluation-ui tr.table-success td { 
+  background-color: #0f3d24 !important; 
+  color: #e1f5fe !important; 
+} 
+
 
 /* Small elements with text-muted (credits, etc.) - Dark mode text */
 :root[data-theme="dark"] .revaluation-ui small.text-muted {
@@ -1468,4 +1459,46 @@ body {
 :root[data-theme="dark"] .revaluation-ui .alert-warning strong,
 :root[data-theme="dark"] .alert-warning strong {
   color: #fef3c7 !important;
+}
+
+/* ======================================== Modal Custom Theme (Variables Version) ======================================== */
+
+/* Main modal container background and text mapped to card tokens */
+:root[data-theme="dark"] .modal-content {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--card-border) !important;
+  box-shadow: 0 10px 25px -5px var(--overlay-bg) !important;
+}
+
+/* Vibrantly tinted header mapping to matching accent color elements */
+:root[data-theme="dark"] .modal-header.bg-success-subtle {
+  background-color: rgba(52, 211, 153, 0.1) !important; /* Translucent version of accent-emerald */
+  border-bottom: 1px solid var(--card-border) !important;
+  color: var(--accent-emerald) !important;               /* Sharp mint green token text */
+}
+
+/* Native dark mode system close button */
+:root[data-theme="dark"] .modal-header .btn-close {
+  filter: invert(1) grayscale(1) brightness(1.5) !important;
+}
+
+/* Body modifications using core secondary text token */
+:root[data-theme="dark"] .modal-body .text-muted {
+  color: var(--text-secondary) !important;
+}
+
+/* Footer clean alignment */
+:root[data-theme="dark"] .modal-footer {
+  border-top: 1px solid var(--card-border) !important;
+}
+
+/* Outlined cancel button using sidebar elements for button depth */
+:root[data-theme="dark"] .modal-footer .btn-outline-secondary {
+  color: var(--text-secondary) !important;
+  border-color: var(--sidebar-hover) !important;
+}
+:root[data-theme="dark"] .modal-footer .btn-outline-secondary:hover {
+  background-color: var(--sidebar-hover) !important;
+  color: var(--text-primary) !important;
 }
