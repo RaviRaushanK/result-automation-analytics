@@ -1,0 +1,270 @@
+/* ============================================================
+   SRAAS — Analytics module styles (Phase 4, UI shell only)
+   Scoped to Analytics pages only. Consumes existing design
+   tokens from tokens.css; redefines NO global theme tokens.
+   ============================================================ */
+
+/* Component-scoped variables only (no global theme tokens). */
+.analytics-page {
+  --analytics-card-accent-width: 4px;
+  --analytics-chart-min-height: 320px;
+}
+
+/* ---------- Page header ---------- */
+.analytics-page .analytics-header {
+  margin-bottom: 1.25rem;
+}
+.analytics-page .analytics-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.analytics-page .analytics-header p {
+  color: var(--text-secondary);
+  margin-bottom: 0;
+  font-size: 0.95rem;
+}
+
+/* ---------- Result basis (mode) indicator ---------- */
+.analytics-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+  background: var(--secondary-bg);
+  color: var(--text-secondary);
+}
+.analytics-mode-badge .material-icons {
+  font-size: 1rem;
+}
+.analytics-mode-badge.is-effective {
+  color: var(--accent-purple);
+  border-color: var(--accent-purple);
+}
+.analytics-mode-badge.is-original {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+.analytics-stored-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ---------- Cards ---------- */
+.analytics-page .analytics-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+}
+.analytics-page .analytics-card .card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.analytics-page .analytics-card .card-body {
+  color: var(--text-primary);
+}
+
+/* ---------- Summary metric cards ---------- */
+.analytics-summary-card {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+}
+.analytics-summary-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--analytics-card-accent-width);
+  background: var(--accent-blue);
+}
+.analytics-summary-card.accent-green::before { background: var(--accent-green); }
+.analytics-summary-card.accent-red::before   { background: var(--accent-red); }
+.analytics-summary-card.accent-teal::before  { background: var(--accent-teal); }
+.analytics-summary-card.accent-amber::before { background: var(--accent-amber); }
+.analytics-summary-card.accent-purple::before{ background: var(--accent-purple); }
+.analytics-summary-card.accent-orange::before{ background: var(--accent-orange); }
+.analytics-summary-card .analytics-summary-icon {
+  font-size: 1.6rem;
+  color: var(--text-secondary);
+}
+.analytics-summary-card .analytics-summary-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.analytics-summary-card .analytics-summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.analytics-summary-card .analytics-summary-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ---------- Filter panel ---------- */
+.analytics-page .analytics-filters {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.5rem;
+}
+.analytics-page .analytics-filters .form-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.analytics-page .analytics-filters .form-select,
+.analytics-page .analytics-filters .form-control {
+  background: var(--secondary-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+.analytics-page .analytics-filters .filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* ---------- Tables ---------- */
+.analytics-page .analytics-table {
+  --bs-table-bg: transparent;
+  color: var(--text-primary);
+  margin-bottom: 0;
+}
+.analytics-page .analytics-table thead th {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+.analytics-page .analytics-table tbody td {
+  border-color: var(--card-border);
+  vertical-align: middle;
+}
+
+/* ---------- Status badges (icon + text, never color-only) ---------- */
+.analytics-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+}
+.analytics-status .material-icons { font-size: 0.9rem; }
+.analytics-status.pass { color: var(--color-success); border-color: var(--color-success); }
+.analytics-status.fail { color: var(--color-danger); border-color: var(--color-danger); }
+.analytics-status.neutral { color: var(--text-secondary); }
+
+/* ---------- Chart placeholders (Phase 5 fills these) ---------- */
+.analytics-chart-container {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  min-height: var(--analytics-chart-min-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.analytics-chart-placeholder {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* ---------- Empty state ---------- */
+.analytics-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  border: 1px dashed var(--card-border);
+  border-radius: 0.75rem;
+}
+.analytics-empty .material-icons { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
+
+/* ---------- Loading / skeleton (used by Phase 5 JS) ---------- */
+.analytics-loading td { color: var(--text-secondary); }
+.analytics-skeleton {
+  display: inline-block;
+  height: 0.9rem;
+  border-radius: 0.35rem;
+  background: var(--secondary-bg);
+  border: 1px solid var(--card-border);
+  width: 100%;
+}
+.analytics-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ---------- Pagination ---------- */
+.analytics-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0;
+}
+.analytics-pagination .analytics-page-indicator {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* ---------- Revaluation pipeline chips ---------- */
+.analytics-pipeline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+}
+.analytics-pipeline-chip .analytics-pipeline-count {
+  background: var(--secondary-bg);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  color: var(--text-primary);
+}
+.analytics-pipeline-chip.approved { color: var(--color-success); border-color: var(--color-success); }
+.analytics-pipeline-chip.pending  { color: var(--color-warning); border-color: var(--color-warning); }
+.analytics-pipeline-chip.rejected { color: var(--color-danger); border-color: var(--color-danger); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 767.98px) {
+  .analytics-page .analytics-filters .filter-actions {
+    justify-content: flex-start;
+  }
+  .analytics-page .analytics-header h1 { font-size: 1.25rem; }
+}

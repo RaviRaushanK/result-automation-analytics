@@ -1,0 +1,197 @@
+<div class="analytics-page">
+  <%# ---- Page header ---- %>
+  <div class="analytics-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h1>Revaluation Analysis</h1>
+      <p>Review revaluation outcomes, pipeline status, and effective integrity across the selected scope.</p>
+    </div>
+  </div>
+
+  <%# ---- Filters (options populated by Phase 5) ---- %>
+  <div class="analytics-filters">
+    <form id="analytics-filter-form" autocomplete="off">
+      <div class="row g-3">
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-academic-year">Academic Year</label>
+          <select class="form-select" id="filter-academic-year" name="exam_year">
+            <option value="">All Academic Years</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-semester">Semester</label>
+          <select class="form-select" id="filter-semester" name="semester">
+            <option value="">All Semesters</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-department">Department</label>
+          <select class="form-select" id="filter-department" name="department_id">
+            <option value="">All Departments</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-batch">Batch</label>
+          <select class="form-select" id="filter-batch" name="batch_id">
+            <option value="">All Batches</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-session">Result Session</label>
+          <select class="form-select" id="filter-session" name="session_id">
+            <option value="">All Sessions</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-subject">Subject</label>
+          <select class="form-select" id="filter-subject" name="subject_id">
+            <option value="">All Subjects</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-revaluation-status">Revaluation Status</label>
+          <select class="form-select" id="filter-revaluation-status" name="revaluation_status">
+            <option value="">All Statuses</option>
+          </select>
+        </div>
+        <div class="col-12 filter-actions">
+          <button type="reset" class="btn btn-outline-secondary">Reset</button>
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <%# ---- Summary metric cards (values loaded by Phase 5) ---- %>
+  <%# ---- Pipeline counts ---- %>
+  <section aria-labelledby="revaluation-pipeline-heading" class="mt-4">
+    <h2 id="revaluation-pipeline-heading" class="h5 mb-3">Pipeline (Persisted Ledger Rows)</h2>
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <div class="analytics-summary-card accent-amber" data-metric="pipeline-pending">
+          <span class="analytics-summary-label">Pending</span>
+          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="analytics-summary-card accent-green" data-metric="pipeline-approved">
+          <span class="analytics-summary-label">Approved</span>
+          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="analytics-summary-card accent-red" data-metric="pipeline-rejected">
+          <span class="analytics-summary-label">Rejected</span>
+          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+        </div>
+      </div>
+    </div>
+    <p class="analytics-note">
+      Pipeline counts are persisted RevaluationResult ledger rows, not real-world application counts.
+    </p>
+  </section>
+
+  <%# ---- Aggregate revaluation outcomes ---- %>
+  <section aria-labelledby="revaluation-table-heading" class="mt-4">
+    <div class="analytics-card">
+      <h2 id="revaluation-table-heading" class="h6 analytics-card-title">Revaluation Outcomes</h2>
+      <p class="analytics-note">
+        Aggregate outcomes, not individual student records. Delta = Revised Marks − Original Marks.
+        Positive values indicate mark increases.
+      </p>
+      <div class="table-responsive">
+        <table class="table analytics-table" id="revaluation-table">
+          <caption class="visually-hidden">Aggregate revaluation outcomes</caption>
+          <thead><tr><th scope="col">Metric</th><th scope="col">Value</th></tr></thead>
+          <tbody id="revaluation-table-body">
+            <tr class="analytics-table-empty-row">
+              <td colspan="2" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p id="revaluation-integrity" class="analytics-note" role="status"></p>
+    </div>
+  </section>
+
+  <%# ---- Shared empty state (toggled by Phase 5) ---- %>
+  <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
+    <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
+    <p>No analytics data found for the selected filters.</p>
+  </div>
+
+   <%# ---- Phase 6: Revaluation outcomes by subject ---- %>
+   <section aria-labelledby="revaluation-by-subject-heading" class="mt-4">
+     <div class="analytics-card">
+       <h2 id="revaluation-by-subject-heading" class="h6 analytics-card-title">Revaluation Outcomes by Subject</h2>
+       <p class="analytics-note">
+         Per-subject effective revaluation outcomes. Only approved+effective events contribute; pending/rejected rows are excluded.
+       </p>
+       <div class="table-responsive">
+         <table class="table analytics-table" id="revaluation-by-subject-table">
+           <caption class="visually-hidden">Revaluation outcomes grouped by subject</caption>
+           <thead>
+             <tr>
+               <th scope="col">Subject</th>
+               <th scope="col">Cases</th>
+               <th scope="col">Status Changes</th>
+               <th scope="col">Fail → Pass</th>
+               <th scope="col">Pass → Fail</th>
+               <th scope="col">Positive Δ</th>
+               <th scope="col">Unchanged</th>
+               <th scope="col">Negative Δ</th>
+               <th scope="col">Avg Δ</th>
+               <th scope="col">Max Δ</th>
+               <th scope="col">Min Δ</th>
+             </tr>
+           </thead>
+           <tbody id="revaluation-by-subject-body">
+             <tr class="analytics-table-empty-row">
+               <td colspan="11" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+             </tr>
+           </tbody>
+         </table>
+       </div>
+     </div>
+   </section>
+
+   <%# ---- Phase 6: Effective revaluation event detail ---- %>
+   <section aria-labelledby="revaluation-detail-heading" class="mt-4">
+     <div class="analytics-card">
+       <h2 id="revaluation-detail-heading" class="h6 analytics-card-title">Effective Revaluation Event Detail</h2>
+       <p class="analytics-note">
+         Individual approved+effective revaluation events. Not a list of all revaluation applications — pending/rejected rows are excluded.
+       </p>
+       <div class="table-responsive">
+         <table class="table analytics-table" id="revaluation-detail-table">
+           <caption class="visually-hidden">Effective revaluation event detail</caption>
+           <thead>
+             <tr>
+               <th scope="col">Subject</th>
+                <th scope="col">Student (USN)</th>
+                <th scope="col">Student Name</th>
+                <th scope="col">Case ID</th>
+                <th scope="col">Old Marks</th>
+                <th scope="col">Final Marks</th>
+                <th scope="col">Delta</th>
+                <th scope="col">Old Status</th>
+                <th scope="col">Final Status</th>
+                <th scope="col">Validation</th>
+               <th scope="col">Remark Type</th>
+               <th scope="col">Remarks</th>
+               <th scope="col">Source</th>
+             </tr>
+           </thead>
+           <tbody id="revaluation-detail-body">
+             <tr class="analytics-table-empty-row">
+               <td colspan="13" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+             </tr>
+           </tbody>
+         </table>
+       </div>
+     </div>
+   </section>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/page.js"></script>
+<script src="/js/analytics/revaluation.js"></script>
