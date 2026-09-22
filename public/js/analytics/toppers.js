@@ -18,7 +18,11 @@
   const modeSel = document.getElementById('filter-mode');
   const emptyState = document.getElementById('analytics-empty-state');
   const tableBody = document.getElementById('toppers-table-body');
+  const prevBtn = document.getElementById('toppers-page-prev');
+  const nextBtn = document.getElementById('toppers-page-next');
+  const pageIndicator = document.getElementById('toppers-page-indicator');
   // Pagination cursor for the backend limit/offset contract.
+  const PAGE_SIZE = 25;
   let currentPage = 0;
 
   // ---------- Helpers ----------
@@ -177,6 +181,17 @@
       esc(status ? status.toUpperCase() : '—') + '</span>';
   }
 
+
+  function refreshTable() {
+    if (window.AnalyticsTable) window.AnalyticsTable.refresh('toppers-table');
+  }
+
+  function updatePagination(rowCount) {
+    if (pageIndicator) pageIndicator.textContent = 'Page ' + (currentPage + 1);
+    if (prevBtn) prevBtn.disabled = currentPage === 0;
+    if (nextBtn) nextBtn.disabled = rowCount < PAGE_SIZE;
+  }
+
   function renderRow(row) {
     var tr = document.createElement('tr');
     tr.innerHTML =
@@ -196,8 +211,8 @@
     showSkeleton(true);
     showEmpty(false);
     var params = readFilters();
-    params.set('limit', '25');
-    params.set('offset', String(currentPage * 25));
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(currentPage * PAGE_SIZE));
     var url = '/analytics/api/toppers' + qs(params);
     fetchJSON(url).then(function (json) {
       if (json.success === false) throw new Error(json.message || 'API error');
@@ -215,10 +230,14 @@
         tr.appendChild(td);
         tableBody.appendChild(tr);
         showEmpty(true);
+        refreshTable();
+        updatePagination(0);
         return;
       }
       data.forEach(function (row) { tableBody.appendChild(renderRow(row)); });
       showEmpty(false);
+      refreshTable();
+      updatePagination(data.length);
     }).catch(function (err) {
       console.error('Toppers load error:', err);
       if (tableBody) {
@@ -233,6 +252,8 @@
         tableBody.appendChild(tr);
       }
       showEmpty(true);
+      refreshTable();
+      updatePagination(0);
     });
   }
 
@@ -250,6 +271,22 @@
   if (batchSel) batchSel.addEventListener('change', function () { refreshDepends('batch'); });
   if (sessionSel) sessionSel.addEventListener('change', function () { refreshDepends('session'); });
   if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadToppers(true); });
+
+  // Pagination + sortable/searchable table (presentation only).
+  if (prevBtn) prevBtn.addEventListener('click', function () {
+    if (currentPage > 0) { currentPage--; loadToppers(false); }
+  });
+  if (nextBtn) nextBtn.addEventListener('click', function () {
+    currentPage++;
+    loadToppers(false);
+  });
+  if (window.AnalyticsTable) {
+    window.AnalyticsTable.enhance('toppers-table', {
+      search: 'toppers-search',
+      count: 'toppers-count',
+      rowLabel: 'candidates'
+    });
+  }
 
   refreshDepends('all');
   updateModeBadge('original');

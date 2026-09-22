@@ -80,6 +80,17 @@
       <p class="analytics-note px-2">
         Metrics reflect subject-level outcomes for the selected result basis.
       </p>
+      <div class="analytics-toolbar">
+        <label class="analytics-search-wrap" for="subjects-search">
+          <span class="material-icons" aria-hidden="true">search</span>
+          <input type="search" id="subjects-search" class="analytics-search"
+                 placeholder="Search subject code or name…" autocomplete="off">
+        </label>
+        <div class="d-flex align-items-center gap-2">
+          <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
+          <span class="analytics-row-count" id="subjects-count" aria-live="polite"></span>
+        </div>
+      </div>
       <div class="table-responsive">
         <table class="table analytics-table" id="subjects-table">
           <caption class="visually-hidden">Subject result records</caption>
@@ -105,15 +116,42 @@
     </div>
   </section>
 
-  <%# ---- Grade distribution chart (Chart.js arrives in Phase 5) ---- %>
+  <%# ---- Subject charts (Chart.js) ---- %>
   <section aria-labelledby="subjects-grade-heading" class="mt-4">
-    <div class="analytics-card">
-      <h2 id="subjects-grade-heading" class="h6 p-2 analytics-card-title">Grade Distribution</h2>
-        <div class="analytics-chart-container">
-          <div class="analytics-chart-placeholder" id="subjects-grade-chart">
-            <canvas id="subjectsGradeChart"></canvas>
+    <div class="analytics-chart-grid">
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="subjects-grade-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">grade</span>
+          Grade Distribution
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="subjects-grade-chart" class="analytics-chart-host"></div>
           </div>
         </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="subjects-pass-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">percent</span>
+          Pass % by subject — top 10
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="subjects-pass-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="subjects-marks-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">insights</span>
+          Average vs maximum marks — top 10 by average
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="subjects-marks-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -125,4 +163,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/charts.js"></script>
+<script src="/js/analytics/tabletools.js"></script>
 <script src="/js/analytics/subjects.js"></script>

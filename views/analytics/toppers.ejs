@@ -74,6 +74,17 @@
       <p class="analytics-note px-2 ">
         Ranking criteria will follow the configured Analytics ranking policy.
       </p>
+      <div class="analytics-toolbar">
+        <label class="analytics-search-wrap" for="toppers-search">
+          <span class="material-icons" aria-hidden="true">search</span>
+          <input type="search" id="toppers-search" class="analytics-search"
+                 placeholder="Search candidates…" autocomplete="off">
+        </label>
+        <div class="d-flex align-items-center gap-2">
+          <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
+          <span class="analytics-row-count" id="toppers-count" aria-live="polite"></span>
+        </div>
+      </div>
       <div class="table-responsive">
         <table class="table analytics-table" id="toppers-table">
           <caption class="visually-hidden">Student performance candidate records</caption>
@@ -99,6 +110,13 @@
     </div>
   </section>
 
+  <%# ---- Pagination controls ---- %>
+  <nav id="analytics-pagination" class="analytics-pagination" aria-label="Candidate results pagination">
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="toppers-page-prev" disabled>Previous</button>
+    <span id="toppers-page-indicator" class="analytics-page-indicator" aria-live="polite">Page &mdash;</span>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="toppers-page-next" disabled>Next</button>
+  </nav>
+
   <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
     <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
     <p>No analytics data found for the selected filters.</p>
@@ -106,4 +124,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/charts.js"></script>
+<script src="/js/analytics/tabletools.js"></script>
 <script src="/js/analytics/toppers.js"></script>

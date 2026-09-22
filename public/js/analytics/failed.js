@@ -19,9 +19,9 @@
   const modeSel = document.getElementById('filter-mode');
   const emptyState = document.getElementById('analytics-empty-state');
 
-  const cardStudents = document.querySelector('[data-metric="failed-students"] .analytics-summary-value');
-  const cardAttempts = document.querySelector('[data-metric="failed-subject-attempts"] .analytics-summary-value');
-  const cardSubjects = document.querySelector('[data-metric="subjects-with-failures"] .analytics-summary-value');
+  const cardStudents = document.querySelector('[data-metric="failed-students"] .stat-value');
+  const cardAttempts = document.querySelector('[data-metric="failed-subject-attempts"] .stat-value');
+  const cardSubjects = document.querySelector('[data-metric="subjects-with-failures"] .stat-value');
   const tableBody = document.getElementById('failed-table-body');
 
   function esc(s) {
@@ -199,6 +199,68 @@
     return tr;
   }
 
+  function distinctCount(rows, field) {
+    var seen = {};
+    var count = 0;
+    (rows || []).forEach(function (row) {
+      var key = row && row[field];
+      if (key == null || key === '') return;
+      if (seen[key]) return;
+      seen[key] = true;
+      count++;
+    });
+    return count;
+  }
+
+  /**
+   * Charts read only the records already returned by /analytics/api/failed for
+   * the current filters - no totals are inferred beyond what is listed.
+   */
+  function renderCharts(rows) {
+    var api = window.AnalyticsCharts;
+    if (!api) return;
+
+    var bySubject = {};
+    (rows || []).forEach(function (row) {
+      var name = row.subjectName || row.subjectCode || 'Unknown';
+      bySubject[name] = (bySubject[name] || 0) + 1;
+    });
+    var subjectNames = Object.keys(bySubject).sort(function (a, b) {
+      return bySubject[b] - bySubject[a];
+    }).slice(0, 10);
+    api.render('failed-subject-chart', {
+      type: 'bar',
+      horizontal: true,
+      labels: subjectNames,
+      datasets: [{
+        label: 'Failure records',
+        palette: true,
+        data: subjectNames.map(function (name) { return bySubject[name]; })
+      }],
+      decimals: 0,
+      emptyMessage: 'No failure records listed for the current filters.'
+    });
+
+    var byStatus = {};
+    (rows || []).forEach(function (row) {
+      var status = row.revisedStatus || row.originalStatus || 'unknown';
+      var key = String(status).toUpperCase();
+      byStatus[key] = (byStatus[key] || 0) + 1;
+    });
+    var statusKeys = Object.keys(byStatus);
+    api.render('failed-status-chart', {
+      type: 'doughnut',
+      labels: statusKeys,
+      datasets: [{ label: 'Records', data: statusKeys.map(function (k) { return byStatus[k]; }) }],
+      decimals: 0,
+      emptyMessage: 'No status values in the listed records.'
+    });
+  }
+
+  function refreshTable() {
+    if (window.AnalyticsTable) window.AnalyticsTable.refresh('failed-table');
+  }
+
   function loadFailed() {
     showSkeleton(true);
     showEmpty(false);
@@ -210,11 +272,17 @@
       updateModeBadge(json.mode || 'original');
       var d = json;
       var summary = d.summary || {};
-      setCard(cardStudents, fmtInt(summary.failedStudents));
-      setCard(cardAttempts, fmtInt(summary.failedSubjectAttempts));
-      setCard(cardSubjects, fmtInt(summary.subjectsWithFailures));
-
       var data = d.data || [];
+
+      // Prefer service-level aggregates when the API supplies them; otherwise
+      // describe the records actually listed for these filters.
+      setCard(cardStudents, fmtInt(summary.failedStudents != null
+        ? summary.failedStudents : distinctCount(data, 'usn')));
+      setCard(cardAttempts, fmtInt(summary.failedSubjectAttempts != null
+        ? summary.failedSubjectAttempts : data.length));
+      setCard(cardSubjects, fmtInt(summary.subjectsWithFailures != null
+        ? summary.subjectsWithFailures : distinctCount(data, 'subjectName')));
+
       if (!tableBody) return;
       tableBody.innerHTML = '';
       if (!data.length) {
@@ -227,13 +295,18 @@
         tr.appendChild(td);
         tableBody.appendChild(tr);
         showEmpty(true);
+        renderCharts([]);
+        refreshTable();
         return;
       }
       data.forEach(function (row) { tableBody.appendChild(renderRow(row)); });
       showEmpty(false);
+      renderCharts(data);
+      refreshTable();
     }).catch(function (err) {
       console.error('Failed students load error:', err);
       setCard(cardStudents, '\u2014'); setCard(cardAttempts, '\u2014'); setCard(cardSubjects, '\u2014');
+      renderCharts([]);
       if (tableBody) {
         tableBody.innerHTML = '';
         var tr = document.createElement('tr');
@@ -246,6 +319,7 @@
         tableBody.appendChild(tr);
       }
       showEmpty(true);
+      refreshTable();
     });
   }
 
@@ -264,6 +338,15 @@
   if (sessionSel) sessionSel.addEventListener('change', function () { refreshDepends('session'); });
   if (subjectSel) subjectSel.addEventListener('change', function () { refreshDepends('subject'); });
   if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadFailed(); });
+
+  // Sortable/searchable results table (presentation only).
+  if (window.AnalyticsTable) {
+    window.AnalyticsTable.enhance('failed-table', {
+      search: 'failed-search',
+      count: 'failed-count',
+      rowLabel: 'records'
+    });
+  }
 
   refreshDepends('all');
   updateModeBadge('original');

@@ -54,10 +54,15 @@
         td.setAttribute('colspan', '8'); td.className = 'analytics-table-empty';
         td.textContent = 'No subject data found for the selected filters.';
         tr.appendChild(td); tBodyS.appendChild(tr);
-        showEmpty(true); return;
+        showEmpty(true);
+        renderSubjectCharts([]);
+        refreshTable();
+        return;
       }
       data.forEach(function (r) { tBodyS.appendChild(renderSubjectRow(r)); });
       showEmpty(false);
+      renderSubjectCharts(data);
+      refreshTable();
       loadSubjectsGradeDist(params);
     }).catch(function (e) {
       console.error('Subjects error:', e);
@@ -71,6 +76,8 @@
         tr.appendChild(td); tBodyS.appendChild(tr);
       }
       showEmpty(true);
+      renderSubjectCharts([]);
+      refreshTable();
     });
   }
 
@@ -87,8 +94,12 @@
   function showSkeleton(show) {
     if (!show) return;
     tBodyS.innerHTML = '<tr><td colspan="8">Loading…</td></tr>';
-    if (gradeChartS) { gradeChartS.destroy(); gradeChartS = null; }
-    chartElS.textContent = 'Loading…';
+    if (window.AnalyticsCharts) {
+      window.AnalyticsCharts.destroy('subjects-grade-chart');
+      window.AnalyticsCharts.destroy('subjects-pass-chart');
+      window.AnalyticsCharts.destroy('subjects-marks-chart');
+    }
+    if (window.AnalyticsTable) window.AnalyticsTable.refresh('subjects-table');
   }
   function updateModeBadge(mode) {
     mode = mode === 'effective' ? 'effective' : 'original';
@@ -112,22 +123,68 @@
     return json;
   }
   async function loadSubjectsGradeDist(params) {
+    var api = window.AnalyticsCharts;
+    if (!api) return;
     try {
       var json = await fetchJSON('/analytics/api/grade-distribution' + qs(params));
       var rows = json.data || [];
-      chartElS.textContent = '';
-      if (!rows.length || typeof Chart === 'undefined') {
-        chartElS.textContent = rows.map(function (row) { return row.grade + ': ' + fmtInt(row.count); }).join(' • ') || 'No grade data found.';
-        return;
-      }
-      var canvas = document.createElement('canvas');
-      chartElS.appendChild(canvas);
-      gradeChartS = new Chart(canvas, {
+      api.render('subjects-grade-chart', {
         type: 'bar',
-        data: { labels: rows.map(function (r) { return r.grade; }), datasets: [{ label: 'Subject attempts', data: rows.map(function (r) { return r.count; }), backgroundColor: '#2563eb' }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        labels: rows.map(function (row) { return row.grade; }),
+        datasets: [{
+          label: 'Subject grades',
+          palette: true,
+          data: rows.map(function (row) { return row.count; })
+        }],
+        decimals: 0,
+        emptyMessage: 'No grade data found for the current filters.'
       });
-    } catch (err) { chartElS.textContent = 'Unable to load grade distribution.'; }
+    } catch (err) {
+      api.render('subjects-grade-chart', {
+        type: 'bar',
+        labels: [],
+        datasets: [],
+        emptyMessage: 'Unable to load grade distribution.'
+      });
+    }
+  }
+
+  /** Pass % and marks charts read only the subject rows already returned. */
+  function renderSubjectCharts(rows) {
+    var api = window.AnalyticsCharts;
+    if (!api) return;
+    var list = rows || [];
+
+    var byPass = list.slice().sort(function (a, b) {
+      return (Number(b.passPercentage) || 0) - (Number(a.passPercentage) || 0);
+    }).slice(0, 10);
+    api.render('subjects-pass-chart', {
+      type: 'bar',
+      horizontal: true,
+      labels: byPass.map(function (row) { return row.subjectCode || row.subjectName || ''; }),
+      datasets: [{ label: 'Pass %', color: 'green', data: byPass.map(function (row) { return row.passPercentage; }) }],
+      suffix: '%',
+      decimals: 1,
+      emptyMessage: 'No subject pass percentages for the current filters.'
+    });
+
+    var byAvg = list.slice().sort(function (a, b) {
+      return (Number(b.avgMarks) || 0) - (Number(a.avgMarks) || 0);
+    }).slice(0, 10);
+    api.render('subjects-marks-chart', {
+      type: 'bar',
+      labels: byAvg.map(function (row) { return row.subjectCode || row.subjectName || ''; }),
+      datasets: [
+        { label: 'Average marks', color: 'blue', data: byAvg.map(function (row) { return row.avgMarks; }) },
+        { label: 'Maximum marks', color: 'purple', data: byAvg.map(function (row) { return row.maxMarks; }) }
+      ],
+      decimals: 1,
+      emptyMessage: 'No subject marks for the current filters.'
+    });
+  }
+
+  function refreshTable() {
+    if (window.AnalyticsTable) window.AnalyticsTable.refresh('subjects-table');
   }
   var filterRequest = 0;
   async function refreshDepends(changed) {
@@ -173,6 +230,16 @@
     el.addEventListener('change', function () { refreshDepends(el.name); });
   });
   modeSel.addEventListener('change', loadSubjects);
+
+  // Bind the toolbar search + sortable column headers (presentation only).
+  if (window.AnalyticsTable) {
+    window.AnalyticsTable.enhance('subjects-table', {
+      search: 'subjects-search',
+      count: 'subjects-count',
+      rowLabel: 'subjects'
+    });
+  }
+
   refreshDepends();
   loadSubjects();
 })();

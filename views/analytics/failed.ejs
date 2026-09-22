@@ -71,6 +71,58 @@
       </div>
     </form>
   </div>
+  <%# ---- Failure summary cards (populated by the page script) ---- %>
+  <section aria-labelledby="failed-summary-heading" class="mt-4">
+    <h2 id="failed-summary-heading" class="h5 mb-3">Failure Summary</h2>
+    <div class="row g-4 mb-4" id="failed-summary-cards">
+      <div class="col-sm-6 col-xl-4">
+        <div class="card stat-card stat-red" data-metric="failed-students">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">person_off</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Students listed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-4">
+        <div class="card stat-card stat-amber" data-metric="failed-subject-attempts">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">assignment_late</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Failure records listed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-4">
+        <div class="card stat-card stat-orange" data-metric="subjects-with-failures">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">menu_book</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Subjects listed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="analytics-note">
+      Counts describe the failure records listed below for the current filters.
+    </p>
+  </section>
+
   <%# ---- Failed subject results table ---- %>
   <section aria-labelledby="failed-table-heading" class="mt-4">
     <div class="analytics-card">
@@ -78,6 +130,17 @@
       <p class="analytics-note px-2">
         Original and effective columns reflect stored values and approved revaluation overlays where applicable.
       </p>
+      <div class="analytics-toolbar">
+        <label class="analytics-search-wrap" for="failed-search">
+          <span class="material-icons" aria-hidden="true">search</span>
+          <input type="search" id="failed-search" class="analytics-search"
+                 placeholder="Search USN, name or subject…" autocomplete="off">
+        </label>
+        <div class="d-flex align-items-center gap-2">
+          <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
+          <span class="analytics-row-count" id="failed-count" aria-live="polite"></span>
+        </div>
+      </div>
       <div class="table-responsive">
         <table class="table analytics-table" id="failed-table">
           <caption class="visually-hidden">Recorded failed subject result records</caption>
@@ -102,6 +165,34 @@
     </div>
   </section>
 
+  <%# ---- Failure charts (derived from the listed records) ---- %>
+  <section aria-labelledby="failed-chart-heading" class="mt-4">
+    <div class="analytics-chart-grid">
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="failed-chart-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">bar_chart</span>
+          Failure records by subject — listed records
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="failed-subject-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="failed-status-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">donut_small</span>
+          Effective status of listed failures
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="failed-status-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <%# ---- Shared empty state (toggled by Phase 5) ---- %>
   <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
     <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
@@ -110,4 +201,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/charts.js"></script>
+<script src="/js/analytics/tabletools.js"></script>
 <script src="/js/analytics/failed.js"></script>
