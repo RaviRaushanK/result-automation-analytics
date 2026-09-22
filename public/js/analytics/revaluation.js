@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   function metric(name, value) {
-    var el = document.querySelector('[data-metric="pipeline-' + name + '"] .analytics-summary-value');
+    var el = document.querySelector('[data-metric="pipeline-' + name + '"] .stat-value');
     if (!el) return;
     el.textContent = value;
     el.classList.remove('analytics-value-placeholder');

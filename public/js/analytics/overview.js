@@ -23,18 +23,18 @@
   const emptyState = document.getElementById('analytics-empty-state');
 
   // Summary cards: subject-level
-  const cardStudents = document.querySelector('[data-metric="students"] .analytics-summary-value');
-  const cardResults = document.querySelector('[data-metric="results"] .analytics-summary-value');
-  const cardSubjAtt = document.querySelector('[data-metric="subjects-attempted"] .analytics-summary-value');
-  const cardPassed = document.querySelector('[data-metric="passed"] .analytics-summary-value');
-  const cardFailed = document.querySelector('[data-metric="failed"] .analytics-summary-value');
-  const cardAvgMarks = document.querySelector('[data-metric="avg-marks"] .analytics-summary-value');
+  const cardStudents = document.querySelector('[data-metric="students"] .stat-value');
+  const cardResults = document.querySelector('[data-metric="results"] .stat-value');
+  const cardSubjAtt = document.querySelector('[data-metric="subjects-attempted"] .stat-value');
+  const cardPassed = document.querySelector('[data-metric="passed"] .stat-value');
+  const cardFailed = document.querySelector('[data-metric="failed"] .stat-value');
+  const cardAvgMarks = document.querySelector('[data-metric="avg-marks"] .stat-value');
 
   // Summary cards: stored parent-result metrics
-  const cardResultPass = document.querySelector('[data-metric="result-pass-count"] .analytics-summary-value');
-  const cardResultFail = document.querySelector('[data-metric="result-fail-count"] .analytics-summary-value');
-  const cardAvgSgpa = document.querySelector('[data-metric="avg-sgpa"] .analytics-summary-value');
-  const cardAvgCgpa = document.querySelector('[data-metric="avg-cgpa"] .analytics-summary-value');
+  const cardResultPass = document.querySelector('[data-metric="result-pass-count"] .stat-value');
+  const cardResultFail = document.querySelector('[data-metric="result-fail-count"] .stat-value');
+  const cardAvgSgpa = document.querySelector('[data-metric="avg-sgpa"] .stat-value');
+  const cardAvgCgpa = document.querySelector('[data-metric="avg-cgpa"] .stat-value');
 
   const gradeDistChartEl = document.getElementById('grade-distribution-chart');
   const perfSummaryChartEl = document.getElementById('performance-summary-chart');

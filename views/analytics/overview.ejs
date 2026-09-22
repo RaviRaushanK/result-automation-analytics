@@ -76,41 +76,89 @@
   <%# ---- Summary metric cards (values loaded by Phase 5) ---- %>
   <section aria-labelledby="summary-heading" class="mt-4">
     <h2 id="summary-heading" class="h5 mb-3">Summary Metrics</h2>
-    <div class="row g-3" id="analytics-summary-cards">
-      <div class="col-6 col-md-4 col-xl-2">
-        <div class="analytics-summary-card" data-metric="students">
-          <span class="analytics-summary-label">Students</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+    <div class="row g-4 mb-4" id="analytics-summary-cards">
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-blue" data-metric="students">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">group</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Students</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
-        <div class="analytics-summary-card" data-metric="results">
-          <span class="analytics-summary-label">Results</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="results">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">description</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Results</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
-        <div class="analytics-summary-card" data-metric="subjects-attempted">
-          <span class="analytics-summary-label">Subjects Attempted</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-teal" data-metric="subjects-attempted">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">menu_book</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Subjects Attempted</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
-        <div class="analytics-summary-card is-success" data-metric="passed">
-          <span class="analytics-summary-label">Passed</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="passed">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">check_circle</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Passed</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
-        <div class="analytics-summary-card is-danger" data-metric="failed">
-          <span class="analytics-summary-label">Failed</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-red" data-metric="failed">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">cancel</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Failed</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl-2">
-        <div class="analytics-summary-card" data-metric="avg-marks">
-          <span class="analytics-summary-label">Average Marks</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-amber" data-metric="avg-marks">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">calculate</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Average Marks</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -122,29 +170,61 @@
   <%# ---- Stored parent-result metrics (clearly separated from subject metrics) ---- %>
   <section aria-labelledby="parent-metrics-heading" class="mt-4">
     <h2 id="parent-metrics-heading" class="h5 mb-3">Stored Result-Header Metrics</h2>
-    <div class="row g-3" id="analytics-parent-cards">
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card" data-metric="result-pass-count">
-          <span class="analytics-summary-label">Result Pass Count</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+    <div class="row g-4 mb-4" id="analytics-parent-cards">
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="result-pass-count">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">check_circle</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Result Pass Count</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card" data-metric="result-fail-count">
-          <span class="analytics-summary-label">Result Fail Count</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-red" data-metric="result-fail-count">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">cancel</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Result Fail Count</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card" data-metric="avg-sgpa">
-          <span class="analytics-summary-label">Average SGPA</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-blue" data-metric="avg-sgpa">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">stars</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Average SGPA</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card" data-metric="avg-cgpa">
-          <span class="analytics-summary-label">Average CGPA</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-teal" data-metric="avg-cgpa">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">stars</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Average CGPA</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

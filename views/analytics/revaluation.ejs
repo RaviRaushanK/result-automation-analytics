@@ -65,23 +65,47 @@
   <%# ---- Pipeline counts ---- %>
   <section aria-labelledby="revaluation-pipeline-heading" class="mt-4">
     <h2 id="revaluation-pipeline-heading" class="h5 mb-3">Pipeline (Persisted Ledger Rows)</h2>
-    <div class="row g-3">
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card accent-amber" data-metric="pipeline-pending">
-          <span class="analytics-summary-label">Pending</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+    <div class="row g-4 mb-4">
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-amber" data-metric="pipeline-pending">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">hourglass_empty</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Pending</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card accent-green" data-metric="pipeline-approved">
-          <span class="analytics-summary-label">Approved</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="pipeline-approved">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">check_circle</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Approved</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col-6 col-md-3">
-        <div class="analytics-summary-card accent-red" data-metric="pipeline-rejected">
-          <span class="analytics-summary-label">Rejected</span>
-          <span class="analytics-summary-value analytics-value-placeholder" aria-hidden="true">&mdash;</span>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-red" data-metric="pipeline-rejected">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">cancel</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Rejected</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

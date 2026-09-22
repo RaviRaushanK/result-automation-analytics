@@ -57,5 +57,5 @@ test('Overview starts and renders the service response', async () => {
   });
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.ok(requests.some(url => url.startsWith('/analytics/api/overview')));
-  assert.equal(element('[data-metric="students"] .analytics-summary-value').textContent, '2');
+  assert.equal(element('[data-metric="students"] .stat-value').textContent, '2');
 });

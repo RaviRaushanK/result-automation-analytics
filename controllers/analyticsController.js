@@ -15,7 +15,7 @@ const analyticsService = require('../services/analyticsService');
 // Roles allowed to access Analytics. Kept in sync with config/sidebar.json.
 const ANALYTICS_ROLES = ['admin', 'faculty'];
 
-const PAGE_STYLES = ['/css/analytics.css'];
+const PAGE_STYLES = ['/css/analytics.css', '/css/dashboard.css'];
 
 const PAGES = {
     overview: {
