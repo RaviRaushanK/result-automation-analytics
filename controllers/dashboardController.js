@@ -1,5 +1,6 @@
 const { Op, fn, col } = require('sequelize');
 const {
+    Batch,
     Result,
     ResultSession,
     Student,
@@ -12,7 +13,7 @@ const DASHBOARD_PAGE_STYLES = ['/css/dashboard.css'];
 // Build a where clause for ResultSession from query params
 function buildSessionFilter(query) {
     const where = {};
-    if (query.academicYear) where.exam_year = query.academicYear;
+    if (query.batch_id) where.batch_id = query.batch_id;
     if (query.semester) where.semester = query.semester;
     return where;
 }
@@ -37,9 +38,9 @@ const dashboardController = {
             breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }]
         };
         try {
-            const years = await ResultSession.findAll({
-                attributes: [[fn('DISTINCT', col('exam_year')), 'exam_year']],
-                order: [['exam_year', 'DESC']],
+            const batches = await Batch.findAll({
+                attributes: ['batch_id', 'batch_name', 'start_year', 'end_year'],
+                order: [['start_year', 'DESC'], ['batch_name', 'ASC']],
                 raw: true
             });
             const semesters = await ResultSession.findAll({
@@ -49,14 +50,17 @@ const dashboardController = {
             });
             res.render('dashboard/index', {
                 ...base,
-                academicYears: years.map(y => y.exam_year),
+                batches: batches.map(b => ({
+                    batch_id: b.batch_id,
+                    batch_name: b.batch_name
+                })),
                 semesters: semesters.map(s => s.semester)
             });
         } catch (err) {
             console.error('Dashboard render error:', err);
             res.render('dashboard/index', {
                 ...base,
-                academicYears: [],
+                batches: [],
                 semesters: []
             });
         }

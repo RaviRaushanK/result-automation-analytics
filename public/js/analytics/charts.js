@@ -83,6 +83,51 @@
     if (!hostId) return null;
     return typeof hostId === 'string' ? document.getElementById(hostId) : hostId;
   }
+
+   // ---------- sizing + scroll helpers ----------
+  // Bar charts get a minimum pixel slot per category so bars/labels never
+  // squeeze or overlap when data grows: the host strip widens and the new
+  // .analytics-chart-scroll wrapper (see analytics.css + per-page marks-up)
+  // scrolls left/right instead. Horizontal bars are excluded: they grow
+  // vertically, so they only need a minimum height, not a width.
+  var BAR_SLOT = 88;
+  function isScrollableBar(spec) {
+    return spec && (spec.type || 'bar') === 'bar' && !spec.horizontal
+      && (spec.scroll == null || spec.scroll);
+  }
+  function minStripWidth(spec, labels) {
+    var perBar = spec.minBarWidth != null ? spec.minBarWidth : BAR_SLOT;
+    return Math.max((labels || []).length * perBar, 0);
+  }
+  function prepareHost(el, spec, labels) {
+    // Cheap mode: plain host, no scrolling (doughnut/pie/line + opt-outs).
+    if (!spec || !isScrollableBar(spec)) {
+      el.style.width = '';
+      el.style.minWidth = '';
+      el.style.minHeight = '';
+      return el;
+    }
+    // Ensure the scroll scaffold exists around the existing host element:
+    // .analytics-chart-scroll > (host). CSS gives the wrapper overflow-x:auto.
+    var parent = el.parentNode;
+    var scroller = null;
+    if (parent && parent.classList && parent.classList.contains('analytics-chart-scroll')) {
+      scroller = parent;
+    } else {
+      scroller = document.createElement('div');
+      scroller.className = 'analytics-chart-scroll';
+      scroller.setAttribute('data-scrollbar', 'charts.js');
+      parent.insertBefore(scroller, el);
+      scroller.appendChild(el);
+    }
+    // width:100% keeps the chart filling its card when there are few categories;
+    // min-width grows the strip past the card so the wrapper scrolls instead.
+    el.style.minWidth = minStripWidth(spec, labels) + 'px';
+    el.style.width = '100%';
+    // Tall-enough host for horizontal bars with many categories.
+    el.style.minHeight = '';
+    return el;
+  }
   function message(el, text) {
     if (!el) return;
     el.textContent = '';
@@ -233,10 +278,23 @@
 
   // ---------- public render / destroy ----------
   function destroy(hostId) {
+    var hostEl = host(hostId);
+    var scroller = hostEl && hostEl.parentNode;
     var instance = instances[hostId];
     if (instance) {
       try { instance.destroy(); } catch (e) { /* already gone */ }
       delete instances[hostId];
+    }
+    // Unwrap the scroll scaffold this module added, restoring the original
+    // host so empty/error messages and later renders start from a clean DOM.
+    if (hostEl && scroller && scroller.classList &&
+        scroller.classList.contains('analytics-chart-scroll') &&
+        scroller.getAttribute('data-scrollbar') === 'charts.js') {
+      scroller.parentNode.insertBefore(hostEl, scroller);
+      scroller.parentNode.removeChild(scroller);
+      hostEl.style.width = '';
+      hostEl.style.minWidth = '';
+      hostEl.style.minHeight = '';
     }
     return null;
   }
@@ -248,7 +306,11 @@
   /**
    * Render (or re-render) one chart.
    * spec = { type, labels, datasets[], title, suffix, decimals, legend,
-   *          horizontal, stacked, y1, palette, emptyMessage }
+   *          horizontal, stacked, y1, palette, emptyMessage,
+   *          scroll (default true for vertical bars), minBarWidth }
+   * Vertical-bar categories each reserve minBarWidth px (default 88) so bars
+   * and labels never squeeze or overlap as data grows; the host widens and
+   * the .analytics-chart-scroll wrapper scrolls left/right instead.
    * Re-rendering the same host always destroys the previous instance, so no
    * canvas is ever reused.
    */
@@ -273,6 +335,7 @@
       return null;
     }
 
+    el = prepareHost(el, spec, labels);
     el.textContent = '';
     var canvas = document.createElement('canvas');
     el.appendChild(canvas);

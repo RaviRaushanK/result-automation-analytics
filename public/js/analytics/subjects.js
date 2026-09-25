@@ -8,10 +8,7 @@
   const form = document.getElementById('analytics-filter-form');
   const modeBadge = document.getElementById('analytics-mode-badge');
   const modeLabel = document.getElementById('analytics-mode-label');
-  const yearSel = document.getElementById('filter-academic-year');
   const semSel = document.getElementById('filter-semester');
-  const examSessionSel = document.getElementById('filter-exam-session');
-  const deptSel = document.getElementById('filter-department');
   const batchSel = document.getElementById('filter-batch');
   const sessionSel = document.getElementById('filter-session');
   const subjectSel = document.getElementById('filter-subject');
@@ -137,14 +134,16 @@
           data: rows.map(function (row) { return row.count; })
         }],
         decimals: 0,
-        emptyMessage: 'No grade data found for the current filters.'
+        emptyMessage: 'No grade data found for the current filters.',
+        scroll: false
       });
     } catch (err) {
       api.render('subjects-grade-chart', {
         type: 'bar',
         labels: [],
         datasets: [],
-        emptyMessage: 'Unable to load grade distribution.'
+        emptyMessage: 'Unable to load grade distribution.',
+        scroll: false
       });
     }
   }
@@ -179,7 +178,8 @@
         { label: 'Maximum marks', color: 'purple', data: byAvg.map(function (row) { return row.maxMarks; }) }
       ],
       decimals: 1,
-      emptyMessage: 'No subject marks for the current filters.'
+      emptyMessage: 'No subject marks for the current filters.',
+      scroll: false
     });
   }
 
@@ -189,44 +189,49 @@
   var filterRequest = 0;
   async function refreshDepends(changed) {
     var request = ++filterRequest;
+    // [scope, element, valueKey, textKey, paramName, autoSelectFirst]
+    // Batch never offers "All": the API lists batches newest-first, so the first
+    // option (the latest batch) is the default.
     var definitions = [
-      ['years', yearSel, 'examYear', 'examYear', 'exam_year'],
-      ['semesters', semSel, 'semester', 'semester', 'semester'],
-      ['departments', deptSel, 'departmentId', 'name', 'department_id'],
-      ['batches', batchSel, 'batchId', 'batchName', 'batch_id'],
-      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id'],
-      ['subjects', subjectSel, 'subjectId', 'subjectCode', 'subject_id']
+      ['semesters', semSel, 'semester', 'semester', 'semester', false],
+      ['batches', batchSel, 'batchId', 'batchName', 'batch_id', true],
+      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', false],
+      ['subjects', subjectSel, 'subjectId', 'subjectCode', 'subject_id', false]
     ];
     if (changed && changed !== 'subject_id') subjectSel.value = '';
     if (changed && !['subject_id', 'session_id'].includes(changed)) sessionSel.value = '';
-    if (changed === 'department_id') batchSel.value = '';
     var params = readFilters();
     await Promise.all(definitions.map(async function (def) {
       var scoped = new URLSearchParams(params);
       scoped.delete(def[4]);
       if (def[0] !== 'subjects') scoped.delete('subject_id');
       if (!['subjects', 'sessions'].includes(def[0])) scoped.delete('session_id');
-      if (def[0] === 'departments') scoped.delete('batch_id');
       try {
         var json = await fetchJSON('/analytics/api/filter-options/' + def[0] + qs(scoped));
         if (request !== filterRequest) return;
         var previous = def[1].value;
-        def[1].innerHTML = '<option value="">All</option>';
+        var autoFirst = !!def[5];
+        def[1].innerHTML = autoFirst ? '' : '<option value="">All</option>';
         (json.data || []).forEach(function (row) {
           var option = document.createElement('option');
           option.value = String(row[def[2]]);
           option.textContent = String(row[def[3]]);
           def[1].appendChild(option);
         });
-        def[1].value = previous;
+        var stillListed = Array.prototype.some.call(def[1].options, function (opt) {
+          return opt.value === previous;
+        });
+        if (previous && stillListed) def[1].value = previous;
+        else if (autoFirst && def[1].options.length) def[1].value = def[1].options[0].value;
+        else def[1].value = '';
       } catch (err) { console.error('Unable to load filter options', err); }
     }));
   }
   form.addEventListener('submit', function (event) { event.preventDefault(); loadSubjects(); });
   form.addEventListener('reset', function () {
-    setTimeout(function () { refreshDepends(); loadSubjects(); }, 0);
+    setTimeout(function () { refreshDepends().then(loadSubjects, loadSubjects); }, 0);
   });
-  [yearSel, semSel, deptSel, batchSel, sessionSel, subjectSel].forEach(function (el) {
+  [semSel, batchSel, sessionSel, subjectSel].forEach(function (el) {
     el.addEventListener('change', function () { refreshDepends(el.name); });
   });
   modeSel.addEventListener('change', loadSubjects);
@@ -240,7 +245,6 @@
     });
   }
 
-  refreshDepends();
-  loadSubjects();
+  refreshDepends().then(loadSubjects, loadSubjects);
 })();
 

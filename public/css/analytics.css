@@ -362,10 +362,15 @@
 }
 
 /* ---------- Chart grid + chart cards ---------- */
+/* Session Trends / GPA Trends (and the other analytics chart cards) sit two per
+   row so each graph fills half the section; below 1200px they stack full width. */
 .analytics-chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 1199.98px) {
+  .analytics-chart-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .analytics-chart-card .analytics-card-title {
   display: flex;
@@ -382,6 +387,16 @@
 /* Chart.js needs a sized parent: hosts fill their .analytics-chart-container. */
 .analytics-chart-host {
   position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+}
+/* Horizontally scrollable bar charts: charts.js widens the host to one slot
+   per category so bars/labels never squeeze or overlap; this wrapper scrolls
+   left/right when the strip exceeds the card width. */
+.analytics-chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
   width: 100%;
   height: 100%;
 }

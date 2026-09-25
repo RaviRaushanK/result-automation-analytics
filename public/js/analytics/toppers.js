@@ -9,9 +9,7 @@
   const form = document.getElementById('analytics-filter-form');
   const modeBadge = document.getElementById('analytics-mode-badge');
   const modeLabel = document.getElementById('analytics-mode-label');
-  const yearSel = document.getElementById('filter-academic-year');
   const semSel = document.getElementById('filter-semester');
-  const deptSel = document.getElementById('filter-department');
   const batchSel = document.getElementById('filter-batch');
   const sessionSel = document.getElementById('filter-session');
   const attemptSel = document.getElementById('filter-attempt');
@@ -82,11 +80,9 @@
   function readFilters() {
     var p = new URLSearchParams();
     var v = function (sel) { var s = sel.value.trim(); return s ? s : null; };
-    var y = v(yearSel), s = v(semSel), d = v(deptSel), b = v(batchSel), ss = v(sessionSel);
+    var s = v(semSel), b = v(batchSel), ss = v(sessionSel);
     var att = attemptSel.value.trim(), m = modeSel.value.trim();
-    if (y) p.set('exam_year', y);
     if (s) p.set('semester', s);
-    if (d) p.set('department_id', d);
     if (b) p.set('batch_id', b);
     if (ss) p.set('session_id', ss);
     if (att && att !== 'latest') p.set('attempt', att);
@@ -125,10 +121,16 @@
     return promise.finally(function () { delete optionInflight[key]; });
   }
 
-  function populateSelect(sel, items, valueKey, textKey, placeholder) {
+  /**
+   * placeholder is the leading option label for selects that keep an "All"
+   * choice. autoFirst marks selects that must never be empty (Batch):
+   * no placeholder is rendered and, because the API lists options newest-first,
+   * the first option (the latest batch) becomes the default.
+   */
+  function populateSelect(sel, items, valueKey, textKey, placeholder, autoFirst) {
     if (!sel) return;
     var prev = sel.value;
-    sel.innerHTML = '<option value="">' + (placeholder || 'All') + '</option>';
+    sel.innerHTML = autoFirst ? '' : '<option value="">' + (placeholder || 'All') + '</option>';
     (items || []).forEach(function (item) {
       var opt = document.createElement('option');
       opt.value = String(item[valueKey] || '');
@@ -137,6 +139,8 @@
     });
     if (prev && items.some(function (i) { return String(i[valueKey]) === prev; })) {
       sel.value = prev;
+    } else if (autoFirst && sel.options && sel.options.length) {
+      sel.value = sel.options[0].value;
     } else {
       sel.value = '';
     }
@@ -144,31 +148,30 @@
 
   // Dependent filter options: scoped by the current filters, minus the option's
   // own parameter (and its dependants) so a selected value stays selectable.
-  function refreshDepends(changed) {
+  // Resolves once every option list has been repopulated.
+  async function refreshDepends(changed) {
     var children = {
-      exam_year: ['semester', 'department_id', 'batch_id', 'session_id'],
-      department_id: ['batch_id', 'session_id'],
       batch_id: ['session_id']
     };
     (children[changed] || []).forEach(function (name) {
       if (form && form.elements.namedItem(name)) form.elements.namedItem(name).value = '';
     });
     var params = readFilters();
+    // [scope, element, valueKey, textKey, paramName, placeholder, autoSelectFirst]
     var definitions = [
-      ['years', yearSel, 'examYear', 'examYear', 'exam_year', 'All Academic Years'],
-      ['semesters', semSel, 'semester', 'semester', 'semester', 'All Semesters'],
-      ['departments', deptSel, 'departmentId', 'name', 'department_id', 'All Departments'],
-      ['batches', batchSel, 'batchId', 'batchName', 'batch_id', 'All Batches'],
-      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', 'All Sessions']
+      ['semesters', semSel, 'semester', 'semester', 'semester', 'All Semesters', false],
+      ['batches', batchSel, 'batchId', 'batchName', 'batch_id', 'All Batches', true],
+      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', 'All Sessions', false]
     ];
-    definitions.forEach(function (definition) {
+    await Promise.all(definitions.map(function (definition) {
       var scoped = new URLSearchParams(params);
       scoped.delete(definition[4]);
       (children[definition[4]] || []).forEach(function (name) { scoped.delete(name); });
-      loadFilterOptions(definition[0], scoped).then(function (items) {
-        populateSelect(definition[1], items, definition[2], definition[3], definition[5]);
+      return loadFilterOptions(definition[0], scoped).then(function (items) {
+        populateSelect(definition[1], items, definition[2], definition[3],
+          definition[5], definition[6]);
       });
-    });
+    }));
   }
 
   function statusBadge(status) {
@@ -260,14 +263,14 @@
   if (form) {
     form.addEventListener('submit', function (e) { e.preventDefault(); loadToppers(true); });
     form.addEventListener('reset', function () {
-      yearSel.value = ''; semSel.value = ''; deptSel.value = ''; batchSel.value = ''; sessionSel.value = '';
-      attemptSel.value = 'latest'; modeSel.value = 'original';
-      updateModeBadge('original');
+      // Let the browser restore its own defaults first, then re-list the options
+      // so Batch falls back to the latest batch, and reload.
+      setTimeout(function () {
+        refreshDepends('all').then(function () { loadToppers(true); });
+      }, 0);
     });
   }
-  if (yearSel) yearSel.addEventListener('change', function () { refreshDepends('exam_year'); });
   if (semSel) semSel.addEventListener('change', function () { refreshDepends('semester'); });
-  if (deptSel) deptSel.addEventListener('change', function () { refreshDepends('department'); });
   if (batchSel) batchSel.addEventListener('change', function () { refreshDepends('batch'); });
   if (sessionSel) sessionSel.addEventListener('change', function () { refreshDepends('session'); });
   if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadToppers(true); });
@@ -288,7 +291,8 @@
     });
   }
 
-  refreshDepends('all');
+  // Populate the option lists first: the default Batch comes from the
+  // API ordering, so the first request must wait for those options.
   updateModeBadge('original');
-  loadToppers(true);
+  refreshDepends('all').then(function () { loadToppers(true); }, function () { loadToppers(true); });
 })();

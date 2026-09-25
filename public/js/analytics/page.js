@@ -5,6 +5,10 @@
     var form = document.getElementById('analytics-filter-form');
     if (!form) return;
     var request = 0, filterRequest = 0, offset = 0, limit = 25, charts = [];
+    // Selects that must NOT offer an empty/"All" choice. Their options are
+    // listed newest-first by the API, so the first option is the latest value
+    // and becomes the default when nothing else is selected.
+    var firstOption = config.firstOption || ['batch_id'];
     var body = document.getElementById(config.page + '-table-body');
     var prev = document.getElementById(config.page + '-page-prev');
     var next = document.getElementById(config.page + '-page-next');
@@ -42,12 +46,43 @@
     }
     function clearCharts() {
       charts.forEach(function (chart) { chart.destroy(); }); charts = [];
-      (config.charts || []).forEach(function (id) { document.getElementById(id).textContent = ''; });
+      (config.charts || []).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        // Unwrap the scroll scaffold added by chart(), restoring the plain host.
+        var scroller = el.parentNode;
+        if (scroller && scroller.classList && scroller.classList.contains('analytics-chart-scroll')) {
+          scroller.parentNode.insertBefore(el, scroller);
+          scroller.parentNode.removeChild(scroller);
+        }
+        el.style.width = ''; el.style.minWidth = '';
+        el.textContent = '';
+      });
     }
     function chart(id, labels, datasets) {
       var target = document.getElementById(id);
       if (!labels.length) { target.textContent = 'No chart data found.'; return; }
       if (typeof Chart === 'undefined') { target.textContent = 'Chart unavailable. See the table for values.'; return; }
+      // One fixed slot per category so bars never squeeze or overlap when the
+      // session list grows; the .analytics-chart-scroll wrapper (analytics.css)
+      // scrolls left/right once the strip exceeds the card width.
+      // The host keeps width:100% so a chart with few sessions still fills its
+      // whole card; min-width only kicks in to grow the strip past the card.
+      var perBar = 88;
+      var stripWidth = Math.max(labels.length * perBar, 0);
+      var host = target;
+      var parent = target.parentNode;
+      var scroller = null;
+      if (parent && parent.classList && parent.classList.contains('analytics-chart-scroll')) {
+        scroller = parent;
+      } else {
+        scroller = document.createElement('div');
+        scroller.className = 'analytics-chart-scroll';
+        parent.insertBefore(scroller, target);
+        scroller.appendChild(target);
+      }
+      host.style.minWidth = stripWidth + 'px';
+      host.style.width = '100%';
       var canvas = document.createElement('canvas'); target.appendChild(canvas);
       charts.push(new Chart(canvas, { type: 'bar', data: { labels: labels, datasets: datasets },
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } }));
@@ -85,18 +120,15 @@
       } finally { if (current === request) body.setAttribute('aria-busy', 'false'); }
     }
     var definitions = [
-      ['years', 'exam_year', 'examYear', 'examYear'],
       ['semesters', 'semester', 'semester', 'semester'],
-      ['departments', 'department_id', 'departmentId', 'name'],
       ['batches', 'batch_id', 'batchId', 'batchName'],
-      ['sessions', 'exam_session', 'examSession', 'examSession'],
       ['sessions', 'session_id', 'sessionId', 'examSession'],
       ['subjects', 'subject_id', 'subjectId', 'subjectCode']
     ];
     async function refresh(changed) {
       var current = ++filterRequest;
-      var children = { exam_year: ['session_id', 'subject_id'], semester: ['session_id', 'subject_id'],
-        department_id: ['batch_id', 'session_id', 'subject_id'], batch_id: ['session_id', 'subject_id'], session_id: ['subject_id'] };
+      var children = { semester: ['session_id', 'subject_id'],
+        batch_id: ['session_id', 'subject_id'], session_id: ['subject_id'] };
       (children[changed] || []).forEach(function (name) { if (form.elements.namedItem(name)) form.elements.namedItem(name).value = ''; });
       var params = filters();
       await Promise.all(definitions.map(async function (def) {
@@ -108,7 +140,8 @@
           var result = await json('/analytics/api/filter-options/' + def[0] + '?' + scoped);
           if (current !== filterRequest) return;
           var selected = el.value, seen = new Set();
-          while (el.options.length > 1) el.remove(1);
+          var first = firstOption.indexOf(def[1]) !== -1;
+          while (el.options.length > (first ? 0 : 1)) el.remove(first ? 0 : 1);
           (result.data || []).forEach(function (item) {
             var value = String(item[def[2]]);
             if (seen.has(value)) return;
@@ -116,7 +149,8 @@
             var option = document.createElement('option'); option.value = value;
             option.textContent = text(item[def[3]]); el.appendChild(option);
           });
-          el.value = seen.has(selected) ? selected : '';
+          el.value = seen.has(selected) ? selected
+            : (first && el.options.length ? el.options[0].value : '');
         } catch (err) { el.title = 'Unable to refresh options. Apply filters to retry analytics.'; }
       }));
     }
@@ -128,6 +162,8 @@
     });
     if (prev) prev.addEventListener('click', function () { if (offset > 0) { offset -= limit; load(); } });
     if (next) next.addEventListener('click', function () { offset += limit; load(); });
-    refresh(); load();
+    // Populate the option lists first: the default Batch comes from the
+    // API ordering, so the first request must wait for those options.
+    refresh().then(load, load);
   };
 })();

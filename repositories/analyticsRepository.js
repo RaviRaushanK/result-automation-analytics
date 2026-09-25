@@ -101,6 +101,7 @@ const SUBJECT_FROM = `
   FROM subject_results sr
   INNER JOIN results r          ON r.result_id    = sr.result_id
   INNER JOIN result_sessions rs ON rs.session_id  = r.session_id
+  INNER JOIN batches b          ON b.batch_id     = rs.batch_id
   INNER JOIN students st        ON st.student_id  = r.student_id
   INNER JOIN subjects sub       ON sub.subject_id = sr.subject_id
 `;
@@ -547,6 +548,7 @@ async function getSemesterAnalytics(filters) {
       rs.semester          AS semester,
       rs.exam_session      AS examSession,
       rs.batch_id          AS batchId,
+      b.batch_name         AS batchName,
       COUNT(DISTINCT r.result_id)  AS resultCount,
       SUM(CASE WHEN r.result_status = 'pass' THEN 1 ELSE 0 END) AS resultPassCount,
       SUM(CASE WHEN r.result_status = 'fail' THEN 1 ELSE 0 END) AS resultFailCount,
@@ -557,7 +559,8 @@ async function getSemesterAnalytics(filters) {
       SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) AS subjectFailed,
       AVG(${base.marksExpr}) AS avgMarks
     ${base.whereSql}
-    GROUP BY rs.session_id, rs.exam_year, rs.semester, rs.exam_session, rs.batch_id
+    GROUP BY rs.session_id, rs.exam_year, rs.semester, rs.exam_session, rs.batch_id,
+             b.batch_name
     ORDER BY rs.exam_year ASC, rs.semester ASC, rs.exam_session ASC
   `, params);
 }

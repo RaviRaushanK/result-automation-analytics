@@ -16,33 +16,14 @@
     <form id="analytics-filter-form" autocomplete="off">
       <div class="row g-3">
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-academic-year">Academic Year</label>
-          <select class="form-select" id="filter-academic-year" name="exam_year">
-            <option value="">All Academic Years</option>
-          </select>
+          <label class="form-label" for="filter-batch">Batch</label>
+          <%# Batch has no "All" option: JS lists batches newest-first and selects the latest. %>
+          <select class="form-select" id="filter-batch" name="batch_id"></select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
           <label class="form-label" for="filter-semester">Semester</label>
           <select class="form-select" id="filter-semester" name="semester">
             <option value="">All Semesters</option>
-          </select>
-        </div>
-        <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-exam-session">Exam Session</label>
-          <select class="form-select" id="filter-exam-session" name="exam_session">
-            <option value="">All Exam Sessions</option>
-          </select>
-        </div>
-        <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-department">Department</label>
-          <select class="form-select" id="filter-department" name="department_id">
-            <option value="">All Departments</option>
-          </select>
-        </div>
-        <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-batch">Batch</label>
-          <select class="form-select" id="filter-batch" name="batch_id">
-            <option value="">All Batches</option>
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">

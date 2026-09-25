@@ -11,10 +11,7 @@
   const modeBadge = document.getElementById('analytics-mode-badge');
   const modeLabel = document.getElementById('analytics-mode-label');
 
-  const yearSel = document.getElementById('filter-academic-year');
   const semSel = document.getElementById('filter-semester');
-  const examSessionSel = document.getElementById('filter-exam-session');
-  const deptSel = document.getElementById('filter-department');
   const batchSel = document.getElementById('filter-batch');
   const sessionSel = document.getElementById('filter-session');
   const attemptSel = document.getElementById('filter-attempt');
@@ -254,12 +251,9 @@
   function readFilters() {
     var p = new URLSearchParams();
     var v = function (sel) { var s = sel.value.trim(); return s ? s : null; };
-    var y = v(yearSel), s = v(semSel), es = v(examSessionSel), d = v(deptSel), b = v(batchSel), ss = v(sessionSel);
+    var s = v(semSel), b = v(batchSel), ss = v(sessionSel);
     var att = attemptSel.value.trim(), m = modeSel.value.trim();
-    if (y) p.set('exam_year', y);
     if (s) p.set('semester', s);
-    if (es) p.set('exam_session', es);
-    if (d) p.set('department_id', d);
     if (b) p.set('batch_id', b);
     if (ss) p.set('session_id', ss);
     if (att && att !== 'latest') p.set('attempt', att);
@@ -291,10 +285,16 @@
   }
 
   // ---------- Populate select ----------
-  function populateSelect(sel, items, valueKey, textKey, placeholder) {
+  /**
+   * placeholder doubles as the leading option label for selects that keep an
+   * "All" choice. Pass autoFirst for selects that must never be empty (Batch):
+   * no placeholder is rendered and, since the API lists options newest-first,
+   * the first option (the latest batch) becomes the default.
+   */
+  function populateSelect(sel, items, valueKey, textKey, placeholder, autoFirst) {
     if (!sel) return;
     var prev = sel.value;
-    sel.innerHTML = '<option value="">' + (placeholder || 'All') + '</option>';
+    sel.innerHTML = autoFirst ? '' : '<option value="">' + (placeholder || 'All') + '</option>';
     (items || []).forEach(function (item) {
       var opt = document.createElement('option');
       opt.value = String(item[valueKey] || '');
@@ -303,6 +303,8 @@
     });
     if (prev && items.some(function (i) { return String(i[valueKey]) === prev; })) {
       sel.value = prev;
+    } else if (autoFirst && sel.options && sel.options.length) {
+      sel.value = sel.options[0].value;
     } else {
       sel.value = '';
     }
@@ -369,23 +371,24 @@
   var filterRequest = 0;
   async function refreshDepends(changed) {
     var request = ++filterRequest;
+    // [scope, element, valueKey, textKey, paramName, autoSelectFirst]
+    // autoSelectFirst selects the newest option (the API lists newest-first) and
+    // renders no "All" placeholder: Batch is never left empty.
     var definitions = [
-      ['years', yearSel, 'examYear', 'examYear', 'exam_year'],
-      ['semesters', semSel, 'semester', 'semester', 'semester'],
-      ['departments', deptSel, 'departmentId', 'name', 'department_id'],
-      ['batches', batchSel, 'batchId', 'batchName', 'batch_id'],
-      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id']
+      ['semesters', semSel, 'semester', 'semester', 'semester', false],
+      ['batches', batchSel, 'batchId', 'batchName', 'batch_id', true],
+      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', false]
     ];
     if (changed !== 'all' && changed !== 'session') sessionSel.value = '';
-    if (changed === 'department') batchSel.value = '';
     var params = readFilters();
     await Promise.all(definitions.map(async function (definition) {
       var scoped = new URLSearchParams(params);
       scoped.delete(definition[4]);
       if (definition[0] !== 'sessions') scoped.delete('session_id');
-      if (definition[0] === 'departments') scoped.delete('batch_id');
       var rows = await loadFilterOptions(definition[0], scoped);
-      if (request === filterRequest) populateSelect(definition[1], rows, definition[2], definition[3], 'All');
+      if (request === filterRequest) {
+        populateSelect(definition[1], rows, definition[2], definition[3], 'All', definition[5]);
+      }
     }));
   }
 
@@ -394,18 +397,14 @@
   if (form) {
     form.addEventListener('submit', function (e) { e.preventDefault(); loadOverview(); });
     form.addEventListener('reset', function () {
-      yearSel.value = ''; semSel.value = ''; examSessionSel.value = '';
-      deptSel.value = ''; batchSel.value = ''; sessionSel.value = '';
-      attemptSel.value = 'latest'; modeSel.value = 'original';
-      updateModeBadge('original');
+      // The browser restores its own defaults first; re-list the options after
+      // that so Batch falls back to the latest batch and results reload.
+      setTimeout(function () { refreshDepends('all'); loadOverview(); }, 0);
     });
   }
-  if (yearSel) yearSel.addEventListener('change', function () { refreshDepends('exam_year'); });
   if (semSel) semSel.addEventListener('change', function () { refreshDepends('semester'); });
-  if (deptSel) deptSel.addEventListener('change', function () { refreshDepends('department'); });
   if (batchSel) batchSel.addEventListener('change', function () { refreshDepends('batch'); });
   if (sessionSel) sessionSel.addEventListener('change', function () { refreshDepends('session'); });
-  if (examSessionSel) examSessionSel.addEventListener('change', function () { refreshDepends('session'); });
   if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadOverview(); });
 
   // ---------- Init ----------
