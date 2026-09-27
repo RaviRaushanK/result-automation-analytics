@@ -20,8 +20,13 @@
  *   - Parent Result.result_status/sgpa/cgpa are returned verbatim as STORED
  *     parent values, never relabeled as post-revaluation values. No GPA
  *     recomputation happens in this layer.
- *   - No topper ranking policy is decided here; getTopStudents() only returns
- *     candidate rows for the service layer.
+ *   - getTopStudents() applies the approved topper policy itself (passed
+ *     results with a stored CGPA, ranked server-side by CGPA) because the
+ *     rank must be assigned before pagination and cannot be re-derived by a
+ *     caller. `rank` is a MySQL 8 reserved word, so the alias is backticked.
+ *     ROW_NUMBER() (not RANK()) gives a strict 1..n sequence; the USN tiebreak
+ *     makes the ordering deterministic so LIMIT/OFFSET never duplicates or
+ *     skips a row when several students share the same CGPA.
  *
  * Query safety:
  *   - All filter values are passed via Sequelize `replacements` (named bind
@@ -608,14 +613,47 @@ async function getStudentAnalytics(filters, options) {
 
 /**
  * 7. getTopStudents(filters, options)
- * Candidate rows for topper analytics. NO ranking policy is applied here:
- * the repository deliberately returns every aggregate the service may need
- * (stored SGPA, stored CGPA, subject aggregates, attempts, exam type) so a
- * business-approved topper policy can be applied later. Callers must paginate
- * with limit/offset; nothing is silently deduplicated across attempts.
+ * Topper rows: only stored passing results with a stored CGPA are eligible.
+ * The server assigns a fixed rank by CGPA (highest first) before pagination;
+ * callers cannot re-order these results by clicking table headers.
  */
 async function getTopStudents(filters, options) {
-  return getStudentAnalytics(filters, options);
+  const f = normalizeFilters(filters);
+  const resolved = await resolveSessionsInternal(filters);
+  const params = {};
+  const base = buildSubjectQueryBase(f, resolved, params);
+  if (base === null) return [];
+  const page = pagination(options);
+
+  return select(`
+    SELECT
+      st.student_id       AS studentId,
+      st.usn              AS usn,
+      st.student_name     AS studentName,
+      r.result_id         AS resultId,
+      r.session_id        AS sessionId,
+      rs.exam_year        AS examYear,
+      rs.semester         AS semester,
+      r.attempt_no        AS attemptNo,
+      r.exam_type         AS examType,
+      r.sgpa              AS sgpa,
+      r.cgpa              AS cgpa,
+      r.result_status     AS parentStatus,
+      COUNT(*)            AS subjectsAttempted,
+      SUM(CASE WHEN ${base.statusExpr} = 'pass' THEN 1 ELSE 0 END) AS passed,
+      SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) AS failed,
+      AVG(${base.marksExpr}) AS avgMarks,
+      ROW_NUMBER() OVER (ORDER BY r.cgpa DESC, st.usn ASC) AS \`rank\`
+    ${base.whereSql}
+      AND r.result_status = 'pass'
+      AND r.cgpa IS NOT NULL
+    GROUP BY st.student_id, st.usn, st.student_name, r.result_id, r.session_id,
+             rs.exam_year, rs.semester, r.attempt_no, r.exam_type, r.sgpa,
+             r.cgpa, r.result_status
+    HAVING SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) = 0
+    ORDER BY r.cgpa DESC, st.usn ASC
+    ${page.limitSql}${page.offsetSql}
+  `, { ...params, ...page.params });
 }
 
 /**

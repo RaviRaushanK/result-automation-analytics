@@ -1,7 +1,7 @@
 /**
  * SRAAS - Analytics Toppers (Phase 5)
  * Connects the Toppers EJS shell to /analytics/api/toppers.
- * No ranking policy is invented; the API returns candidates as provided.
+ * The API returns passed, CGPA-ranked results in a fixed CGPA order.
  */
 (function () {
   'use strict';
@@ -275,7 +275,7 @@
   if (sessionSel) sessionSel.addEventListener('change', function () { refreshDepends('session'); });
   if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadToppers(true); });
 
-  // Pagination + sortable/searchable table (presentation only).
+  // Pagination + search/count table enhancements (sorting is disabled for Toppers).
   if (prevBtn) prevBtn.addEventListener('click', function () {
     if (currentPage > 0) { currentPage--; loadToppers(false); }
   });

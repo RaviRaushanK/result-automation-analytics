@@ -127,14 +127,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const scorers = json.data || [];
             if (!scorers.length) {
                 topScorersBody.innerHTML =
-                    '<tr><td colspan="6" class="text-center text-muted py-4">No results found.</td></tr>';
+                    '<tr><td colspan="6" class="text-center text-muted py-4">No passed results found.</td></tr>';
                 return;
             }
             topScorersBody.innerHTML = scorers.map(function (s, i) {
                 const statusClass = s.result_status === 'pass' ? 'badge-pass' : 'badge-fail';
                 return (
                     '<tr>' +
-                    '  <td>' + (i + 1) + '</td>' +
+                    '  <td>' + (s.rank != null ? s.rank : i + 1) + '</td>' +
                     '  <td><span class="text-muted">' + escapeHtml(s.usn) + '</span></td>' +
                     '  <td class="fw-medium">' + escapeHtml(s.student_name) + '</td>' +
                     '  <td>' + (s.sgpa != null ? s.sgpa : '--') + '</td>' +

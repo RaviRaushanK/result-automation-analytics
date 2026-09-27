@@ -16,15 +16,15 @@
     <form id="analytics-filter-form" autocomplete="off">
       <div class="row g-3">
         <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-batch">Batch</label>
+          <%# Batch has no "All" option: JS lists batches newest-first and selects the latest. %>
+          <select class="form-select" id="filter-batch" name="batch_id"></select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
           <label class="form-label" for="filter-semester">Semester</label>
           <select class="form-select" id="filter-semester" name="semester">
             <option value="">All Semesters</option>
           </select>
-        </div>
-        <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-batch">Batch</label>
-          <%# Batch has no "All" option: JS lists batches newest-first and selects the latest. %>
-          <select class="form-select" id="filter-batch" name="batch_id"></select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
           <label class="form-label" for="filter-session">Result Session</label>
@@ -67,7 +67,6 @@
           <caption class="visually-hidden">Student performance records</caption>
           <thead>
             <tr>
-              <th scope="col">Rank</th>
               <th scope="col">USN</th>
               <th scope="col">Student Name</th>
               <th scope="col">Semester</th>
@@ -83,7 +82,7 @@
           </thead>
           <tbody id="students-table-body">
             <tr class="analytics-table-empty-row">
-              <td colspan="12" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+              <td colspan="11" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
             </tr>
           </tbody>
         </table>

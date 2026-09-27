@@ -34,7 +34,7 @@ const NUMERIC_FIELDS = new Set([
   'avgMarks', 'maxMarks', 'minMarks',
   'resultTotal', 'resultPassCount', 'resultFailCount', 'avgSgpa', 'avgCgpa',
   'attempted', 'resultCount', 'subjectAttempts', 'subjectPassed',
-  'subjectFailed', 'count', 'attemptNo', 'sgpa', 'cgpa',
+  'subjectFailed', 'count', 'attemptNo', 'sgpa', 'cgpa', 'rank',
   'cases', 'subjectsWithRevaluation', 'statusChanges', 'failToPass',
   'passToFail', 'positiveDelta', 'unchanged', 'negativeDelta',
   'averageDelta', 'maxDelta', 'minDelta', 'rowCount',
@@ -223,9 +223,8 @@ async function getOverview(filters) {
 
 /**
  * 2. getToppers(filters, options)
- * NEUTRAL candidate rows only. No ranking policy applied (no CGPA/SGPA
- * winner, no eligibility filter, no tie-breaking). Framed explicitly as
- * ranking candidates for a future approved policy.
+ * Eligible topper rows only: stored passing results with a stored CGPA.
+ * The repository assigns the fixed CGPA rank before applying pagination.
  */
 async function getToppers(filters, options) {
   const normalized = normalizeFilters(filters);
@@ -241,7 +240,7 @@ async function getToppers(filters, options) {
   return {
     filters: normalized,
     pagination: { limit: page.limit, offset: page.offset },
-    notice: 'Candidate ranking data only — ranking policy not yet defined.',
+    notice: 'Only passed results with a stored CGPA are listed; ranks are assigned by CGPA, highest first, numbered 1 to n.',
     data
   };
 }

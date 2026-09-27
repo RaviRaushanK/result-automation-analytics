@@ -153,22 +153,27 @@ const dashboardController = {
     },
 
     // GET /dashboard/top-scorers - top 10 scorers
+    // Only PASSED results are eligible, mirroring the Toppers policy: a failed
+    // result never belongs in a "top scorers" list even if its CGPA is high.
+    // Ordering falls back to result_id so the top 10 is deterministic when
+    // several students share the same CGPA/SGPA.
     topScorers: async (req, res) => {
         try {
             const sessionIds = await resolveSessionIds(buildSessionFilter(req.query));
             const resultWhere = sessionIds.length ? { session_id: { [Op.in]: sessionIds } } : {};
             const topScorers = await Result.findAll({
-                where: resultWhere,
+                where: { ...resultWhere, result_status: 'pass' },
                 attributes: ['result_id', 'sgpa', 'cgpa', 'result_status'],
-                include: [{ model: Student, attributes: ['student_name', 'usn'] }],
-                order: [['cgpa', 'DESC'], ['sgpa', 'DESC']],
+                include: [{ model: Student, attributes: ['usn', 'student_name'] }],
+                order: [['cgpa', 'DESC'], ['sgpa', 'DESC'], ['result_id', 'ASC']],
                 limit: 10,
                 raw: true,
                 nest: true
             });
             res.json({
                 success: true,
-                data: topScorers.map(r => ({
+                data: topScorers.map((r, i) => ({
+                    rank: i + 1,
                     student_name: r.Student?.student_name || 'N/A',
                     usn: r.Student?.usn || 'N/A',
                     sgpa: r.sgpa,

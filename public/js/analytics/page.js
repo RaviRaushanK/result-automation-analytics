@@ -34,9 +34,28 @@
     function row(values) {
       var tr = document.createElement('tr');
       values.forEach(function (value) {
-        var td = document.createElement('td'); td.textContent = text(value); tr.appendChild(td);
+        var td = document.createElement('td');
+        // Node values (e.g. statusBadge spans) are appended as-is; scalars stay
+        // on textContent so cell text is never interpreted as HTML.
+        if (value instanceof Node) td.appendChild(value);
+        else td.textContent = text(value);
+        tr.appendChild(td);
       });
       body.appendChild(tr);
+    }
+    // Dashboard-style status badge (dashboard.css .badge-status + .badge-pass/.badge-fail).
+    // Values mirror the Result.result_status ENUM('pass','fail'); anything else
+    // falls back to the neutral .badge-status look and an em dash for empty.
+    function statusBadge(value) {
+      var raw = value == null ? '' : String(value);
+      var lower = raw.toLowerCase();
+      var span = document.createElement('span');
+      var cls = 'badge-status';
+      if (lower === 'pass') cls += ' badge-pass';
+      else if (lower === 'fail') cls += ' badge-fail';
+      span.className = cls;
+      span.textContent = raw || '\u2014';
+      return span;
     }
     function message(value) {
       body.textContent = '';
@@ -100,8 +119,8 @@
         var result = await json('/analytics/api/' + config.page + '?' + params);
         if (current !== request) return;
         body.textContent = '';
-        var rows = config.render(result, { row: row, number: number, chart: chart });
-        if (config.done) config.done(result, { row: row, number: number, chart: chart, params: params });
+        var rows = config.render(result, { row: row, number: number, chart: chart, statusBadge: statusBadge });
+        if (config.done) config.done(result, { row: row, number: number, chart: chart, statusBadge: statusBadge, params: params });
         if (!rows) message('No analytics data found for the selected filters.');
         var label = document.getElementById('analytics-mode-label');
         if (label) label.textContent = result.mode === 'effective' ? 'Effective' : 'Original';

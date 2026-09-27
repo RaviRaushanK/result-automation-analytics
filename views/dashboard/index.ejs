@@ -173,8 +173,9 @@
 
     <!-- Top 10 Scorers -->
     <div class="card mb-4">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-baseline flex-wrap gap-1">
             <h5 class="card-title mb-0">Top 10 Scorers</h5>
+            <small class="text-muted">Passed results only, ranked by CGPA</small>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -249,7 +250,7 @@
 
 <!-- Expose filter data to dashboard.js -->
 <div id="dashboardFilters"
-     data-academic-years="<%= JSON.stringify(academicYears || []) %>"
+     data-batches="<%= JSON.stringify(batches || []) %>"
      data-semesters="<%= JSON.stringify(semesters || []) %>"
      class="d-none"></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

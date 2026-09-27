@@ -59,7 +59,7 @@
     <div class="analytics-card">
       <h2 id="toppers-heading" class="h6 p-2 analytics-card-title">Student Performance Candidates</h2>
       <p class="analytics-note px-2 ">
-        Ranked by stored CGPA, highest first. Rows without a stored CGPA show no rank.
+        Only passed results with a stored CGPA are shown. Ranked by CGPA, highest first, numbered 1 to n.
       </p>
       <div class="analytics-toolbar">
         <label class="analytics-search-wrap" for="toppers-search">
@@ -67,24 +67,21 @@
           <input type="search" id="toppers-search" class="analytics-search"
                  placeholder="Search candidates…" autocomplete="off">
         </label>
-        <div class="d-flex align-items-center gap-2">
-          <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
-          <span class="analytics-row-count" id="toppers-count" aria-live="polite"></span>
-        </div>
+        <span class="analytics-row-count" id="toppers-count" aria-live="polite"></span>
       </div>
       <div class="table-responsive">
         <table class="table analytics-table" id="toppers-table">
           <caption class="visually-hidden">Student performance candidate records</caption>
           <thead>
             <tr>
-              <th scope="col">Rank</th>
-              <th scope="col">USN</th>
-              <th scope="col">Student Name</th>
-              <th scope="col">Semester</th>
-              <th scope="col">Attempt</th>
-              <th scope="col">SGPA</th>
-              <th scope="col">CGPA</th>
-              <th scope="col">Result Status</th>
+              <th scope="col" data-nosort>Rank</th>
+              <th scope="col" data-nosort>USN</th>
+              <th scope="col" data-nosort>Student Name</th>
+              <th scope="col" data-nosort>Semester</th>
+              <th scope="col" data-nosort>Attempt</th>
+              <th scope="col" data-nosort>SGPA</th>
+              <th scope="col" data-nosort>CGPA</th>
+              <th scope="col" data-nosort>Result Status</th>
             </tr>
           </thead>
           <tbody id="toppers-table-body">
