@@ -9,6 +9,42 @@
     el.removeAttribute('aria-hidden');
   }
 
+  function refreshTable(tableId) {
+    if (window.AnalyticsTable) window.AnalyticsTable.refresh(tableId);
+  }
+
+  function resetCharts() {
+    if (!window.AnalyticsCharts) return;
+    window.AnalyticsCharts.render('revaluation-pipeline-chart', {
+      type: 'doughnut',
+      labels: [],
+      datasets: [],
+      emptyMessage: 'Apply filters to view pipeline status.'
+    });
+    window.AnalyticsCharts.render('revaluation-delta-chart', {
+      type: 'bar',
+      labels: [],
+      datasets: [],
+      emptyMessage: 'Apply filters to view mark movement.',
+      scroll: false
+    });
+  }
+
+  function populateStatusFilter() {
+    var select = document.getElementById('filter-revaluation-status');
+    if (!select || select.options.length > 1) return;
+    [
+      ['pending', 'Pending'],
+      ['approved', 'Approved'],
+      ['rejected', 'Rejected']
+    ].forEach(function (status) {
+      var option = document.createElement('option');
+      option.value = status[0];
+      option.textContent = status[1];
+      select.appendChild(option);
+    });
+  }
+
   function clearTable(tbodyId, colspan) {
     var tbody = document.getElementById(tbodyId);
     if (!tbody) return;
@@ -34,6 +70,7 @@
       td.textContent = 'No matching revaluation outcome rows for the current filters.';
       empty.appendChild(td);
       tbody.appendChild(empty);
+      refreshTable('revaluation-by-subject-table');
       return;
     }
     rows.forEach(function (row) {
@@ -41,7 +78,6 @@
       var cells = [
         row.subjectLabel || '\u2014',
         ui.number(row.cases, 0),
-        ui.number(row.subjectsWithRevaluation, 0),
         ui.number(row.statusChanges, 0),
         ui.number(row.failToPass, 0),
         ui.number(row.passToFail, 0),
@@ -59,6 +95,7 @@
       });
       tbody.appendChild(tr);
     });
+    refreshTable('revaluation-by-subject-table');
   }
 
   function fmtNum(v) {
@@ -72,6 +109,11 @@
     return v;
   }
 
+  function statusText(value) {
+    if (!value) return '\u2014';
+    return String(value).replace(/_/g, ' ');
+  }
+
   function renderDetail(result, ui, tbody) {
     var rows = result.detail || [];
     if (!rows.length) {
@@ -83,6 +125,7 @@
       td.textContent = 'No individual revaluation event rows match the current filters.';
       empty.appendChild(td);
       tbody.appendChild(empty);
+      refreshTable('revaluation-detail-table');
       return;
     }
     rows.forEach(function (row) {
@@ -95,10 +138,10 @@
         fmtNum(row.originalMarks),
         fmtNum(row.revisedMarks),
         fmtDelta(row.delta),
-        row.originalStatus || '\u2014',
-        row.revisedStatus || '\u2014',
-        row.validationStatus || '\u2014',
-        row.remarkType || '\u2014',
+        statusText(row.originalStatus),
+        statusText(row.revisedStatus),
+        statusText(row.validationStatus),
+        statusText(row.remarkType),
         row.remarkSummary || '\u2014',
         row.sourceFile || row.eventProvenance || '\u2014'
       ];
@@ -109,7 +152,70 @@
       });
       tbody.appendChild(tr);
     });
+    refreshTable('revaluation-detail-table');
   }
+
+  function renderCharts(result) {
+    var api = window.AnalyticsCharts;
+    if (!api) return;
+
+    var pipeline = result.pipeline || [];
+    var statusOrder = [
+      ['pending', 'Pending', 'amber'],
+      ['approved', 'Approved', 'green'],
+      ['rejected', 'Rejected', 'red']
+    ];
+    var pipelineValues = statusOrder.map(function (entry) {
+      var item = pipeline.find(function (r) { return r.revaluationStatus === entry[0]; });
+      return item ? Number(item.rowCount) || 0 : 0;
+    });
+    api.render('revaluation-pipeline-chart', {
+      type: 'doughnut',
+      labels: statusOrder.map(function (entry) { return entry[1]; }),
+      datasets: [{
+        label: 'Rows',
+        type: 'doughnut',
+        colors: statusOrder.map(function (entry) { return entry[2]; }),
+        data: pipelineValues
+      }],
+      decimals: 0,
+      emptyMessage: 'No pipeline rows found for the current filters.'
+    });
+
+    var outcomes = result.outcomes || {};
+    api.render('revaluation-delta-chart', {
+      type: 'bar',
+      labels: ['Positive', 'Unchanged', 'Negative', 'Fail to Pass', 'Pass to Fail'],
+      datasets: [{
+        label: 'Cases',
+        palette: true,
+        data: [
+          outcomes.positiveDelta,
+          outcomes.unchanged,
+          outcomes.negativeDelta,
+          outcomes.failToPass,
+          outcomes.passToFail
+        ]
+      }],
+      decimals: 0,
+      emptyMessage: 'No mark movement found for the current filters.',
+      scroll: false
+    });
+  }
+
+  if (window.AnalyticsTable) {
+    window.AnalyticsTable.enhance('revaluation-by-subject-table', {
+      search: 'revaluation-by-subject-search',
+      count: 'revaluation-by-subject-count',
+      rowLabel: 'subjects'
+    });
+    window.AnalyticsTable.enhance('revaluation-detail-table', {
+      search: 'revaluation-detail-search',
+      count: 'revaluation-detail-count',
+      rowLabel: 'events'
+    });
+  }
+  populateStatusFilter();
 
   window.AnalyticsPage({
     page: 'revaluation', columns: 2,
@@ -118,6 +224,9 @@
       document.getElementById('revaluation-integrity').textContent = '';
       clearTable('revaluation-by-subject-body', 11);
       clearTable('revaluation-detail-body', 13);
+      resetCharts();
+      refreshTable('revaluation-by-subject-table');
+      refreshTable('revaluation-detail-table');
     },
     render: function (result, ui) {
       var pipeline = result.pipeline || [];
@@ -138,9 +247,10 @@
       document.getElementById('revaluation-integrity').textContent =
         'Effective overlay subjects: ' + ui.number(integrity.effectiveOverlaySubjects, 0) +
         '. Multiple-effective-row anomalies: ' + ui.number(integrity.anomalies, 0) + '.';
+      renderCharts(result);
       return 11;
     },
-        done: function (result, ui) {
+    done: function (result, ui) {
       var params = ui.params || {};
       var query = '';
       if (params && typeof params.toString === 'function') {
@@ -151,15 +261,25 @@
       if (!bySubjBody && !detailBody) return;
       if (bySubjBody) { clearTable('revaluation-by-subject-body', 11); }
       if (detailBody) { clearTable('revaluation-detail-body', 13); }
+      refreshTable('revaluation-by-subject-table');
+      refreshTable('revaluation-detail-table');
       Promise.all([
         fetch('/analytics/api/revaluation/by-subject?' + query, { headers: { Accept: 'application/json' } })
           .then(function (r) { return r.json(); })
-          .then(function (d) { if (bySubjBody) renderBySubject(d, ui, bySubjBody); })
-          .catch(function () {}),
+          .then(function (d) {
+            if (!bySubjBody) return;
+            bySubjBody.innerHTML = '';
+            renderBySubject(d, ui, bySubjBody);
+          })
+          .catch(function () { refreshTable('revaluation-by-subject-table'); }),
         fetch('/analytics/api/revaluation/detail?' + query, { headers: { Accept: 'application/json' } })
           .then(function (r) { return r.json(); })
-          .then(function (d) { if (detailBody) renderDetail(d, ui, detailBody); })
-          .catch(function () {})
+          .then(function (d) {
+            if (!detailBody) return;
+            detailBody.innerHTML = '';
+            renderDetail(d, ui, detailBody);
+          })
+          .catch(function () { refreshTable('revaluation-detail-table'); })
       ]).catch(function () {});
     }
   });
