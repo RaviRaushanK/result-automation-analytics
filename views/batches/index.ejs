@@ -1,0 +1,367 @@
+<!-- ============================================
+     Batches Management - SRAAS
+     Academic Management → Batches
+============================================ -->
+<div class="container-fluid batches-page">
+
+    <!-- Notification container (same design as the app's flash alert container) -->
+    <div class="alert-container position-fixed top-0 end-0 p-3" id="batchesToastContainer" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Page Header -->
+    <div class="dashboard-header">
+        <div>
+            <h4>Batches Management</h4>
+            <p class="text-muted">Create, manage and update academic batches</p>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-4 mb-4">
+
+        <div class="col-sm-6 col-xl-3">
+            <!-- Total Batches -->
+            <div class="card stat-card stat-blue">
+                <span class="stat-corner" aria-hidden="true"></span>
+                <div class="card-body">
+                    <div class="stat-icon">
+                        <span class="material-icons">groups</span>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="totalBatchesCount">--</div>
+                        <div class="stat-label">Total Batches</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <!-- Active Batches -->
+            <div class="card stat-card stat-green">
+                <span class="stat-corner" aria-hidden="true"></span>
+                <div class="card-body">
+                    <div class="stat-icon">
+                        <span class="material-icons">check_circle</span>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="activeBatchesCount">--</div>
+                        <div class="stat-label">Active Batches</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <!-- Inactive Batches -->
+            <div class="card stat-card stat-amber">
+                <span class="stat-corner" aria-hidden="true"></span>
+                <div class="card-body">
+                    <div class="stat-icon">
+                        <span class="material-icons">pause_circle</span>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="inactiveBatchesCount">--</div>
+                        <div class="stat-label">Inactive Batches</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-3">
+            <!-- Current / Latest Batch -->
+            <div class="card stat-card stat-teal">
+                <span class="stat-corner" aria-hidden="true"></span>
+                <div class="card-body">
+                    <div class="stat-icon">
+                        <span class="material-icons">school</span>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value stat-batch-name" id="latestBatchName">--</div>
+                        <div class="stat-label">Current/Latest Batch</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!-- Batch List Section -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="card-title mb-0">All Batches</h5>
+            <button type="button" class="btn btn-primary btn-sm" id="createBatchHeaderBtn">
+                <span class="material-icons btn-icon">add</span>Create New Batch
+            </button>
+        </div>
+        <div class="card-body">
+
+            <!-- Search + Status Filter -->
+            <div class="row g-3 mb-3 batches-toolbar">
+                <div class="col-12 col-md-7 col-lg-8">
+                    <label for="batchSearchInput" class="form-label batches-toolbar-label">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text batches-search-icon"><span class="material-icons">search</span></span>
+                        <input type="search" class="form-control" id="batchSearchInput" placeholder="Search batches..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="col-12 col-md-5 col-lg-4">
+                    <label for="batchStatusFilter" class="form-label batches-toolbar-label">Status</label>
+                    <select class="form-select" id="batchStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Batches Table -->
+            <div class="table-responsive" id="batchesTableWrapper">
+                <table class="table table-hover align-middle batches-table mb-0" id="batchesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Batch Name</th>
+                            <th scope="col">Department</th>
+                            <th scope="col">Start Year</th>
+                            <th scope="col">End Year</th>
+                            <th scope="col">Duration</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Created Date</th>
+                            <th scope="col" class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchesTableBody">
+                        <tr>
+                            <td colspan="8" class="text-center table-loading">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span class="ms-2 text-muted">Loading batches...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <div class="batches-empty-state d-none" id="batchesEmptyState">
+                <span class="material-icons batches-empty-icon">groups</span>
+                <h6 class="batches-empty-title" id="batchesEmptyTitle">No batches found</h6>
+                <p class="batches-empty-text mb-0" id="batchesEmptyText">Create your first academic batch to get started.</p>
+                <button type="button" class="btn btn-primary mt-3" id="emptyStateCreateBtn">
+                    <span class="material-icons btn-icon">add</span>Create New Batch
+                </button>
+            </div>
+
+        </div>
+    </div>
+    <!-- ============================
+         Create New Batch Modal
+    ============================ -->
+    <div class="modal fade batches-modal" id="createBatchModal" tabindex="-1" aria-labelledby="createBatchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createBatchModalLabel">Create New Batch</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="createBatchForm" novalidate>
+                    <div class="modal-body">
+                        <div class="alert alert-danger d-none" id="createBatchError" role="alert"></div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="createBatchName" class="form-label">Batch Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="createBatchName" name="batch_name" maxlength="100" placeholder="25th MCA Batch" autocomplete="off">
+                                <div class="invalid-feedback">Batch name is required.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="createBatchDepartment" class="form-label">Department <span class="text-danger">*</span></label>
+                                <select class="form-select" id="createBatchDepartment" name="department_id">
+                                    <option value="">Select department</option>
+                                </select>
+                                <div class="invalid-feedback">Department is required.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="createBatchStatus" class="form-label">Status</label>
+                                <select class="form-select" id="createBatchStatus" name="status">
+                                    <option value="active" selected>Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="createBatchStartYear" class="form-label">Start Year <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="createBatchStartYear" name="start_year" placeholder="2025" min="1900" max="2200" step="1">
+                                <div class="invalid-feedback">Start year is required and must be a valid year.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="createBatchEndYear" class="form-label">End Year <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="createBatchEndYear" name="end_year" placeholder="2027" min="1900" max="2200" step="1">
+                                <div class="invalid-feedback">End year must be greater than start year.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="createBatchSubmitBtn">
+                            <span class="material-icons btn-icon">add</span><span class="btn-text">Create Batch</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- ============================
+         Confirm New Batch Modal
+    ============================ -->
+    <div class="modal fade batches-modal" id="confirmCreateModal" tabindex="-1" aria-labelledby="confirmCreateModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmCreateModalLabel">Confirm New Batch</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" id="confirmCreateError" role="alert"></div>
+                    <p class="mb-3">Are you sure you want to create this batch?</p>
+                    <div class="batch-confirm-summary" id="confirmCreateSummary">
+                        <div class="batch-summary-row"><span class="batch-summary-label">Batch Name</span><span class="batch-summary-value" data-field="batch_name">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">Department</span><span class="batch-summary-value" data-field="department">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">Start Year</span><span class="batch-summary-value" data-field="start_year">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">End Year</span><span class="batch-summary-value" data-field="end_year">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">Status</span><span class="batch-summary-value" data-field="status">-</span></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="confirmCreateCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmCreateBtn">Confirm &amp; Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ============================
+         Edit Batch Modal
+    ============================ -->
+    <div class="modal fade batches-modal" id="editBatchModal" tabindex="-1" aria-labelledby="editBatchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editBatchModalLabel">Edit Batch</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editBatchForm" novalidate>
+                    <div class="modal-body">
+                        <div class="alert alert-danger d-none" id="editBatchError" role="alert"></div>
+                        <input type="hidden" id="editBatchId">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="editBatchName" class="form-label">Batch Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="editBatchName" name="batch_name" maxlength="100" placeholder="25th MCA Batch" autocomplete="off">
+                                <div class="invalid-feedback">Batch name is required.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editBatchDepartment" class="form-label">Department <span class="text-danger">*</span></label>
+                                <select class="form-select" id="editBatchDepartment" name="department_id">
+                                    <option value="">Select department</option>
+                                </select>
+                                <div class="invalid-feedback">Department is required.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editBatchStatus" class="form-label">Status</label>
+                                <select class="form-select" id="editBatchStatus" name="status">
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editBatchStartYear" class="form-label">Start Year <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="editBatchStartYear" name="start_year" placeholder="2025" min="1900" max="2200" step="1">
+                                <div class="invalid-feedback">Start year is required and must be a valid year.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editBatchEndYear" class="form-label">End Year <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="editBatchEndYear" name="end_year" placeholder="2027" min="1900" max="2200" step="1">
+                                <div class="invalid-feedback">End year must be greater than start year.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="editBatchSubmitBtn">
+                            <span class="material-icons btn-icon">save</span><span class="btn-text">Save Changes</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- ============================
+         Confirm Batch Changes Modal
+    ============================ -->
+    <div class="modal fade batches-modal" id="confirmEditModal" tabindex="-1" aria-labelledby="confirmEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmEditModalLabel">Confirm Changes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" id="confirmEditError" role="alert"></div>
+                    <p class="mb-3">Are you sure you want to update this batch?</p>
+                    <div class="batch-confirm-summary" id="confirmEditSummary">
+                        <div class="batch-summary-row"><span class="batch-summary-label">Batch Name</span><span class="batch-summary-value" data-field="batch_name">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">Department</span><span class="batch-summary-value" data-field="department">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">Start Year</span><span class="batch-summary-value" data-field="start_year">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">End Year</span><span class="batch-summary-value" data-field="end_year">-</span></div>
+                        <div class="batch-summary-row"><span class="batch-summary-label">Status</span><span class="batch-summary-value" data-field="status">-</span></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="confirmEditCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmEditBtn">Confirm &amp; Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ============================
+         Batch Details Modal
+    ============================ -->
+    <div class="modal fade batches-modal" id="batchDetailsModal" tabindex="-1" aria-labelledby="batchDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="batchDetailsModalLabel">Batch Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="batchDetailsLoading" class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2 text-muted">Loading batch details...</span>
+                    </div>
+                    <div class="alert alert-danger d-none" id="batchDetailsError" role="alert"></div>
+                    <dl class="batch-details-list d-none mb-0" id="batchDetailsList">
+                        <div class="batch-details-row"><dt>Batch Name</dt><dd data-field="batch_name">-</dd></div>
+                        <div class="batch-details-row"><dt>Batch UUID</dt><dd class="batch-details-uuid"><code data-field="batch_uuid">-</code></dd></div>
+                        <div class="batch-details-row"><dt>Department</dt><dd data-field="department">-</dd></div>
+                        <div class="batch-details-row"><dt>Start Year</dt><dd data-field="start_year">-</dd></div>
+                        <div class="batch-details-row"><dt>End Year</dt><dd data-field="end_year">-</dd></div>
+                        <div class="batch-details-row"><dt>Duration</dt><dd data-field="duration">-</dd></div>
+                        <div class="batch-details-row"><dt>Status</dt><dd data-field="status">-</dd></div>
+                        <div class="batch-details-row"><dt>Created At</dt><dd data-field="created_at">-</dd></div>
+                        <div class="batch-details-row"><dt>Updated At</dt><dd data-field="updated_at">-</dd></div>
+                    </dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Server-rendered data consumed by batches.js -->
+<div id="batchesPageData"
+     data-batches="<%= JSON.stringify(batches || []) %>"
+     data-departments="<%= JSON.stringify(departments || []) %>"
+     class="d-none"></div>
+
+<script src="/js/batches.js"></script>

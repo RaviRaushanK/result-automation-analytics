@@ -34,25 +34,25 @@ views/
 
 # Directory Overview
 
-| Directory          | Description                                        |
-| ------------------ | -------------------------------------------------- |
-| `analytics/`       | Views related to analytics and reports.            |
-| `auth/`            | Login, account security, and authentication pages. |
-| `batches/`         | Batch management interfaces.                       |
-| `chat/`            | Chat assistant pages.                              |
-| `dashboard/`       | Main dashboard displayed after successful login.   |
-| `departments/`     | Department management pages.                       |
-| `errors/`          | Custom error pages such as 404 and 500.            |
-| `faculty/`         | Faculty management pages.                          |
-| `landing/`         | Public-facing landing page.                        |
-| `layouts/`         | Base layouts shared across multiple pages.         |
-| `partials/`        | Reusable UI components included in layouts.        |
-| `reports/`         | Report generation and display pages.               |
-| `results/`         | Result management pages.                           |
-| `revaluation/`     | Revaluation workflow pages.                        |
-| `sessions/`        | Academic session management pages.                 |
-| `students/`        | Student management pages.                          |
-| `subjects/`        | Subject management pages.                          |
+| Directory      | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `analytics/`   | Views related to analytics and reports.            |
+| `auth/`        | Login, account security, and authentication pages. |
+| `batches/`     | Batch management interfaces.                       |
+| `chat/`        | Chat assistant pages.                              |
+| `dashboard/`   | Main dashboard displayed after successful login.   |
+| `departments/` | Department management pages.                       |
+| `errors/`      | Custom error pages such as 404 and 500.            |
+| `faculty/`     | Faculty management pages.                          |
+| `landing/`     | Public-facing landing page.                        |
+| `layouts/`     | Base layouts shared across multiple pages.         |
+| `partials/`    | Reusable UI components included in layouts.        |
+| `reports/`     | Report generation and display pages.               |
+| `results/`     | Result management pages.                           |
+| `revaluation/` | Revaluation workflow pages.                        |
+| `sessions/`    | Academic session management pages.                 |
+| `students/`    | Student management pages.                          |
+| `subjects/`    | Subject management pages.                          |
 
 ---
 
@@ -114,28 +114,30 @@ Layout
 
 # EJS Conventions
 
-* Organize pages by feature.
-* Keep business logic inside controllers.
-* Use layouts to avoid duplicated page structure.
-* Use partials for reusable UI components.
-* Keep templates focused on presentation.
-* Pass only the required data from controllers.
-* Use semantic HTML wherever possible.
-* Follow consistent naming conventions for files and folders.
+- Organize pages by feature.
+- Keep business logic inside controllers.
+- Use layouts to avoid duplicated page structure.
+- Use partials for reusable UI components.
+- Keep templates focused on presentation.
+- Pass only the required data from controllers.
+- Use semantic HTML wherever possible.
+- Follow consistent naming conventions for files and folders.
 
 ---
 
 # Current Implemented Views
 
-| View                        | Description           | Layout        |
-| --------------------------- | --------------------- | ------------- |
-| `auth/login.ejs`            | User login page       | `auth.ejs`    |
-| `auth/account-security.ejs` | Account security page | `main.ejs`    |
-| `auth/changePassword.ejs`   | Change password page  | `auth.ejs`    |
-| `dashboard/index.ejs`       | Dashboard home page   | `main.ejs`    |
-| `landing/index.ejs`         | Public landing page   | `landing.ejs` |
-| `errors/404.ejs`            | Page Not Found        | `landing.ejs` |
-| `errors/500.ejs`            | Internal Server Error | `landing.ejs` |
+| View                        | Description                  | Layout        |
+| --------------------------- | ---------------------------- | ------------- |
+| `auth/login.ejs`            | User login page              | `auth.ejs`    |
+| `auth/account-security.ejs` | Account security page        | `main.ejs`    |
+| `auth/changePassword.ejs`   | Change password page         | `auth.ejs`    |
+| `dashboard/index.ejs`       | Dashboard home page          | `main.ejs`    |
+| `batches/index.ejs`         | Batches management           | `main.ejs`    |
+| `sessions/index.ejs`        | Session management dashboard | `main.ejs`    |
+| `landing/index.ejs`         | Public landing page          | `landing.ejs` |
+| `errors/404.ejs`            | Page Not Found               | `landing.ejs` |
+| `errors/500.ejs`            | Internal Server Error        | `landing.ejs` |
 
 > Update this table whenever new views are added.
 
@@ -154,9 +156,9 @@ Layout
 
 # Best Practices
 
-* Keep feature-specific pages inside their respective folders.
-* Reuse layouts and partials instead of duplicating HTML.
-* Avoid placing business logic inside EJS templates.
-* Keep templates clean, readable, and modular.
-* Maintain consistent file naming conventions.
-* Update this documentation whenever the `views/` directory structure changes.
+- Keep feature-specific pages inside their respective folders.
+- Reuse layouts and partials instead of duplicating HTML.
+- Avoid placing business logic inside EJS templates.
+- Keep templates clean, readable, and modular.
+- Maintain consistent file naming conventions.
+- Update this documentation whenever the `views/` directory structure changes.

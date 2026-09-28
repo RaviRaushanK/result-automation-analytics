@@ -1,0 +1,24 @@
+/* ============================================
+   Session Management - SRAAS
+   Academic Management → Sessions
+   Page-specific styles. Uses existing tokens.
+   ============================================ */
+.sessions-page .sessions-header { margin-bottom: 1.5rem; }
+.sessions-toolbar { display: flex; flex-wrap: wrap; gap: .75rem; }
+.sessions-search { min-width: min(320px, 100%); }
+.sessions-toolbar > .form-select { width: auto; min-width: 150px; }
+.sessions-table { min-width: 1050px; }
+.sessions-table .session-name { font-weight: 600; color: var(--text-primary); }
+.sessions-table .session-meta { font-size: .75rem; color: var(--text-secondary); }
+.session-readonly-field { background-color: var(--secondary-bg); color: var(--text-primary); font-weight: 600; }
+.session-hint { font-size: .75rem; color: var(--text-secondary); }
+#sessionsToastContainer { z-index: 1060; }
+#sessionsToastContainer .alert { min-width: 260px; max-width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,.12); font-size: .9rem; }
+
+@media (max-width: 767.98px) {
+  .sessions-toolbar { width: 100%; }
+  .sessions-search, .sessions-toolbar > .form-select { width: 100%; }
+  .sessions-table th, .sessions-table td { font-size: .85rem; }
+  #sessionsToastContainer .alert { min-width: 0; max-width: calc(100vw - 1.5rem); }
+}
+
