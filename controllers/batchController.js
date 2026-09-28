@@ -1,5 +1,8 @@
-// Import Batch model from centralized registry
-const { Batch } = require('../database/models');
+// Import models from centralized registry
+const { Batch, Department } = require('../database/models');
+
+// Page styles for the Batches Management dashboard (Academic Management → Batches)
+const BATCH_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css'];
 
 
 const batchController = {
@@ -9,7 +12,43 @@ const batchController = {
   // ========================
   all: async (req, res) => {
     try {
-      const data = await Batch.findAll();
+      // Reuse the existing Department ↔ Batch relationship to resolve department names
+      const data = await Batch.findAll({
+        include: [{
+          model: Department,
+          attributes: ['department_id', 'department_code', 'department_name']
+        }],
+        order: [['created_at', 'DESC'], ['batch_id', 'DESC']]
+      });
+
+      // Content negotiation:
+      // - Browser navigation (Accept: text/html) renders the Batches Management dashboard
+      // - API clients (Accept: application/json or ?format=json) keep the existing JSON response
+      // - Requests without an explicit type (Accept: */* from curl/tools) keep the JSON response
+      const acceptHeader = String(req.get('Accept') || '');
+      const wantsJson = req.query.format === 'json' ||
+        acceptHeader.indexOf('application/json') !== -1 ||
+        acceptHeader.indexOf('text/html') === -1;
+
+      if (!wantsJson) {
+        const departments = await Department.findAll({
+          attributes: ['department_id', 'department_code', 'department_name'],
+          order: [['department_name', 'ASC']],
+          raw: true
+        });
+
+        return res.render('batches/index', {
+          layout: 'layouts/main',
+          title: 'Batches Management - SRAAS',
+          pageStyles: BATCH_PAGE_STYLES,
+          breadcrumbItems: [
+            { href: '#', label: 'Academic Management' },
+            { label: 'Batches' }
+          ],
+          batches: data,
+          departments
+        });
+      }
 
       res.status(200).json({
         success: true,

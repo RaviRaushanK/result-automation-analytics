@@ -1,0 +1,14 @@
+/* Faculty Assignment dashboard page styles; colors use existing SRAAS tokens. */
+.faculty-table{min-width:900px}.faculty-table th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);white-space:nowrap}.faculty-table td{font-size:.9rem;vertical-align:middle}.faculty-select{min-width:220px}.faculty-editing{background-color:var(--sidebar-active)}.faculty-confirm-list{display:grid;gap:.75rem;min-width:0;max-width:100%}.faculty-confirm-context{padding:.75rem;border:1px solid var(--primary-brand);border-radius:8px;background-color:var(--secondary-bg);color:var(--text-primary);overflow-wrap:anywhere}.faculty-confirm-item{display:grid;gap:.15rem;padding:.75rem;border:1px solid var(--card-border);border-radius:8px;background-color:var(--secondary-bg);min-width:0;max-width:100%;overflow-wrap:anywhere}.faculty-confirm-item strong,.faculty-confirm-item span,.faculty-confirm-item small{min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}.faculty-confirm-item strong{color:var(--primary-brand)}.faculty-confirm-item span,.faculty-confirm-item small{color:var(--text-primary)}.faculty-confirm-item small{color:var(--text-secondary)}
+@media(max-width:767.98px){.faculty-select{min-width:190px}.faculty-table th,.faculty-table td{font-size:.85rem}}
+/* Remove Faculty Assignment dialog: viewport-safe on desktop, laptop, tablet and mobile. */
+#facultyRemoveModal .modal-dialog{max-width:min(92vw,600px);max-height:calc(100dvh - 1rem);margin:.5rem auto}
+#facultyRemoveModal .modal-content{max-height:calc(100dvh - 1rem);overflow:hidden}
+#facultyRemoveModal .modal-body{overflow-y:auto;max-height:calc(100dvh - 9rem);overscroll-behavior:contain}
+#facultyRemoveModal .modal-footer{flex-wrap:wrap;gap:.5rem}
+/* Per-faculty partial removal ("Remove Faculty 1" / "Remove Faculty 2"). */
+.faculty-remove-one{justify-self:start;margin-top:.35rem}
+.faculty-confirm-item.faculty-remove-selected{border-color:var(--color-danger)}
+/* Danger actions reuse the theme's semantic danger token in dark mode. */
+:root[data-theme="dark"] .faculty-table .btn-outline-danger,:root[data-theme="dark"] #facultyRemoveModal .faculty-remove-one{--bs-btn-color:#f87171;--bs-btn-border-color:#f87171;--bs-btn-hover-bg:#f87171;--bs-btn-hover-border-color:#f87171;--bs-btn-hover-color:#1f2937;--bs-btn-active-bg:#f87171;--bs-btn-active-border-color:#f87171;--bs-btn-disabled-color:#f87171;--bs-btn-disabled-border-color:#f87171}
+@media(max-width:767.98px){#facultyRemoveModal .modal-dialog{width:calc(100% - 1rem);max-width:none;max-height:calc(100dvh - .5rem);margin:.25rem auto}#facultyRemoveModal .modal-content{max-height:calc(100dvh - .5rem)}#facultyRemoveModal .modal-body{max-height:calc(100dvh - 8.5rem);padding:1rem}#facultyRemoveModal .modal-footer .btn{flex:1 1 45%}}

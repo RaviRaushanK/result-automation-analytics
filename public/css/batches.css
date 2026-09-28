@@ -1,0 +1,283 @@
+/* ============================================
+   Batches Management - SRAAS
+   Academic Management → Batches
+   Page-specific styles only. Colors are taken
+   from the global design tokens (tokens.css)
+   and the dashboard styles (dashboard.css).
+   ============================================ */
+
+/* ---------- Page Header ---------- */
+.batches-page .dashboard-header {
+    margin-bottom: 1.5rem;
+}
+
+/* ---------- Summary Cards ---------- */
+/* Long batch names (Current/Latest Batch card) must not overflow */
+.batches-page .stat-value.stat-batch-name {
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* ---------- Toolbar ---------- */
+.batches-toolbar-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.375rem;
+}
+.batches-search-icon {
+    background-color: var(--secondary-bg);
+    border-color: var(--card-border);
+    color: var(--text-secondary);
+}
+.batches-search-icon .material-icons {
+    font-size: 1.1rem;
+    vertical-align: middle;
+}
+.batches-toolbar .form-control,
+.batches-toolbar .form-select {
+    min-height: 38px;
+}
+
+/* ---------- Batch Table ---------- */
+.batches-table {
+    min-width: 860px;
+}
+.batches-table th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.batches-table td {
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+.batches-table .action-icon {
+    font-size: 1.05rem;
+    vertical-align: middle;
+}
+.batches-table .btn + .btn {
+    margin-left: 0.35rem;
+}
+.batches-table .btn {
+    padding: 0.3rem 0.5rem;
+    line-height: 1;
+}
+.batches-table .btn .action-icon {
+    font-size: 1.1rem;
+}
+
+/* Status badges reuse the existing Bootstrap badge classes
+   (badge bg-success / badge bg-warning text-dark) — no new colors. */
+
+/* ---------- Empty State ---------- */
+.batches-empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+}
+.batches-empty-icon {
+    font-size: 3rem;
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+.batches-empty-title {
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.batches-empty-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* ---------- Loading / Error Rows ---------- */
+.batches-table .table-loading,
+.batches-table .table-message {
+    padding: 2rem 0;
+}
+.batches-table .table-loading .spinner-border {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+/* ---------- Modals (themed with the global tokens) ---------- */
+.batches-modal .modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+}
+.batches-modal .modal-header {
+    border-bottom-color: var(--card-border);
+}
+.batches-modal .modal-footer {
+    border-top-color: var(--card-border);
+}
+.batches-modal .modal-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.batches-modal .form-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.375rem;
+}
+.batches-modal .btn .spinner-border {
+    width: 1rem;
+    height: 1rem;
+    border-width: 2px;
+}
+:root[data-theme="dark"] .batches-modal .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* ---------- Confirmation Summary ---------- */
+.batch-confirm-summary {
+    background-color: var(--secondary-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+}
+.batch-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    font-size: 0.9rem;
+}
+.batch-summary-row + .batch-summary-row {
+    border-top: 1px dashed var(--card-border);
+}
+.batch-summary-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+.batch-summary-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+}
+
+/* ---------- Batch Details ---------- */
+.batch-details-list {
+    margin: 0;
+}
+.batch-details-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--card-border);
+    font-size: 0.9rem;
+}
+.batch-details-row:last-child {
+    border-bottom: none;
+}
+.batch-details-row dt {
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin: 0;
+}
+.batch-details-row dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+}
+.batch-details-uuid code {
+    color: var(--accent-blue);
+    background-color: rgba(37, 99, 235, 0.08);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    word-break: break-all;
+    font-size: 0.8rem;
+}
+:root[data-theme="dark"] .batch-details-uuid code {
+    background-color: rgba(96, 165, 250, 0.12);
+    color: var(--accent-blue);
+}
+/* ---------- Toast Notifications ---------- */
+#batchesToastContainer {
+    z-index: 1060; /* above Bootstrap modal backdrop */
+}
+#batchesToastContainer .alert {
+    min-width: 260px;
+    max-width: 360px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    font-size: 0.9rem;
+}
+
+/* Dark-mode alert contrast inside this page (mirrors the dashboard alert fixes) */
+:root[data-theme="dark"] .batches-modal .alert-danger,
+:root[data-theme="dark"] #batchesToastContainer .alert-danger {
+    background-color: rgba(248, 113, 113, 0.15);
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #fca5a5;
+}
+:root[data-theme="dark"] .batches-modal .alert-success,
+:root[data-theme="dark"] #batchesToastContainer .alert-success {
+    background-color: rgba(74, 222, 128, 0.15);
+    border-color: rgba(74, 222, 128, 0.4);
+    color: #86efac;
+}
+:root[data-theme="dark"] .batches-modal .alert-warning,
+:root[data-theme="dark"] #batchesToastContainer .alert-warning {
+    background-color: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fde68a;
+}
+:root[data-theme="dark"] .batches-modal .alert-info,
+:root[data-theme="dark"] #batchesToastContainer .alert-info {
+    background-color: rgba(34, 211, 238, 0.15);
+    border-color: rgba(34, 211, 238, 0.4);
+    color: #67e8f9;
+}
+
+/* Validation messages always use the semantic red accent (readable in both themes) */
+.batches-modal .invalid-feedback {
+    color: var(--color-danger);
+    font-size: 0.8rem;
+}
+:root[data-theme="dark"] .batches-modal .form-control.is-invalid,
+:root[data-theme="dark"] .batches-modal .form-select.is-invalid {
+    border-color: rgba(248, 113, 113, 0.6) !important;
+}
+:root[data-theme="dark"] .batches-modal .invalid-feedback {
+    color: #f87171;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 767.98px) {
+    .batches-table th,
+    .batches-table td {
+        font-size: 0.85rem;
+    }
+    .batch-summary-row,
+    .batch-details-row {
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+    .batch-summary-value,
+    .batch-details-row dd {
+        text-align: left;
+    }
+    .batches-empty-state {
+        padding: 1.75rem 0.5rem;
+    }
+    #batchesToastContainer .alert {
+        min-width: 0;
+        max-width: calc(100vw - 1.5rem);
+    }
+}
