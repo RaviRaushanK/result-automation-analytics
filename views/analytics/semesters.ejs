@@ -1,0 +1,121 @@
+<div class="analytics-page">
+  <%# ---- Page header ---- %>
+  <div class="analytics-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h1>Semester Analysis</h1>
+      <p>Compare academic performance across result sessions and semesters.</p>
+    </div>
+    <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
+      <span class="material-icons" aria-hidden="true">insights</span>
+      Result Basis: <strong id="analytics-mode-label">Original</strong>
+    </span>
+  </div>
+
+  <%# ---- Filters (options populated by Phase 5) ---- %>
+  <div class="analytics-filters">
+    <form id="analytics-filter-form" autocomplete="off">
+      <div class="row g-3">
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-batch">Batch</label>
+          <%# Batch has no "All" option: JS lists batches newest-first and selects the latest. %>
+          <select class="form-select" id="filter-batch" name="batch_id"></select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-semester">Semester</label>
+          <select class="form-select" id="filter-semester" name="semester">
+            <option value="">All Semesters</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-attempt">Attempt</label>
+          <select class="form-select" id="filter-attempt" name="attempt">
+            <option value="latest" selected>Latest</option>
+            <option value="all">All Attempts</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-mode">Mode</label>
+          <select class="form-select" id="filter-mode" name="mode">
+            <option value="original" selected>Original</option>
+            <option value="effective">Effective</option>
+          </select>
+        </div>
+        <div class="col-12 filter-actions">
+          <button type="reset" class="btn btn-outline-secondary">Reset</button>
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <%# ---- Session comparison table ---- %>
+  <section aria-labelledby="semesters-table-heading" class="mt-4">
+    <div class="analytics-card">
+      <h2 id="semesters-table-heading" class="h6 p-2 analytics-card-title">Session Comparison</h2>
+      <p class="analytics-note px-2">
+        SGPA/CGPA shown here are stored result-header values.
+      </p>
+      <div class="table-responsive">
+        <table class="table analytics-table" id="semesters-table">
+          <caption class="visually-hidden">Result session comparison records</caption>
+          <thead>
+            <tr>
+              <th scope="col">Batch</th>
+              <th scope="col">Result Session</th>
+              <th scope="col">Semester</th>
+              <th scope="col">Students</th>
+              <th scope="col">Subject Results</th>
+              <th scope="col">Passed</th>
+              <th scope="col">Failed</th>
+              <th scope="col">Pass %</th>
+              <th scope="col">Average SGPA</th>
+              <th scope="col">Average CGPA</th>
+            </tr>
+          </thead>
+          <tbody id="semesters-table-body">
+            <tr class="analytics-table-empty-row">
+              <td colspan="10" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Session charts (Chart.js) ---- %>
+  <section aria-labelledby="semesters-chart-heading" class="mt-4">
+    <h2 id="semesters-chart-heading" class="visually-hidden">Session charts</h2>
+    <div class="analytics-chart-grid">
+      <div class="analytics-card analytics-chart-card">
+        <h3 class="h6 p-2 analytics-card-title">Session Trends</h3>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div class="analytics-chart-placeholder" id="semesters-trend-chart">
+              Chart will appear here
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h3 class="h6 p-2 analytics-card-title">GPA Trends</h3>
+        <p class="analytics-note px-2">Stored Average SGPA / Average CGPA per result session.</p>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div class="analytics-chart-placeholder" id="semesters-gpa-chart">
+              Chart will appear here
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
+    <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
+    <p>No analytics data found for the selected filters.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/page.js"></script>
+<script src="/js/analytics/semesters.js"></script>

@@ -1,0 +1,250 @@
+<div class="analytics-page">
+  <%# ---- Page header ---- %>
+  <div class="analytics-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h1>Analytics Overview</h1>
+      <p>View overall academic performance, pass/fail trends, grade distribution, and key result metrics.</p>
+    </div>
+    <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
+      <span class="material-icons" aria-hidden="true">insights</span>
+      Result Basis: <strong id="analytics-mode-label">Original</strong>
+    </span>
+  </div>
+
+  <%# ---- Filters (options populated by Phase 5) ---- %>
+  <div class="analytics-filters">
+    <form id="analytics-filter-form" autocomplete="off">
+      <div class="row g-3">
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-batch">Batch</label>
+          <%# Batch has no "All" option: JS lists batches newest-first and selects the latest. %>
+          <select class="form-select" id="filter-batch" name="batch_id"></select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-semester">Semester</label>
+          <select class="form-select" id="filter-semester" name="semester">
+            <option value="">All Semesters</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-session">Result Session</label>
+          <select class="form-select" id="filter-session" name="session_id">
+            <option value="">All Sessions</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-attempt">Attempt</label>
+          <select class="form-select" id="filter-attempt" name="attempt">
+            <option value="latest" selected>Latest</option>
+            <option value="all">All Attempts</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-mode">Mode</label>
+          <select class="form-select" id="filter-mode" name="mode">
+            <option value="original" selected>Original</option>
+            <option value="effective">Effective</option>
+          </select>
+        </div>
+        <div class="col-12 filter-actions">
+          <button type="reset" class="btn btn-outline-secondary">Reset</button>
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <%# ---- Summary metric cards (values loaded by Phase 5) ---- %>
+  <section aria-labelledby="summary-heading" class="mt-4">
+    <h2 id="summary-heading" class="h5 mb-3">Summary Metrics</h2>
+    <div class="row g-4 mb-4" id="analytics-summary-cards">
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-blue" data-metric="students">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">group</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Students</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="results">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">description</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Results</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-teal" data-metric="subjects-attempted">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">menu_book</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Subjects Attempted</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="passed">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">check_circle</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Passed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-red" data-metric="failed">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">cancel</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Failed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-amber" data-metric="avg-marks">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">calculate</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Average Marks</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="analytics-note">
+      Subject-level metrics follow the selected result basis (Original or Effective).
+    </p>
+  </section>
+
+  <%# ---- Stored parent-result metrics (clearly separated from subject metrics) ---- %>
+  <section aria-labelledby="parent-metrics-heading" class="mt-4">
+    <h2 id="parent-metrics-heading" class="h5 mb-3">Stored Result-Header Metrics</h2>
+    <div class="row g-4 mb-4" id="analytics-parent-cards">
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-green" data-metric="result-pass-count">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">check_circle</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Result Pass Count</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-red" data-metric="result-fail-count">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">cancel</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Result Fail Count</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-blue" data-metric="avg-sgpa">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">stars</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Average SGPA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card stat-teal" data-metric="avg-cgpa">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">stars</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Average CGPA</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="analytics-note">
+      SGPA/CGPA shown here are stored result-header values; not recalculated after revaluation.
+    </p>
+  </section>
+
+  <%# ---- Grade distribution (chart container, Chart.js arrives in Phase 5) ---- %>
+  <section aria-labelledby="grade-dist-heading" class="mt-4">
+    <div class="analytics-card">
+      <h2 id="grade-dist-heading" class="h6 p-2 analytics-card-title">Grade Distribution</h2>
+      <div class="analytics-chart-container">
+        <div class="analytics-chart-placeholder" id="grade-distribution-chart">
+          Chart will appear here
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Performance summary placeholder ---- %>
+  <section aria-labelledby="perf-heading" class="mt-4">
+    <div class="analytics-card">
+      <h2 id="perf-heading" class="h6 p-2 analytics-card-title">Performance Summary</h2>
+      <div class="analytics-chart-container">
+        <div class="analytics-chart-placeholder" id="performance-summary-chart">
+          Chart will appear here
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Shared empty state (toggled by Phase 5) ---- %>
+  <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
+    <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
+    <p>No analytics data found for the selected filters.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/overview.js"></script>
+

@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let passFailDoughnutChart = null;
 
     // DOM references
-    const yearSelect = document.getElementById('filterAcademicYear');
+    const batchSelect = document.getElementById('filterBatch');
     const semesterSelect = document.getElementById('filterSemester');
     const applyBtn = document.getElementById('applyFilterBtn');
     const resetBtn = document.getElementById('resetFilterBtn');
@@ -19,18 +19,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // Exposed EJS variables (via data attributes on hidden div)
     const filtersEl = document.getElementById('dashboardFilters');
     const filters = {
-        academicYears: filtersEl ? JSON.parse(filtersEl.dataset.academicYears || '[]') : [],
+        batches: filtersEl ? JSON.parse(filtersEl.dataset.batches || '[]') : [],
         semesters: filtersEl ? JSON.parse(filtersEl.dataset.semesters || '[]') : []
     };
 
     // ---------- Populate filter dropdowns ----------
+    // Batch has no "All" option: the controller returns batches in
+    // descending order, so the first option is the latest batch and is selected
+    // by default.
     function populateFilters() {
-        (filters.academicYears || []).forEach(function (year) {
+        (filters.batches || []).forEach(function (batch) {
             const opt = document.createElement('option');
-            opt.value = year;
-            opt.textContent = year;
-            yearSelect.appendChild(opt);
+            opt.value = batch.batch_id != null ? batch.batch_id : batch;
+            opt.textContent = batch.batch_name != null ? batch.batch_name : batch;
+            batchSelect.appendChild(opt);
         });
+        if (batchSelect.options.length && !batchSelect.value) {
+            batchSelect.value = batchSelect.options[0].value;
+        }
         (filters.semesters || []).forEach(function (sem) {
             const opt = document.createElement('option');
             opt.value = sem;
@@ -42,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ---------- Build query string ----------
     function buildQuery() {
         const params = new URLSearchParams();
-        if (yearSelect.value) params.set('academicYear', yearSelect.value);
+        if (batchSelect.value) params.set('batch_id', batchSelect.value);
         if (semesterSelect.value) params.set('semester', semesterSelect.value);
         const qs = params.toString();
         return qs ? '?' + qs : '';
@@ -121,14 +127,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const scorers = json.data || [];
             if (!scorers.length) {
                 topScorersBody.innerHTML =
-                    '<tr><td colspan="6" class="text-center text-muted py-4">No results found.</td></tr>';
+                    '<tr><td colspan="6" class="text-center text-muted py-4">No passed results found.</td></tr>';
                 return;
             }
             topScorersBody.innerHTML = scorers.map(function (s, i) {
                 const statusClass = s.result_status === 'pass' ? 'badge-pass' : 'badge-fail';
                 return (
                     '<tr>' +
-                    '  <td>' + (i + 1) + '</td>' +
+                    '  <td>' + (s.rank != null ? s.rank : i + 1) + '</td>' +
                     '  <td><span class="text-muted">' + escapeHtml(s.usn) + '</span></td>' +
                     '  <td class="fw-medium">' + escapeHtml(s.student_name) + '</td>' +
                     '  <td>' + (s.sgpa != null ? s.sgpa : '--') + '</td>' +
@@ -158,10 +164,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderSubjectChart(subjectAverages) {
         const ctx = document.getElementById('subjectAverageChart');
+        const wrap = document.getElementById('subjectAverageChartWrap');
         if (!ctx) return;
 
+        if (subjectAverageChart) { subjectAverageChart.destroy(); subjectAverageChart = null; }
         if (!subjectAverages || !subjectAverages.length) {
-            if (subjectAverageChart) { subjectAverageChart.destroy(); subjectAverageChart = null; }
+            if (wrap) wrap.style.width = '';
             setSubjectChartMessage('No subject data available for the selected filter.');
             return;
         }
@@ -171,6 +179,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const labels = subjectAverages.map(function (s) { return s.subject_code; });
         const names = subjectAverages.map(function (s) { return s.subject_name || ''; });
         const data = subjectAverages.map(function (s) { return s.average_marks; });
+
+        // Give every bar a fixed slot so bars/labels never squeeze or overlap;
+        // the strip scrolls horizontally when it exceeds the card width.
+        var perBar = 72;
+        var minWidth = Math.max(labels.length * perBar, 0);
+        if (wrap) wrap.style.width = minWidth + 'px';
 
         subjectAverageChart = new Chart(ctx, {
             type: 'bar',
@@ -214,8 +228,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     x: {
                         ticks: {
                             autoSkip: false,
-                            maxRotation: 0,
-                            minRotation: 0
+                            maxRotation: 45,
+                            minRotation: 45
                         }
                     }
                 }
@@ -304,7 +318,8 @@ document.addEventListener('DOMContentLoaded', function () {
         loadDashboard();
     });
     resetBtn.addEventListener('click', function () {
-        yearSelect.value = '';
+        // No "All Batches" option exists: fall back to the latest batch (first option).
+        batchSelect.selectedIndex = batchSelect.options.length ? 0 : -1;
         semesterSelect.value = '';
         loadDashboard();
     });
