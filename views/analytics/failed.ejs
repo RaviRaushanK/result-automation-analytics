@@ -1,0 +1,193 @@
+<div class="analytics-page">
+  <%# ---- Page header ---- %>
+  <div class="analytics-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h1>Failed Students</h1>
+      <p>Review recorded failed subject results across the selected academic scope.</p>
+    </div>
+    <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
+      <span class="material-icons" aria-hidden="true">insights</span>
+      Result Basis: <strong id="analytics-mode-label">Original</strong>
+    </span>
+  </div>
+  <%# ---- Filters (options populated by Phase 5) ---- %>
+  <div class="analytics-filters">
+    <form id="analytics-filter-form" autocomplete="off">
+      <div class="row g-3">
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-batch">Batch</label>
+          <%# Batch has no "All" option: JS lists batches newest-first and selects the latest. %>
+          <select class="form-select" id="filter-batch" name="batch_id"></select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-semester">Semester</label>
+          <select class="form-select" id="filter-semester" name="semester">
+            <option value="">All Semesters</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-session">Result Session</label>
+          <select class="form-select" id="filter-session" name="session_id">
+            <option value="">All Sessions</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-subject">Subject</label>
+          <select class="form-select" id="filter-subject" name="subject_id">
+            <option value="">All Subjects</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-attempt">Attempt</label>
+          <select class="form-select" id="filter-attempt" name="attempt">
+            <option value="latest" selected>Latest</option>
+            <option value="all">All Attempts</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-mode">Mode</label>
+          <select class="form-select" id="filter-mode" name="mode">
+            <option value="original" selected>Original</option>
+            <option value="effective">Effective</option>
+          </select>
+        </div>
+        <div class="col-12 filter-actions">
+          <button type="reset" class="btn btn-outline-secondary">Reset</button>
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  <%# ---- Failure summary cards (populated by the page script) ---- %>
+  <section aria-labelledby="failed-summary-heading" class="mt-4">
+    <h2 id="failed-summary-heading" class="h5 mb-3">Failure Summary</h2>
+    <div class="row g-4 mb-4" id="failed-summary-cards">
+      <div class="col-sm-6 col-xl-4">
+        <div class="card stat-card stat-red" data-metric="failed-students">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">person_off</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Students listed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-4">
+        <div class="card stat-card stat-amber" data-metric="failed-subject-attempts">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">assignment_late</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Failure records listed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-4">
+        <div class="card stat-card stat-orange" data-metric="subjects-with-failures">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon">
+              <span class="material-icons">menu_book</span>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value">&mdash;</div>
+              <div class="stat-label">Subjects listed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="analytics-note">
+      Counts describe the failure records listed below for the current filters.
+    </p>
+  </section>
+
+  <%# ---- Failed subject results table ---- %>
+  <section aria-labelledby="failed-table-heading" class="mt-4">
+    <div class="analytics-card">
+      <h2 id="failed-table-heading" class="h6 p-2 analytics-card-title">Recorded Failed Subject Results</h2>
+      <p class="analytics-note px-2">
+        Original and effective columns reflect stored values and approved revaluation overlays where applicable.
+      </p>
+      <div class="analytics-toolbar">
+        <label class="analytics-search-wrap" for="failed-search">
+          <span class="material-icons" aria-hidden="true">search</span>
+          <input type="search" id="failed-search" class="analytics-search"
+                 placeholder="Search USN, name or subject…" autocomplete="off">
+        </label>
+        <div class="d-flex align-items-center gap-2">
+          <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
+          <span class="analytics-row-count" id="failed-count" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table analytics-table" id="failed-table">
+          <caption class="visually-hidden">Recorded failed subject result records</caption>
+          <thead>
+            <tr>
+              <th scope="col">USN</th>
+              <th scope="col">Student Name</th>
+              <th scope="col">Subject</th>
+              <th scope="col">Original Marks</th>
+              <th scope="col">Effective Marks</th>
+              <th scope="col">Original Status</th>
+              <th scope="col">Effective Status</th>
+            </tr>
+          </thead>
+          <tbody id="failed-table-body">
+            <tr class="analytics-table-empty-row">
+              <td colspan="7" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Failure charts (derived from the listed records) ---- %>
+  <section aria-labelledby="failed-chart-heading" class="mt-4">
+    <div class="analytics-chart-grid">
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="failed-chart-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">bar_chart</span>
+          Failure records by subject — listed records
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="failed-subject-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="failed-status-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">donut_small</span>
+          Effective status of listed failures
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="failed-status-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Shared empty state (toggled by Phase 5) ---- %>
+  <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
+    <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
+    <p>No analytics data found for the selected filters.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/charts.js"></script>
+<script src="/js/analytics/tabletools.js"></script>
+<script src="/js/analytics/failed.js"></script>

@@ -1,0 +1,154 @@
+<div class="analytics-page">
+  <%# ---- Page header ---- %>
+  <div class="analytics-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h1>Subject Analysis</h1>
+      <p>Analyze subject-level performance, pass rates, and grade distribution across results.</p>
+    </div>
+    <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
+      <span class="material-icons" aria-hidden="true">insights</span>
+      Result Basis: <strong id="analytics-mode-label">Original</strong>
+    </span>
+  </div>
+
+  <%# ---- Filters (options populated by Phase 5) ---- %>
+  <div class="analytics-filters">
+    <form id="analytics-filter-form" autocomplete="off">
+      <div class="row g-3">
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-batch">Batch</label>
+          <select class="form-select" id="filter-batch" name="batch_id"></select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-semester">Semester</label>
+          <select class="form-select" id="filter-semester" name="semester">
+            <option value="">All Semesters</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-session">Result Session</label>
+          <select class="form-select" id="filter-session" name="session_id">
+            <option value="">All Sessions</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-subject">Subject</label>
+          <select class="form-select" id="filter-subject" name="subject_id">
+            <option value="">All Subjects</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-attempt">Attempt</label>
+          <select class="form-select" id="filter-attempt" name="attempt">
+            <option value="latest" selected>Latest</option>
+            <option value="all">All Attempts</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2">
+          <label class="form-label" for="filter-mode">Mode</label>
+          <select class="form-select" id="filter-mode" name="mode">
+            <option value="original" selected>Original</option>
+            <option value="effective">Effective</option>
+          </select>
+        </div>
+        <div class="col-12 filter-actions">
+          <button type="reset" class="btn btn-outline-secondary">Reset</button>
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <%# ---- Subject table ---- %>
+  <section aria-labelledby="subjects-table-heading" class="mt-4">
+    <div class="analytics-card">
+      <h2 id="subjects-table-heading" class="h6 p-2 analytics-card-title">Subject Results</h2>
+      <p class="analytics-note px-2">
+        Metrics reflect subject-level outcomes for the selected result basis.
+      </p>
+      <div class="analytics-toolbar">
+        <label class="analytics-search-wrap" for="subjects-search">
+          <span class="material-icons" aria-hidden="true">search</span>
+          <input type="search" id="subjects-search" class="analytics-search"
+                 placeholder="Search subject code or name…" autocomplete="off">
+        </label>
+        <div class="d-flex align-items-center gap-2">
+          <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
+          <span class="analytics-row-count" id="subjects-count" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table analytics-table" id="subjects-table">
+          <caption class="visually-hidden">Subject result records</caption>
+          <thead>
+            <tr>
+              <th scope="col">Code</th>
+              <th scope="col">Name</th>
+              <th scope="col">Students</th>
+              <th scope="col">Passed</th>
+              <th scope="col">Failed</th>
+              <th scope="col">Pass %</th>
+              <th scope="col">Avg Marks</th>
+              <th scope="col">Max Marks</th>
+            </tr>
+          </thead>
+          <tbody id="subjects-table-body">
+            <tr class="analytics-table-empty-row">
+              <td colspan="8" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Subject charts (Chart.js) ---- %>
+  <section aria-labelledby="subjects-grade-heading" class="mt-4">
+    <div class="analytics-chart-grid">
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="subjects-grade-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">grade</span>
+          Grade Distribution
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="subjects-grade-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="subjects-pass-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">percent</span>
+          Pass % by subject — top 10
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="subjects-pass-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+      <div class="analytics-card analytics-chart-card">
+        <h2 id="subjects-marks-heading" class="h6 p-2 analytics-card-title">
+          <span class="material-icons" aria-hidden="true">insights</span>
+          Average vs maximum marks — top 10 by average
+        </h2>
+        <div class="analytics-chart-body">
+          <div class="analytics-chart-container">
+            <div id="subjects-marks-chart" class="analytics-chart-host"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <%# ---- Shared empty state (toggled by Phase 5) ---- %>
+  <div id="analytics-empty-state" class="analytics-empty d-none" role="status">
+    <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
+    <p>No analytics data found for the selected filters.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/analytics/charts.js"></script>
+<script src="/js/analytics/tabletools.js"></script>
+<script src="/js/analytics/subjects.js"></script>

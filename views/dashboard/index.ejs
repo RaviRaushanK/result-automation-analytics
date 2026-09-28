@@ -12,10 +12,9 @@
         <div class="card-body">
             <form id="dashboardFilterForm" class="row g-3 align-items-end">
                 <div class="col-md-4">
-                    <label for="filterAcademicYear" class="form-label">Academic Year</label>
-                    <select id="filterAcademicYear" class="form-select">
-                        <option value="">All Years</option>
-                    </select>
+                    <label for="filterBatch" class="form-label">Batch</label>
+                    <%# No "All Batches" option: dashboard.js lists batches newest-first and selects the latest. %>
+                    <select id="filterBatch" class="form-select"></select>
                 </div>
                 <div class="col-md-4">
                     <label for="filterSemester" class="form-label">Semester</label>
@@ -174,8 +173,9 @@
 
     <!-- Top 10 Scorers -->
     <div class="card mb-4">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-baseline flex-wrap gap-1">
             <h5 class="card-title mb-0">Top 10 Scorers</h5>
+            <small class="text-muted">Passed results only, ranked by CGPA</small>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -214,8 +214,12 @@
                 </div>
                 <div class="card-body">
                     <div id="subjectAverageMessage" class="alert alert-warning py-2 mb-2 d-none"></div>
-                    <div class="chart-container">
-                        <canvas id="subjectAverageChart"></canvas>
+                    <div class="chart-container chart-scroll-container">
+                        <div class="chart-scroll">
+                            <div class="chart-scroll-inner" id="subjectAverageChartWrap">
+                                <canvas id="subjectAverageChart"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -246,7 +250,7 @@
 
 <!-- Expose filter data to dashboard.js -->
 <div id="dashboardFilters"
-     data-academic-years="<%= JSON.stringify(academicYears || []) %>"
+     data-batches="<%= JSON.stringify(batches || []) %>"
      data-semesters="<%= JSON.stringify(semesters || []) %>"
      class="d-none"></div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

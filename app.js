@@ -92,6 +92,7 @@ const resultRoutes = require('./routes/resultRoutes');
 const revaluationRoutes = require('./routes/revaluationRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 
 // ======================
@@ -119,6 +120,7 @@ app.use('/results', authMiddleware, resultRoutes);
 app.use('/revaluation', authMiddleware, revaluationRoutes);
 app.use('/sessions', authMiddleware, sessionRoutes);
 app.use('/subjects', authMiddleware, subjectRoutes);
+app.use('/analytics', authMiddleware, analyticsRoutes);
 
 // ======================
 // 404 Handler

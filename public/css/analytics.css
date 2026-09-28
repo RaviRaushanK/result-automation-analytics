@@ -1,0 +1,452 @@
+/* ============================================================
+   SRAAS — Analytics module styles (Phase 4, UI shell only)
+   Scoped to Analytics pages only. Consumes existing design
+   tokens from tokens.css; redefines NO global theme tokens.
+   ============================================================ */
+
+/* Component-scoped variables only (no global theme tokens). */
+.analytics-page {
+  --analytics-card-accent-width: 4px;
+  --analytics-chart-min-height: 320px;
+}
+
+/* ---------- Page header ---------- */
+.analytics-page .analytics-header {
+  margin-bottom: 1.25rem;
+}
+.analytics-page .analytics-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.analytics-page .analytics-header p {
+  color: var(--text-secondary);
+  margin-bottom: 0;
+  font-size: 0.95rem;
+}
+
+/* ---------- Result basis (mode) indicator ---------- */
+.analytics-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+  background: var(--secondary-bg);
+  color: var(--text-secondary);
+}
+.analytics-mode-badge .material-icons {
+  font-size: 1rem;
+}
+.analytics-mode-badge.is-effective {
+  color: var(--accent-purple);
+  border-color: var(--accent-purple);
+}
+.analytics-mode-badge.is-original {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+.analytics-stored-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ---------- Cards ---------- */
+.analytics-page .analytics-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+}
+.analytics-page .analytics-card .card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.analytics-page .analytics-card .card-body {
+  color: var(--text-primary);
+}
+
+/* ---------- Summary metric cards ---------- */
+.analytics-summary-card {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+}
+.analytics-summary-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--analytics-card-accent-width);
+  background: var(--accent-blue);
+}
+.analytics-summary-card.accent-green::before { background: var(--accent-green); }
+.analytics-summary-card.accent-red::before   { background: var(--accent-red); }
+.analytics-summary-card.accent-teal::before  { background: var(--accent-teal); }
+.analytics-summary-card.accent-amber::before { background: var(--accent-amber); }
+.analytics-summary-card.accent-purple::before{ background: var(--accent-purple); }
+.analytics-summary-card.accent-orange::before{ background: var(--accent-orange); }
+.analytics-summary-card .analytics-summary-icon {
+  font-size: 1.6rem;
+  color: var(--text-secondary);
+}
+.analytics-summary-card .analytics-summary-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.analytics-summary-card .analytics-summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.analytics-summary-card .analytics-summary-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ---------- Filter panel ---------- */
+.analytics-page .analytics-filters {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.5rem;
+}
+.analytics-page .analytics-filters .form-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.analytics-page .analytics-filters .form-select,
+.analytics-page .analytics-filters .form-control {
+  background: var(--secondary-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+.analytics-page .analytics-filters .filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* ---------- Tables ---------- */
+.analytics-page .analytics-table {
+  --bs-table-bg: transparent;
+  color: var(--text-primary);
+  margin-bottom: 0;
+}
+.analytics-page .analytics-table thead th {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+.analytics-page .analytics-table tbody td {
+  border-color: var(--card-border);
+  vertical-align: middle;
+}
+
+/* ---------- Status badges (icon + text, never color-only) ---------- */
+.analytics-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+}
+.analytics-status .material-icons { font-size: 0.9rem; }
+.analytics-status.pass { color: var(--color-success); border-color: var(--color-success); }
+.analytics-status.fail { color: var(--color-danger); border-color: var(--color-danger); }
+.analytics-status.neutral { color: var(--text-secondary); }
+
+/* ---------- Chart placeholders (Phase 5 fills these) ---------- */
+.analytics-chart-container {
+    position: relative;
+    width: 100%;
+    height: 320px;
+}
+
+.analytics-chart-placeholder {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.analytics-chart-placeholder canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ---------- Empty state ---------- */
+.analytics-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  border: 1px dashed var(--card-border);
+  border-radius: 0.75rem;
+}
+.analytics-empty .material-icons { font-size: 2rem; display: block; margin-bottom: 0.5rem; }
+
+/* ---------- Loading / skeleton (used by Phase 5 JS) ---------- */
+.analytics-loading td { color: var(--text-secondary); }
+.analytics-skeleton {
+  display: inline-block;
+  height: 0.9rem;
+  border-radius: 0.35rem;
+  background: var(--secondary-bg);
+  border: 1px solid var(--card-border);
+  width: 100%;
+}
+.analytics-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ---------- Pagination ---------- */
+.analytics-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 0 0;
+}
+.analytics-pagination .analytics-page-indicator {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* ---------- Revaluation pipeline chips ---------- */
+.analytics-pipeline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+}
+.analytics-pipeline-chip .analytics-pipeline-count {
+  background: var(--secondary-bg);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  color: var(--text-primary);
+}
+.analytics-pipeline-chip.approved { color: var(--color-success); border-color: var(--color-success); }
+.analytics-pipeline-chip.pending  { color: var(--color-warning); border-color: var(--color-warning); }
+.analytics-pipeline-chip.rejected { color: var(--color-danger); border-color: var(--color-danger); }
+
+/* ---------- Table cell helpers used by every Analytics page ---------- */
+.analytics-page .analytics-table-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.analytics-page .analytics-table-empty-row:hover > td {
+  background: transparent;
+}
+.analytics-page .analytics-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+.analytics-page .analytics-card-title {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ---------- Table toolbar (search + live row count) ---------- */
+.analytics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0.5rem;
+}
+.analytics-toolbar .analytics-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: min(320px, 100%);
+}
+.analytics-toolbar .analytics-search-wrap .material-icons {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+}
+.analytics-toolbar .analytics-search {
+  background: var(--secondary-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.65rem;
+  width: 100%;
+}
+.analytics-toolbar .analytics-search:focus {
+  outline: none;
+  border-color: var(--primary-brand, var(--accent-blue));
+  box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.15);
+}
+.analytics-toolbar .analytics-row-count {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.analytics-toolbar .analytics-toolbar-hint {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* ---------- Sortable table headers ---------- */
+.analytics-page .analytics-table th.analytics-table-sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.4rem;
+}
+.analytics-page .analytics-table th.analytics-table-sortable::after {
+  content: '\2195';
+  position: absolute;
+  right: 0.45rem;
+  opacity: 0.35;
+  font-size: 0.7rem;
+}
+.analytics-page .analytics-table th.analytics-table-sortable:hover {
+  color: var(--text-primary);
+}
+.analytics-page .analytics-table th.analytics-table-sortable:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.analytics-page .analytics-table th.is-sorted-asc::after {
+  content: '\2191';
+  opacity: 1;
+  color: var(--accent-blue);
+}
+.analytics-page .analytics-table th.is-sorted-desc::after {
+  content: '\2193';
+  opacity: 1;
+  color: var(--accent-blue);
+}
+
+/* ---------- Chart grid + chart cards ---------- */
+/* Session Trends / GPA Trends (and the other analytics chart cards) sit two per
+   row so each graph fills half the section; below 1200px they stack full width. */
+.analytics-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 1199.98px) {
+  .analytics-chart-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.analytics-chart-card .analytics-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.analytics-chart-card .analytics-card-title .material-icons {
+  font-size: 1.05rem;
+  color: var(--accent-blue);
+}
+.analytics-chart-body {
+  padding: 0.5rem 1rem 1rem;
+}
+/* Chart.js needs a sized parent: hosts fill their .analytics-chart-container. */
+.analytics-chart-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+}
+/* Horizontally scrollable bar charts: charts.js widens the host to one slot
+   per category so bars/labels never squeeze or overlap; this wrapper scrolls
+   left/right when the strip exceeds the card width. */
+.analytics-chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  height: 100%;
+}
+.analytics-chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem 0;
+}
+.analytics-chart-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--card-border);
+  background: var(--secondary-bg);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+}
+.analytics-chart-toggle .material-icons { font-size: 0.95rem; }
+.analytics-chart-toggle:hover { color: var(--text-primary); }
+.analytics-chart-toggle.is-active {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+/* Chart empty/message text (canvas hosts keep their own layout). */
+p.analytics-chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 767.98px) {
+  .analytics-page .analytics-filters .filter-actions {
+    justify-content: flex-start;
+  }
+  .analytics-page .analytics-header h1 { font-size: 1.25rem; }
+  .analytics-chart-grid { grid-template-columns: 1fr; }
+  .analytics-toolbar { flex-direction: column; align-items: stretch; }
+  .analytics-toolbar .analytics-search-wrap { min-width: 100%; }
+  .analytics-chart-toolbar { justify-content: flex-start; }
+}
