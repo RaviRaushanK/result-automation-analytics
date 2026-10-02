@@ -1,0 +1,92 @@
+<section class="reports-page" id="reports-page" data-report-type="<%= reportType %>">
+  <header class="reports-header">
+    <div><h1><%= reportTitle %></h1><p>MCA Academic Reports</p></div>
+    <span class="reports-view badge" id="reports-view"><%= reportType === 'revaluation' ? 'Revaluation Events' : 'Effective Result' %></span>
+  </header>
+
+  <form id="reports-filters" class="reports-filters" autocomplete="off">
+    <div class="row g-3">
+      <% const filters = [ ['batch_id', 'Batch'], ...(reportType === 'student' ? [['student_id', 'Student']] : []), ['semester', 'Semester'], ['session_id', 'Result Session'], ...(reportType === 'student' ? [['attempt_no', 'Attempt']] : []), ...(['subject', 'revaluation'].includes(reportType) ? [['subject_id', 'Subject']] : []) ]; %>
+      <% filters.forEach(([name, label]) => { const optional = reportType === 'revaluation' && name === 'subject_id'; %>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label" for="report-<%= name %>"><%= label %><%= optional ? ' (Optional)' : '' %></label>
+          <select class="form-select" name="<%= name %>" id="report-<%= name %>" <%= optional ? '' : 'required' %> disabled>
+            <option value=""><%= optional ? 'All Subjects' : 'Select ' + label %></option>
+          </select>
+        </div>
+      <% }); %>
+      <% if (reportType === 'class') { %>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label" for="report-exam_type">Exam Type (Optional)</label>
+          <select class="form-select" id="report-exam_type" name="exam_type">
+            <option value="">All Exam Types</option>
+            <% ['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'].forEach(type => { %><option value="<%= type %>"><%= type %></option><% }); %>
+          </select>
+        </div>
+      <% } %>
+      <% if (['class', 'subject'].includes(reportType)) { %>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label" for="report-result_status">Result Status (Optional)</label>
+          <select class="form-select" name="result_status" id="report-result_status">
+            <option value="">All Results</option><option value="pass">Pass</option><option value="fail">Fail</option>
+          </select>
+        </div>
+      <% } %>
+      <% if (reportType === 'revaluation') { %>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label" for="report-revaluation_status">Revaluation Status (Optional)</label>
+          <select class="form-select" name="revaluation_status" id="report-revaluation_status">
+            <option value="">All Statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+          </select>
+        </div>
+      <% } else { %>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label" for="report-mode">Result View</label>
+          <select class="form-select" name="mode" id="report-mode">
+            <option value="effective" selected>Effective Result</option><option value="original">Original Result</option>
+          </select>
+        </div>
+      <% } %>
+      <% if (reportType !== 'student') { %>
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="form-label" for="report-pageSize">Preview Rows</label>
+          <select class="form-select" name="pageSize" id="report-pageSize"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select>
+        </div>
+      <% } %>
+      <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+        <button class="btn btn-primary d-inline-flex align-items-center gap-1" id="reports-generate" type="submit" disabled><span class="material-icons" aria-hidden="true">description</span>Generate Report</button>
+        <button class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" type="reset"><span class="material-icons" aria-hidden="true">restart_alt</span>Reset</button>
+        <span id="reports-filter-state" class="reports-muted" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+  </form>
+
+  <div class="alert alert-danger mt-3" id="reports-error" role="alert" hidden></div>
+  <div class="reports-state" id="reports-loading" role="status" hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Generating report...</div>
+  <div class="reports-state" id="reports-empty" role="status">Select the required filters and generate the report.</div>
+
+  <section id="reports-output" aria-label="Report Preview" hidden>
+    <div class="reports-preview-header">
+      <div><h2><%= reportTitle %></h2><span class="reports-muted">MCA / SRAAS</span></div>
+      <div class="reports-actions d-flex flex-wrap gap-2">
+        <a id="reports-print" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" target="_blank" rel="noopener"><span class="material-icons" aria-hidden="true">print</span>Print / Save PDF</a>
+        <a id="reports-csv" class="btn btn-outline-primary d-inline-flex align-items-center gap-1"><span class="material-icons" aria-hidden="true">download</span>Export CSV</a>
+      </div>
+    </div>
+    <dl id="reports-context" class="reports-context"></dl>
+    <div id="reports-summary" class="reports-summary" aria-label="Report Summary"></div>
+    <div class="table-responsive reports-table-wrap">
+      <table class="table table-hover align-middle reports-table" id="reports-table">
+        <caption class="visually-hidden"><%= reportTitle %></caption><thead></thead><tbody></tbody>
+      </table>
+    </div>
+    <nav id="reports-pagination" class="reports-pagination" aria-label="Report Pagination">
+      <span id="reports-page-info" class="reports-muted"></span>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary reports-icon-button" id="reports-prev" aria-label="Previous page" title="Previous page"><span class="material-icons" aria-hidden="true">chevron_left</span></button>
+        <button type="button" class="btn btn-outline-secondary reports-icon-button" id="reports-next" aria-label="Next page" title="Next page"><span class="material-icons" aria-hidden="true">chevron_right</span></button>
+      </div>
+    </nav>
+  </section>
+</section>
+<script src="/js/reports/common.js" defer></script>

@@ -50,9 +50,9 @@
       "label": "Reports",
       "icon": "description",
       "children": [
-        { "label": "Summary Report", "icon": "summarize", "route": "/reports/summary", "roles": ["admin", "faculty"] },
-        { "label": "Topper Report", "icon": "star", "route": "/reports/topper", "roles": ["admin", "faculty"] },
-        { "label": "Failed Report", "icon": "error", "route": "/reports/failed", "roles": ["admin", "faculty"] },
+        { "label": "Student Result", "icon": "person", "route": "/reports/student", "roles": ["admin", "faculty"] },
+        { "label": "Class Result", "icon": "groups", "route": "/reports/class", "roles": ["admin", "faculty"] },
+        { "label": "Subject Result", "icon": "book", "route": "/reports/subject", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Report", "icon": "assignment", "route": "/reports/revaluation", "roles": ["admin", "faculty"] }
       ]
     },

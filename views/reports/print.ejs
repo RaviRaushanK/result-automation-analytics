@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= report.title %> - SRAAS</title>
+  <link rel="stylesheet" href="/css/reports.css">
+</head>
+<body class="reports-print">
+  <header><p>MCA / SRAAS</p><h1><%= report.title %></h1></header>
+  <button type="button" class="reports-print-action" id="print-report">Print / Save PDF</button>
+  <dl class="reports-context">
+    <% context.forEach(([label, value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
+  </dl>
+  <div class="reports-summary">
+    <% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %>
+  </div>
+  <% if (!report.rows.length) { %><p>No records match the selected report filters.</p><% } else { %>
+    <table class="reports-table">
+      <caption class="reports-print-caption"><%= report.title %></caption>
+      <thead><tr><th scope="col">Sl. No.</th><% report.columns.forEach(column => { %><th scope="col"><%= column.label %></th><% }); %></tr></thead>
+      <tbody><% report.rows.forEach((row, index) => { %><tr><td><%= index + 1 %></td><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %></tbody>
+    </table>
+  <% } %>
+  <script src="/js/reports/print.js" defer></script>
+</body>
+</html>

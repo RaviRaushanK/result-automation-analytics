@@ -93,6 +93,7 @@ const subjectRoutes = require("./routes/subjectRoutes");
 const facultyRoutes = require("./routes/facultyRoutes");
 const adminMiddleware = require("./middlewares/adminMiddleware");
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const reportsRoutes = require('./routes/reportsRoutes');
 
 // ======================
 // Public Routes
@@ -120,6 +121,7 @@ app.use("/sessions", authMiddleware, sessionRoutes);
 app.use("/subjects", authMiddleware, subjectRoutes);
 app.use("/faculty", authMiddleware, adminMiddleware, facultyRoutes);
 app.use('/analytics', authMiddleware, analyticsRoutes);
+app.use('/reports', authMiddleware, reportsRoutes);
 
 // ======================
 // 404 Handler
