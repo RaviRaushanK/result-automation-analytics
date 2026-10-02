@@ -230,9 +230,9 @@
 
   function progressHeader(report) {
     const table = ui('table'); table.classList.add('reports-consolidated', 'reports-progress');
-    table.style.width = `${660 + report.semesters.length * 510}px`;
+    table.style.width = `${550 + report.semesters.length * 560 + report.trailingColumns.length * 180 + report.completionColumns.length * 130}px`;
     const cols = node('colgroup');
-    [64, 156, 220, 110, ...report.semesters.flatMap(() => [100, 80, 80, 110, 140]), 110].forEach(width => { const col = node('col'); col.style.width = `${width}px`; cols.append(col); });
+    [64, 156, 220, 110, ...report.semesters.flatMap(() => [100, 80, 80, 110, 190]), ...report.trailingColumns.map(() => 180), ...report.completionColumns.map(() => 130)].forEach(width => { const col = node('col'); col.style.width = `${width}px`; cols.append(col); });
     table.querySelector('colgroup')?.remove(); table.prepend(cols);
     const top = node('tr'); const bottom = node('tr');
     [{ label: 'Sl. No.' }, ...report.fixedColumns].forEach((column, index) => { const th = node('th', column.label, `reports-fixed-${index}`); th.scope = 'col'; th.rowSpan = 2; top.append(th); });
@@ -242,6 +242,11 @@
     });
     report.trailingColumns.forEach(column => { const th = node('th', column.label); th.scope = 'col'; th.rowSpan = 2; top.append(th); });
     ui('progress-title').textContent = report.formalTitle;
+    report.completionGroups.forEach(group => {
+      const th = node('th', undefined, 'reports-completion-group'); th.scope = 'colgroup'; th.colSpan = group.columns.length;
+      th.append(document.createTextNode('Successfully Completed'), node('br'), document.createTextNode(group.label)); top.append(th);
+      group.columns.forEach(column => { const cell = node('th', column.label, 'reports-year-completion'); cell.scope = 'col'; bottom.append(cell); });
+    });
     ui('progress-notes').replaceChildren(...report.notes.map(note => node('li', note)));
     ui('categories-link').href = `/students?batch_id=${report.filters.batch_id}`;
     return [top, bottom];
@@ -269,6 +274,7 @@
           const result = row.latest_cgpa_source; td.title = `Semester ${result.semester}; ${result.exam_session} ${result.exam_year}; attempt ${result.attempt_no}; ${result.exam_type}`;
         }
         const text = display(column.key, row[column.key]);
+        if (type === 'student-progress' && /^year_\d+_/.test(column.key)) td.classList.add('reports-year-completion');
         if (column.key.endsWith('status') && row[column.key]) td.append(node('span', text, `badge reports-status reports-status-${row[column.key]}`));
         else td.textContent = text;
         tr.append(td);

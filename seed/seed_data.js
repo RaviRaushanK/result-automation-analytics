@@ -83,17 +83,11 @@ function getSubjectsForSession(sessionLabel) {
 
 // ── Grade helpers ───────────────────────────────────────────────
 function computeGrade(total) {
-  if (total >= 90) return 'S';
-  if (total >= 80) return 'A';
-  if (total >= 70) return 'B';
-  if (total >= 60) return 'C';
-  if (total >= 50) return 'D';
-  if (total >= 45) return 'E';
-  return 'F';
+  return require('../services/academicPolicy').legacySeedGrade(total);
 }
 
 function computeSGPA(subjectResults, subjects) {
-  const gradePoints = { S: 10, A: 9, B: 8, C: 7, D: 6, E: 4, F: 0 };
+  const gradePoints = require('../services/academicPolicy').LEGACY_POINTS;
   let totalPoints = 0, totalCredits = 0;
   for (const sr of subjectResults) {
     const sub = subjects.find(s => s.id === sr.subjectId);

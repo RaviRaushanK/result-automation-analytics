@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const academicCourses = require('../services/academicCourseService');
 const { Op } = require("sequelize");
 const {
   Subject,
@@ -214,7 +215,7 @@ const subjectController = {
             errors: check.errors,
           });
       const session = await ResultSession.findByPk(req.body.session_id, {
-        attributes: ["session_id", "batch_id"],
+        attributes: ["session_id", "batch_id", "semester"],
       });
       if (!session)
         return res
@@ -249,10 +250,9 @@ const subjectController = {
             message:
               "This subject code already exists in the selected batch and session.",
           });
-      const data = await Subject.create({
-        ...check.data,
-        session_id: session.session_id,
-        subject_uuid: generateUuid(),
+      const data = await sequelize.transaction(async transaction => {
+        const course = await academicCourses.resolve(session, check.data, transaction);
+        return Subject.create({ ...check.data, session_id: session.session_id, course_id: course.course_id, subject_uuid: generateUuid() }, { transaction });
       });
       res
         .status(201)
@@ -263,6 +263,7 @@ const subjectController = {
         });
     } catch (error) {
       console.error("Subject create error:", error);
+      if (error.status) return res.status(error.status).json({ success: false, message: error.message });
       if (error.name === "SequelizeUniqueConstraintError")
         return res
           .status(409)
@@ -312,7 +313,14 @@ const subjectController = {
             message:
               "This subject code already exists in the selected batch and session.",
           });
-      await subject.update(check.data);
+      const session = await ResultSession.findByPk(subject.session_id);
+      await sequelize.transaction(async transaction => {
+        const course = await academicCourses.resolve(session, check.data, transaction);
+        if (subject.course_id && String(subject.course_id) !== String(course.course_id)) {
+          const error = new Error('An existing subject cannot be reassigned to another academic course. Create a new offering instead.'); error.status = 409; throw error;
+        }
+        await subject.update({ ...check.data, course_id: course.course_id }, { transaction });
+      });
       const data = await Subject.findByPk(subject.subject_id);
       res.json({
         success: true,
@@ -321,6 +329,7 @@ const subjectController = {
       });
     } catch (error) {
       console.error("Subject update error:", error);
+      if (error.status) return res.status(error.status).json({ success: false, message: error.message });
       if (error.name === "SequelizeUniqueConstraintError")
         return res
           .status(409)

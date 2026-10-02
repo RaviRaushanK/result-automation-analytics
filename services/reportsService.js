@@ -1,6 +1,8 @@
 'use strict';
 
 const repository = require('../repositories/reportsRepository');
+const academicOutcomes = require('./academicOutcomeService');
+const academicPolicy = require('./academicPolicy');
 const TYPES = ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress'];
 const TITLES = { student: 'Student Result Report', class: 'Class Result Report', subject: 'Subject Result Report', revaluation: 'Revaluation Report', toppers: 'Toppers Report', consolidated: 'Consolidated Result Report', 'result-analysis': 'Result Analysis Report' };
 TITLES['student-progress'] = 'All Students Progress Report';
@@ -245,27 +247,34 @@ function resultOrder(a, b) {
     || String(a.exam_session).localeCompare(String(b.exam_session)) || Number(a.session_id) - Number(b.session_id)
     || Number(a.attempt_no) - Number(b.attempt_no) || Number(a.result_id) - Number(b.result_id);
 }
-const PROGRESS_FIELDS = [['marks', 'Marks Obt.'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['first_attempt', 'First Attempt'], ['supplementary_pass', 'Pass in Suply']];
+const PROGRESS_FIELDS = [['marks', 'Marks Obt.'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['first_attempt', 'First Attempt'], ['supplementary_pass', 'Pass in Supplementary']];
 function progressKey(term, field) { return `semester_${term}_${field}`; }
+function progressYearKey(year, field) { return `year_${year}_${field}`; }
 
 async function prepareProgress(filters) {
   const batch = await requireBatch(filters.batch_id);
   const semesters = await repository.progressSemesters(filters);
   semesters.sort((a, b) => String(a.semester).localeCompare(String(b.semester), 'en', { numeric: true }));
-  const requiredSubjects = await repository.progressRequiredSubjects(filters);
+  const roster = await academicOutcomes.load(filters.batch_id, [], filters.mode);
+  const academicYears = academicPolicy.academicYearGroups([...semesters.map(term => term.semester), ...roster.courses.filter(course => course.status === 'active').map(course => course.semester)]);
   const summary = await repository.progressStudentCount(filters);
   const totalRows = Number(summary.total_rows);
   const totalPages = Math.ceil(totalRows / filters.pageSize);
-  const report = { type: 'student-progress', title: TITLES['student-progress'], filters, meta: { batch }, semesters, requiredSubjects,
+  const report = { type: 'student-progress', title: TITLES['student-progress'], filters, meta: { batch }, semesters, academicYears,
     fixedColumns: [['usn', 'USN'], ['student_name', 'Name'], ['category', 'Category']].map(([key, label]) => ({ key, label })),
-    semesterColumns: PROGRESS_FIELDS.map(([key, label]) => ({ key, label })), trailingColumns: [{ key: 'latest_cgpa', label: 'Latest Stored CGPA' }],
+    semesterColumns: PROGRESS_FIELDS.map(([key, label]) => ({ key, label })), trailingColumns: [{ key: 'latest_cgpa', label: 'Cumulative CGPA' }],
     formalTitle: `Results of Students Admitted during the Year ${batch.start_year}`,
-    notes: ['Marks/SGPA/CGPA use the earliest regular sitting, or the earliest observed sitting if no regular result exists. No attempts are merged into a new GPA.',
-      'First Attempt requires a recorded REGULAR attempt 1. Supplementary clearance requires all subjects of that first session to be cleared by later same-session attempts. Cross-session subject equivalence is not assumed.',
-      'SGPA/CGPA are stored academic header values; effective marks may reflect approved revaluation. The import calculates CGPA from the individual attempt, so Latest Stored CGPA is not certified final programme CGPA.'],
+    notes: ['Marks and SGPA represent the first verified full-semester regular sitting. Backlog clearance uses course-level examination history across sittings; later marks do not replace the regular total.',
+      'Cumulative CGPA is shown only when its grading and course history are verified. GPA remains on the original result basis after revaluation. A dash indicates unavailable or incomplete academic evidence.',
+      'Year completion requires both semesters (1-2, 3-4, etc.). Missing or unverified semesters remain unavailable; backlog completion requires verified later retake clearance.'],
     metrics: [['Students', totalRows], ['Semesters Available', semesters.length]],
     pagination: { page: Math.min(filters.page, Math.max(totalPages, 1)), pageSize: filters.pageSize, totalRows, totalPages }, generatedAt: new Date().toISOString() };
-  report.columns = [...report.fixedColumns, ...semesters.flatMap((term, group) => PROGRESS_FIELDS.map(([field, label]) => ({ key: progressKey(term.semester, field), label: `Semester ${term.semester} ${label}`, group }))), ...report.trailingColumns];
+  report.completionGroups = [['with_backlog', 'With Back Log'], ['without_backlog', 'Without Back Log']].map(([field, label]) => ({
+    label, columns: academicYears.map(year => ({ key: progressYearKey(year.year, field), label: year.label,
+      exportLabel: `Successfully Completed ${label} - ${year.label}` }))
+  })).filter(group => group.columns.length);
+  report.completionColumns = report.completionGroups.flatMap(group => group.columns.map(column => ({ ...column, label: column.exportLabel })));
+  report.columns = [...report.fixedColumns, ...semesters.flatMap((term, group) => PROGRESS_FIELDS.map(([field, label]) => ({ key: progressKey(term.semester, field), label: `Semester ${term.semester} ${label}`, group }))), ...report.trailingColumns, ...report.completionColumns];
   report.context = contextLines(report);
   return report;
 }
@@ -273,60 +282,41 @@ async function prepareProgress(filters) {
 async function progressRows(report, limit, offset) {
   const students = await repository.progressStudents(report.filters, limit, offset);
   const ids = students.map(student => student.student_id);
-  const results = await repository.progressResults(report.filters, ids);
-  results.sort(resultOrder);
-  const subjects = await repository.progressSubjectHistory(report.filters, ids);
-  const byResult = new Map();
-  for (const subject of subjects) {
-    const id = String(subject.result_id);
-    if (!byResult.has(id)) byResult.set(id, []);
-    byResult.get(id).push(subject);
-  }
-  const byStudent = new Map();
-  for (const result of results) {
-    const id = String(result.student_id);
-    if (!byStudent.has(id)) byStudent.set(id, []);
-    byStudent.get(id).push(result);
-  }
-  const required = new Map();
-  for (const subject of report.requiredSubjects) {
-    const id = String(subject.session_id);
-    if (!required.has(id)) required.set(id, []);
-    required.get(id).push(String(subject.subject_id));
+  const data = await academicOutcomes.load(report.filters.batch_id, ids, report.filters.mode);
+  const original = { ...data, subjects: data.subjects.map(subject => ({ ...subject, outcome_status: subject.result_status, outcome_marks: subject.marks, outcome_grade: subject.grade })) };
+  function verifiedCgpa(result) {
+    if (result.cgpa == null || !Number(result.cgpa_is_cumulative) || !['CALCULATED','SOURCE_DOCUMENT'].includes(result.cgpa_source)) return null;
+    if (result.cgpa_source === 'SOURCE_DOCUMENT') return result.cgpa;
+    const value = academicOutcomes.cumulative(original, result.student_id, result.semester, academicPolicy.period(result));
+    return value !== null && value === Number(result.cgpa) ? result.cgpa : null;
   }
   return students.map(student => {
-    const history = byStudent.get(String(student.student_id)) || [];
-    const row = { ...student, semesters: {}, latest_cgpa: null };
+    const history = data.results.filter(result => String(result.student_id) === String(student.student_id)).sort(resultOrder);
+    const row = { ...student, semesters: {}, academic_years: {}, latest_cgpa: null };
     for (const term of report.semesters) {
-      const attempts = history.filter(result => String(result.semester) === String(term.semester));
-      const displayed = attempts.find(result => result.exam_type === 'REGULAR') || attempts[0];
+      const outcome = academicOutcomes.semesterOutcome(data, student.student_id, term.semester);
+      const displayed = outcome.firstAttempt !== '-' ? outcome.firstRegularResult : null;
       const values = { marks: null, sgpa: null, cgpa: null, first_attempt: '-', supplementary_pass: '-', displayed_result: displayed || null };
       if (displayed) {
-        values.marks = displayed.total_marks; values.sgpa = displayed.sgpa; values.cgpa = displayed.cgpa;
-        const requiredIds = required.get(String(displayed.session_id)) || [];
-        const outcomes = new Map((byResult.get(String(displayed.result_id)) || []).map(subject => [String(subject.subject_id), subject.result_status]));
-        const completePass = () => requiredIds.length > 0 && requiredIds.every(id => outcomes.get(id) === 'pass');
-        if (displayed.exam_type === 'REGULAR' && Number(displayed.attempt_no) === 1) {
-          if (displayed.result_status === 'fail') values.first_attempt = 'F';
-          else if (displayed.result_status === 'pass' && completePass()) values.first_attempt = 'P';
-        }
-        if (values.first_attempt === 'F') {
-          const later = attempts.slice(attempts.indexOf(displayed) + 1).filter(result => ['BACKLOG', 'SUPPLEMENTARY', 'REPEAT'].includes(result.exam_type));
-          const unmapped = later.some(result => String(result.session_id) !== String(displayed.session_id));
-          for (const result of later.filter(result => String(result.session_id) === String(displayed.session_id))) {
-            for (const subject of byResult.get(String(result.result_id)) || []) outcomes.set(String(subject.subject_id), subject.result_status);
-          }
-          if (!unmapped && requiredIds.length) {
-            if (later.length && completePass()) values.supplementary_pass = 'P';
-            else if (requiredIds.some(id => outcomes.get(id) === 'fail')) values.supplementary_pass = 'F';
-          }
-        }
+        const sitting = data.subjects.filter(subject => String(subject.result_id) === String(displayed.result_id));
+        values.marks = sitting.every(subject => subject.outcome_marks !== null) ? sitting.reduce((sum, subject) => sum + Number(subject.outcome_marks), 0) : null;
+        values.sgpa = displayed.sgpa_source === 'UNKNOWN' ? null : displayed.sgpa;
+        values.cgpa = verifiedCgpa(displayed);
       }
+      values.first_attempt = outcome.firstAttempt; values.supplementary_pass = outcome.supplementaryPass;
+      values.cleared = outcome.cleared; values.with_backlog = outcome.withBacklog; values.without_backlog = outcome.withoutBacklog;
       row.semesters[term.semester] = values;
       for (const [field] of PROGRESS_FIELDS) row[progressKey(term.semester, field)] = values[field];
     }
-    const latest = [...history].reverse().find(result => result.cgpa !== null && result.cgpa !== undefined);
-    if (latest) { row.latest_cgpa = latest.cgpa; row.latest_cgpa_source = latest; }
+    for (const year of report.academicYears) {
+      const outcome = academicOutcomes.academicYearOutcome(data, student.student_id, year.semesters);
+      row.academic_years[year.year] = outcome;
+      row[progressYearKey(year.year, 'with_backlog')] = outcome.withBacklog;
+      row[progressYearKey(year.year, 'without_backlog')] = outcome.withoutBacklog;
+    }
+    const throughSemester = Math.max(0, ...history.map(result => Number(result.semester)).filter(Number.isInteger));
+    row.latest_cgpa = academicOutcomes.cumulative(original, student.student_id, throughSemester);
+    if (row.latest_cgpa !== null) row.latest_cgpa_source = { basis: 'original_course_history', through_semester: throughSemester };
     return row;
   });
 }
@@ -428,6 +418,7 @@ function contextLines(report) {
   if (subject) lines.push(['Subject', `${subject.subject_code} - ${subject.subject_name}`], ['Credits', subject.credits], ['Max Marks', subject.max_marks]);
   if (report.type !== 'revaluation') lines.push(['Result View', `${report.filters.mode === 'effective' ? 'Effective' : 'Original'} Result`]);
   if (report.type === 'toppers') lines.push(['Ranking Basis', 'Stored original CGPA, descending'], ['Eligibility', 'Stored passing result, non-NULL CGPA, no failed original subject rows'], ['Tie Order', 'USN, attempt number, result ID']);
+  if (['student','class','toppers','consolidated'].includes(report.type)) lines.push(['GPA Basis', 'Stored original result values. Legacy GPA is not certified cumulative GPA.']);
   if (report.type === 'consolidated' && report.filters.mode === 'effective') lines.push(['SGPA Basis', 'Stored original academic header; not recalculated after revaluation']);
   if (report.type === 'result-analysis') lines.push(['Participation Basis', 'Exact Result attempts; REGULAR vs BACKLOG / SUPPLEMENTARY / REPEAT']);
   if (report.filters.exam_type) lines.push(['Exam Type', report.filters.exam_type]);

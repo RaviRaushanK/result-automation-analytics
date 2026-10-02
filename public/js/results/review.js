@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', function () {
         rows.forEach(function (row) {
             var internalInput = row.querySelector('.internal-input');
             var externalInput = row.querySelector('.external-input');
+            var retake = form.querySelector('[name="exam_type"]').value !== 'REGULAR';
+            if (retake && internalInput.value === '' && externalInput.value === '') return;
             var subjectId = row.dataset.subjectId;
 
             [internalInput, externalInput].forEach(function (input) {

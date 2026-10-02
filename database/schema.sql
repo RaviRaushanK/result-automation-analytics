@@ -101,17 +101,43 @@ CREATE TABLE result_sessions (
 -- -------------------------------------------------
 -- 7. subjects
 -- -------------------------------------------------
+CREATE TABLE academic_courses (
+  course_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  batch_id BIGINT NOT NULL,
+  semester VARCHAR(20) NOT NULL,
+  subject_code VARCHAR(20) NOT NULL,
+  subject_name VARCHAR(100) NOT NULL,
+  subject_type ENUM('theory','lab','project') NOT NULL,
+  credits INT NOT NULL,
+  max_internal INT NOT NULL,
+  max_external INT NOT NULL,
+  max_marks INT NOT NULL,
+  grading_scheme_version VARCHAR(40) NULL,
+  is_required BOOLEAN NOT NULL DEFAULT TRUE,
+  roster_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  reviewed_by BIGINT NULL,
+  reviewed_at DATETIME NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_academic_course (batch_id,semester,subject_code),
+  FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE RESTRICT,
+  FOREIGN KEY (reviewed_by) REFERENCES admin_users(admin_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
 CREATE TABLE subjects (
   subject_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   subject_uuid CHAR(36) NOT NULL UNIQUE,
   session_id BIGINT NOT NULL,
+  course_id BIGINT NULL,
   subject_code VARCHAR(20) NOT NULL,
   subject_name VARCHAR(100) NOT NULL,
   subject_type ENUM('theory', 'lab', 'project') NOT NULL,
   credits INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE
+  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (course_id) REFERENCES academic_courses(course_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -155,6 +181,10 @@ CREATE TABLE results (
   session_id BIGINT NOT NULL,
   sgpa DECIMAL(3,2) NULL,
   cgpa DECIMAL(3,2) NULL,
+  sgpa_source VARCHAR(30) NOT NULL DEFAULT 'LEGACY',
+  cgpa_source VARCHAR(30) NOT NULL DEFAULT 'LEGACY',
+  cgpa_is_cumulative BOOLEAN NOT NULL DEFAULT FALSE,
+  grading_scheme_version VARCHAR(40) NULL,
   result_status ENUM('pass', 'fail') NOT NULL,
   failed_subject_count INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -173,11 +203,16 @@ CREATE TABLE subject_results (
   internal_marks INT NULL DEFAULT NULL,
   external_marks INT NULL DEFAULT NULL,
   marks INT NOT NULL,
+  grading_scheme_version VARCHAR(40) NULL,
+  grade_point DECIMAL(4,2) NULL,
+  credits_snapshot INT NULL,
+  course_id_snapshot BIGINT NULL,
   grade VARCHAR(5),
   result_status ENUM('pass', 'fail') NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY unique_result_subject (result_id, subject_id),
+  FOREIGN KEY (course_id_snapshot) REFERENCES academic_courses(course_id) ON DELETE RESTRICT,
   FOREIGN KEY (result_id) REFERENCES results(result_id) ON DELETE CASCADE ON UPDATE CASCADE,
   FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;

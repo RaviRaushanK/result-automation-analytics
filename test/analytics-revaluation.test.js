@@ -48,7 +48,7 @@ async function renderRevaluation(fail) {
   nodes['analytics-filter-form'] = form;
   const urls = [];
   const context = vm.createContext({
-    window: {}, URLSearchParams, setTimeout,
+    window: {}, URLSearchParams, setTimeout, Node: class Node {},
     document: {
       getElementById: id => nodes[id] || null,
       createElement: () => element(),

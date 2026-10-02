@@ -153,7 +153,23 @@ const fixture = `WITH
  `;
 
 test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST !== '1' }, async t => {
-  const originalQuery = db.sequelize.query.bind(db.sequelize);
+  const realQuery = db.sequelize.query.bind(db.sequelize);
+  const originalQuery = (sql, options) => {
+    // Add authoritative course identities to the existing read-only CTE fixtures.
+    const boundary = sql.indexOf('\n SELECT');
+    const split = boundary >= 0 ? boundary : sql.search(/\)\s+SELECT /) + 1;
+    const source = sql.slice(0, split).replace(' subjects AS', ' offering_fixture AS').replace(' results AS', ' result_fixture AS').replace(' subject_results AS', ' marks_fixture AS');
+    const additions = `,
+      academic_courses AS (SELECT MIN(s.subject_id) course_id,rs.batch_id,rs.semester,s.subject_code,MIN(s.subject_name) subject_name,
+        4 credits,50 max_internal,50 max_external,100 max_marks,'active' status,1 is_required,1 roster_verified
+        FROM offering_fixture s JOIN result_sessions rs ON rs.session_id=s.session_id GROUP BY rs.batch_id,rs.semester,s.subject_code),
+      subjects AS (SELECT s.*,c.course_id FROM offering_fixture s JOIN result_sessions rs ON rs.session_id=s.session_id
+        JOIN academic_courses c ON c.batch_id=rs.batch_id AND c.semester=rs.semester AND c.subject_code=s.subject_code),
+      results AS (SELECT r.*,'LEGACY' sgpa_source,'LEGACY' cgpa_source,0 cgpa_is_cumulative,NULL grading_scheme_version FROM result_fixture r),
+      subject_results AS (SELECT sr.*,NULL course_id_snapshot,NULL grade_point,NULL credits_snapshot,NULL grading_scheme_version FROM marks_fixture sr)
+    `;
+    return realQuery(source + additions + sql.slice(split), options);
+  };
   db.sequelize.query = (sql, options) => {
     assert.match(sql.trim(), /^SELECT\b/i);
     return originalQuery(fixture + sql, options);
@@ -169,19 +185,18 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.equal(Number(report.rows[0].semesters['1'].sgpa), 3.5);
       assert.equal(report.rows[0].semesters['1'].cgpa, null);
       assert.equal(report.rows[0].semesters['1'].first_attempt, 'F');
-      assert.equal(report.rows[0].semesters['1'].supplementary_pass, '-', 'Cross-session course equivalence is unavailable');
+      assert.equal(report.rows[0].semesters['1'].supplementary_pass, 'P', 'Stable course identity combines later cross-session passes');
       assert.equal(report.rows[0].semesters['2'].first_attempt, 'P');
       assert.equal(report.rows[0].semesters['2'].supplementary_pass, '-');
-      assert.equal(Number(report.rows[0].latest_cgpa), 8);
-      assert.equal(report.rows[0].latest_cgpa_source.semester, '10');
+      assert.equal(report.rows[0].latest_cgpa, null, 'Legacy GPA is not certified cumulative');
       assert.equal(report.rows[1].semesters['2'].marks, null);
       assert.equal(report.rows[1].semesters['2'].first_attempt, '-');
       assert.equal(report.rows[1].latest_cgpa, null);
       const effective = await service.getReport('student-progress', { batch_id: '1' });
       assert.equal(Number(effective.rows[0].semesters['1'].marks), 135);
       assert.equal(effective.rows[0].semesters['1'].first_attempt, 'P');
-      assert.equal(Number(effective.rows[1].semesters['1'].marks), 35, 'Pending and rejected RV never replace the displayed regular result');
-      assert.equal(effective.rows[1].semesters['1'].supplementary_pass, 'F');
+      assert.equal(effective.rows[1].semesters['1'].marks, null, 'An incomplete first sitting is not an authoritative semester total');
+      assert.equal(effective.rows[1].semesters['1'].supplementary_pass, '-');
       assert.equal(Number(effective.rows[0].semesters['1'].sgpa), 3.5, 'Effective SGPA is not invented');
       const noResults = await service.getReport('student-progress', { batch_id: '2' });
       assert.equal(noResults.rows.length, 1); assert.equal(noResults.semesters.length, 0);
@@ -197,7 +212,8 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         assert.equal(cleared.rows[0].semesters['1'].first_attempt, 'F');
         assert.equal(cleared.rows[0].semesters['1'].supplementary_pass, 'P');
         assert.equal(Number(cleared.rows[0].semesters['1'].marks), 100, 'Backlog marks are not added to first-sitting marks');
-        const failed = sameSession.replace("65, NULL, NULL, 'B+', 'pass'", "65, NULL, NULL, 'B+', 'fail'");
+        const failed = sameSession.replace("65, NULL, NULL, 'B+', 'pass'", "65, NULL, NULL, 'B+', 'fail'")
+          .replace("10, 10, 7, 80, 42, 38, 'A+', 'pass'", "10, 10, 7, 80, 42, 38, 'F', 'fail'");
         db.sequelize.query = (sql, options) => originalQuery(failed + sql, options);
         assert.equal((await service.getReport('student-progress', { batch_id: '1', mode: 'original' })).rows[0].semesters['1'].supplementary_pass, 'F');
         const missing = sameSession.replace(/\),\s*results AS/, " UNION ALL SELECT 99, 1, 'MCA100', 'Missing subject', 4, 100), results AS");
@@ -217,7 +233,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         let count = 0;
         db.sequelize.query = (sql, options) => { count++; return originalQuery(many + sql, options); };
         const page = await service.getReport('student-progress', { batch_id: '1', page: '2' });
-        assert.equal(page.pagination.totalRows, 32); assert.equal(page.rows.length, 7); assert.equal(count, 7);
+        assert.equal(page.pagination.totalRows, 32); assert.equal(page.rows.length, 7); assert.equal(count, 8);
         assert.equal(page.rows[0].semesters['1'].first_attempt, '-');
         assert.equal(page.rows[0].semesters['1'].marks, null);
         const all = []; for await (const row of service.fullRows(page)) all.push(row);
@@ -568,8 +584,11 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.doesNotMatch(html, /report-pageSize/);
           }
           if (type === 'student-progress') {
-            assert.match(csvText, /Sl\. No\.,USN,Name,Category,Semester 1,,,,,Semester 2,,,,,Semester 4,,,,,Semester 10,,,,,Latest Stored CGPA/);
-            assert.match(csvText, /Marks Obt\.,SGPA,CGPA,First Attempt,Pass in Suply/);
+            assert.match(csvText, /Successfully Completed With Back Log - First Year/);
+            assert.match(csvText, /Successfully Completed Without Back Log - Second Year/);
+            assert.doesNotMatch(csvText, /Sem \d+ (With|Without) Backlog/);
+            assert.match(csvText, /Sl\. No\.,USN,Name,Category,Semester 1,,,,,Semester 2,,,,,Semester 4,,,,,Semester 10,,,,,Cumulative CGPA/);
+            assert.match(csvText, /Marks Obt\.,SGPA,CGPA,First Attempt,Pass in Supplementary/);
             assert.match(csvText, /1,USN1,Student One,PGCET,135/);
             assert.match(csvText, /2,USN2,Student Two/);
             assert.doesNotMatch(html, /name="session_id"|name="semester"/);
@@ -598,6 +617,10 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           }
           if (type === 'student-progress') {
             assert.match(printText, /reports-progress-print/);
+            assert.equal((printText.match(/Successfully Completed<br>/g) || []).length, 2);
+            assert.match(printText, /class="reports-completion-group" colspan="5"/);
+            assert.match(printText, />First Year<\/th>/);
+            assert.doesNotMatch(printText, /Sem \d+ (With|Without) Backlog/);
             assert.match(printText, /colspan="5"/);
             assert.match(printText, /Results of Students Admitted during the Year 2024/);
             assert.equal((printText.match(/<tr><td>/g) || []).length, 2);
@@ -630,7 +653,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         assert.match(html, /IA and External are original stored components/);
       } finally { await new Promise(resolve => server.close(resolve)); }
     });
-  } finally { db.sequelize.query = originalQuery; }
+  } finally { db.sequelize.query = realQuery; }
 });
 
 test('full export bypasses preview pagination and reads in chunks', async () => {

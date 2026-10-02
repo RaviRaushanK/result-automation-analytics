@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(4,2),
       allowNull: true
     },
+    sgpa_source: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'LEGACY' },
+    cgpa_source: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'LEGACY' },
+    cgpa_is_cumulative: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    grading_scheme_version: { type: DataTypes.STRING(40), allowNull: true },
     cgpa: {
       type: DataTypes.DECIMAL(4,2),
       allowNull: true

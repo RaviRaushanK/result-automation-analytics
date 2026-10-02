@@ -1,0 +1,18 @@
+<section class="reports-page">
+  <header class="reports-header"><h1>Semester Courses</h1></header>
+  <form method="get" class="reports-filters row g-3 align-items-end">
+    <div class="col-md-6"><label class="form-label" for="course-batch">Batch</label><select class="form-select" id="course-batch" name="batch_id" required><option value="">Select Batch</option><% batches.forEach(batch => { %><option value="<%= batch.batch_id %>" <%= String(selected.batch_id) === String(batch.batch_id) ? 'selected' : '' %>><%= batch.batch_name %></option><% }); %></select></div>
+    <div class="col-md-3"><label class="form-label" for="course-semester">Semester</label><input type="number" class="form-control" min="1" max="24" id="course-semester" name="semester" value="<%= selected.semester %>" required></div>
+    <div class="col-auto"><button class="btn btn-primary" type="submit">Load Courses</button></div>
+  </form>
+  <% if (saved) { %><div class="alert alert-success" role="status">Required semester courses confirmed.</div><% } %>
+  <% if (courses.some(course => !course.roster_verified)) { %><div class="alert alert-warning">This semester's required courses await review.</div><% } %>
+  <form method="post" action="/subjects/courses">
+    <input type="hidden" name="batch_id" value="<%= selected.batch_id %>"><input type="hidden" name="semester" value="<%= selected.semester %>">
+    <div class="table-responsive"><table class="table reports-table academic-course-table"><thead><tr><th scope="col">Required</th><th scope="col">Code</th><th scope="col">Course</th><th scope="col">Credits</th><th scope="col">Maximum Marks</th></tr></thead><tbody>
+    <% courses.forEach(course => { %><tr><td><input type="checkbox" name="required_courses" value="<%= course.course_id %>" <%= course.is_required ? 'checked' : '' %> aria-label="Required course <%= course.subject_code %>"></td><td><%= course.subject_code %></td><td><%= course.subject_name %></td><td><%= course.credits %></td><td><%= course.max_marks %></td></tr><% }); %>
+    <% if (!courses.length) { %><tr><td colspan="5">No semester courses available.</td></tr><% } %>
+    </tbody></table></div>
+    <% if (courses.length) { %><label class="form-check mt-3"><input type="checkbox" class="form-check-input" name="confirm" value="1" required><span class="form-check-label">I confirm this is the required course roster for this batch and semester.</span></label><button class="btn btn-primary mt-3" type="submit">Confirm Required Courses</button><% } %>
+  </form>
+</section>

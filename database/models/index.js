@@ -28,6 +28,7 @@ const Batch = require('./Batch')(sequelize, DataTypes);
 const Faculty = require('./Faculty')(sequelize, DataTypes);
 const ResultSession = require('./ResultSession')(sequelize, DataTypes);
 const Subject = require('./Subject')(sequelize, DataTypes);
+const AcademicCourse = require('./AcademicCourse')(sequelize, DataTypes);
 const SubjectFaculty = require('./SubjectFaculty')(sequelize, DataTypes);
 const Student = require('./Student')(sequelize, DataTypes);
 const Result = require('./Result')(sequelize, DataTypes);
@@ -56,6 +57,10 @@ ResultSession.belongsTo(Batch, { foreignKey: 'batch_id' });
 // ResultSession ↔ Subject
 ResultSession.hasMany(Subject, { foreignKey: 'session_id' });
 Subject.belongsTo(ResultSession, { foreignKey: 'session_id' });
+Batch.hasMany(AcademicCourse, { foreignKey: 'batch_id' });
+AcademicCourse.belongsTo(Batch, { foreignKey: 'batch_id' });
+AcademicCourse.hasMany(Subject, { foreignKey: 'course_id' });
+Subject.belongsTo(AcademicCourse, { foreignKey: 'course_id' });
 
 // Subject ↔ Faculty (Many-to-Many)
 Subject.belongsToMany(Faculty, {
@@ -139,6 +144,7 @@ module.exports = {
   Faculty,
   ResultSession,
   Subject,
+  AcademicCourse,
   SubjectFaculty,
   Student,
   Result,

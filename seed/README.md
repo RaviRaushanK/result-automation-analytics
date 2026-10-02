@@ -1,140 +1,164 @@
-# Seed Scripts
+# Academic Demo Dataset
 
-Standalone one-off scripts to populate the database with realistic test data. These scripts are **never loaded by the running application** — they are run manually from the terminal.
+This explicitly invoked DEVELOPMENT/TEST reset builds 36 students, verified
+course history, partial retakes and canonical revaluation events. It does not
+change schemas, grading, imports, Reports or authentication behavior.
 
----
+## Commands and Safety
 
-## Prerequisites
+From the repository root in PowerShell:
 
-1. MySQL must be running and accessible (check `config/.env`)
-2. Run `npm run setup` or `npm run migrate` first to create all tables
-
----
-
-## Scripts
-
-| File | What it does |
-|------|-------------|
-| `seed_all.js` | Master script — inserts everything in the right order |
-| `seed_summary.js` | Read-only — prints current data counts |
-| `seed_clean.js` | Hard-deletes all seeded rows (raw SQL, bypasses FK constraints) |
-| `seed_data.js` | Shared test data (students, sessions, subjects, marks/grade logic) |
-
----
-
-## Quick start
-
-```bash
-# 1. (once) ensure schema exists
-npm run setup
-
-# 2. (re-runnable) seed data
-node seed/seed_all.js
-
-# 3. inspect
-node seed/seed_summary.js
-
-# 4. wipe and start over
-node seed/seed_clean.js
+```powershell
+$env:NODE_ENV = 'development'
+npm.cmd run seed:demo -- --reset --confirm-db academic_result_analytics_db
+npm.cmd run seed:demo:verify -- --confirm-db academic_result_analytics_db
 ```
 
-All scripts are idempotent — running `seed_all.js` twice will not duplicate rows.
+Use your actual `DB_NAME` if different. Configuration comes from `config/.env`.
+The database name must match exactly; an explicit reset/verify operation is
+required. Unset NODE_ENV, production, production-like database names and remote
+DB_HOST values are refused before database connection. Never use this on real
+academic data or while imports/revaluation reviews are running.
 
-### What gets created
+**Reset replaces ALL academic data in the selected local database**, not just
+rows belonging to this fixture. This includes original results, revaluation
+events, import/OCR staging, offerings, course rosters and other student identities.
+Existing accounts, faculty, departments, batches and institution configuration
+are retained. The three required student rows are retained with their original
+IDs/UUIDs, names, USNs and emails; their academic history/category is demo data.
+Identity mismatches cause a rollback instead of renaming the students.
 
-| Entity          | Count | Notes |
-|-----------------|-------|-------|
-| Department      | 1     | MCA — Master of Computer Applications |
-| Batch           | 1     | MCA 2025 (2025–2028) |
-| ResultSessions  | 3     | Sem 1 Dec 2025, Sem 1 Jun 2026 (BACKLOG), Sem 2 Jun 2026 |
-| Subjects        | 18    | 6 per session, different codes per session |
-| Students        | 78    | 3 real + 75 random |
-| Results         | 225   | 75 random students × 3 sessions — **no results for real students** |
-| SubjectResults  | 1350  | 6 subjects × 225 results |
+Before deletion, a JSON backup of affected academic tables is written to the OS
+temporary directory; its exact path is printed. This backup contains student PII:
+protect it appropriately. It is a recovery snapshot, not an automatic restore tool.
+Reset, inserts and academic verification run in one transaction with foreign keys
+enabled. An assertion failure rolls back. Report/Analytics smoke checks run after
+commit and fail loudly if unsuccessful. Do not run concurrently with the app's
+write workflows. No DROP DATABASE, TRUNCATE or foreign-key disabling is used.
 
----
+`node seed/seed_all.js` and `npm.cmd --prefix seed run all` are guarded aliases
+and require the same arguments. Legacy standalone cleanup and history generation
+are retired; they fail without writes. `seed_summary.js` remains read-only.
+`npm start`, migrations and the existing Sequelize `seed` command are unchanged.
 
-## Data Details
+## Dataset
 
-### 3 Real Students (no results inserted — admin enters manually via Revaluation workflow)
+| Batch | Students | Academic semesters | History |
+| --- | ---: | --- | --- |
+| MCA 2025 | 30 | 1, 2, 3 resulted; 4 upcoming | Verified required rosters |
+| MCA 2026 | 4 | 1 and 2 resulted; 3 upcoming | In-progress verified rosters |
+| TEST UNVERIFIED MCA | 2 | 1 | Isolated unknown-history fixtures |
 
-| USN | Name | Email |
-|-----|------|-------|
-| 1MV25MC061 | RAVI RAUSHAN KUMAR | raviraushan253@gmail.com |
-| 1MV25MC052 | PRAFUL KRISHNAPPA VAJJARAMATTI | example1@gmail.com |
-| 1MV25MC074 | SINDHUKUMAR S | example2@gmail.com |
+Existing empty batches are retained. The application has no fixed programme
+duration setting: these are illustrative demo semesters, not an official MCA
+curriculum. Future examination sittings intentionally simulate completed history.
+The main sequence is Sem 1 Dec 2025, Sem 2 Jun 2026, Sem 3 Dec 2026; Sem 1
+retakes use Jun/Aug 2026 and Sem 2 retakes use Dec 2026. Months do not determine
+academic semester. Every retake offering uses the same stable course as its
+original offering, even though subject IDs differ.
 
-### 75 Random Students
+There are 48 academic courses, 12 sessions, 72 offerings, 102 results and 563
+subject results: 92 REGULAR, 6 BACKLOG, 2 SUPPLEMENTARY and 2 REPEAT attempts.
+REGULAR results contain all six semester courses; retakes contain only the one
+or two attempted courses. Session-scoped attempt numbers start at 1, with one
+explicit same-session attempt 2. No placeholder zero subject results are inserted.
 
-USN range `1MV25MC001` – `1MV25MC078`, excluding the 3 real USNs above. Named `STUDENT 001` – `STUDENT 078`.
+Theory courses normally have 4 credits and labs 2. The Sem 3 MMC305 fixture has
+5 credits and a 150 maximum (50 IA / 100 EX), exercising actual maximum/credit
+weighting rather than six-times-100 assumptions. Other courses have 100 maximum
+(50 IA / 50 EX). Course definitions reuse existing seed names/codes but correct
+their former semester placement: MMC101-series Sem 1, MMC201-series Sem 2,
+MMC301-series Sem 3, MMC401-series Sem 4.
 
-### Subjects per session
+## Scenario Manifest / Manual Testing Cheat Sheet
 
-All subjects: `type` = theory/lab, `credits` = 4, `max_internal` = 50, `max_external` = 50, `max_marks` = 100.
+P/F refer to Progress First Attempt; the second symbol is Pass in Supplementary.
+The latter follows the existing service and includes non-REGULAR retakes.
 
-**Sem 1 Dec 2025 (REGULAR)**
+| USN | Name | Scenario / Expected Outcome |
+| --- | --- | --- |
+| 1MV25MC061 | RAVI RAUSHAN KUMAR | Sem 1/2/3 P/-; strong topper; stored/verified cumulative CGPA 10.00 |
+| 1MV25MC052 | PRAFUL KRISHNAPPA VAJJARAMATTI | Sem 1 F/P; MMC103 cleared in Jun BACKLOG; later semesters P/- |
+| 1MV25MC074 | SINDHUKUMAR S | Sem 1 Original F/-; Effective P/- through approved effective revaluation |
+| 1MV25MC002 | DEMO STUDENT 002 | Two failed courses cleared in SUPPLEMENTARY; F/P |
+| 1MV25MC003 | DEMO STUDENT 003 | MMC103 remains failed after BACKLOG; F/F |
+| 1MV25MC004 | DEMO STUDENT 004 | MMC103 original fail, Jun fail, Aug supplementary pass; F/P; three course events |
+| 1MV25MC005 | DEMO STUDENT 005 | REPEAT clears MMC105; F/P |
+| 1MV25MC006 | DEMO STUDENT 006 | Pending proposed pass ignored; both views F/- |
+| 1MV25MC007 | DEMO STUDENT 007 | Rejected proposed pass ignored; both views F/- |
+| 1MV25MC008 | DEMO STUDENT 008 | Three ledger events; only approved effective event applies; Original F/-, Effective P/- |
+| 1MV25MC009 | DEMO STUDENT 009 | Sem 1 P/-, Sem 2 F/P via BACKLOG, Sem 3 P/- |
+| 1MV25MC010 | DEMO STUDENT 010 | Grade boundaries 49/50/54/55/59/60; 64/65/69/70/79/80; 84/85/89/90/99/100 |
+| 1MV25MC011 | DEMO STUDENT 011 | Deliberate 10.00 GPA topper tie with Ravi; identical marks |
+| 1MV25MC012 | DEMO STUDENT 012 | Sem 1 MMC101 historical NULL IA/EX; canonical total remains populated |
+| 1MV25MC014 | DEMO STUDENT 014 | Approved marks-only change 65 to 75; status stays PASS |
+| 1MV25MC015 | DEMO STUDENT 015 | Approved PASS to FAIL (55 to 49); Effective F/-; original P/- |
+| 1MV25MC016 | DEMO STUDENT 016 | Backlog FAIL to PASS by RV; Original F/F, Effective F/P |
+| 1MV25MC017 | DEMO STUDENT 017 | Explicit same-session BACKLOG attempt 2; regular unchanged; F/P |
+| 1MV25MC025 | DEMO STUDENT 025 | No results; report cells unavailable, never zero/failure |
+| 1MV25MC026 | DEMO STUDENT 026 | Only Sem 1/2; missing Sem 3 is unavailable |
+| 1MV25MC027 | DEMO STUDENT 027 | Only Sem 1/2; reserved for manually testing a Sem 3 original upload |
+| 1MV26MC001-004 | DEMO CURRENT 1-4 | Current batch; first two only Sem 1, other two Sem 1/2 |
+| 1MV24MC901 | DEMO UNVERIFIED 1 | Full result but unverified roster/legacy provenance; history and CGPA unavailable |
+| 1MV24MC902 | DEMO UNVERIFIED 2 | Retake only; no first REGULAR history; CGPA unavailable |
 
-| Code   | Name                                          | Type   |
-|--------|-----------------------------------------------|--------|
-| MMC101 | PROGRAMMING AND PROBLEM SOLVING IN C          | theory |
-| MMC102 | DISCRETE MATHEMATICS AND GRAPH THEORY         | theory |
-| MMC103 | DATABASE MANAGEMENT SYSTEMS (DBMS)            | theory |
-| MMC104 | OPERATING SYSTEM                              | theory |
-| MMC105 | WEB TECHNOLOGIES                              | theory |
-| MMCL106 | DBMS AND WEB TECHNOLOGIES LABORATORY         | lab    |
+The three required emails remain exactly `raviraushan253@gmail.com`,
+`example1@gmail.com`, `example2@gmail.com`. Every other student is labelled DEMO
+and uses the reserved `example.com` domain.
 
-**Sem 1 Jun 2026 (BACKLOG)**
+## GPA and Revaluation
 
-| Code   | Name                                          | Type   |
-|--------|-----------------------------------------------|--------|
-| MMC201 | COMPUTER ORGANIZATION AND ARCHITECTURE        | theory |
-| MMC202 | DATA STRUCTURES AND ALGORITHMS                | theory |
-| MMC203 | SOFTWARE ENGINEERING                          | theory |
-| MMC204 | ARTIFICIAL INTELLIGENCE                       | theory |
-| MMC205 | COMPUTER NETWORKS                             | theory |
-| MMCL206 | DSA AND AI LABORATORY                        | lab    |
+Grades and grade points come from `services/academicPolicy.js`; SGPA is the
+production credit-weighted grade-point calculation for verified full REGULAR
+attempts. Partial retake SGPA is NULL. Cumulative CGPA is calculated through
+`academicOutcomeService.calculateCumulative` when each new header is published;
+retakes never overwrite old headers. Course/credit/grade-point/scheme snapshots
+and CALCULATED provenance accompany verified GPA. The isolated legacy batch has
+NULL snapshots/SGPA/CGPA and LEGACY provenance. Current and missing future results
+remain unavailable rather than FAIL. First-pass credit selection and failed-credit
+inclusion follow the existing academic outcome service, not a seed-specific rule.
 
-**Sem 2 Jun 2026 (REGULAR)**
+For a non-topper GPA example, DEMO STUDENT 001 has Sem 1/2/3 SGPA 8.09/8.18/8.22
+and true cumulative CGPA 8.16. Student 017's same-period retake illustrates the
+existing conservative report policy: the original header CGPA may display `-`
+when it no longer matches validated history for that cutoff; trailing cumulative
+CGPA remains derived from verified original course history.
 
-| Code   | Name                                          | Type   |
-|--------|-----------------------------------------------|--------|
-| MMC301 | THEORY OF COMPUTATION                         | theory |
-| MMC302 | COMPILER DESIGN                               | theory |
-| MMC303 | CLOUD COMPUTING                               | theory |
-| MMC304 | CRYPTOGRAPHY AND NETWORK SECURITY             | theory |
-| MMC305 | MACHINE LEARNING                              | theory |
-| MMCL306 | ML AND CC LABORATORY                         | lab    |
+There are nine RV events: six approved, two pending, one rejected. Five approved
+events are effective; the older approved event for 008 is historical, and its
+pending event is ignored. Original SubjectResult/header data is unchanged.
+Effective IA/EX remain original stored components; revised marks are complete
+canonical totals, not additional external marks. No post-RV GPA is fabricated.
+These are canonical synthetic ledger rows, labelled DEMO_SEED_V1 in remarks.
+No fake OCR candidates, imports, PDFs or document provenance are claimed.
 
-### Sessions
+Three demo faculty use real SubjectFaculty assignments: first theory course has
+two staff, other theory courses one, labs none (report displays `-`). Accounts:
+`demo_admin / DemoAdmin2026!`. The current database has an admin-only login-role
+enum, so no faculty login is fabricated. If an existing installation already
+supports faculty logins, `demo_faculty / DemoFaculty2026!` is also created.
+These are development-only credentials. Existing account passwords are untouched.
+If a demo username exists with different credentials/identity, reset is refused.
 
-| Semester | Exam Session | Year | Type |
-|---------|-------------|------|------|
-| 1 | Dec | 2025 | REGULAR |
-| 1 | Jun | 2026 | BACKLOG |
-| 2 | Jun | 2026 | REGULAR |
+## Verification
 
-### Marks Generation
+The seed prints actual counts, backup path and a SHA-256 logical-dataset digest.
+IDs, timestamps and bcrypt salts are excluded so reruns compare semantic content.
+Automatic checks cover identities, mappings, full/partial rosters, original marks,
+maxima, headers, GPA snapshots, course clearance, RV selection, unknown/future
+history, all eight Reports and Analytics overview.
 
-Marks are generated pseudo-randomly per student USN + subject combination. Each call produces the same marks for a given USN (deterministic). Grades follow the standard scheme:
+```powershell
+node --test tests/demo-seed.test.js
+$env:REPORTS_DB_TEST = '1'
+$env:DEMO_SEED_DB_TEST = '1'
+node --test tests/*.test.js test/*.test.js
+node tests/reports-browser.js
+```
 
-| Total | Grade |
-|-------|-------|
-| ≥90 | S |
-| 80–89 | A |
-| 70–79 | B |
-| 60–69 | C |
-| 50–59 | D |
-| 45–49 | E |
-| <45 | F |
-
-SGPA is computed as: `Σ(grade_points × credits) / Σ(credits)` where `grade_points = { S:10, A:9, B:8, C:7, D:6, E:4, F:0 }`.
-
----
-
-## Notes
-
-- All inserts use `findOrCreate` — re-running `seed_all.js` is safe and idempotent.
-- **`Subject` rows are keyed on `(session_id, subject_code)`** — the same code can appear in multiple sessions because the unique index is composite.
-- **Results are skipped for the 3 real students** in all three sessions — they have no `Result` rows and are reserved for the admin Revaluation workflow.
-- Marks are deterministic (seeded by `usn + subject_code` hash) — re-running produces identical numbers.
-- All inserts run inside a single Sequelize transaction; any failure rolls back the whole seed.
+The demo DB tests verify existing rows read-only; they do not reset automatically.
+The browser harness checks Reports, CSV, print, themes and responsive layouts with
+installed Edge. Seed verification does not claim an OCR extraction or live import
+was executed: manual uploads still require genuine readable source PDFs. Use the
+reserved student 027 for Sem 3 upload, or 003 for a new MMC103 revaluation, then
+reset to return to the documented dataset.

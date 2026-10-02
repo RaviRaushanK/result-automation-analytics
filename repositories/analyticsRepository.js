@@ -72,7 +72,7 @@ const {
 const MODES = ['original', 'effective'];
 const ATTEMPTS = ['all', 'latest'];
 const SUBJECT_STATUSES = ['pass', 'fail'];
-const EXAM_TYPES = ['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'];
+const { EXAM_TYPES } = require('../services/academicPolicy');
 const FILTER_SCOPES = ['years', 'semesters', 'departments', 'batches', 'sessions', 'subjects'];
 
 /** Hard cap on row-returning queries (defensive; callers should paginate). */

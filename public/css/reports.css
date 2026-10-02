@@ -4,7 +4,7 @@
 .reports-header p, .reports-muted { color: var(--text-secondary); font-size: .9rem; margin: 0; }
 .reports-view { background: var(--secondary-bg); color: var(--accent-teal); border: 1px solid var(--card-border); border-radius: 6px; padding: .6rem .75rem; }
 .reports-filters { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
-.reports-page .form-select { background-color: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); min-width: 0; }
+.reports-page .form-select, .reports-page .form-control { background-color: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); min-width: 0; }
 .reports-page .form-select:disabled { background-color: var(--secondary-bg); color: var(--text-secondary); }
 .reports-page .form-label { font-size: .875rem; font-weight: 600; }
 .reports-page .material-icons { font-size: 1.2rem; }
@@ -25,6 +25,9 @@
 .reports-page .reports-table td { min-width: 65px; max-width: 320px; overflow-wrap: anywhere; }
 .reports-table td, .reports-table th { padding: .65rem .75rem; vertical-align: middle; }
 .reports-table-empty { text-align: center; padding: 2rem !important; color: var(--text-secondary); }
+.academic-course-table { min-width: 760px; }
+.academic-course-table td:nth-child(2) { white-space: nowrap; }
+.academic-course-table td:nth-child(3) { min-width: 300px; }
 .reports-status { border-radius: 4px; font-weight: 600; }
 .reports-status-pass, .reports-status-approved { color: var(--accent-green); background: var(--secondary-bg); }
 .reports-status-fail, .reports-status-rejected { color: var(--accent-red); background: var(--secondary-bg); }
@@ -78,6 +81,9 @@
 .reports-page .reports-progress th.reports-fixed-3 { z-index: 2; background: var(--secondary-bg); }
 .reports-page .reports-progress .reports-semester-alt { background: var(--secondary-bg); }
 .reports-progress-notes { font-size: .8rem; padding-left: 1rem; margin-bottom: 1rem; }
+.reports-progress .reports-completion-group,
+.reports-progress .reports-year-completion { text-align: center; vertical-align: middle; border: 1px solid var(--card-border, #bbb); }
+.reports-progress .reports-completion-group { white-space: normal; }
 #student-categories input { background: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); min-width: 140px; }
 #student-categories .reports-table { min-width: 760px; }
 #student-categories .reports-table td:nth-child(2) { white-space: nowrap; }
@@ -114,6 +120,7 @@
   .reports-table { width: 100%; border-collapse: collapse; color: #000 !important; font-size: 9px !important; }
   .reports-table td, .reports-table th { color: #000 !important; background: #fff !important; border: 1px solid #aaa !important; padding: 4px !important; white-space: normal; min-width: 0 !important; }
   .reports-table thead { display: table-header-group; }
+  .reports-progress thead { break-inside: avoid; }
   .reports-analysis-header, .reports-analysis-bottom { break-inside: avoid; }
   .reports-analysis-bottom { grid-template-columns: minmax(0, 1fr) 180px; }
   .reports-analysis-canvas { height: 260px; }

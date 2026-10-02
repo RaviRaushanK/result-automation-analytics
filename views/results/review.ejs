@@ -2,6 +2,11 @@
   <div class="row justify-content-center">
     <div class="col-12 col-xl-12">
 
+      <% if (typeof warnings !== 'undefined' && warnings.length) { %>
+      <div class="alert alert-warning" role="alert">
+        <% warnings.forEach(function (warning) { %><div><%= warning %></div><% }); %>
+      </div>
+      <% } %>
       <% if (typeof extractionWarning !== 'undefined' && extractionWarning) { %>
       <div class="alert alert-warning extraction-alert d-flex align-items-start mb-3" role="alert" id="extractionAlert">
         <i class="material-icons me-2 mt-1 flex-shrink-0">warning</i>
@@ -18,6 +23,7 @@
         <div><strong>Validation Failed</strong><div class="small mt-1"><%= formError %></div></div>
       </div>
       <% } %>
+      <a class="btn btn-outline-secondary mb-3" href="/subjects/courses">Review Semester Courses</a>
 
       <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -148,7 +154,7 @@
                                        id="internal_<%= sid %>"
                                        name="internal_<%= sid %>"
                                        value="<%= iVal %>"
-                                       required
+                                       <%= attempt.exam_type === 'REGULAR' ? 'required' : '' %>
                                        placeholder="0-<%= maxI %>">
                                 <div class="small text-muted">max <%= maxI %></div>
                                 <% if (rowErrors && rowErrors.internalMarks) { %>
@@ -163,7 +169,7 @@
                                        id="external_<%= sid %>"
                                        name="external_<%= sid %>"
                                        value="<%= xVal %>"
-                                       required
+                                       <%= attempt.exam_type === 'REGULAR' ? 'required' : '' %>
                                        placeholder="0-<%= maxE %>">
                                 <div class="small text-muted">max <%= maxE %></div>
                                 <% if (rowErrors && rowErrors.externalMarks) { %>

@@ -64,8 +64,8 @@ function csv(type) {
       const numbered = type !== 'toppers';
       if (type === 'student-progress') {
         for (const note of report.notes) await write(res, line(['Academic Basis', note]));
-        await write(res, '\r\n' + line(['Sl. No.', ...report.fixedColumns.map(c => c.label), ...report.semesters.flatMap(term => [`Semester ${term.semester}`, '', '', '', '']), ...report.trailingColumns.map(c => c.label)]));
-        await write(res, line([...Array(report.fixedColumns.length + 1).fill(''), ...report.semesters.flatMap(() => report.semesterColumns.map(c => c.label)), '']));
+        await write(res, '\r\n' + line(['Sl. No.', ...report.fixedColumns.map(c => c.label), ...report.semesters.flatMap(term => [`Semester ${term.semester}`, ...Array(report.semesterColumns.length - 1).fill('')]), ...report.trailingColumns.map(c => c.label), ...report.completionColumns.map(c => c.label)]));
+        await write(res, line([...Array(report.fixedColumns.length + 1).fill(''), ...report.semesters.flatMap(() => report.semesterColumns.map(c => c.label)), ...report.trailingColumns.map(() => ''), ...report.completionColumns.map(() => '')]));
       } else if (type === 'consolidated') {
         await write(res, '\r\n' + line(['Sl. No.', ...report.fixedColumns.map(c => c.label), ...report.subjects.flatMap(subject => [subject.subject_code, '', '']), ...report.trailingColumns.map(c => c.label)]));
         await write(res, line([...Array(report.fixedColumns.length + 1).fill(''), ...report.subjects.flatMap(() => ['EX', 'IA', 'T']), ...Array(report.trailingColumns.length).fill('')]));

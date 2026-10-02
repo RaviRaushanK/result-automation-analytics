@@ -32,8 +32,11 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   replace(db.sequelize, 'transaction', async () => ({ commit: async () => { committed = true; }, rollback: async () => { rolledBack = true; } }));
   replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', ResultSession: { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026, Batch: { batch_name: 'Test Batch' } }, update: async () => {} }));
   replace(db.OcrExtraction, 'findOne', async () => ({ extracted_json: JSON.stringify(saved) }));
-  replace(db.Subject, 'findAll', async () => [1, 2].map(subject_id => ({ subject_id, subject_code: `S${subject_id}`, subject_name: `Subject ${subject_id}`, max_internal: 50, max_external: 100, max_marks: 150, credits: 4 })));
-  replace(db.Student, 'findOne', async () => ({ student_id: 101 }));
+  const definitions = [1, 2].map(subject_id => ({ subject_id, course_id: subject_id, subject_code: `S${subject_id}`, subject_name: `Subject ${subject_id}`, max_internal: 50, max_external: 100, max_marks: 150, credits: 4 }));
+  replace(db.Subject, 'findAll', async () => definitions);
+  replace(db.AcademicCourse, 'findAll', async () => definitions.map(subject => ({ ...subject, is_required: true, roster_verified: true })));
+  replace(require('../services/academicOutcomeService'), 'calculateCumulative', async () => null);
+  replace(db.Student, 'findOne', async () => ({ student_id: 101, batch_id: 1 }));
   replace(db.Result, 'findOne', async () => duplicate ? { result_id: 99 } : null);
   replace(db.Result, 'create', async data => { header = data; return { result_id: 7 }; });
   replace(db.SubjectResult, 'bulkCreate', async data => { subjectRows = data; });
@@ -42,11 +45,12 @@ test('confirmImport persists validated IA/External/Total while preserving academ
     await t.test('new imports retain components, zero marks, validated total and original grade rules', async () => {
       await invoke();
       assert.deepEqual(subjectRows, [
-        { result_id: 7, subject_id: 1, internal_marks: 42, external_marks: 34, marks: 76, grade: 'C', result_status: 'pass' },
-        { result_id: 7, subject_id: 2, internal_marks: 0, external_marks: 0, marks: 0, grade: 'F', result_status: 'fail' }
+        { result_id: 7, subject_id: 1, internal_marks: 42, external_marks: 34, marks: 76, grade: 'C', result_status: 'pass', grading_scheme_version: 'PG_2022_2024_V1', grade_point: 5, credits_snapshot: 4, course_id_snapshot: 1 },
+        { result_id: 7, subject_id: 2, internal_marks: 0, external_marks: 0, marks: 0, grade: 'F', result_status: 'fail', grading_scheme_version: 'PG_2022_2024_V1', grade_point: 0, credits_snapshot: 4, course_id_snapshot: 2 }
       ]);
       assert.equal(header.attempt_no, 2); assert.equal(header.exam_type, 'BACKLOG');
-      assert.equal(header.sgpa, 2.5); assert.equal(header.cgpa, 5); assert.equal(header.failed_subject_count, 1);
+      assert.equal(header.sgpa, null); assert.equal(header.cgpa, null); assert.equal(header.failed_subject_count, 1);
+      assert.equal(header.cgpa_source, 'UNKNOWN'); assert.equal(header.cgpa_is_cumulative, false);
       assert.equal(header.result_status, 'fail'); assert.equal(committed, true);
       assert.match(redirected, /\/success$/);
     });
@@ -61,6 +65,18 @@ test('confirmImport persists validated IA/External/Total while preserving academ
       await invoke();
       assert.equal(subjectRows, undefined); assert.equal(header, undefined); assert.equal(rolledBack, true);
       assert.match(redirected, /\/review$/);
+    });
+    await t.test('only a new verified regular header receives calculated cumulative provenance', async () => {
+      saved.attempt.exam_type='REGULAR';saved.subjects[0].externalMarks=34;
+      saved.subjects[1].internalMarks=42;saved.subjects[1].externalMarks=34;
+      committed=false;rolledBack=false;
+      replace(require('../services/academicOutcomeService'), 'calculateCumulative', async()=>5);
+      replace(db.Result, 'create', async data=>{header=data;return{result_id:7,update:async values=>Object.assign(header,values)};});
+      await invoke();
+      assert.equal(committed,true);assert.equal(rolledBack,false);
+      assert.equal(header.sgpa,5);assert.equal(header.cgpa,5);
+      assert.equal(header.sgpa_source,'CALCULATED');assert.equal(header.cgpa_source,'CALCULATED');assert.equal(header.cgpa_is_cumulative,true);
+      assert.equal(header.grading_scheme_version,'PG_2022_2024_V1');
     });
   } finally { restores.reverse().forEach(restore => restore()); }
 });

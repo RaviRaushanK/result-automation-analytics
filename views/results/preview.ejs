@@ -11,6 +11,9 @@
         </div>
       </div>
 
+      <% if (typeof warnings !== 'undefined' && warnings.length) { %>
+      <div class="alert alert-warning" role="alert"><% warnings.forEach(function (warning) { %><div><%= warning %></div><% }); %></div>
+      <% } %>
       <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div>
@@ -47,15 +50,15 @@
             <div class="col-md-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">SGPA</h6>
-                <span class="fs-4 fw-bold"><%= data.sgpa %></span>
+                <span class="fs-4 fw-bold"><%= data.sgpa === null ? '-' : data.sgpa %></span>
                 <div class="small text-muted">all courses incl. F</div>
               </div>
             </div>
             <div class="col-md-3">
               <div class="border rounded p-3 h-100">
-                <h6 class="text-primary mb-2">CGPA</h6>
+                <h6 class="text-primary mb-2">Cumulative CGPA</h6>
                 <span class="fs-4 fw-bold"><%= data.cgpa === null ? '—' : data.cgpa %></span>
-                <div class="small text-muted">excludes F-grade courses</div>
+                <div class="small text-muted">Verified course history, including failed-course credits; determined when saved.</div>
               </div>
             </div>
           </div>
@@ -101,7 +104,7 @@
           <p class="small text-muted mb-0">
             Failed subjects: <strong><%= data.failedSubjectCount %></strong>
             &middot; Grading per <strong>P.G. 2022/2024</strong> scheme (O 90–100 · A+ 80–89 · A 70–79 · B+ 60–69 · B 55–59 · C 50–54 · F &lt;50)
-            &middot; SGPA/CGPA will be saved exactly as shown above.
+            &middot; A partial retake has no semester SGPA. Cumulative CGPA is saved only when complete course and grading history is verified.
           </p>
 
         </div>

@@ -2,6 +2,7 @@
 
 const { QueryTypes } = require('sequelize');
 const { sequelize } = require('../database/models');
+const { RETAKE_TYPES } = require('../services/academicPolicy');
 
 const select = (sql, replacements = {}) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
 
@@ -208,8 +209,8 @@ async function subjectAnalysis(f) {
   return select(`SELECT sub.subject_id, sub.subject_code, sub.subject_name,
     SUM(CASE WHEN q.exam_type = 'REGULAR' THEN 1 ELSE 0 END) AS regular_appeared,
     SUM(CASE WHEN q.exam_type = 'REGULAR' AND q.result_status = 'pass' THEN 1 ELSE 0 END) AS regular_passed,
-    SUM(CASE WHEN q.exam_type IN ('BACKLOG', 'SUPPLEMENTARY', 'REPEAT') THEN 1 ELSE 0 END) AS repeaters_appeared,
-    SUM(CASE WHEN q.exam_type IN ('BACKLOG', 'SUPPLEMENTARY', 'REPEAT') AND q.result_status = 'pass' THEN 1 ELSE 0 END) AS repeaters_passed
+    SUM(CASE WHEN q.exam_type IN (${RETAKE_TYPES.map(type => `'${type}'`).join(',')}) THEN 1 ELSE 0 END) AS repeaters_appeared,
+    SUM(CASE WHEN q.exam_type IN (${RETAKE_TYPES.map(type => `'${type}'`).join(',')}) AND q.result_status = 'pass' THEN 1 ELSE 0 END) AS repeaters_passed
     FROM subjects sub LEFT JOIN (${subjectRows(f)}) q ON q.subject_id = sub.subject_id
     WHERE sub.session_id = :session_id
     GROUP BY sub.subject_id, sub.subject_code, sub.subject_name ORDER BY sub.subject_code, sub.subject_id`, f);
@@ -259,4 +260,4 @@ async function progressSubjectHistory(f, studentIds) {
 }
 
 module.exports = { batch, session, student, subject, options, summary, rows, studentResults, studentSubjects, sessionSubjects, consolidatedSubjects, subjectAnalysis, subjectStaff,
-  progressSemesters, progressRequiredSubjects, progressStudentCount, progressStudents, progressResults, progressSubjectHistory };
+  progressSemesters, progressRequiredSubjects, progressStudentCount, progressStudents, progressResults, progressSubjectHistory, EFFECTIVE_EVENT_JOIN };

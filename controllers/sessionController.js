@@ -2,7 +2,7 @@
 // Reuses the existing ResultSession model and /sessions API.
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { ResultSession, Batch, Department } = require('../database/models');
+const { ResultSession, Batch, Department, Subject } = require('../database/models');
 
 const SESSION_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'];
 
@@ -65,7 +65,7 @@ function validateSessionFields(body) {
     errors.push('Exam year must be a valid year.');
   }
 
-  return { errors, semester: sem, exam_session: month, exam_year: year };
+  return { errors, semester: /^\d+$/.test(sem) ? String(Number(sem)) : sem, exam_session: month, exam_year: year };
 }
 
 const sessionController = {
@@ -189,14 +189,14 @@ const sessionController = {
         return res.status(404).json({ success: false, message: 'Batch not found.' });
       }
 
-      // Business rule: one session per semester per batch — backend is the source of truth
+      // Academic semester is independent of the examination sitting.
       const duplicateSemester = await ResultSession.findOne({
-        where: { batch_id: batch.batch_id, semester: check.semester }
+        where: { batch_id: batch.batch_id, semester: String(Number(check.semester)), exam_session: check.exam_session, exam_year: check.exam_year }
       });
       if (duplicateSemester) {
         return res.status(409).json({
           success: false,
-          message: `Semester ${check.semester} already exists for this batch.`
+          message: 'This examination session already exists for the batch and semester.'
         });
       }
 
@@ -249,16 +249,21 @@ const sessionController = {
         where: {
           batch_id: session.batch_id,
           semester: check.semester,
+          exam_session: check.exam_session,
+          exam_year: check.exam_year,
           session_id: { [Op.ne]: session.session_id }
         }
       });
       if (duplicateSemester) {
         return res.status(409).json({
           success: false,
-          message: `Semester ${check.semester} already exists for this batch.`
+          message: 'This examination session already exists for the batch and semester.'
         });
       }
 
+      if (String(Number(session.semester)) !== check.semester && await Subject.count({ where: { session_id: session.session_id } })) {
+        return res.status(409).json({ success: false, message: 'A session with configured courses cannot change academic semester. Create the correct examination session instead.' });
+      }
       // Note: the batch association is intentionally not editable here.
       await ResultSession.update({
         semester: check.semester,

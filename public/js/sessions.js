@@ -534,14 +534,16 @@ document.addEventListener("DOMContentLoaded", function () {
       sessions.some(function (s) {
         return (
           String(s.batch_id) === b.value &&
-          String(s.semester) === String(sm.value)
+          Number(s.semester) === sn &&
+          String(s.exam_session).toLowerCase() === String(mo.value).toLowerCase() &&
+          Number(s.exam_year) === yn
         );
       })
     ) {
-      invalid(sm, "Semester " + sm.value + " already exists for this batch.");
+      invalid(sm, "This examination session already exists.");
       showError(
         "createSessionError",
-        "Semester " + sm.value + " already exists for this batch.",
+        "This examination session already exists.",
       );
       return null;
     }

@@ -25,6 +25,9 @@
  * Run: node seed/seed_history.js
  */
 'use strict';
+// Historical generator lacks verified course/GPA provenance. Keep its source,
+// but prevent accidental execution against the current academic model.
+throw new Error('Legacy history seed retired. Use seed/seed_demo.js --reset --confirm-db <DB_NAME> in development instead.');
 require('dotenv').config({ path: require('path').resolve(__dirname, '../config/.env') });
 const db = require('../database/models');
 const { uuid, computeGrade, computeSGPA, generateMarks } = require('./seed_data');
@@ -212,18 +215,11 @@ async function createResult(t, studentId, sess, subsToRecord, opts = {}) {
     subjectResults.push({ subjectId: sub.id, code: sub.code, grade, status });
   }
 
-  const sgpa = computeSGPA(subjectResults, subsToRecord);
+  const sgpa = sess.backlog ? null : computeSGPA(subjectResults, subsToRecord);
   const overallStatus = failedCount > 0 ? 'fail' : 'pass';
 
-  // Running CGPA (regular sessions only). Computed in-memory from the
-  // caller's accumulator — a re-query inside this long transaction would
-  // miss rows under MySQL REPEATABLE READ (snapshot taken at first read).
-  let cgpa = null;
-  if (!sess.backlog && sgpa !== null && opts.runningSgpas) {
-    opts.runningSgpas.push(sgpa);
-    const list = opts.runningSgpas;
-    cgpa = parseFloat((list.reduce((a, b) => a + b, 0) / list.length).toFixed(2));
-  }
+  // Legacy synthetic grades cannot supply certified cumulative GPA.
+  const cgpa = null;
 
   await result.update(
     { sgpa, cgpa, result_status: overallStatus, failed_subject_count: failedCount },
@@ -270,8 +266,6 @@ async function seed() {
 
       /** usn → Set of subject codes failed in Sem 1 (feeds backlog session) */
       const sem1Failures = {};
-      /** usn → SGPA list so far across REGULAR sessions (running CGPA) */
-      const runningSgpas = {};
 
       for (const sess of sessions) {
         const subjects = subjectMap[sess.sessionId];
@@ -304,30 +298,18 @@ async function seed() {
               where: { student_id: student.studentId, session_id: sess.sessionId }
             });
             if (existing) {
-              // Re-run: reload failure/SGPA state from committed rows
+              // Re-run: reload failures without rewriting committed academic values.
               if (sess.semester === '1') {
                 const codes = await loadFailedCodes(existing.result_id);
                 if (codes.length) sem1Failures[usn] = new Set(codes);
-              }
-              if (!sess.backlog && existing.sgpa !== null && existing.sgpa !== undefined) {
-                if (!runningSgpas[usn]) runningSgpas[usn] = [];
-                runningSgpas[usn].push(parseFloat(existing.sgpa));
-                // Backfill CGPA if a previous run left it NULL
-                if (existing.cgpa === null || existing.cgpa === undefined) {
-                  const list = runningSgpas[usn];
-                  const avg = parseFloat((list.reduce((a, b) => a + b, 0) / list.length).toFixed(2));
-                  await existing.update({ cgpa: avg }, { transaction: t });
-                }
               }
               skipped++;
               continue;
             }
 
-            if (!runningSgpas[usn]) runningSgpas[usn] = [];
             const { failedCodes } = await createResult(t, student.studentId, sess, subjects, {
               attemptNo: 1,
-              markSalt: batch.batch_name,
-              runningSgpas: runningSgpas[usn]
+              markSalt: batch.batch_name
             });
 
             // Track Sem-1 failures so the backlog session knows who re-sits

@@ -21,7 +21,7 @@
               <% } else { %>
                 <span class="badge bg-danger">FAIL</span>
               <% } %>
-              &nbsp;<strong>SGPA:</strong> <span class="fw-bold"><%= sgpa %></span>
+              &nbsp;<strong>Stored SGPA:</strong> <span class="fw-bold"><%= sgpa == null ? '-' : Number(sgpa).toFixed(2) %></span>
               &nbsp;&middot;&nbsp;<strong>CGPA:</strong> <span class="fw-bold"><%= typeof cgpa !== 'undefined' && cgpa !== null ? cgpa : '—' %></span>
             </p>
           </div>

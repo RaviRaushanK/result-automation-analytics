@@ -23,7 +23,7 @@ async function main() {
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
   app.use((req, res, next) => {
-    req.session = { adminId: 1, username: 'Report verification', role: 'faculty' };
+    req.session = { adminId: 1, username: 'Report verification', role: req.path.startsWith('/subjects') ? 'admin' : 'faculty' };
     res.locals.flash = []; res.locals.breadcrumbItems = [];
     next();
   });
@@ -32,6 +32,7 @@ async function main() {
   app.use(require('../middlewares/menuMiddleware'));
   app.use('/reports', require('../routes/reportsRoutes'));
   app.use('/students', require('../routes/studentsRoutes'));
+  app.use('/subjects', require('../routes/subjectRoutes'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -168,6 +169,9 @@ async function main() {
         const progress = await service.getReport(type, { batch_id: scope.query.batch_id });
         assert.equal(await evaluate("document.getElementById('report-semester') === null && document.getElementById('report-session_id') === null"), true);
         assert.equal(await evaluate("document.querySelectorAll('#reports-table th[colspan=\"5\"]').length"), progress.semesters.length);
+        assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#reports-table .reports-completion-group')).map(th=>th.colSpan)"), progress.completionGroups.map(g=>g.columns.length));
+        assert.equal(await evaluate("document.querySelectorAll('#reports-table thead .reports-year-completion').length"), progress.academicYears.length * 2);
+        assert.equal(await evaluate("/Sem \\d+ (With|Without) Backlog/.test(document.querySelector('#reports-table thead').textContent)"), false);
         assert.equal(await evaluate("document.querySelectorAll('#reports-table tbody tr').length"), progress.rows.length);
         assert.equal(await evaluate("document.getElementById('reports-flat-table').scrollWidth > document.getElementById('reports-flat-table').clientWidth"), true);
         for (const theme of ['light', 'dark']) {
@@ -188,6 +192,12 @@ async function main() {
         assert.equal(count, progress.pagination.totalRows);
         const csv = await evaluate("(async()=>await(await fetch(document.getElementById('reports-csv').href)).text())()");
         assert.ok(csv.includes(`\r\n${progress.pagination.totalRows},`));
+        assert.ok(csv.includes('Successfully Completed With Back Log - First Year'));
+        assert.ok(csv.includes('Successfully Completed Without Back Log - Second Year'));
+        assert.doesNotMatch(csv, /Sem \d+ (With|Without) Backlog/);
+        await evaluate("document.getElementById('reports-flat-table').scrollLeft=document.getElementById('reports-flat-table').scrollWidth");
+        await fs.writeFile(path.join(output, 'progress-year-completion-desktop.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        await evaluate("document.getElementById('reports-flat-table').scrollLeft=0");
       }
       if (type === 'result-analysis') {
         await until('window.reportChartReady === true');
@@ -312,6 +322,7 @@ async function main() {
     await command('Page.navigate', { url: `${base}/reports/student-progress/print?batch_id=${scope.query.batch_id}` });
     await until("document.body.classList.contains('reports-progress-print') && document.querySelectorAll('tbody tr').length > 0");
     const progressPdf = await command('Page.printToPDF', { landscape: true, printBackground: true, preferCSSPageSize: true });
+    assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('.reports-completion-group')).map(th=>th.colSpan)"), (await service.getReport('student-progress', { batch_id: scope.query.batch_id })).completionGroups.map(g=>g.columns.length));
     await fs.writeFile(path.join(output, 'student-progress-print.pdf'), Buffer.from(progressPdf.data, 'base64'));
     await command('Emulation.setEmulatedMedia', { media: 'print' });
     await fs.writeFile(path.join(output, 'student-progress-print.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
@@ -325,6 +336,17 @@ async function main() {
     assert.ok(Buffer.from(studentPdf.data, 'base64').length > 1000);
     await fs.writeFile(path.join(output, 'student-consolidated-print.pdf'), Buffer.from(studentPdf.data, 'base64'));
     await fs.writeFile(path.join(output, 'student-consolidated-print.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    await command('Page.navigate', { url: `${base}/subjects/courses?batch_id=${scope.query.batch_id}&semester=${scope.query.semester}` });
+    await until("document.querySelectorAll('input[name=required_courses]').length > 0");
+    assert.equal(await evaluate("document.querySelector('input[name=confirm]').required"), true);
+    await fs.writeFile(path.join(output, 'semester-courses-desktop.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await command('Page.navigate', { url: `${base}/subjects/courses?batch_id=${scope.query.batch_id}&semester=${scope.query.semester}` });
+    await until("document.querySelector('input[name=confirm]') !== null");
+    await evaluate("document.documentElement.setAttribute('data-theme','dark')");
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true);
+    await fs.writeFile(path.join(output, 'semester-courses-mobile-dark.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    console.log('semester courses: required-roster form and responsive layout passed (no database writes)');
     assert.deepEqual(exceptions, []);
     console.log(`Screenshots: ${output}`);
   } finally {
