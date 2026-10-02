@@ -13,6 +13,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT,
       allowNull: false
     },
+    internal_marks: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    external_marks: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     marks: {
       type: DataTypes.INTEGER,
       allowNull: false

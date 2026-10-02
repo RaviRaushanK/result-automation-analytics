@@ -1,0 +1,20 @@
+<section class="reports-page" id="student-categories" data-batch-id="<%= batch_id %>">
+  <header class="reports-header"><h1>Students</h1></header>
+  <form action="/students" method="get" class="reports-filters row g-3 align-items-end">
+    <div class="col-12 col-md-6"><label for="students-batch" class="form-label">Batch</label><select class="form-select" id="students-batch" name="batch_id" required><option value="">Select Batch</option><% batches.forEach(batch => { %><option value="<%= batch.batch_id %>" <%= String(batch.batch_id) === String(batch_id) ? 'selected' : '' %>><%= batch.batch_name %></option><% }); %></select></div>
+    <div class="col-auto"><button class="btn btn-primary" type="submit">Load Students</button></div>
+  </form>
+  <div id="students-category-message" class="alert" role="status" hidden></div>
+  <datalist id="admission-categories"><option value="PGCET"></option><option value="MGT"></option></datalist>
+  <div class="table-responsive reports-table-wrap"><table class="table reports-table align-middle">
+    <thead><tr><th>Sl. No.</th><th>USN</th><th>Student Name</th><th>Admission Category</th><th>Save</th></tr></thead>
+    <tbody><% students.forEach((student, index) => { %><tr data-student-id="<%= student.student_id %>">
+      <td><%= (page - 1) * 25 + index + 1 %></td><td><%= student.usn %></td><td><%= student.student_name %></td>
+      <td><input class="form-control" list="admission-categories" maxlength="30" value="<%= student.category || '' %>" aria-label="Admission category for <%= student.usn %>" data-category></td>
+      <td><button class="btn btn-outline-primary reports-icon-button" type="button" data-save-category title="Save admission category" aria-label="Save admission category for <%= student.usn %>"><span class="material-icons" aria-hidden="true">save</span></button></td>
+    </tr><% }); %>
+    <% if (!students.length) { %><tr><td colspan="5" class="reports-table-empty"><%= batch_id ? 'No students belong to this batch.' : 'Select a batch.' %></td></tr><% } %></tbody>
+  </table></div>
+  <% if (totalPages > 1) { %><nav class="reports-pagination" aria-label="Student Pagination"><span>Page <%= page %> of <%= totalPages %> / <%= count %> students</span><div class="d-flex gap-2"><% if (page > 1) { %><a class="btn btn-outline-secondary" href="/students?batch_id=<%= batch_id %>&page=<%= page - 1 %>">Previous</a><% } %><% if (page < totalPages) { %><a class="btn btn-outline-secondary" href="/students?batch_id=<%= batch_id %>&page=<%= page + 1 %>">Next</a><% } %></div></nav><% } %>
+</section>
+<script src="/js/student-categories.js" defer></script>

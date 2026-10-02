@@ -32,6 +32,56 @@
 .reports-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: 1rem 0; }
 .reports-icon-button { width: 36px; height: 36px; display: inline-flex; justify-content: center; align-items: center; padding: 0; }
 .reports-page [hidden] { display: none !important; }
+.reports-semesters { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 1rem; }
+.reports-semesters.is-consolidated { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(1050px, 95%); overflow-x: auto; padding-bottom: 1rem; scroll-snap-type: x proximity; }
+.reports-semester { min-width: 0; border: 1px solid var(--card-border, #bbb); background: var(--card-bg, #fff); border-radius: 8px; padding: 1rem; scroll-snap-align: start; }
+.reports-semester h3 { font-size: 1.15rem; font-weight: 600; margin: 0 0 1rem; }
+.reports-student-session { padding-top: .75rem; border-top: 1px solid var(--card-border, #bbb); }
+.reports-student-session h4 { font-size: 1rem; font-weight: 600; }
+.reports-student-attempt { margin: 1rem 0 1.5rem; }
+.reports-student-attempt h5 { font-size: .9rem; font-weight: 600; }
+.reports-student-attempt .reports-table { min-width: 1000px; }
+.reports-student-attempt .reports-table td:nth-child(3) { min-width: 220px; }
+.reports-component-note { margin: .5rem 0 1rem; font-size: .85rem; }
+.reports-analysis-header { text-align: center; padding: 1rem 0; border-block: 1px solid var(--card-border, #888); margin-bottom: 1rem; }
+.reports-analysis-header h1, .reports-analysis-header h2 { font-size: 1.25rem; font-weight: 600; margin: .6rem 0; }
+.reports-analysis-header p { margin: .25rem 0; }
+.reports-page[data-report-type="result-analysis"] .reports-preview-header > div:first-child { display: none; }
+.reports-page[data-report-type="result-analysis"] .reports-actions { margin-left: auto; }
+.reports-analysis-table { border-collapse: collapse; }
+.reports-page .reports-analysis-table { min-width: 1180px; }
+.reports-analysis-table th, .reports-analysis-table td { border: 1px solid var(--card-border, #aaa); text-align: center; }
+.reports-analysis-table td:nth-child(3), .reports-analysis-table td:last-child { text-align: left; }
+.reports-page .reports-analysis-table td:nth-child(3) { min-width: 210px; }
+.reports-page .reports-analysis-table td:last-child { min-width: 160px; }
+.reports-analysis-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
+.reports-analysis-chart { min-width: 0; }
+.reports-analysis-chart h2, .reports-analysis-chart h3 { font-size: 1rem; font-weight: 600; margin: 0 0 1rem; }
+.reports-analysis-canvas { position: relative; height: 320px; }
+.reports-analysis-bottom .reports-summary { display: grid; grid-template-columns: 1fr; padding: 0; gap: 0; border: 1px solid var(--card-border, #aaa); }
+.reports-analysis-bottom .reports-summary div { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem; border-bottom: 1px solid var(--card-border, #aaa); }
+.reports-analysis-bottom .reports-summary div:last-child { border-bottom: 0; }
+.reports-page .reports-consolidated { table-layout: fixed; }
+.reports-consolidated th, .reports-consolidated td { text-align: center; border: 1px solid var(--card-border, #bbb); }
+.reports-page .reports-consolidated td { min-width: 0; }
+.reports-page .reports-consolidated .reports-fixed-0,
+.reports-page .reports-consolidated .reports-fixed-1,
+.reports-page .reports-consolidated .reports-fixed-2 { position: sticky; z-index: 1; background: var(--card-bg); }
+.reports-page .reports-consolidated th.reports-fixed-0,
+.reports-page .reports-consolidated th.reports-fixed-1,
+.reports-page .reports-consolidated th.reports-fixed-2 { z-index: 2; background: var(--secondary-bg); }
+.reports-consolidated .reports-fixed-0 { left: 0; }
+.reports-consolidated .reports-fixed-1 { left: 64px; text-align: left; }
+.reports-consolidated .reports-fixed-2 { left: 220px; text-align: left; }
+.reports-progress .reports-fixed-3 { left: 440px; }
+.reports-page .reports-progress .reports-fixed-3 { position: sticky; z-index: 1; background: var(--card-bg); }
+.reports-page .reports-progress th.reports-fixed-3 { z-index: 2; background: var(--secondary-bg); }
+.reports-page .reports-progress .reports-semester-alt { background: var(--secondary-bg); }
+.reports-progress-notes { font-size: .8rem; padding-left: 1rem; margin-bottom: 1rem; }
+#student-categories input { background: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); min-width: 140px; }
+#student-categories .reports-table { min-width: 760px; }
+#student-categories .reports-table td:nth-child(2) { white-space: nowrap; }
+#student-categories [hidden] { display: none !important; }
 .reports-print { color: #111; background: #fff; font-family: Arial, sans-serif; margin: 24px; font-size: 12px; }
 .reports-print h1 { font-size: 22px; }
 .reports-print .reports-table { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -39,6 +89,9 @@
 .reports-print-caption { text-align: left; margin-bottom: 8px; }
 .reports-print-action { padding: 8px 12px; margin-bottom: 16px; cursor: pointer; }
 @media (max-width: 575.98px) {
+  .reports-page .reports-progress .reports-fixed-3 { position: static; }
+  .reports-analysis-bottom { grid-template-columns: minmax(0, 1fr); }
+  .reports-page .reports-consolidated .reports-fixed-2 { position: static; }
   .reports-filters { padding: 1rem; }
   .reports-actions { width: 100%; }
   .reports-context { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -49,6 +102,9 @@
 }
 @media print {
   @page { size: A4 landscape; margin: 12mm; }
+  @page progress-sheet { size: A3 landscape; margin: 12mm; }
+  .reports-progress-print { page: progress-sheet; }
+  .reports-progress-print .reports-progress { width: 100%; font-size: 8px; }
   body, .reports-print { background: #fff !important; color: #000 !important; margin: 0; }
   .app-header, .sidebar, .sidebar-overlay, footer, .app-footer, .breadcrumb, .reports-header, .reports-filters,
   .reports-actions, .reports-pagination, .reports-state, #reports-error, .reports-print-action { display: none !important; }
@@ -58,8 +114,22 @@
   .reports-table { width: 100%; border-collapse: collapse; color: #000 !important; font-size: 9px !important; }
   .reports-table td, .reports-table th { color: #000 !important; background: #fff !important; border: 1px solid #aaa !important; padding: 4px !important; white-space: normal; min-width: 0 !important; }
   .reports-table thead { display: table-header-group; }
+  .reports-analysis-header, .reports-analysis-bottom { break-inside: avoid; }
+  .reports-analysis-bottom { grid-template-columns: minmax(0, 1fr) 180px; }
+  .reports-analysis-canvas { height: 260px; }
+  .reports-analysis-canvas canvas { max-width: 100%; }
+  .reports-page .reports-analysis-table { min-width: 0; }
+  .reports-consolidated { width: 100% !important; table-layout: auto !important; }
+  .reports-consolidated col { width: auto !important; }
+  .reports-consolidated td, .reports-consolidated th { font-size: 8px !important; padding: 3px !important; }
+  .reports-page .reports-consolidated [class*="reports-fixed-"] { position: static; }
   .reports-table tr { break-inside: avoid; }
   .reports-summary, .reports-context { break-inside: avoid; }
+  .reports-semesters, .reports-semesters.is-consolidated { display: block; overflow: visible; }
+  .reports-semester { border: 0; border-radius: 0; padding: 0; margin: 0 0 1.5rem; break-before: page; }
+  .reports-semester:first-of-type { break-before: auto; }
+  .reports-semester h2, .reports-semester h3, .reports-student-session h3, .reports-student-attempt h4 { break-after: avoid; }
+  .reports-student-attempt .reports-table { min-width: 0; }
   .reports-status { background: none !important; color: #000 !important; padding: 0; }
   .reports-muted, .reports-context dt, .reports-summary span { color: #333 !important; }
   a { color: #000 !important; text-decoration: none; }

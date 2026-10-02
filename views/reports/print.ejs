@@ -5,20 +5,61 @@
   <title><%= report.title %> - SRAAS</title>
   <link rel="stylesheet" href="/css/reports.css">
 </head>
-<body class="reports-print">
-  <header><p>MCA / SRAAS</p><h1><%= report.title %></h1></header>
+<body class="reports-print <%= report.type === 'student-progress' ? 'reports-progress-print' : '' %>">
+  <% if (report.type === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h1><%= report.formalTitle %></h1></header><ul class="reports-progress-notes"><% report.notes.forEach(note => { %><li><%= note %></li><% }); %></ul><% } %>
+  <% if (report.type === 'result-analysis') { %>
+    <header class="reports-analysis-header"><p>Department: MCA</p><h1><%= report.formalHeader.title %></h1><p><%= report.formalHeader.examination %></p><p><%= report.meta.batch.batch_name %></p></header>
+  <% } else if (report.type !== 'student-progress') { %><header><p>MCA / SRAAS</p><h1><%= report.title %></h1></header><% } %>
   <button type="button" class="reports-print-action" id="print-report">Print / Save PDF</button>
   <dl class="reports-context">
     <% context.forEach(([label, value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
   </dl>
-  <div class="reports-summary">
+  <% if (report.type !== 'result-analysis') { %><div class="reports-summary">
     <% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %>
-  </div>
-  <% if (!report.rows.length) { %><p>No records match the selected report filters.</p><% } else { %>
+  </div><% } %>
+  <% if (['student', 'subject'].includes(report.type) && report.filters.mode === 'effective' && report.rows.some(row => Number(row.revaluated))) { %>
+    <p class="reports-component-note">IA and External are original stored components; Total, Grade and Result may reflect approved revaluation.</p>
+  <% } %>
+  <% if (report.type === 'consolidated' && report.filters.mode === 'effective') { %>
+    <p class="reports-component-note">IA and EX show stored original components. T may reflect an approved effective revaluation. SGPA is the stored original academic header value.</p>
+  <% } %>
+  <% if (report.type === 'student') { %>
+    <% report.semesters.forEach(term => { %>
+      <section class="reports-semester">
+        <h2>Semester <%= term.semester %></h2>
+        <% term.sessions.forEach(sitting => { %>
+          <section class="reports-student-session">
+            <h3><%= sitting.session.exam_session %> <%= sitting.session.exam_year %></h3>
+            <% sitting.attempts.forEach(attempt => { %>
+              <section class="reports-student-attempt">
+                <h4>Attempt <%= attempt.result.attempt_no %> - <%= attempt.result.exam_type %></h4>
+                <div class="reports-summary"><% attempt.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %></div>
+                <%- include('partials/table', { columns: report.columns, rows: attempt.subjects, display }) %>
+              </section>
+            <% }); %>
+          </section>
+        <% }); %>
+      </section>
+    <% }); %>
+    <% if (!report.semesters.length) { %><p>No persisted results match the selected student and filters.</p><% } %>
+  <% } else if (report.type === 'student-progress') { %>
+    <%- include('partials/progress-table', { report, display }) %>
+  <% } else if (report.type === 'result-analysis') { %>
+    <%- include('partials/result-analysis-table', { report, display }) %>
+    <section class="reports-analysis-bottom">
+      <div class="reports-analysis-chart"><h2>SUBJECT-WISE PASS PERCENTAGE</h2><div class="reports-analysis-canvas"><canvas id="reports-analysis-chart" role="img" aria-label="Subject-wise total pass percentage"></canvas></div><p id="reports-chart-error" hidden></p></div>
+      <div class="reports-summary"><% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %></div>
+    </section>
+    <script id="reports-analysis-data" type="application/json"><%- JSON.stringify(report).replace(/</g, String.fromCharCode(92) + 'u003c') %></script>
+    <script src="/js/reports/chart.umd.min.js" defer></script>
+    <script src="/js/reports/result-analysis.js" defer></script>
+  <% } else if (report.type === 'consolidated') { %>
+    <%- include('partials/consolidated-table', { report, display }) %>
+  <% } else if (!report.rows.length) { %><p>No records match the selected report filters.</p><% } else { %>
     <table class="reports-table">
       <caption class="reports-print-caption"><%= report.title %></caption>
-      <thead><tr><th scope="col">Sl. No.</th><% report.columns.forEach(column => { %><th scope="col"><%= column.label %></th><% }); %></tr></thead>
-      <tbody><% report.rows.forEach((row, index) => { %><tr><td><%= index + 1 %></td><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %></tbody>
+      <thead><tr><% if (report.type !== 'toppers') { %><th scope="col">Sl. No.</th><% } %><% report.columns.forEach(column => { %><th scope="col" title="<%= column.title || column.label %>"><%= column.label %></th><% }); %></tr></thead>
+      <tbody><% report.rows.forEach((row, index) => { %><tr><% if (report.type !== 'toppers') { %><td><%= index + 1 %></td><% } %><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %></tbody>
     </table>
   <% } %>
   <script src="/js/reports/print.js" defer></script>

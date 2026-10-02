@@ -1,0 +1,8 @@
+<table class="reports-table reports-progress">
+  <caption class="reports-print-caption">All Students Progress Report</caption>
+  <thead>
+    <tr><th scope="col" rowspan="2">Sl. No.</th><% report.fixedColumns.forEach(column => { %><th scope="col" rowspan="2"><%= column.label %></th><% }); %><% report.semesters.forEach(term => { %><th scope="colgroup" colspan="5">Semester <%= term.semester %></th><% }); %><% report.trailingColumns.forEach(column => { %><th scope="col" rowspan="2"><%= column.label %></th><% }); %></tr>
+    <tr><% report.semesters.forEach(() => { report.semesterColumns.forEach(column => { %><th scope="col"><%= column.label %></th><% }); }); %></tr>
+  </thead>
+  <tbody><% report.rows.forEach((row, index) => { %><tr><td><%= index + 1 %></td><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %><% if (!report.rows.length) { %><tr><td colspan="<%= report.columns.length + 1 %>">No students belong to the selected batch.</td></tr><% } %></tbody>
+</table>

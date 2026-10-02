@@ -1,21 +1,21 @@
 <section class="reports-page" id="reports-page" data-report-type="<%= reportType %>">
   <header class="reports-header">
     <div><h1><%= reportTitle %></h1><p>MCA Academic Reports</p></div>
-    <span class="reports-view badge" id="reports-view"><%= reportType === 'revaluation' ? 'Revaluation Events' : 'Effective Result' %></span>
+    <span class="reports-view badge" id="reports-view"><%= reportType === 'revaluation' ? 'Revaluation Events' : reportType === 'toppers' ? 'Original Result' : 'Effective Result' %></span>
   </header>
 
   <form id="reports-filters" class="reports-filters" autocomplete="off">
     <div class="row g-3">
-      <% const filters = [ ['batch_id', 'Batch'], ...(reportType === 'student' ? [['student_id', 'Student']] : []), ['semester', 'Semester'], ['session_id', 'Result Session'], ...(reportType === 'student' ? [['attempt_no', 'Attempt']] : []), ...(['subject', 'revaluation'].includes(reportType) ? [['subject_id', 'Subject']] : []) ]; %>
+      <% const filters = [ ['batch_id', 'Batch'], ...(reportType === 'student' ? [['student_id', 'Student']] : []), ...(reportType === 'student-progress' ? [] : [['semester', 'Semester'], ['session_id', 'Result Session']]), ...(reportType === 'student' ? [['attempt_no', 'Attempt']] : []), ...(['subject', 'revaluation'].includes(reportType) ? [['subject_id', 'Subject']] : []) ]; %>
       <% filters.forEach(([name, label]) => { const optional = reportType === 'revaluation' && name === 'subject_id'; %>
-        <div class="col-12 col-sm-6 col-lg-3">
+        <div class="col-12 col-sm-6 col-lg-3" data-report-filter="<%= name %>" <%= name === 'attempt_no' ? 'hidden' : '' %>>
           <label class="form-label" for="report-<%= name %>"><%= label %><%= optional ? ' (Optional)' : '' %></label>
           <select class="form-select" name="<%= name %>" id="report-<%= name %>" <%= optional ? '' : 'required' %> disabled>
             <option value=""><%= optional ? 'All Subjects' : 'Select ' + label %></option>
           </select>
         </div>
       <% }); %>
-      <% if (reportType === 'class') { %>
+      <% if (['class', 'toppers', 'consolidated'].includes(reportType)) { %>
         <div class="col-12 col-sm-6 col-lg-3">
           <label class="form-label" for="report-exam_type">Exam Type (Optional)</label>
           <select class="form-select" id="report-exam_type" name="exam_type">
@@ -43,11 +43,11 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <label class="form-label" for="report-mode">Result View</label>
           <select class="form-select" name="mode" id="report-mode">
-            <option value="effective" selected>Effective Result</option><option value="original">Original Result</option>
+            <% if (reportType !== 'toppers') { %><option value="effective" selected>Effective Result</option><% } %><option value="original" <%= reportType === 'toppers' ? 'selected' : '' %>>Original Result</option>
           </select>
         </div>
       <% } %>
-      <% if (reportType !== 'student') { %>
+      <% if (!['student', 'result-analysis'].includes(reportType)) { %>
         <div class="col-12 col-sm-6 col-lg-3">
           <label class="form-label" for="report-pageSize">Preview Rows</label>
           <select class="form-select" name="pageSize" id="report-pageSize"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select>
@@ -73,13 +73,28 @@
         <a id="reports-csv" class="btn btn-outline-primary d-inline-flex align-items-center gap-1"><span class="material-icons" aria-hidden="true">download</span>Export CSV</a>
       </div>
     </div>
+    <% if (reportType === 'result-analysis') { %><header class="reports-analysis-header" id="reports-analysis-header"></header><% } %>
+    <% if (reportType === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h2 id="reports-progress-title"></h2></header><ul class="reports-progress-notes reports-muted" id="reports-progress-notes"></ul><a id="reports-categories-link" class="btn btn-outline-secondary mb-3">Admission Categories</a><% } %>
     <dl id="reports-context" class="reports-context"></dl>
     <div id="reports-summary" class="reports-summary" aria-label="Report Summary"></div>
-    <div class="table-responsive reports-table-wrap">
+    <% if (['student', 'subject'].includes(reportType)) { %>
+      <p class="reports-component-note reports-muted" id="reports-component-note" hidden>IA and External are original stored components; Total, Grade and Result may reflect approved revaluation.</p>
+    <% } %>
+    <div id="reports-semesters" class="reports-semesters" aria-label="Completed Semester Results" hidden></div>
+    <% if (reportType === 'consolidated') { %>
+      <p class="reports-component-note reports-muted" id="reports-component-note" hidden>IA and EX show stored original components. T may reflect an approved effective revaluation.</p>
+    <% } %>
+    <div class="table-responsive reports-table-wrap" id="reports-flat-table">
       <table class="table table-hover align-middle reports-table" id="reports-table">
         <caption class="visually-hidden"><%= reportTitle %></caption><thead></thead><tbody></tbody>
       </table>
     </div>
+    <% if (reportType === 'result-analysis') { %>
+      <section class="reports-analysis-bottom" aria-label="Subject Pass Percentage and Overall Result">
+        <div class="reports-analysis-chart"><h3>SUBJECT-WISE PASS PERCENTAGE</h3><div class="reports-analysis-canvas"><canvas id="reports-analysis-chart" role="img" aria-label="Subject-wise total pass percentage"></canvas></div><p id="reports-chart-error" class="reports-muted" hidden></p></div>
+        <div id="reports-analysis-overall"></div>
+      </section>
+    <% } %>
     <nav id="reports-pagination" class="reports-pagination" aria-label="Report Pagination">
       <span id="reports-page-info" class="reports-muted"></span>
       <div class="d-flex gap-2">
@@ -89,4 +104,8 @@
     </nav>
   </section>
 </section>
+<% if (reportType === 'result-analysis') { %>
+<script src="/js/reports/chart.umd.min.js" defer></script>
+<script src="/js/reports/result-analysis.js" defer></script>
+<% } %>
 <script src="/js/reports/common.js" defer></script>

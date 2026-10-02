@@ -828,6 +828,8 @@ const resultController = {
       await SubjectResult.bulkCreate(payload.subjects.map(s => ({
         result_id: result.result_id,
         subject_id: s.subject_id,
+        internal_marks: s.internalMarks,
+        external_marks: s.externalMarks,
         marks: s.totalMarks,
         grade: s.grade,
         result_status: s.result_status

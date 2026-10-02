@@ -53,11 +53,32 @@ function csv(type) {
       const report = await service.prepare(type, req.query);
       res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${service.filename(report)}"`, 'Cache-Control': 'private, no-store' });
       const line = cells => cells.map(service.csvCell).join(',') + '\r\n';
+      if (type === 'student') {
+        await write(res, '\uFEFF');
+        for (const cells of service.studentCsvLines(report)) await write(res, line(cells));
+        return res.end();
+      }
       await write(res, '\uFEFF' + line([report.title]));
       for (const context of service.contextLines(report)) await write(res, line(context));
-      await write(res, '\r\n' + line(['Sl. No.', ...report.columns.map(c => c.label)]));
+      const columns = service.exportColumns(report);
+      const numbered = type !== 'toppers';
+      if (type === 'student-progress') {
+        for (const note of report.notes) await write(res, line(['Academic Basis', note]));
+        await write(res, '\r\n' + line(['Sl. No.', ...report.fixedColumns.map(c => c.label), ...report.semesters.flatMap(term => [`Semester ${term.semester}`, '', '', '', '']), ...report.trailingColumns.map(c => c.label)]));
+        await write(res, line([...Array(report.fixedColumns.length + 1).fill(''), ...report.semesters.flatMap(() => report.semesterColumns.map(c => c.label)), '']));
+      } else if (type === 'consolidated') {
+        await write(res, '\r\n' + line(['Sl. No.', ...report.fixedColumns.map(c => c.label), ...report.subjects.flatMap(subject => [subject.subject_code, '', '']), ...report.trailingColumns.map(c => c.label)]));
+        await write(res, line([...Array(report.fixedColumns.length + 1).fill(''), ...report.subjects.flatMap(() => ['EX', 'IA', 'T']), ...Array(report.trailingColumns.length).fill('')]));
+      } else await write(res, '\r\n' + line([...(numbered ? ['Sl. No.'] : []), ...columns.map(c => c.label)]));
       let index = 0;
-      for await (const row of service.fullRows(report)) await write(res, line([++index, ...report.columns.map(c => service.display(c.key, row[c.key]))]));
+      for await (const row of service.fullRows(report)) {
+        const cells = [...(numbered ? [service.csvCell(++index)] : []), ...columns.map(c => service.csvReportCell(c.key, row[c.key]))];
+        await write(res, cells.join(',') + '\r\n');
+      }
+      if (type === 'result-analysis') {
+        await write(res, '\r\n');
+        for (const [label, value] of report.metrics) await write(res, line([label === '%' ? 'PASS %' : label, value]));
+      }
       res.end();
     } catch (err) {
       if (res.headersSent) { console.error('Report export failed:', err.message); res.destroy(); }
@@ -70,8 +91,10 @@ function print(type) {
   return async (req, res) => {
     try {
       const report = await service.prepare(type, req.query);
-      report.rows = [];
-      for await (const row of service.fullRows(report)) report.rows.push(row);
+      if (type !== 'student' && type !== 'result-analysis') {
+        report.rows = [];
+        for await (const row of service.fullRows(report)) report.rows.push(row);
+      }
       res.render('reports/print', { layout: false, report, context: service.contextLines(report), display: service.display });
     } catch (err) { error(res, err); }
   };

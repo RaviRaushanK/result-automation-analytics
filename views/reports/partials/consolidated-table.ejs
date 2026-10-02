@@ -1,0 +1,16 @@
+<table class="reports-table reports-consolidated">
+  <caption class="reports-print-caption"><%= report.title %></caption>
+  <thead>
+    <tr>
+      <th scope="col" rowspan="2">Sl. No.</th>
+      <% report.fixedColumns.forEach(column => { %><th scope="col" rowspan="2"><%= column.label %></th><% }); %>
+      <% report.subjects.forEach(subject => { %><th scope="colgroup" colspan="3" title="<%= subject.subject_name %>"><%= subject.subject_code %></th><% }); %>
+      <% report.trailingColumns.forEach(column => { %><th scope="col" rowspan="2"><%= column.label %></th><% }); %>
+    </tr>
+    <tr><% report.subjects.forEach(() => { %><th scope="col">EX</th><th scope="col">IA</th><th scope="col">T</th><% }); %></tr>
+  </thead>
+  <tbody>
+    <% report.rows.forEach((row, index) => { %><tr><td><%= index + 1 %></td><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %>
+    <% if (!report.rows.length) { %><tr><td colspan="<%= report.columns.length + 1 %>">No result attempts match the selected filters.</td></tr><% } %>
+  </tbody>
+</table>

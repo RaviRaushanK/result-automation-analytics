@@ -53,6 +53,10 @@
         { "label": "Student Result", "icon": "person", "route": "/reports/student", "roles": ["admin", "faculty"] },
         { "label": "Class Result", "icon": "groups", "route": "/reports/class", "roles": ["admin", "faculty"] },
         { "label": "Subject Result", "icon": "book", "route": "/reports/subject", "roles": ["admin", "faculty"] },
+        { "label": "Consolidated Result", "icon": "table_chart", "route": "/reports/consolidated", "roles": ["admin", "faculty"] },
+        { "label": "All Students Progress Report", "icon": "view_week", "route": "/reports/student-progress", "roles": ["admin", "faculty"] },
+        { "label": "Toppers", "icon": "star", "route": "/reports/toppers", "roles": ["admin", "faculty"] },
+        { "label": "Result Analysis Report", "icon": "bar_chart", "route": "/reports/result-analysis", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Report", "icon": "assignment", "route": "/reports/revaluation", "roles": ["admin", "faculty"] }
       ]
     },

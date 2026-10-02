@@ -23,6 +23,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(100),
       allowNull: false
     },
+    category: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+      defaultValue: null,
+      validate: { len: [1, 30] }
+    },
     email: {
       type: DataTypes.STRING(100),
       unique: true
