@@ -10,7 +10,9 @@
     "init-db": "node scripts/runInit.js",
     "start": "node app.js",
     "seed:demo": "node seed/seed_demo.js",
-    "seed:demo:verify": "node seed/seed_demo.js --verify"
+    "seed:demo:verify": "node seed/seed_demo.js --verify",
+    "demo": "node seed/seed_quick_demo.js",
+    "demo:verify": "node seed/seed_quick_demo.js --verify"
   },
   "repository": {
     "type": "git",

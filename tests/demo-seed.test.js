@@ -6,6 +6,16 @@ const path=require('node:path');
 const data=require('../seed/academic/data');
 const {guard,options}=require('../seed/academic/safety');
 const policy=require('../services/academicPolicy');
+const quick=require('../seed/seed_quick_demo');
+
+test('Single npm demo command defaults only absent environment and confirms only the named local database',()=>{
+  const env={DB_NAME:'academic_result_analytics_db',DB_HOST:'localhost'};
+  assert.deepEqual(quick.configuration(env).args,['--reset','--confirm-db',env.DB_NAME]);
+  assert.equal(quick.configuration(env).environment.NODE_ENV,'development');
+  assert.equal(env.NODE_ENV,undefined);
+  assert.deepEqual(quick.configuration(env,true).args,['--verify','--confirm-db',env.DB_NAME]);
+  for(const mutation of [{NODE_ENV:'production'},{NODE_ENV:''},{APP_ENV:'production'},{DB_NAME:'other_db'},{DB_HOST:'remote.example.com'}])assert.throws(()=>quick.configuration({...env,...mutation}));
+});
 
 test('Demo plan is deterministic and keeps exact required identities',()=>{
   assert.deepEqual(data.plan(),data.plan());

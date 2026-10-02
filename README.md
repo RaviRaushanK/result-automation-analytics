@@ -57,8 +57,8 @@ Do not overwrite an existing `config/.env`. On macOS/Linux, use `npm` instead of
 `npm.cmd` and `cp config/.env.example config/.env` for a new configuration file.
 
 `setup` creates the database if missing, applies Sequelize migrations, then runs
-the initialization scripts. Its database user needs the corresponding creation,
-DDL and initialization permissions. For an already initialized installation, use
+the initialization scripts, including the default **Master of Computer Applications** department (MCA).
+Its database user needs the corresponding creation, DDL and initialization permissions. For an already initialized installation, use
 `npm.cmd run migrate` to apply pending migrations; do not reset its academic data.
 
 The default URL is **http://localhost:3000**. The application reads **APP_PORT**,
@@ -224,15 +224,17 @@ actual database rows; it is not a browser-only preview or an SQL file generator.
 2. For a new database, run `npm.cmd run setup` once to create it, apply migrations
    and initialize it. For an existing initialized database, run
    `npm.cmd run migrate` to apply pending migrations instead.
-3. Stop imports/revaluation reviews and any other application writes. In PowerShell,
-   explicitly enable the development environment and insert the demo dataset:
+3. Stop imports/revaluation reviews and any other application writes. Insert the
+   complete dataset with this single command:
 
    ```powershell
-   $env:NODE_ENV = 'development'
-   npm.cmd run seed:demo -- --reset --confirm-db academic_result_analytics_db
+   npm run demo
    ```
 
-   Replace `academic_result_analytics_db` with your exact `DB_NAME` if different.
+   In Windows PowerShell, use `npm.cmd run demo` if execution policy blocks `npm`.
+   This shortcut requires `DB_NAME=academic_result_analytics_db` and a local MySQL
+   host in `config/.env`. It defaults NODE_ENV to development only when absent;
+   an explicit production, blank or unsupported environment is still refused.
    **This command backs up and replaces existing academic data before inserting
    the complete demo dataset. It is not an append-only operation.** Existing
    required student identities, accounts and configuration are retained according
@@ -243,7 +245,7 @@ actual database rows; it is not a browser-only preview or an SQL file generator.
 5. Optionally verify the inserted data without changing database records:
 
    ```powershell
-   npm.cmd run seed:demo:verify -- --confirm-db academic_result_analytics_db
+   npm run demo:verify
    ```
 
 6. Start the application with `npm.cmd start`, open `http://localhost:3000`
@@ -252,10 +254,11 @@ actual database rows; it is not a browser-only preview or an SQL file generator.
 
 To return to the initial demo scenarios after manual changes, repeat step 3. It
 resets/recreates the same logical dataset without accumulating duplicate rows.
-`npm start`, `npm run setup` and `npm run seed:demo:verify` do **not** insert this
-demo dataset; insertion requires the explicit `seed:demo -- --reset` command.
+`npm start`, `npm run setup` and `npm run demo:verify` do **not** insert this
+demo dataset; `npm run demo` explicitly resets and inserts it.
 
-On macOS/Linux, the equivalent insertion and read-only verification commands are:
+The same `npm run demo` command works on macOS/Linux. For a differently named
+local development database, retain the advanced, explicitly confirmed workflow:
 
 ```bash
 NODE_ENV=development npm run seed:demo -- --reset --confirm-db academic_result_analytics_db
@@ -264,7 +267,9 @@ NODE_ENV=development npm run seed:demo:verify -- --confirm-db academic_result_an
 
 ### Reset Safety and Dataset Contents
 
-The database name must match `DB_NAME` exactly. Production/unset environments,
+The confirmed database name must match `DB_NAME` exactly. The advanced seed CLI
+refuses unset environments; only the named local demo shortcuts provide a
+development default when NODE_ENV is absent. Production environments,
 production-like names and remote hosts are refused. A JSON academic-table backup
 is written to the OS temporary directory before deletion; its path is printed.
 It contains student PII and must be protected. Reset/inserts/integrity assertions

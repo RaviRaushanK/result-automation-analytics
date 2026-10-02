@@ -6,6 +6,13 @@ change schemas, grading, imports, Reports or authentication behavior.
 
 ## Commands and Safety
 
+After initial database setup, run `npm run demo` from the repository root to
+back up, reset and insert the full dataset into local `academic_result_analytics_db`.
+Use `npm run demo:verify` for read-only checks. In PowerShell, `npm.cmd` is equivalent.
+These shortcuts default NODE_ENV to development only when absent; they refuse
+production, remote hosts and any different DB_NAME. They are not append-only.
+The advanced CLI below still requires an explicit environment and confirmation.
+
 From the repository root in PowerShell:
 
 ```powershell
