@@ -84,10 +84,6 @@
 .reports-progress .reports-completion-group,
 .reports-progress .reports-year-completion { text-align: center; vertical-align: middle; border: 1px solid var(--card-border, #bbb); }
 .reports-progress .reports-completion-group { white-space: normal; }
-#student-categories input { background: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); min-width: 140px; }
-#student-categories .reports-table { min-width: 760px; }
-#student-categories .reports-table td:nth-child(2) { white-space: nowrap; }
-#student-categories [hidden] { display: none !important; }
 .reports-print { color: #111; background: #fff; font-family: Arial, sans-serif; margin: 24px; font-size: 12px; }
 .reports-print h1 { font-size: 22px; }
 .reports-print .reports-table { width: 100%; border-collapse: collapse; font-size: 11px; }

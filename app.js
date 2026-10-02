@@ -122,7 +122,6 @@ app.use("/subjects", authMiddleware, subjectRoutes);
 app.use("/faculty", authMiddleware, adminMiddleware, facultyRoutes);
 app.use('/analytics', authMiddleware, analyticsRoutes);
 app.use('/reports', authMiddleware, reportsRoutes);
-app.use('/students', authMiddleware, require('./routes/studentsRoutes'));
 
 // ======================
 // 404 Handler

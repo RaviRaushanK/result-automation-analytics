@@ -248,7 +248,6 @@
       group.columns.forEach(column => { const cell = node('th', column.label, 'reports-year-completion'); cell.scope = 'col'; bottom.append(cell); });
     });
     ui('progress-notes').replaceChildren(...report.notes.map(note => node('li', note)));
-    ui('categories-link').href = `/students?batch_id=${report.filters.batch_id}`;
     return [top, bottom];
   }
 

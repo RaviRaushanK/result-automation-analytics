@@ -31,7 +31,6 @@ async function main() {
   app.use(require('../middlewares/themeMiddleware'));
   app.use(require('../middlewares/menuMiddleware'));
   app.use('/reports', require('../routes/reportsRoutes'));
-  app.use('/students', require('../routes/studentsRoutes'));
   app.use('/subjects', require('../routes/subjectRoutes'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
@@ -270,29 +269,6 @@ async function main() {
       assert.equal(await evaluate(type === 'student-progress' ? "document.getElementById('reports-output').hidden && document.getElementById('reports-generate').disabled" : "document.getElementById('reports-output').hidden && document.getElementById('report-session_id').disabled && document.getElementById('reports-generate').disabled"), true);
       console.log(`${type}: cascading filters, preview, theme, mobile and reset passed`);
     }
-    await command('Page.navigate', { url: `${base}/students?batch_id=${scope.query.batch_id}` });
-    await until("document.querySelector('[data-category]') !== null");
-    assert.equal(await evaluate("document.querySelectorAll('[data-category]').length"), 25);
-    await evaluate(`(() => {
-      window.fetch = async (url, options) => {
-        window.categorySave = { url, method: options.method, body: JSON.parse(options.body) };
-        return { ok: true, json: async () => ({ success: true, student: { category: 'PGCET' } }) };
-      };
-      document.querySelector('[data-category]').value = 'PGCET';
-      document.querySelector('[data-save-category]').click();
-    })()`);
-    await until("!document.getElementById('students-category-message').hidden");
-    assert.equal(await evaluate('window.categorySave.method'), 'PATCH');
-    assert.equal(await evaluate('window.categorySave.body.category'), 'PGCET');
-    assert.equal(await evaluate('window.categorySave.body.batch_id'), scope.query.batch_id);
-    assert.equal(await evaluate("document.querySelector('[data-save-category]').disabled"), false);
-    await fs.writeFile(path.join(output, 'student-categories-desktop.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-    await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false });
-    await evaluate("document.documentElement.setAttribute('data-theme','dark')");
-    await pause(350);
-    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true);
-    await fs.writeFile(path.join(output, 'student-categories-mobile-dark.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-    console.log('student categories: paginated page, save interaction and mobile theme passed (no database writes)');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
     await command('Page.navigate', { url: `${base}/reports/class/print?${new URLSearchParams(scope.query)}` });
     await until("document.body.classList.contains('reports-print') && document.querySelectorAll('tbody tr').length > 0");

@@ -13,8 +13,7 @@ academic semester or year of study.
 
 - Dashboard and interactive Analytics: overview, toppers, failed results, subject
   performance, semesters, student exploration, grade distribution and revaluation.
-- Batch, result-session, subject and faculty management; student admission-category
-  review through the Students page.
+- Batch, result-session, subject and faculty management.
 - Stable AcademicCourse identities, session-specific subject offerings and explicit
   administrator review of required semester rosters.
 - Original PDF result upload, extraction, editable review, validation, preview and
@@ -52,6 +51,16 @@ Copy-Item config/.env.example config/.env
 npm.cmd run setup
 npm.cmd start
 ```
+
+**Quick Start**
+```powershell
+
+  npm install
+  npm run setup
+  npm start
+```
+
+**npm run demo** <- Run this for demo data
 
 Do not overwrite an existing `config/.env`. On macOS/Linux, use `npm` instead of
 `npm.cmd` and `cp config/.env.example config/.env` for a new configuration file.
@@ -360,7 +369,6 @@ docs/                  Architecture, database and academic semantics references
 | `/dashboard` | Dashboard |
 | `/batches`, `/sessions`, `/subjects`, `/faculty` | Academic configuration |
 | `/subjects/courses` | Administrator required-course roster review |
-| `/students` | Student list and admission-category review |
 | `/results/upload` | Original-result upload workflow |
 | `/revaluation/start` | Session/student/attempt selection for revaluation |
 | `/analytics/overview` | Interactive Analytics entry point |

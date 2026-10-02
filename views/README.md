@@ -26,7 +26,6 @@ views/
 ├── results/                  # Result management pages
 ├── revaluation/              # Revaluation pages
 ├── sessions/                 # Academic session pages
-├── students/                 # Student management pages
 ├── subjects/                 # Subject management pages
 ```
 
@@ -51,7 +50,6 @@ views/
 | `results/`     | Result management pages.                           |
 | `revaluation/` | Revaluation workflow pages.                        |
 | `sessions/`    | Academic session management pages.                 |
-| `students/`    | Student management pages.                          |
 | `subjects/`    | Subject management pages.                          |
 
 ---
