@@ -12,8 +12,16 @@
       "children": [
         { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin", "faculty"] },
         { "label": "Sessions", "icon": "calendar", "route": "/sessions", "roles": ["admin", "faculty"] },
-        { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] },
-        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] }
+        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] },
+        { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
+      ]
+    },
+    {
+      "label": "Student Repository",
+      "icon": "person",
+      "children": [
+        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] },
+        { "label": "Student Search", "icon": "search", "route": "/students/search", "roles": ["admin", "faculty", "student"] }
       ]
     },
     {
@@ -23,14 +31,6 @@
         { "label": "Upload Results", "icon": "cloud_upload", "route": "/results/upload", "roles": ["admin", "faculty"] },
         { "label": "Upload Revaluation", "icon": "cloud_upload", "route": "/revaluation/start", "roles": ["admin", "faculty"] },
         { "label": "Import Logs", "icon": "list_alt", "route": "/results/logs", "roles": ["admin"] }
-      ]
-    },
-    {
-      "label": "Student Repository",
-      "icon": "person",
-      "children": [
-        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] },
-        { "label": "Student Search", "icon": "search", "route": "/students/search", "roles": ["admin", "faculty", "student"] }
       ]
     },
     {
