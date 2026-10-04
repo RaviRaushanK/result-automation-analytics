@@ -1,3 +1,5 @@
+const emailValidation = require('../../public/js/student-email-validation');
+
 module.exports = (sequelize, DataTypes) => {
   return sequelize.define('Student', {
     student_id: {
@@ -25,7 +27,14 @@ module.exports = (sequelize, DataTypes) => {
     },
     email: {
       type: DataTypes.STRING(100),
-      unique: true
+      allowNull: false,
+      unique: true,
+      validate: {
+        validStudentEmail(value) {
+          const error = emailValidation.getError(value);
+          if (error) throw new Error(error);
+        }
+      }
     },
     category: {
       type: DataTypes.STRING(50),

@@ -1,4 +1,5 @@
 <div class="container-fluid students-page">
+  <div id="studentMessages" class="alert-container" aria-live="polite" aria-atomic="true"></div>
   <div class="dashboard-header">
     <div>
       <h4>Students</h4>
@@ -15,7 +16,7 @@
   </div>
 
   <div class="row g-4 mb-4" id="studentStatsRow">
-    <div class="col-sm-6 col-xl-2-4">
+    <div class="col-sm-6 col-xl-3">
       <div class="card stat-card stat-blue">
         <span class="stat-corner" aria-hidden="true"></span>
         <div class="card-body">
@@ -24,7 +25,7 @@
         </div>
       </div>
     </div>
-    <div class="col-sm-6 col-xl-2-4">
+    <div class="col-sm-6 col-xl-3">
       <div class="card stat-card stat-green">
         <span class="stat-corner" aria-hidden="true"></span>
         <div class="card-body">
@@ -33,7 +34,7 @@
         </div>
       </div>
     </div>
-    <div class="col-sm-6 col-xl-2-4">
+    <div class="col-sm-6 col-xl-3">
       <div class="card stat-card stat-red">
         <span class="stat-corner" aria-hidden="true"></span>
         <div class="card-body">
@@ -42,21 +43,12 @@
         </div>
       </div>
     </div>
-    <div class="col-sm-6 col-xl-2-4">
-      <div class="card stat-card stat-amber">
-        <span class="stat-corner" aria-hidden="true"></span>
-        <div class="card-body">
-          <div class="stat-icon"><span class="material-icons">school</span></div>
-          <div class="stat-content"><div class="stat-value" id="statPgcet">--</div><div class="stat-label">PGCET Students</div></div>
-        </div>
-      </div>
-    </div>
-    <div class="col-sm-6 col-xl-2-4">
+    <div class="col-sm-6 col-xl-3">
       <div class="card stat-card stat-purple">
         <span class="stat-corner" aria-hidden="true"></span>
         <div class="card-body">
-          <div class="stat-icon"><span class="material-icons">business</span></div>
-          <div class="stat-content"><div class="stat-value" id="statMgt">--</div><div class="stat-label">MGT Students</div></div>
+          <div class="stat-icon"><span class="material-icons">category</span></div>
+          <div class="stat-content"><div class="stat-value" id="statCategories">--</div><div class="stat-label">Categories</div></div>
         </div>
       </div>
     </div>
@@ -72,9 +64,11 @@
         <div class="col-md-2">
           <label for="filterBatch" class="form-label">Batch</label>
           <select id="filterBatch" class="form-select">
-            <option value="">All</option>
-            <% (batches || []).forEach(function(b) { %>
-              <option value="<%= b.batch_id %>"><%= b.batch_name %></option>
+            <% if (!(batches || []).length) { %>
+              <option value="" disabled selected>No batches available</option>
+            <% } %>
+            <% (batches || []).forEach(function(b, index) { %>
+              <option value="<%= b.batch_id %>" <%= index === 0 ? 'selected' : '' %>><%= b.batch_name %></option>
             <% }); %>
           </select>
         </div>
@@ -113,7 +107,7 @@
         <table class="table table-hover align-middle students-table mb-0" id="studentsTable">
           <thead>
             <tr>
-              <th scope="col">Student ID</th>
+              <th scope="col">SL No.</th>
               <th scope="col">USN</th>
               <th scope="col">Student Name</th>
               <th scope="col">Email</th>
@@ -162,8 +156,8 @@
             <input type="text" id="studentName" class="form-control" required />
           </div>
           <div class="mb-3">
-            <label class="form-label" for="studentEmail">Email</label>
-            <input type="email" id="studentEmail" class="form-control" />
+            <label class="form-label" for="studentEmail">Email *</label>
+            <input type="email" id="studentEmail" class="form-control" placeholder="example@gmail.com" maxlength="100" aria-describedby="studentFormError" required />
           </div>
           <div class="mb-3">
             <label class="form-label" for="studentCategory">Category *</label>
@@ -180,7 +174,16 @@
               <option value="inactive">inactive</option>
             </select>
           </div>
-          <div class="alert alert-danger d-none" id="studentFormError"></div>
+          <div class="alert alert-danger d-none" id="studentFormError" role="alert"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="studentFormNextBtn">Review &amp; Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="modal fade" id="studentConfirmModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
@@ -209,12 +212,32 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted">Upload .xlsx, .xls or .csv with columns: Batch, USN, Student Name, Email, Category, Status.</p>
+        <p class="text-muted">Select the batch and status, then upload .xlsx, .xls or .csv with columns: USN, Student Name, Email, Category.</p>
+        <div class="row g-3 mb-3">
+          <div class="col-md-8">
+            <label class="form-label" for="importBatch">Batch *</label>
+            <select id="importBatch" class="form-select" required>
+              <option value="">Select batch</option>
+              <% (batches || []).forEach(function(b) { %>
+                <option value="<%= b.batch_id %>"><%= b.batch_name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="importStatus">Status *</label>
+            <select id="importStatus" class="form-select" required>
+              <option value="">Select status</option>
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
+        </div>
         <div class="mb-3">
           <label class="form-label" for="importFile">File</label>
           <input type="file" id="importFile" class="form-control" accept=".xlsx,.xls,.csv" />
         </div>
         <div class="alert alert-danger d-none" id="importError"></div>
+        <div class="alert alert-warning d-none" id="importWarning"></div>
         <div id="importSummary" class="d-none">
           <p class="mb-1"><strong>Total Records:</strong> <span id="importTotal">0</span></p>
           <p class="mb-1"><strong>Valid Records:</strong> <span id="importValid">0</span></p>
@@ -259,14 +282,6 @@
 </div>
 
 <div id="batchesData" data-batches="<%= JSON.stringify((batches || []).map(function(b){ return { id: b.batch_id, name: b.batch_name }; })) %>" class="d-none"></div>
-<script src="/js/students.js"></script>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="studentFormNextBtn">Review &amp; Confirm</button>
-      </div>
-    </div>
-  </div>
-</div>
+<script src="/js/student-email-validation.js?v=20261004-4"></script>
+<script src="/js/students.js?v=20261004-5"></script>
 </div>

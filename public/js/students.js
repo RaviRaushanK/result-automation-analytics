@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var tbody = document.querySelector('#studentsTable tbody');
   var searchInput = document.getElementById('studentSearch');
   var batchSelect = document.getElementById('filterBatch');
+  var defaultBatch = batchSelect.value;
   var categorySelect = document.getElementById('filterCategory');
   var statusSelect = document.getElementById('filterStatus');
   var resetBtn = document.getElementById('resetStudentFilterBtn');
@@ -35,22 +36,23 @@ document.addEventListener('DOMContentLoaded', function () {
     return json;
   }
   function toast(type, text) {
-    var container = document.querySelector('.alert-container');
-    if (!container) { alert(text); return; }
+    var container = document.getElementById('studentMessages');
     var div = document.createElement('div');
     div.className = 'alert alert-' + type + ' alert-dismissible fade show';
     div.setAttribute('role', 'alert');
-    div.innerHTML = esc(text) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    div.innerHTML = esc(text) + '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
     container.appendChild(div);
-    setTimeout(function () { try { bootstrap.Alert.getOrCreateInstance(div).close(); } catch (e) { div.remove(); } }, 5000);
+    if (type === 'success') {
+      setTimeout(function () { try { bootstrap.Alert.getOrCreateInstance(div).close(); } catch (e) { div.remove(); } }, 5000);
+    }
   }
 
 
-  function rowHtml(s) {
+  function rowHtml(s, index) {
     var batch = (s.Batch && s.Batch.batch_name) || batchName(s.batch_id, '');
     var statusCls = s.status === 'active' ? 'badge-active' : 'badge-inactive';
     return '<tr>' +
-      '<td>' + esc(s.student_id) + '</td>' +
+      '<td>' + (index + 1) + '</td>' +
       '<td>' + esc(s.usn) + '</td>' +
       '<td>' + esc(s.student_name) + '</td>' +
       '<td>' + esc(s.email || '--') + '</td>' +
@@ -85,13 +87,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function loadStats() {
     try {
-      var json = await api('/students/api/stats');
+      var params = new URLSearchParams();
+      if (batchSelect.value) params.set('batch_id', batchSelect.value);
+      var json = await api('/students/api/stats?' + params.toString());
       var d = json.data || {};
       document.getElementById('statTotal').textContent = d.total != null ? d.total : '--';
       document.getElementById('statActive').textContent = d.active != null ? d.active : '--';
       document.getElementById('statInactive').textContent = d.inactive != null ? d.inactive : '--';
-      document.getElementById('statPgcet').textContent = d.pgcet != null ? d.pgcet : '--';
-      document.getElementById('statMgt').textContent = d.mgt != null ? d.mgt : '--';
+      document.getElementById('statCategories').textContent = d.categories != null ? d.categories : '--';
     } catch (e) { /* keep placeholders */ }
   }
   function reloadAll() { loadStudents(); loadStats(); }
@@ -104,12 +107,13 @@ document.addEventListener('DOMContentLoaded', function () {
   [batchSelect, categorySelect, statusSelect].forEach(function (el) {
     el.addEventListener('change', loadStudents);
   });
+  batchSelect.addEventListener('change', loadStats);
   resetBtn.addEventListener('click', function () {
     searchInput.value = '';
-    batchSelect.value = '';
+    batchSelect.value = defaultBatch;
     categorySelect.value = '';
     statusSelect.value = '';
-    loadStudents();
+    reloadAll();
   });
 
   function formValues() {
@@ -202,8 +206,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!values.batch_id) return showFormError('Batch is required');
     if (!values.usn) return showFormError('USN is required');
     if (!values.student_name) return showFormError('Student Name is required');
+    if (!values.email) return showFormError('Email is required');
     if (!values.category) return showFormError('Category is required');
-    if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return showFormError('Email is invalid');
+    var emailError = StudentEmailValidation.getError(values.email);
+    if (emailError) {
+      document.getElementById('studentEmail').focus();
+      return showFormError(emailError);
+    }
     showFormError('');
     askCreateOrUpdate(values, Boolean(document.getElementById('studentId').value));
   });
@@ -218,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function () {
       await api('/students/api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
       toast('success', 'Student created successfully');
       reloadAll();
-    } catch (e) { toast('danger', e.message); }
+    } catch (e) { showFormError(e.message); formModal.show(); }
   }
   async function doUpdate(values) {
     var id = document.getElementById('studentId').value;
@@ -226,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function () {
       await api('/students/api/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
       toast('success', 'Student updated successfully');
       reloadAll();
-    } catch (e) { toast('danger', e.message); }
+    } catch (e) { showFormError(e.message); formModal.show(); }
   }
   async function doDelete(id) {
     try {
@@ -237,8 +246,11 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   importBtn.addEventListener('click', function () {
+    document.getElementById('importBatch').value = '';
+    document.getElementById('importStatus').value = '';
     document.getElementById('importFile').value = '';
     hideImportError();
+    showImportWarning('');
     document.getElementById('importSummary').classList.add('d-none');
     document.getElementById('importPreviewWrap').classList.add('d-none');
     document.getElementById('importConfirmBtn').classList.add('d-none');
@@ -255,21 +267,49 @@ document.addEventListener('DOMContentLoaded', function () {
     el.classList.remove('d-none');
     el.textContent = msg;
   }
+  function showImportWarning(msg) {
+    var el = document.getElementById('importWarning');
+    if (!msg) { el.classList.add('d-none'); el.textContent = ''; return; }
+    el.classList.remove('d-none');
+    el.textContent = msg;
+  }
   document.getElementById('importParseBtn').addEventListener('click', async function () {
     hideImportError();
+    showImportWarning('');
+    document.getElementById('importSummary').classList.add('d-none');
+    document.getElementById('importPreviewWrap').classList.add('d-none');
+    document.getElementById('importConfirmBtn').classList.add('d-none');
+    var importBatch = document.getElementById('importBatch').value;
+    var importStatus = document.getElementById('importStatus').value;
+    if (!importBatch) return showImportError('Please select a batch before importing');
+    if (!importStatus) return showImportError('Please select a status before importing');
     var file = document.getElementById('importFile').files[0];
     if (!file) return showImportError('Please choose an .xlsx, .xls or .csv file');
     var fd = new FormData();
     fd.append('file', file);
+    fd.append('batch_id', importBatch);
+    fd.append('status', importStatus);
     try {
       var res = await fetch('/students/api/import/preview', { method: 'POST', body: fd });
       var json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Parse failed');
-      importRows = json.data.rows || [];
-      document.getElementById('importTotal').textContent = json.data.total;
-      document.getElementById('importValid').textContent = json.data.valid;
-      document.getElementById('importInvalid').textContent = json.data.invalid;
+      importRows = (json.data.rows || []).map(function (row) {
+        var emailError = StudentEmailValidation.getError(row.email);
+        if (!emailError) return row;
+        return Object.assign({}, row, {
+          valid: false,
+          message: row.valid ? emailError : (row.message || emailError)
+        });
+      });
+      var validCount = importRows.filter(function (row) { return row.valid; }).length;
+      var invalidCount = importRows.length - validCount;
+      document.getElementById('importTotal').textContent = importRows.length;
+      document.getElementById('importValid').textContent = validCount;
+      document.getElementById('importInvalid').textContent = invalidCount;
       document.getElementById('importSummary').classList.remove('d-none');
+      if (invalidCount > 0) {
+        showImportWarning('Some rows have missing or incorrect data. Please cross verify the highlighted rows before confirming. Only valid rows will be imported.');
+      }
       var body = document.querySelector('#importPreviewTable tbody');
       body.innerHTML = importRows.map(function (r) {
         return '<tr><td>' + r.row + '</td><td>' + esc(r.batch || batchName(r.batch_id, '')) + '</td>' +
@@ -279,23 +319,29 @@ document.addEventListener('DOMContentLoaded', function () {
       }).join('');
       document.getElementById('importPreviewWrap').classList.remove('d-none');
       var cbtn = document.getElementById('importConfirmBtn');
-      if (json.data.valid > 0) {
+      if (validCount > 0) {
         cbtn.classList.remove('d-none');
-        cbtn.textContent = 'Confirm Import (' + json.data.valid + ' valid)';
+        cbtn.textContent = 'Confirm Import (' + validCount + ' valid)';
       } else { cbtn.classList.add('d-none'); }
     } catch (e) { showImportError(e.message); }
   });
   document.getElementById('importConfirmBtn').addEventListener('click', function () {
     var valid = importRows.filter(function (r) { return r.valid; }).length;
     var invalid = importRows.length - valid;
+    var importBatch = document.getElementById('importBatch').value;
+    var importStatus = document.getElementById('importStatus').value;
     document.getElementById('studentConfirmTitle').textContent = 'Confirm Import';
     document.getElementById('studentConfirmText').textContent =
-      'Student Import — Total Records: ' + importRows.length + ', Valid Records: ' + valid +
+      'Student Import - Batch: ' + batchName(importBatch, importBatch) + ', Status: ' + importStatus +
+      ', Total Records: ' + importRows.length + ', Valid Records: ' + valid +
       ', Invalid Records: ' + invalid + '. Are you sure you want to import the ' + valid + ' valid records?';
     var cb = document.getElementById('studentConfirmBtn');
     cb.textContent = 'Confirm Import';
     cb.className = 'btn btn-primary';
-    confirmDetails([[ 'Total Records', String(importRows.length)], ['Valid Records', String(valid)], ['Invalid Records', String(invalid)]]);
+    confirmDetails([
+      ['Batch', batchName(importBatch, importBatch)], ['Status', importStatus],
+      ['Total Records', String(importRows.length)], ['Valid Records', String(valid)], ['Invalid Records', String(invalid)]
+    ]);
     pendingAction = doImport;
     importModal.hide();
     confirmModal.show();
@@ -304,7 +350,11 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       var json = await api('/students/api/import/confirm', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: importRows })
+        body: JSON.stringify({
+          batch_id: document.getElementById('importBatch').value,
+          status: document.getElementById('importStatus').value,
+          rows: importRows
+        })
       });
       document.getElementById('importResultOk').textContent = json.data.imported;
       document.getElementById('importResultSkipped').textContent = json.data.skipped;
@@ -313,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function () {
           return '<li>Row ' + esc(s.row) + ' (' + esc(s.usn || '--') + '): ' + esc(s.reason) + '</li>';
         }).join('') || '<li>All valid records imported.</li>';
       resultModal.show();
-      toast('success', json.message);
+      toast(json.data.skipped > 0 ? 'warning' : 'success', json.message);
       reloadAll();
     } catch (e) { toast('danger', e.message); }
   }
