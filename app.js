@@ -90,6 +90,7 @@ const batchRoutes = require('./routes/batchRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const studentRoutes = require('./routes/studentRoutes');
 
 
 // ======================
@@ -116,6 +117,7 @@ app.use('/batches', authMiddleware, batchRoutes);
 app.use('/results', authMiddleware, resultRoutes);
 app.use('/sessions', authMiddleware, sessionRoutes);
 app.use('/subjects', authMiddleware, subjectRoutes);
+app.use('/students', authMiddleware, studentRoutes);
 
 // ======================
 // 404 Handler

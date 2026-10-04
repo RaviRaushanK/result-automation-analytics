@@ -1,0 +1,30 @@
+/* Student Management Dashboard — scoped styles reuse dashboard tokens. */
+.students-page .students-header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.students-page .col-xl-2-4 { flex: 0 0 auto; width: 100%; }
+@media (min-width: 1200px) {
+  .students-page .col-xl-2-4 { width: 20%; }
+}
+.students-page .students-table th {
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-secondary); font-weight: 600; white-space: nowrap;
+}
+.students-page .students-table td { font-size: 0.9rem; vertical-align: middle; }
+.students-page .badge-status {
+  font-size: 0.75rem; font-weight: 600; padding: 0.35em 0.65em;
+  border-radius: 6px; text-transform: capitalize;
+}
+.students-page .badge-active { background-color: rgba(40, 167, 69, 0.12); color: var(--color-success); }
+.students-page .badge-inactive { background-color: rgba(220, 53, 69, 0.12); color: var(--color-danger); }
+.students-page .badge-valid { background-color: rgba(40, 167, 69, 0.12); color: var(--color-success); }
+.students-page .badge-invalid { background-color: rgba(220, 53, 69, 0.12); color: var(--color-danger); }
+.students-page .badge-category { background-color: rgba(37, 99, 235, 0.12); color: var(--primary-brand); }
+.students-page .students-actions { display: flex; gap: 0.35rem; }
+.students-page .students-confirm-list dt { font-weight: 600; color: var(--text-secondary); }
+.students-page .students-confirm-list dd { color: var(--text-primary); }
+.students-page .students-skipped-list { max-height: 220px; overflow-y: auto; padding-left: 1.1rem; }
+.students-page .students-skipped-list li { font-size: 0.85rem; margin-bottom: 0.25rem; }
+#importPreviewWrap { max-height: 320px; overflow-y: auto; }
+@media (max-width: 767.98px) {
+  .students-page .students-header-actions { width: 100%; }
+  .students-page .students-header-actions .btn { flex: 1 1 auto; }
+}
