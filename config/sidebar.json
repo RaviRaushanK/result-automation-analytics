@@ -39,10 +39,10 @@
       "children": [
         { "label": "Overview", "icon": "dashboard", "route": "/analytics/overview", "roles": ["admin", "faculty"] },
         { "label": "Toppers", "icon": "star", "route": "/analytics/toppers", "roles": ["admin", "faculty"] },
+        { "label": "Student Analysis", "icon": "people", "route": "/analytics/students", "roles": ["admin", "faculty"] },
         { "label": "Failed Students", "icon": "error", "route": "/analytics/failed", "roles": ["admin", "faculty"] },
         { "label": "Subject Analysis", "icon": "pie_chart", "route": "/analytics/subjects", "roles": ["admin", "faculty"] },
         { "label": "Semester Analysis", "icon": "timeline", "route": "/analytics/semesters", "roles": ["admin", "faculty"] },
-        { "label": "Student Analysis", "icon": "people", "route": "/analytics/students", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Analysis", "icon": "sync", "route": "/analytics/revaluation", "roles": ["admin", "faculty"] }
       ]
     },
@@ -50,13 +50,13 @@
       "label": "Reports",
       "icon": "description",
       "children": [
-        { "label": "Student Result", "icon": "person", "route": "/reports/student", "roles": ["admin", "faculty"] },
-        { "label": "Class Result", "icon": "groups", "route": "/reports/class", "roles": ["admin", "faculty"] },
-        { "label": "Subject Result", "icon": "book", "route": "/reports/subject", "roles": ["admin", "faculty"] },
-        { "label": "Consolidated Result", "icon": "table_chart", "route": "/reports/consolidated", "roles": ["admin", "faculty"] },
-        { "label": "All Students Progress Report", "icon": "view_week", "route": "/reports/student-progress", "roles": ["admin", "faculty"] },
         { "label": "Toppers", "icon": "star", "route": "/reports/toppers", "roles": ["admin", "faculty"] },
+        { "label": "Class Result", "icon": "groups", "route": "/reports/class", "roles": ["admin", "faculty"] },
+        { "label": "Consolidated Result", "icon": "table_chart", "route": "/reports/consolidated", "roles": ["admin", "faculty"] },
+        { "label": "Student Result", "icon": "person", "route": "/reports/student", "roles": ["admin", "faculty"] },
+        { "label": "Subject Result", "icon": "book", "route": "/reports/subject", "roles": ["admin", "faculty"] },
         { "label": "Result Analysis Report", "icon": "bar_chart", "route": "/reports/result-analysis", "roles": ["admin", "faculty"] },
+        { "label": "All Students Progress Report", "icon": "view_week", "route": "/reports/student-progress", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Report", "icon": "assignment", "route": "/reports/revaluation", "roles": ["admin", "faculty"] }
       ]
     },

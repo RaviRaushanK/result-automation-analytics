@@ -38,7 +38,7 @@
     "express-mysql-session": "^3.0.3",
     "express-session": "^1.19.0",
     "fs": "^0.0.1-security",
-    "multer": "^2.2.0",
+    "multer": "^2.4.0",
     "mysql2": "^3.22.5",
     "path": "^0.12.7",
     "pdfjs-dist": "^6.2.108",
@@ -46,6 +46,7 @@
     "sequelize-cli": "^6.6.5",
     "sharp": "^0.35.3",
     "sucrase": "^3.35.1",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   }
 }

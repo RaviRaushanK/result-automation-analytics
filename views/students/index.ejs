@@ -1,0 +1,287 @@
+<div class="container-fluid students-page">
+  <div id="studentMessages" class="alert-container" aria-live="polite" aria-atomic="true"></div>
+  <div class="dashboard-header">
+    <div>
+      <h4>Students</h4>
+      <p class="text-muted">Manage student records, import student data, and maintain student information.</p>
+    </div>
+    <div class="students-header-actions">
+      <button type="button" class="btn btn-outline-secondary" id="importStudentsBtn">
+        <span class="material-icons btn-icon">upload_file</span> Import Excel/CSV
+      </button>
+      <button type="button" class="btn btn-primary" id="addStudentBtn">
+        <span class="material-icons btn-icon">person_add</span> Add Student
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4" id="studentStatsRow">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card stat-blue">
+        <span class="stat-corner" aria-hidden="true"></span>
+        <div class="card-body">
+          <div class="stat-icon"><span class="material-icons">group</span></div>
+          <div class="stat-content"><div class="stat-value" id="statTotal">--</div><div class="stat-label">Total Students</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card stat-green">
+        <span class="stat-corner" aria-hidden="true"></span>
+        <div class="card-body">
+          <div class="stat-icon"><span class="material-icons">check_circle</span></div>
+          <div class="stat-content"><div class="stat-value" id="statActive">--</div><div class="stat-label">Active Students</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card stat-red">
+        <span class="stat-corner" aria-hidden="true"></span>
+        <div class="card-body">
+          <div class="stat-icon"><span class="material-icons">cancel</span></div>
+          <div class="stat-content"><div class="stat-value" id="statInactive">--</div><div class="stat-label">Inactive Students</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card stat-card stat-purple">
+        <span class="stat-corner" aria-hidden="true"></span>
+        <div class="card-body">
+          <div class="stat-icon"><span class="material-icons">category</span></div>
+          <div class="stat-content"><div class="stat-value" id="statCategories">--</div><div class="stat-label">Categories</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card filter-card">
+    <div class="card-body">
+      <form id="studentFilterForm" class="row g-3 align-items-end" onsubmit="return false;">
+        <div class="col-md-4">
+          <label for="studentSearch" class="form-label">Search</label>
+          <input type="text" id="studentSearch" class="form-control" placeholder="Search by USN, name or email..." value="<%= initialSearch || '' %>" />
+        </div>
+        <div class="col-md-2">
+          <label for="filterBatch" class="form-label">Batch</label>
+          <select id="filterBatch" class="form-select">
+            <% if (!(batches || []).length) { %>
+              <option value="" disabled selected>No batches available</option>
+            <% } %>
+            <% (batches || []).forEach(function(b, index) { %>
+              <option value="<%= b.batch_id %>" <%= index === 0 ? 'selected' : '' %>><%= b.batch_name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="filterCategory" class="form-label">Category</label>
+          <select id="filterCategory" class="form-select">
+            <option value="">All</option>
+            <% (categories || []).forEach(function(c) { %>
+              <option value="<%= c %>"><%= c %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="filterStatus" class="form-label">Status</label>
+          <select id="filterStatus" class="form-select">
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <div class="filter-actions">
+            <button type="button" id="resetStudentFilterBtn" class="btn btn-outline-secondary">
+              <span class="material-icons btn-icon">refresh</span> Reset
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header"><h5 class="card-title mb-0">Students</h5></div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle students-table mb-0" id="studentsTable">
+          <thead>
+            <tr>
+              <th scope="col">SL No.</th>
+              <th scope="col">USN</th>
+              <th scope="col">Student Name</th>
+              <th scope="col">Email</th>
+              <th scope="col">Batch</th>
+              <th scope="col">Category</th>
+              <th scope="col">Status</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="8" class="text-center table-loading">
+              <div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+              <span class="ms-2 text-muted">Loading students...</span>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<div class="modal fade" id="studentFormModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="studentFormTitle">Add Student</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="studentForm" onsubmit="return false;">
+          <input type="hidden" id="studentId" />
+          <div class="mb-3">
+            <label class="form-label" for="studentBatch">Batch *</label>
+            <select id="studentBatch" class="form-select" required>
+              <option value="">Select batch</option>
+              <% (batches || []).forEach(function(b) { %>
+                <option value="<%= b.batch_id %>"><%= b.batch_name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="studentUsn">USN *</label>
+            <input type="text" id="studentUsn" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="studentName">Student Name *</label>
+            <input type="text" id="studentName" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="studentEmail">Email *</label>
+            <input type="email" id="studentEmail" class="form-control" placeholder="example@gmail.com" maxlength="100" aria-describedby="studentFormError" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="studentCategory">Category *</label>
+            <input type="text" id="studentCategory" class="form-control" list="studentCategoryList" placeholder="PGCET / MGT / ..." required />
+            <datalist id="studentCategoryList">
+              <option value="PGCET"></option>
+              <option value="MGT"></option>
+            </datalist>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="studentStatus">Status</label>
+            <select id="studentStatus" class="form-select">
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
+          <div class="alert alert-danger d-none" id="studentFormError" role="alert"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="studentFormNextBtn">Review &amp; Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="studentConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="studentConfirmTitle">Confirm</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted" id="studentConfirmText"></p>
+        <dl class="row students-confirm-list" id="studentConfirmDetails"></dl>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="studentConfirmBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Student Import</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">Select the batch and status, then upload .xlsx, .xls or .csv with columns: USN, Student Name, Email, Category.</p>
+        <div class="row g-3 mb-3">
+          <div class="col-md-8">
+            <label class="form-label" for="importBatch">Batch *</label>
+            <select id="importBatch" class="form-select" required>
+              <option value="">Select batch</option>
+              <% (batches || []).forEach(function(b) { %>
+                <option value="<%= b.batch_id %>"><%= b.batch_name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="importStatus">Status *</label>
+            <select id="importStatus" class="form-select" required>
+              <option value="">Select status</option>
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="importFile">File</label>
+          <input type="file" id="importFile" class="form-control" accept=".xlsx,.xls,.csv" />
+        </div>
+        <div class="alert alert-danger d-none" id="importError"></div>
+        <div class="alert alert-warning d-none" id="importWarning"></div>
+        <div id="importSummary" class="d-none">
+          <p class="mb-1"><strong>Total Records:</strong> <span id="importTotal">0</span></p>
+          <p class="mb-1"><strong>Valid Records:</strong> <span id="importValid">0</span></p>
+          <p class="mb-3"><strong>Invalid Records:</strong> <span id="importInvalid">0</span></p>
+        </div>
+        <div class="table-responsive d-none" id="importPreviewWrap">
+          <table class="table table-hover align-middle students-table mb-0" id="importPreviewTable">
+            <thead><tr>
+              <th>Row</th><th>Batch</th><th>USN</th><th>Student Name</th>
+              <th>Email</th><th>Category</th><th>Status</th><th>Validation</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-outline-secondary" id="importParseBtn">Parse &amp; Preview</button>
+        <button type="button" class="btn btn-primary d-none" id="importConfirmBtn">Confirm Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="importResultModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Import Completed</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1"><strong>Successfully Imported:</strong> <span id="importResultOk">0</span></p>
+        <p class="mb-3"><strong>Invalid/Skipped:</strong> <span id="importResultSkipped">0</span></p>
+        <ul class="students-skipped-list" id="importResultReasons"></ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="batchesData" data-batches="<%= JSON.stringify((batches || []).map(function(b){ return { id: b.batch_id, name: b.batch_name }; })) %>" class="d-none"></div>
+<script src="/js/student-email-validation.js?v=20261004-4"></script>
+<script src="/js/students.js?v=20261004-5"></script>
+</div>
