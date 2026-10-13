@@ -8,7 +8,7 @@ const studentController = require("../controllers/studentController");
 // inserted until the admin confirms the preview.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: require('../config/uploadLimits').studentImport },
   fileFilter: (req, file, cb) => {
     const name = (file.originalname || "").toLowerCase();
     if (

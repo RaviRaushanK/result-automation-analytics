@@ -21,9 +21,12 @@ async function main() {
   app.use(layouts);
   app.set('layout', 'layouts/main');
   app.use(express.static(path.join(__dirname, '../public')));
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  const settingsSession = { adminId: 1, username: 'Settings Verification', role: 'admin', csrfToken: 'a'.repeat(64), save: callback => callback() };
   app.use((req, res, next) => {
-    req.session = { adminId: 1, username: 'Report verification', role: req.path.startsWith('/subjects') ? 'admin' : 'faculty' };
+    req.session = req.path.startsWith('/settings') || ['/profile', '/account-security'].includes(req.path) ? settingsSession : { adminId: 1, username: 'Report verification', role: req.path.startsWith('/subjects') ? 'admin' : 'faculty' };
     res.locals.flash = []; res.locals.breadcrumbItems = [];
     next();
   });
@@ -33,6 +36,8 @@ async function main() {
   app.use('/reports', require('../routes/reportsRoutes'));
   app.use('/analytics', require('../routes/analyticsRoutes'));
   app.use('/subjects', require('../routes/subjectRoutes'));
+  app.use('/settings', require('../routes/settingsRoutes'));
+  app.use(require('../routes/authRoutes'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -42,6 +47,8 @@ async function main() {
   let browserError;
   browser.on('error', err => { browserError = err; });
   let socket;
+  let restoreSettings;
+  const testLogoPaths = [];
   try {
     let port;
     for (let i = 0; i < 100; i++) {
@@ -447,9 +454,117 @@ async function main() {
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true);
     await fs.writeFile(path.join(output, 'semester-courses-mobile-dark.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     console.log('semester courses: required-roster form and responsive layout passed (no database writes)');
+    const settingsRepository = require('../repositories/settingsRepository');
+    const settingsService = require('../services/settingsService');
+    const originalSettings = { ...settingsRepository };
+    restoreSettings = () => Object.assign(settingsRepository, originalSettings);
+    const settingsAccount = { admin_id: 1, username: 'Settings Verification', email: 'settings@example.com', role: 'admin', status: 'active', last_login: new Date() };
+    const brandingValues = new Map(), brandingAudits = [];
+    settingsRepository.account = async () => settingsAccount;
+    settingsRepository.emailTaken = async () => false;
+    settingsRepository.updateEmail = async (id, email) => { settingsAccount.email = email; return [1]; };
+    settingsRepository.values = async () => [...brandingValues].map(([setting_key, setting_value]) => ({ setting_key, setting_value }));
+    settingsRepository.audit = async () => brandingAudits;
+    settingsRepository.save = async (updates, actor) => {
+      for (const [key, value] of Object.entries(updates)) {
+        brandingAudits.push({ setting_key: key, old_value: brandingValues.get(key) ?? null, new_value: value, changed_by: actor, changed_at: new Date() });
+        brandingValues.set(key, value);
+        if (key === 'institution_logo' && value) testLogoPaths.push(value);
+      }
+    };
+    for (const section of ['account', 'security', 'appearance', 'institution', 'academic-policy', 'system']) {
+      await command('Page.navigate', { url: `${base}/settings?section=${section}` });
+      await until("!!document.querySelector('.settings-page')");
+      assert.equal(await evaluate("document.querySelector('.admin-name').textContent.includes('Settings Verification')"), true);
+      assert.equal(await evaluate("document.querySelector('.dropdown-menu a[href=\"/account-security\"]') === null"), true);
+      if (section === 'security') {
+        await until("!!document.querySelector('[data-password-toggle]')");
+        for (const name of ['currentPassword', 'newPassword', 'confirmPassword']) {
+          assert.equal(await evaluate(`document.querySelector('[data-password-toggle="${name}"]').hidden`), true);
+          await evaluate(`document.getElementById('${name}').value='TestPassword1';document.getElementById('${name}').dispatchEvent(new Event('input',{bubbles:true}))`);
+          assert.equal(await evaluate(`document.querySelector('[data-password-toggle="${name}"]').hidden`), false);
+          await evaluate(`document.querySelector('[data-password-toggle="${name}"]').click()`);
+          assert.equal(await evaluate(`document.getElementById('${name}').type`), 'text');
+          assert.equal(await evaluate(`document.querySelector('[data-password-toggle="${name}"]').getAttribute('aria-pressed')`), 'true');
+          await evaluate(`document.querySelector('[data-password-toggle="${name}"]').click()`);
+          assert.equal(await evaluate(`document.getElementById('${name}').type`), 'password');
+          await evaluate(`document.querySelector('[data-password-toggle="${name}"]').click();document.getElementById('${name}').value='';document.getElementById('${name}').dispatchEvent(new Event('input',{bubbles:true}))`);
+          assert.equal(await evaluate(`document.querySelector('[data-password-toggle="${name}"]').hidden`), true);
+          assert.equal(await evaluate(`document.getElementById('${name}').type`), 'password');
+        }
+      }
+      for (const width of [1440, 1280, 768, 390]) for (const theme of ['light', 'dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await evaluate(`window.setThemePreference('${theme}')`); await pause(200);
+        assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true, `Settings ${section} ${width} ${theme}`);
+        await fs.writeFile(path.join(output, `settings-${section}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      if (section === 'appearance') {
+        await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+        await evaluate("document.getElementById('theme-system').click()");
+        await until("document.documentElement.dataset.theme === 'dark'");
+        assert.equal(await evaluate("localStorage.getItem('sraas-theme')"), 'system');
+        await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+        try { await until("document.documentElement.dataset.theme === 'light'"); }
+        catch (error) { console.log(await evaluate("({preference:window.getThemePreference(),stored:localStorage.getItem('sraas-theme'),dark:matchMedia('(prefers-color-scheme: dark)').matches,theme:document.documentElement.dataset.theme})")); throw error; }
+        assert.equal(await evaluate("localStorage.getItem('sraas-theme')"), 'system');
+        await evaluate('window.toggleTheme()');
+        assert.equal(await evaluate("document.getElementById('theme-dark').checked"), true);
+        assert.equal(await evaluate("document.cookie.includes('themePreference=dark')"), true);
+      }
+      console.log(`settings/${section}: responsive, theme and section navigation passed`);
+    }
+    await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    await command('Page.navigate', { url: `${base}/profile` });
+    await until("location.pathname === '/settings' && location.search.includes('section=account')");
+    await evaluate("document.getElementById('account-email').value='updated@example.com';document.querySelector('form[action=\"/settings/account\"]').requestSubmit()");
+    await until("document.querySelector('[data-settings-notification]')?.textContent.includes('updated')");
+    assert.equal(settingsAccount.email, 'updated@example.com');
+    await command('Page.navigate', { url: `${base}/settings?section=institution` });
+    await until("!!document.getElementById('institution-form')");
+    await evaluate("document.getElementById('setting-institution_name').value='Browser Test College';document.getElementById('setting-report_footer').value='Verified report branding';document.getElementById('institution-form').dispatchEvent(new Event('input',{bubbles:true}))");
+    assert.equal(await evaluate("document.querySelector('#settings-branding [data-branding-field=institution_name]').textContent"), 'Browser Test College');
+    await evaluate("document.getElementById('institution-form').requestSubmit()");
+    await until("document.querySelector('[data-settings-notification]')?.textContent.includes('saved')");
+    await until("(()=>{const toast=document.querySelector('[data-settings-notification]');if(!toast)return false;const rect=toast.getBoundingClientRect(),header=document.querySelector('.app-header').getBoundingClientRect(),width=document.documentElement.clientWidth;return getComputedStyle(toast).position==='fixed'&&rect.top>=header.bottom&&rect.right<=width&&rect.right>=width-20})()");
+    await fs.writeFile(path.join(output, 'settings-success-notification.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    await pause(5200);
+    assert.equal(await evaluate("document.querySelector('[data-settings-notification]') === null"), true);
+    assert.equal(brandingValues.get('institution_name'), 'Browser Test College');
+    const logoBuffer = await require('sharp')({ create: { width: 32, height: 32, channels: 3, background: '#168a78' } }).png().toBuffer();
+    await evaluate(`(async()=>{const bytes=Uint8Array.from(atob('${logoBuffer.toString('base64')}'),c=>c.charCodeAt(0)),form=new FormData();form.set('_csrf',document.querySelector('[name=_csrf]').value);form.set('logo',new Blob([bytes],{type:'image/png'}),'logo.png');const response=await fetch('/settings/logo',{method:'POST',body:form});if(!response.ok)throw new Error('Logo upload failed');})()`);
+    await command('Page.navigate', { url: `${base}/settings?section=institution` });
+    await until("document.querySelector('#settings-branding img')?.naturalWidth > 0");
+    assert.equal(brandingAudits.some(a => a.setting_key === 'institution_logo' && a.changed_by === 1), true);
+    for (const type of service.TYPES) {
+      const query = type === 'student-progress' ? { batch_id: scope.query.batch_id } : type === 'student' ? { ...scope.query, student_id: String(selectedStudent.student.student_id), attempt_no: String(selectedStudent.attempts[0].attempt_no) } : { ...scope.query, ...(type === 'subject' ? { subject_id: String(scope.subjects[0].subject_id) } : {}) };
+      const expected = await service.getReport(type, query);
+      const api = await (await fetch(`${base}/reports/api/${type}?${new URLSearchParams(query)}`)).json();
+      assert.deepEqual(api.report.rows, JSON.parse(JSON.stringify(expected.rows)), `${type}: branding preserves rows`);
+      assert.deepEqual(api.report.metrics, expected.metrics, `${type}: branding preserves metrics`);
+      assert.equal(api.report.branding.institution_name, 'Browser Test College');
+      const printed = await (await fetch(`${base}/reports/${type}/print?${new URLSearchParams(query)}`)).text();
+      assert.ok(printed.includes('Browser Test College')); assert.ok(printed.includes('Verified report branding')); assert.ok(printed.includes(brandingValues.get('institution_logo')));
+      const csv = await (await fetch(`${base}/reports/${type}/export.csv?${new URLSearchParams(query)}`)).text();
+      assert.ok(csv.includes('Institution,Browser Test College')); assert.ok(csv.includes('Report Footer,Verified report branding'));
+    }
+    await command('Page.navigate', { url: `${base}/reports/class?${new URLSearchParams(scope.query)}` });
+    await until("document.getElementById('report-session_id').value === '" + scope.query.session_id + "'");
+    await evaluate("document.getElementById('reports-generate').click()");
+    await until("!document.getElementById('reports-output').hidden");
+    assert.equal(await evaluate("document.querySelector('#reports-branding [data-branding-field=institution_name]').textContent"), 'Browser Test College');
+    assert.equal(await evaluate("document.getElementById('reports-brand-footer').textContent"), 'Verified report branding');
+    assert.equal(await evaluate("document.querySelector('#reports-branding img').naturalWidth > 0"), true);
+    await fs.writeFile(path.join(output, 'settings-branded-report.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    console.log('Settings: profile, email, System preference, preview, logo, audit and branding on all eight reports passed (no database writes)');
     assert.deepEqual(exceptions, []);
     console.log(`Screenshots: ${output}`);
   } finally {
+    if (restoreSettings) restoreSettings();
+    for (const logo of testLogoPaths) {
+      assert.ok(/^\/uploads\/branding\/[a-f0-9-]{36}\.png$/.test(logo));
+      await fs.unlink(path.join(__dirname, '..', logo)).catch(() => {});
+    }
     socket?.close();
     browser.kill();
     await new Promise(resolve => server.close(resolve));

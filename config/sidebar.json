@@ -16,7 +16,7 @@
         { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
       ]
     },
-    {
+        {
       "label": "Student Repository",
       "icon": "person",
       "children": [
@@ -61,12 +61,6 @@
         { "label": "Result Analysis Report", "icon": "bar_chart", "route": "/reports/result-analysis", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Report", "icon": "assignment", "route": "/reports/revaluation", "roles": ["admin", "faculty"] }
       ]
-    },
-    {
-      "label": "Chat Assistant",
-      "icon": "chat",
-      "route": "/chat",
-      "roles": ["admin"]
     }
   ]
 }

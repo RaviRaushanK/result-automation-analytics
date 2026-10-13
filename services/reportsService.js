@@ -458,6 +458,7 @@ function* studentCsvLines(report) {
   const columns = exportColumns(report);
   const view = report.filters.mode === 'effective' ? 'Effective Result' : 'Original Result';
   yield [report.title.toUpperCase()];
+  for (const cells of report.brandingMetadata || []) yield cells;
   yield ['Program', 'MCA'];
   yield ['Batch', report.meta.batch.batch_name];
   yield ['USN', report.meta.student.usn];

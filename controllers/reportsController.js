@@ -2,6 +2,12 @@
 
 const service = require('../services/reportsService');
 const reportCenter = require('../config/reportCenter');
+const settings = require('../services/settingsService');
+async function brand(report) {
+  report.branding = await settings.getBranding();
+  report.brandingMetadata = settings.brandingMetadata(report.branding);
+  return report;
+}
 
 function overview(req, res) {
   res.render('reports/overview', {
@@ -22,16 +28,17 @@ function error(res, err) {
 }
 
 function page(type) {
-  return (req, res) => res.render(`reports/${type}`, {
+  return async (req, res) => res.render(`reports/${type}`, {
     title: `${service.TITLES[type]} - SRAAS`, reportType: type, reportTitle: service.TITLES[type],
     pageStyles: ['/css/reports.css'],
+    branding: await settings.getBranding(),
     breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '/reports', label: 'Reports' }, { href: `/reports/${type}`, label: service.TITLES[type] }]
   });
 }
 
 function api(type) {
   return async (req, res) => {
-    try { res.json({ success: true, report: await service.getReport(type, req.query) }); }
+    try { res.json({ success: true, report: await brand(await service.getReport(type, req.query)) }); }
     catch (err) { error(res, err); }
   };
 }
@@ -58,7 +65,7 @@ async function write(res, text) {
 function csv(type) {
   return async (req, res) => {
     try {
-      const report = await service.prepare(type, req.query);
+      const report = await brand(await service.prepare(type, req.query));
       res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${service.filename(report)}"`, 'Cache-Control': 'private, no-store' });
       const line = cells => cells.map(service.csvCell).join(',') + '\r\n';
       if (type === 'student') {
@@ -67,6 +74,7 @@ function csv(type) {
         return res.end();
       }
       await write(res, '\uFEFF' + line([report.title]));
+      for (const cells of report.brandingMetadata) await write(res, line(cells));
       for (const context of service.contextLines(report)) await write(res, line(context));
       const columns = service.exportColumns(report);
       const numbered = type !== 'toppers';
@@ -98,7 +106,7 @@ function csv(type) {
 function print(type) {
   return async (req, res) => {
     try {
-      const report = await service.prepare(type, req.query);
+      const report = await brand(await service.prepare(type, req.query));
       if (type !== 'student' && type !== 'result-analysis') {
         report.rows = [];
         for await (const row of service.fullRows(report)) report.rows.push(row);

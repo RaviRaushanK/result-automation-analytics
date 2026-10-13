@@ -37,6 +37,7 @@ const RevaluationResult = require('./RevaluationResult')(sequelize, DataTypes);
 const ImportLog = require('./ImportLog')(sequelize, DataTypes);
 const OcrExtraction = require('./OcrExtraction')(sequelize, DataTypes);
 const SystemSetting = require('./SystemSetting')(sequelize, DataTypes);
+const SettingAudit = require('./SettingAudit')(sequelize, DataTypes);
 
 // ============================================
 // Associations
@@ -152,5 +153,6 @@ module.exports = {
   RevaluationResult,
   ImportLog,
   OcrExtraction,
-  SystemSetting
+  SystemSetting,
+  SettingAudit
 };

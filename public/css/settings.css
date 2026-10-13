@@ -1,0 +1,45 @@
+.settings-page { color: var(--text-primary); min-width: 0; }
+.settings-notification { position: fixed; top: calc(var(--header-height) + 12px); right: 16px; z-index: 1040; display: flex; align-items: center; gap: .65rem; max-width: min(420px, calc(100vw - 32px)); padding: .85rem 1rem; border: 1px solid var(--card-border); border-left: 4px solid #168a78; border-radius: 6px; background: var(--card-bg); color: var(--text-primary); box-shadow: 0 4px 16px #0002; font-size: .875rem; overflow-wrap: anywhere; }
+.settings-notification > .material-icons { color: #168a78; }
+.settings-notification-close { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); }
+.settings-notification-close:hover { background: var(--secondary-bg); }
+.settings-notification-close:focus-visible { outline: 2px solid var(--accent-blue); }
+.settings-header { margin-bottom: 1.5rem; }
+.settings-header h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 .35rem; }
+.settings-header p { margin: 0; font-size: .9rem; }
+.settings-muted { color: var(--text-secondary); font-size: .875rem; }
+.settings-workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 2rem; }
+.settings-nav { display: flex; flex-direction: column; gap: .35rem; align-self: start; }
+.settings-nav-link { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border-radius: 6px; text-decoration: none; color: var(--text-secondary); font-size: .875rem; }
+.settings-nav-link:hover, .settings-nav-link.is-active { background: var(--secondary-bg); color: var(--accent-blue); }
+.settings-nav-link.is-active { box-shadow: inset 3px 0 var(--accent-blue); font-weight: 600; }
+.settings-nav-link:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.settings-nav-link .material-icons { font-size: 1.2rem; width: 1.2rem; flex-shrink: 0; }
+.settings-content { min-width: 0; border-left: 1px solid var(--card-border); padding-left: 2rem; }
+.settings-content h2 { font-size: 1.15rem; margin: 0 0 1.25rem; font-weight: 600; }
+.settings-details { margin-bottom: 1.5rem; }
+.settings-details > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 1rem; padding-block: .75rem; border-bottom: 1px solid var(--card-border); }
+.settings-details dt { color: var(--text-secondary); font-size: .875rem; font-weight: 500; }
+.settings-details dd { margin: 0; overflow-wrap: anywhere; font-size: .9rem; }
+.settings-form { max-width: 480px; }
+.settings-page .form-control { color: var(--text-primary); background: var(--card-bg); border-color: var(--card-border); }
+.settings-page .form-label { font-size: .875rem; font-weight: 600; }
+.settings-save { display: inline-flex; align-items: center; gap: .4rem; }
+.settings-save .material-icons { width: 1.1rem; font-size: 1.1rem; }
+.settings-theme-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+.settings-theme-options label { display: inline-flex; gap: .5rem; align-items: center; border-color: var(--card-border); color: var(--text-primary); }
+.settings-theme-options .btn-check:checked + label { background: var(--secondary-bg); border-color: var(--accent-blue); color: var(--accent-blue); }
+.settings-branding-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; }
+.settings-preview-paper { border: 1px solid var(--card-border); border-radius: 8px; padding: 1rem; background: var(--card-bg); }
+.settings-policy-reference { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: .875rem; line-height: 1.65; margin-top: 1rem; }
+.settings-page .table { --bs-table-bg: transparent; --bs-table-color: var(--text-primary); --bs-table-border-color: var(--card-border); font-size: .875rem; }
+.settings-audit table { min-width: 650px; }
+.settings-audit td { overflow-wrap: anywhere; max-width: 220px; }
+@media (max-width: 1199.98px) { .settings-branding-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 767.98px) {
+  .main-content:has(.settings-page) { margin-left: 0; width: 100%; }
+  .settings-workspace { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+  .settings-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--card-border); padding-bottom: 1rem; }
+  .settings-content { border-left: 0; padding-left: 0; }
+  .settings-details > div { grid-template-columns: 110px minmax(0, 1fr); gap: .75rem; }
+}

@@ -66,6 +66,7 @@
   <div class="reports-state" id="reports-empty" role="status">Select the required filters and generate the report.</div>
 
   <section id="reports-output" aria-label="Report Preview" hidden>
+    <%- include('branding', { branding }) %>
     <div class="reports-preview-header">
       <div><h2><%= reportTitle %></h2><span class="reports-muted">MCA / SRAAS</span></div>
       <div class="reports-actions d-flex flex-wrap gap-2">
@@ -102,10 +103,12 @@
         <button type="button" class="btn btn-outline-secondary reports-icon-button" id="reports-next" aria-label="Next page" title="Next page"><span class="material-icons" aria-hidden="true">chevron_right</span></button>
       </div>
     </nav>
+    <p class="report-brand-footer" id="reports-brand-footer"><%= branding.report_footer %></p>
   </section>
 </section>
 <% if (reportType === 'result-analysis') { %>
 <script src="/js/reports/chart.umd.min.js" defer></script>
 <script src="/js/reports/result-analysis.js" defer></script>
 <% } %>
+<script src="/js/reports/branding.js" defer></script>
 <script src="/js/reports/common.js" defer></script>

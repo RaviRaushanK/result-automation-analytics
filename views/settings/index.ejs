@@ -1,0 +1,65 @@
+<div class="settings-page">
+  <% if (notice && noticeType === 'success') { %><div role="status" class="settings-notification" data-settings-notification><span class="material-icons" aria-hidden="true">check_circle</span><span><%= notice %></span><button type="button" class="settings-notification-close" aria-label="Dismiss notification" title="Dismiss notification"><span class="material-icons" aria-hidden="true">close</span></button></div><% } %>
+  <header class="settings-header"><h1>Settings</h1><p><%= account.username %> <span class="settings-muted">/ <%= {admin:'Administrator',faculty:'Faculty',student:'Student'}[account.role] || account.role %></span></p></header>
+  <div class="settings-workspace">
+    <nav class="settings-nav" aria-label="Settings sections">
+      <% sections.forEach(([key, label, icon]) => { %><a href="/settings?section=<%= key %>" class="settings-nav-link<%= section === key ? ' is-active' : '' %>" <%- section === key ? 'aria-current="page"' : '' %>><span class="material-icons" aria-hidden="true"><%= icon %></span><span><%= label %></span></a><% }); %>
+    </nav>
+    <section class="settings-content" aria-labelledby="settings-section-title">
+      <h2 id="settings-section-title"><%= sections.find(([key]) => key === section)[1] %></h2>
+      <% if (notice && noticeType !== 'success') { %><div role="alert" class="alert alert-<%= noticeType %>"><%= notice %></div><% } %>
+      <% if (section === 'account') { %>
+        <dl class="settings-details">
+          <% [['Username',account.username],['Role',account.role],['Account Status',account.status],['Last Login',account.last_login ? new Date(account.last_login).toLocaleString() : 'Not recorded']].forEach(([label,value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
+        </dl>
+        <form method="POST" action="/settings/account" class="settings-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="mb-3"><label class="form-label" for="account-email">Email</label><input id="account-email" name="email" type="email" maxlength="100" autocomplete="email" value="<%= entered.email ?? account.email %>" class="form-control<%= errors.email ? ' is-invalid' : '' %>" aria-describedby="account-email-error" <%- errors.email ? 'aria-invalid="true"' : '' %> required><div id="account-email-error" class="invalid-feedback"><%= errors.email || '' %></div></div>
+          <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">save</span>Save Email</button>
+        </form>
+      <% } else if (section === 'security') { %>
+        <div class="settings-form"><%- include('../auth/partials/password-form') %></div>
+      <% } else if (section === 'appearance') { %>
+        <fieldset><legend class="h6">Theme</legend><div class="settings-theme-options">
+          <% [['system','System','desktop_windows'],['light','Light','light_mode'],['dark','Dark','dark_mode']].forEach(([value,label,icon]) => { %><input class="btn-check" type="radio" name="theme_preference" id="theme-<%= value %>" value="<%= value %>" <%= themePreference === value ? 'checked' : '' %>><label class="btn btn-outline-secondary" for="theme-<%= value %>"><span class="material-icons" aria-hidden="true"><%= icon %></span><%= label %></label><% }); %>
+        </div></fieldset><p class="settings-muted mt-3">Appearance preference: this browser.</p>
+      <% } else if (section === 'institution') { %>
+        <div class="settings-branding-layout">
+          <form method="POST" action="/settings/institution" id="institution-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <% fields.forEach(field => { const value = entered[field.key] ?? branding[field.key]; %>
+              <div class="mb-3"><label class="form-label" for="setting-<%= field.key %>"><%= field.label %></label>
+                <% if (field.multiline) { %><textarea rows="3" class="form-control<%= errors[field.key] ? ' is-invalid' : '' %>" id="setting-<%= field.key %>" name="<%= field.key %>" maxlength="<%= field.limit %>" aria-describedby="error-<%= field.key %>"><%= value %></textarea><% } else { %><input class="form-control<%= errors[field.key] ? ' is-invalid' : '' %>" id="setting-<%= field.key %>" name="<%= field.key %>" value="<%= value %>" type="<%= field.email ? 'email' : 'text' %>" maxlength="<%= field.limit %>" aria-describedby="error-<%= field.key %>" <%= field.required ? 'required' : '' %>><% } %>
+                <div id="error-<%= field.key %>" class="invalid-feedback"><%= errors[field.key] || '' %></div>
+              </div>
+            <% }); %>
+            <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">save</span>Save Branding</button>
+          </form>
+          <aside class="settings-branding-preview" aria-label="Report branding preview">
+            <h3 class="h6">Report Branding Preview</h3>
+            <div class="settings-preview-paper">
+              <%- include('../reports/partials/branding', { branding: {...branding,...entered}, brandingId: 'settings-branding' }) %>
+              <p class="report-brand-footer" id="settings-preview-footer"><%= entered.report_footer ?? branding.report_footer %></p>
+            </div>
+            <form method="POST" action="/settings/logo" enctype="multipart/form-data" class="mt-4">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="form-label" for="institution-logo">Institution Logo</label><input class="form-control<%= errors.logo ? ' is-invalid' : '' %>" type="file" id="institution-logo" name="logo" accept="image/png,image/jpeg,image/webp" aria-describedby="logo-help logo-error" required><p id="logo-help" class="settings-muted mt-2">PNG, JPEG or WebP. Maximum 2 MB.</p><div id="logo-error" class="invalid-feedback"><%= errors.logo || '' %></div><button type="submit" class="btn btn-outline-primary settings-save mt-2"><span class="material-icons" aria-hidden="true">upload</span>Upload Logo</button>
+            </form>
+            <% if (branding.institution_logo) { %><form method="POST" action="/settings/logo" class="mt-2"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="remove_logo" value="1"><button class="btn btn-outline-secondary settings-save" type="submit"><span class="material-icons" aria-hidden="true">delete_outline</span>Remove Logo</button></form><% } %>
+          </aside>
+        </div>
+        <section class="settings-audit mt-4" aria-labelledby="settings-history-title"><h3 class="h6" id="settings-history-title">Recent Configuration Changes</h3><div class="table-responsive"><table class="table"><thead><tr><th scope="col">Setting</th><th scope="col">Previous Value</th><th scope="col">New Value</th><th scope="col">Account ID</th><th scope="col">Changed At</th></tr></thead><tbody><% audits.forEach(row => { %><tr><td><%= row.setting_key %></td><td><%= row.old_value ?? 'Not set' %></td><td><%= row.new_value || 'Cleared' %></td><td><%= row.changed_by %></td><td><%= new Date(row.changed_at).toLocaleString() %></td></tr><% }); %><% if (!audits.length) { %><tr><td colspan="5">No configuration changes recorded.</td></tr><% } %></tbody></table></div></section>
+      <% } else if (section === 'academic-policy') { %>
+        <dl class="settings-details"><div><dt>Grading Scheme</dt><dd><%= academic.scheme %></dd></div><div><dt>Participation Types</dt><dd><%= academic.examTypes.join(', ') %></dd></div><div><dt>Programme</dt><dd>MCA</dd></div></dl>
+        <div class="table-responsive"><table class="table settings-policy-table"><caption>Current production grading scale</caption><thead><tr><th scope="col">Grade</th><th scope="col">Points</th><th scope="col">Percentage Band</th></tr></thead><tbody><% academic.grades.forEach(row => { %><tr><td><%= row.grade %></td><td><%= row.points %></td><td><%= row.band %></td></tr><% }); %></tbody></table></div>
+        <% if (account.role === 'admin') { %><a href="/subjects/courses" class="btn btn-outline-primary settings-save"><span class="material-icons" aria-hidden="true">fact_check</span>Review Course Rosters</a><% } %>
+        <details class="mt-4"><summary>Academic Result Semantics</summary><pre class="settings-policy-reference"><%= academic.reference %></pre></details>
+      <% } else if (section === 'system') { %>
+        <dl class="settings-details">
+          <% [['Application',system.application],['Version',system.version],['Node.js',system.node],['Environment',system.environment],['Database',system.database],['Result Documents',`PDF / ${system.resultLimit} MB`],['Revaluation Documents',`PDF / ${system.revaluationLimit} MB`],['Student Imports',`CSV, XLS, XLSX / ${system.studentLimit} MB`]].forEach(([label,value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
+        </dl>
+      <% } %>
+    </section>
+  </div>
+</div>
+<script src="/js/reports/branding.js" defer></script>
+<script src="/js/settings.js" defer></script>

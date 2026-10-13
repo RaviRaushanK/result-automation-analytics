@@ -16,7 +16,7 @@ const REVAL_DIR = path.join(UPLOAD_ROOT, 'revaluation');
 
 const REVAL_ALLOWED_MIMES = ['application/pdf'];
 const REVAL_ALLOWED_EXT = ['.pdf'];
-const REVAL_MAX_BYTES = 15 * 1024 * 1024; // 15 MB
+const REVAL_MAX_BYTES = require('../config/uploadLimits').revaluationPdf;
 
 const revaluationUpload = multer({
   dest: TEMP_DIR,

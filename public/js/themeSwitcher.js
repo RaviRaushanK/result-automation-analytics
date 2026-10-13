@@ -11,12 +11,17 @@
   const root = document.documentElement;
   const CLASS_LIGHT = 'theme-light';
   const CLASS_DARK = 'theme-dark';
+  const systemTheme = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const valid = value => ['system', 'light', 'dark'].includes(value);
+  const cookie = name => document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(name + '='))?.slice(name.length + 1);
+  let preference;
 
   /**
    * Apply the selected theme to the DOM.
    * @param {'light'|'dark'} theme
    */
-  function setTheme(theme) {
+  function setTheme() {
+    const theme = preference === 'system' ? (systemTheme?.matches ? 'dark' : 'light') : preference;
     // Set data-theme on <html> (for CSS custom properties)
     root.setAttribute('data-theme', theme);
 
@@ -26,13 +31,17 @@
 
     // Persist in localStorage
     try {
-      localStorage.setItem(STORAGE_KEY, theme);
+      localStorage.setItem(STORAGE_KEY, preference);
     } catch (e) {
       // localStorage may be unavailable
     }
 
     // Persist in cookie (for server-side middleware)
     document.cookie = THEME_COOKIE + '=' + theme + ';path=/;max-age=' + (60 * 60 * 24 * 30);
+    document.cookie = 'themePreference=' + preference + ';path=/;max-age=' + (60 * 60 * 24 * 30);
+    root.classList.remove(CLASS_LIGHT, CLASS_DARK);
+    root.classList.add(theme === 'dark' ? CLASS_DARK : CLASS_LIGHT);
+    document.querySelectorAll('[name="theme_preference"]').forEach(input => { input.checked = input.value === preference; });
 
     // Update toggle button icon if present
     const toggleBtn = document.querySelector('.theme-toggle-btn');
@@ -53,45 +62,46 @@
     // 1. Check localStorage
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === 'light' || stored === 'dark') return stored;
+      if (valid(stored)) return stored;
     } catch (e) { /* ignore */ }
 
     // 2. Check cookie
-    const match = document.cookie.match(new RegExp('(^| )' + THEME_COOKIE + '=([^;]+)'));
-    if (match) {
-      const val = match[2];
-      if (val === 'light' || val === 'dark') return val;
-    }
+    const selected = cookie('themePreference');
+    if (valid(selected)) return selected;
+    const legacy = cookie(THEME_COOKIE);
+    if (['light', 'dark'].includes(legacy)) return legacy;
 
     // 3. Check system preference
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-
-    return 'light';
+    return 'system';
   }
 
   // Initialize theme
-  const initialTheme = getInitialTheme();
-  setTheme(initialTheme);
+  preference = getInitialTheme();
+  setTheme();
+  window.getThemePreference = () => preference;
+  window.setThemePreference = function (value) {
+    if (!valid(value)) return;
+    preference = value;
+    setTheme();
+  };
+  document.querySelectorAll('[name="theme_preference"]').forEach(input => {
+    input.addEventListener('change', () => { if (input.checked) window.setThemePreference(input.value); });
+  });
+  window.addEventListener('storage', event => {
+    if (event.key === STORAGE_KEY) window.setThemePreference(valid(event.newValue) ? event.newValue : 'system');
+  });
 
   // Expose a global toggle for UI controls
   window.toggleTheme = function () {
     const current = root.getAttribute('data-theme') || 'light';
     const newTheme = current === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
+    window.setThemePreference(newTheme);
   };
 
   // Listen for system preference changes
-  if (window.matchMedia) {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', function (e) {
-      // Only auto-switch if user hasn't explicitly set a preference
-      try {
-        if (!localStorage.getItem(STORAGE_KEY)) {
-          setTheme(e.matches ? 'dark' : 'light');
-        }
-      } catch (err) { /* ignore */ }
+  if (systemTheme) {
+    systemTheme.addEventListener('change', function () {
+      if (preference === 'system') setTheme();
     });
   }
 

@@ -252,6 +252,7 @@
   }
 
   function render(report) {
+    if (window.renderReportBranding && report.branding) window.renderReportBranding(report.branding);
     const head = ui('table').querySelector('thead');
     const body = ui('table').querySelector('tbody');
     const header = node('tr');

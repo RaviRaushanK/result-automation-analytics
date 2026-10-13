@@ -6,7 +6,7 @@ const resultController = require('../controllers/resultController');
 // Multer temp storage — files are moved to /uploads/results by the controller
 const upload = multer({
   dest: 'uploads/temp/',
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
+  limits: { fileSize: require('../config/uploadLimits').resultPdf },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf'];
     const ext = require('path').extname(file.originalname).toLowerCase();

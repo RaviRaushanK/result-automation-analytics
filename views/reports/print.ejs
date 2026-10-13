@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/css/reports.css">
 </head>
 <body class="reports-print <%= report.type === 'student-progress' ? 'reports-progress-print' : '' %>">
+  <% if (report.branding) { %><%- include('partials/branding', { branding: report.branding }) %><% } %>
   <% if (report.type === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h1><%= report.formalTitle %></h1></header><ul class="reports-progress-notes"><% report.notes.forEach(note => { %><li><%= note %></li><% }); %></ul><% } %>
   <% if (report.type === 'result-analysis') { %>
     <header class="reports-analysis-header"><p>Department: MCA</p><h1><%= report.formalHeader.title %></h1><p><%= report.formalHeader.examination %></p><p><%= report.meta.batch.batch_name %></p></header>
@@ -62,6 +63,8 @@
       <tbody><% report.rows.forEach((row, index) => { %><tr><% if (report.type !== 'toppers') { %><td><%= index + 1 %></td><% } %><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %></tbody>
     </table>
   <% } %>
+  <% if (report.branding?.report_footer) { %><p class="report-brand-footer"><%= report.branding.report_footer %></p><% } %>
+  <script src="/js/reports/branding.js" defer></script>
   <script src="/js/reports/print.js" defer></script>
 </body>
 </html>
