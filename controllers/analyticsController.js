@@ -11,6 +11,7 @@
  */
 
 const analyticsService = require('../services/analyticsService');
+const progressService = require('../services/progressAnalyticsService');
 
 // Roles allowed to access Analytics. Kept in sync with config/sidebar.json.
 const ANALYTICS_ROLES = ['admin', 'faculty'];
@@ -18,6 +19,11 @@ const ANALYTICS_ROLES = ['admin', 'faculty'];
 const PAGE_STYLES = ['/css/analytics.css', '/css/dashboard.css'];
 
 const PAGES = {
+    progress: {
+        view: 'analytics/progress',
+        title: 'Student Progress & Backlog Trends - SRAAS',
+        breadcrumb: [{ href: '/analytics/progress', label: 'Progress / Backlog Trends' }]
+    },
     overview: {
         view: 'analytics/overview',
         title: 'Analytics Overview - SRAAS',
@@ -143,6 +149,14 @@ function pageHandler(pageKey) {
 }
 
 const analyticsController = {
+    progress: async (req, res) => {
+        try { return res.json(await progressService.getProgress(req.query)); }
+        catch (err) {
+            if (err.status) return res.status(err.status).json({ success: false, message: err.message });
+            return apiError(res, err);
+        }
+    },
+    progressPage: pageHandler('progress'),
     // API endpoints — pass-through to service (filters normalized by service)
     overview: apiHandler(analyticsService.getOverview),
     toppers: apiHandler(analyticsService.getToppers, { paginated: true }),

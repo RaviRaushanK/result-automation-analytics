@@ -39,7 +39,7 @@ const NUMERIC_FIELDS = new Set([
   'passToFail', 'positiveDelta', 'unchanged', 'negativeDelta',
   'averageDelta', 'maxDelta', 'minDelta', 'rowCount',
   'effectiveOverlaySubjects', 'effectiveAnomalies',
-  'originalMarks', 'revisedMarks', 'delta'
+  'originalMarks', 'revisedMarks', 'effectiveMarks', 'delta'
 ]);
 
 // ---------------------------------------------------------------------------
@@ -259,10 +259,7 @@ async function getFailedStudents(filters, options) {
 
   const data = (rows || []).map((row) => {
     const r = normalizeRow(row, NUMERIC_FIELDS);
-    if (normalized.mode === 'effective') {
-      // Keep original failure information visible alongside revised values.
-      r.hadEffectiveRevaluation = !!r.hadEffectiveRevaluation;
-    }
+    r.hadEffectiveRevaluation = r.hadEffectiveRevaluation === true || Number(r.hadEffectiveRevaluation) === 1;
     return r;
   });
 

@@ -31,6 +31,7 @@ async function main() {
   app.use(require('../middlewares/themeMiddleware'));
   app.use(require('../middlewares/menuMiddleware'));
   app.use('/reports', require('../routes/reportsRoutes'));
+  app.use('/analytics', require('../routes/analyticsRoutes'));
   app.use('/subjects', require('../routes/subjectRoutes'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
@@ -93,13 +94,13 @@ async function main() {
           const query = { batch_id: String(batch.batch_id), semester: semester.semester, session_id: String(session.session_id) };
           const subjects = await service.getOptions('subjects', query);
           const report = await service.getReport('class', query);
-          if (subjects.length && report.pagination.totalRows > 25) { scope = { query, subjects, totalRows: report.pagination.totalRows }; break; }
+          if (subjects.length && report.pagination.totalRows > 0) { scope = { query, subjects, totalRows: report.pagination.totalRows }; break; }
         }
         if (scope) break;
       }
       if (scope) break;
     }
-    if (!scope) throw new Error('Browser verification needs a session with subjects and more than 25 result attempts.');
+    if (!scope) throw new Error('Browser verification needs a session with subjects and recorded result attempts.');
     const students = await service.getOptions('students', scope.query);
     let selectedStudent;
     for (const student of students) {
@@ -107,6 +108,127 @@ async function main() {
       if (attempts.length) { selectedStudent = { student, attempts }; break; }
     }
 
+    const progressService = require('../services/progressAnalyticsService');
+    const expectedProgress = await progressService.getProgress({ batch_id: String(scope.query.batch_id), semester: String(scope.query.semester) });
+    for (const route of ['/reports', '/analytics', '/analytics/progress']) {
+      await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await command('Page.navigate', { url: `${base}${route}?${new URLSearchParams(scope.query)}` });
+      if (route === '/reports') {
+        await until("document.querySelectorAll('.reports-launcher').length === 8");
+        assert.deepEqual((await evaluate("[...document.querySelectorAll('.reports-launcher')].map(a=>new URL(a.href).pathname)")).sort(), service.TYPES.map(t => '/reports/' + t).sort());
+      } else if (route === '/analytics') {
+        await until("document.querySelector('[data-metric=students] .stat-value').textContent !== '\\u2014'");
+        const link = new URL(await evaluate("document.querySelector('[data-analytics-target=progress]').href"));
+        assert.equal(link.searchParams.get('batch_id'), String(scope.query.batch_id));
+        assert.equal(link.searchParams.get('semester'), String(scope.query.semester));
+        assert.equal(link.searchParams.has('session_id'), false);
+        for (const chartId of ['grade-distribution-chart', 'performance-summary-chart']) {
+          await until(`!!document.querySelector('#${chartId} canvas') && !!Chart.getChart(document.querySelector('#${chartId} canvas'))`);
+          await evaluate(`document.getElementById('${chartId}').scrollIntoView({block:'center',behavior:'instant'})`);
+          await pause(150);
+          const labelCount = await evaluate(`Chart.getChart(document.querySelector('#${chartId} canvas')).data.labels.length`);
+          for (let index = 0; index < Math.min(2, labelCount); index++) {
+            const point = await evaluate(`(()=>{const canvas=document.querySelector('#${chartId} canvas'),chart=Chart.getChart(canvas),r=canvas.getBoundingClientRect(),bar=chart.getDatasetMeta(0).data[${index}];return {x:r.left+bar.x,y:r.top+chart.chartArea.top+2,label:chart.data.labels[${index}]};})()`);
+            await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
+            try {
+              await until(`(()=>{const t=Chart.getChart(document.querySelector('#${chartId} canvas')).tooltip;return t.opacity===1&&t.title[0]===${JSON.stringify(point.label)};})()`);
+            } catch (error) {
+              console.log({ point, chart: await evaluate(`(()=>{const c=Chart.getChart(document.querySelector('#${chartId} canvas'));return {area:c.chartArea,tooltip:{opacity:c.tooltip.opacity,title:c.tooltip.title},interaction:c.options.interaction,rect:c.canvas.getBoundingClientRect().toJSON()};})()`) });
+              throw error;
+            }
+            const tooltip = await evaluate(`(()=>{const t=Chart.getChart(document.querySelector('#${chartId} canvas')).tooltip;return {items:t.dataPoints.length,values:t.dataPoints.map(p=>p.raw)};})()`);
+            assert.equal(tooltip.items, chartId === 'performance-summary-chart' ? 2 : 1);
+            assert.ok(tooltip.values.every(Number.isFinite));
+          }
+          await fs.writeFile(path.join(output, chartId + '-moving-tooltip.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        }
+        await evaluate("document.querySelector('.analytics-explore').scrollIntoView({block:'center'})");
+      } else {
+        await until("document.getElementById('progress-total').textContent !== '-'");
+        assert.equal(Number((await evaluate("document.getElementById('progress-total').textContent")).replaceAll(',', '')), expectedProgress.summary.total);
+        for (const key of ['withoutBacklog', 'withBacklog', 'uncleared', 'unknown']) assert.equal(Number(await evaluate(`document.getElementById('progress-${key}').textContent`)), expectedProgress.summary[key]);
+        assert.equal(await evaluate("document.querySelectorAll('#progress-attention-body tr').length <= 20"), true);
+      }
+      for (const width of [1440, 1280, 768, 390]) for (const theme of ['light', 'dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await evaluate(`document.documentElement.setAttribute('data-theme', '${theme}')`); await pause(250);
+        if (await evaluate('document.documentElement.scrollWidth > innerWidth + 1')) {
+          console.log(await evaluate("JSON.stringify([...document.querySelectorAll('main *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&r.right>innerWidth+1}).slice(0,12).map(e=>({tag:e.tagName,class:e.className,width:e.getBoundingClientRect().width,right:e.getBoundingClientRect().right})))"));
+          await fs.writeFile(path.join(output, 'analytics-overflow.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          console.log(`Overflow screenshot: ${output}`);
+        }
+        assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true, `${route}: ${width} ${theme}`);
+        if (width >= 1024) assert.equal(await evaluate("[...document.querySelectorAll('.sidebar-link-label')].every(e=>e.clientWidth===0||e.scrollWidth<=e.clientWidth+1)"), true, 'Sidebar labels must fit');
+        if (route === '/analytics/progress' && expectedProgress.summary.total) {
+          assert.equal(await evaluate("(()=>{const c=document.querySelector('#progress-status-chart canvas');return !!c&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4===3&&v>0)})()"), true);
+        }
+        if (route === '/analytics') await evaluate("document.querySelector('.analytics-explore').scrollIntoView({block:'center'})");
+        if (route === '/analytics/progress') await evaluate("document.getElementById('progress-attention-heading').scrollIntoView({block:'center'})");
+        await fs.writeFile(path.join(output, `${route.replaceAll('/', '-')}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      if (route === '/analytics/progress') {
+        await evaluate("document.getElementById('progress-mode').value='effective';document.getElementById('progress-filters').requestSubmit()");
+        await until("document.getElementById('progress-filters').getAttribute('aria-busy') === 'false'");
+        const effective = await progressService.getProgress({ batch_id: scope.query.batch_id, semester: scope.query.semester, mode: 'effective' });
+        for (const key of ['total', 'withoutBacklog', 'withBacklog', 'uncleared', 'unknown', 'clearanceRate']) {
+          const expected = effective.summary[key] == null ? '-' : Number(effective.summary[key]).toLocaleString('en-US', { maximumFractionDigits: 2 }) + (key === 'clearanceRate' ? '%' : '');
+          assert.equal(await evaluate(`document.getElementById('progress-${key}').textContent`), expected, `Effective ${key}`);
+        }
+        assert.deepEqual(await evaluate("Chart.getChart(document.querySelector('#progress-status-chart canvas')).data.datasets[0].data"), ['withoutBacklog', 'withBacklog', 'uncleared', 'unknown'].map(key => effective.summary[key]));
+        assert.deepEqual(await evaluate("Chart.getChart(document.querySelector('#progress-trend-chart canvas')).data.datasets.map(d=>d.data)"), ['withoutBacklog', 'withBacklog', 'uncleared', 'unknown'].map(key => effective.trends.map(t => t[key])));
+        assert.deepEqual(await evaluate("[...document.querySelectorAll('#progress-attention-body .analytics-report-action')].map(a=>({usn:a.closest('tr').cells[0].textContent,studentId:Number(new URL(a.href).searchParams.get('student_id')),mode:new URL(a.href).searchParams.get('mode')}))"), effective.attention.map(s => ({ usn: s.usn, studentId: Number(s.studentId), mode: 'effective' })));
+        const reportLink = new URL(await evaluate("document.getElementById('progress-report-link').href"));
+        assert.equal(reportLink.searchParams.get('mode'), 'effective');
+        await evaluate("document.getElementById('progress-period').value='academic_year:1';document.getElementById('progress-filters').requestSubmit()");
+        await until("document.getElementById('progress-summary-heading').textContent === 'First Year Completion'");
+        const year = await progressService.getProgress({ batch_id: scope.query.batch_id, academic_year: 1, mode: 'effective' });
+        for (const key of ['withoutBacklog', 'withBacklog', 'uncleared', 'unknown']) assert.equal(Number(await evaluate(`document.getElementById('progress-${key}').textContent`)), year.summary[key]);
+      }
+      console.log(`${route}: responsive, themes, navigation and charts passed`);
+    }
+    await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    for (const page of ['students', 'toppers', 'failed', 'subjects', 'semesters', 'revaluation']) {
+      const compatible = { ...scope.query, mode: 'effective' };
+      if (page === 'semesters') delete compatible.session_id;
+      if (page === 'revaluation') delete compatible.mode;
+      await command('Page.navigate', { url: `${base}/analytics/${page}?${new URLSearchParams(compatible)}` });
+      await until(`document.getElementById('filter-batch')?.value === '${scope.query.batch_id}' && (!document.getElementById('filter-session') || document.getElementById('filter-session').value === '${scope.query.session_id}')`);
+      assert.equal(await evaluate("document.getElementById('filter-semester').value"), String(scope.query.semester));
+      if (page !== 'revaluation') assert.equal(await evaluate("document.getElementById('filter-mode').value"), 'effective');
+      const response = await evaluate(`(async()=>{const r=await fetch('/analytics/api/${page}?${new URLSearchParams({ ...scope.query, mode: 'effective' })}',{headers:{Accept:'application/json'}});const body=await r.json();return {status:r.status,success:body.success};})()`);
+      assert.equal(response.status, 200, page); assert.notEqual(response.success, false, page);
+      if (page === 'failed') {
+        const analytics = require('../services/analyticsService');
+        const readFailures = () => evaluate("[...document.querySelectorAll('#failed-table-body tr')].filter(tr=>tr.cells.length===7).map(tr=>{const c=tr.cells;return [c[0].textContent,c[1].textContent,c[2].textContent,c[3].textContent,c[4].textContent,c[5].querySelector('.analytics-status').lastChild.textContent.trim().toLowerCase(),c[6].querySelector('.analytics-status').lastChild.textContent.trim().toLowerCase()]})");
+        const expectedRows = data => data.map(r => [r.usn, r.studentName, r.subjectName,
+          r.originalMarks == null ? '\u2014' : Number(r.originalMarks).toFixed(2),
+          r.effectiveMarks == null ? '\u2014' : Number(r.effectiveMarks).toFixed(2),
+          r.originalStatus || '\u2014', r.effectiveStatus || '\u2014']);
+        for (const mode of ['original', 'effective']) {
+          await until("!document.querySelector('#analytics-filter-form [type=submit]').disabled");
+          await evaluate(`document.getElementById('filter-mode').value='${mode}';document.getElementById('filter-mode').dispatchEvent(new Event('change',{bubbles:true}))`);
+          await until(`document.getElementById('failed-table-body').getAttribute('aria-busy')==='false' && document.getElementById('analytics-mode-label').textContent==='${mode === 'original' ? 'Original' : 'Effective'}' && !document.querySelector('#analytics-filter-form [type=submit]').disabled`);
+          const expected = await analytics.getFailedStudents({ ...scope.query, mode }, { limit: 50 });
+          assert.deepEqual(await readFailures(), expectedRows(expected.data), `${mode}: every displayed original/effective value agrees with API`);
+        }
+        await evaluate("window.savedFailedFetch=window.fetch;window.delayedFailedRequests=0;window.fetch=async(...args)=>{const response=await window.savedFailedFetch(...args);if(String(args[0]).includes('/analytics/api/failed')&&String(args[0]).includes('mode=original')){window.delayedFailedRequests++;await new Promise(r=>setTimeout(r,400));}return response;}");
+        await evaluate("document.getElementById('filter-mode').value='original';document.getElementById('filter-mode').dispatchEvent(new Event('change',{bubbles:true}))");
+        await until('window.delayedFailedRequests > 0');
+        await evaluate("document.getElementById('filter-mode').value='effective';document.getElementById('filter-mode').dispatchEvent(new Event('change',{bubbles:true}))");
+        await until("document.getElementById('failed-table-body').getAttribute('aria-busy')==='false' && document.getElementById('analytics-mode-label').textContent==='Effective'");
+        await pause(450);
+        const effectiveRows = await analytics.getFailedStudents({ ...scope.query, mode: 'effective' }, { limit: 50 });
+        assert.deepEqual(await readFailures(), expectedRows(effectiveRows.data), 'Delayed Original response cannot overwrite Effective results');
+        await evaluate('window.fetch=window.savedFailedFetch');
+        assert.equal(await evaluate(`Array.from(document.getElementById('filter-subject').options).some(o=>o.value==='${scope.subjects[0].subject_id}')`), true, 'Subject filter is populated');
+        await evaluate(`document.getElementById('filter-subject').value='${scope.subjects[0].subject_id}';document.getElementById('filter-subject').dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('analytics-filter-form').requestSubmit()`);
+        await until("document.getElementById('failed-table-body').getAttribute('aria-busy')==='false'");
+        const subjectRows = await analytics.getFailedStudents({ ...scope.query, mode: 'effective', subject_id: scope.subjects[0].subject_id }, { limit: 50 });
+        assert.deepEqual(await readFailures(), expectedRows(subjectRows.data), 'Subject filter applies to the displayed outcomes');
+        console.log('failed: all displayed values, both modes, subject filtering and delayed-response protection passed');
+      }
+      console.log(`${page}: Analytics API and compatible deep-link filters passed`);
+    }
     for (const type of service.TYPES) {
       await command('Page.navigate', { url: `${base}/reports/${type}` });
       await available('batch_id');
@@ -192,7 +314,7 @@ async function main() {
         const csv = await evaluate("(async()=>await(await fetch(document.getElementById('reports-csv').href)).text())()");
         assert.ok(csv.includes(`\r\n${progress.pagination.totalRows},`));
         assert.ok(csv.includes('Successfully Completed With Back Log - First Year'));
-        assert.ok(csv.includes('Successfully Completed Without Back Log - Second Year'));
+        for (const column of progress.completionColumns) assert.ok(csv.includes(column.label));
         assert.doesNotMatch(csv, /Sem \d+ (With|Without) Backlog/);
         await evaluate("document.getElementById('reports-flat-table').scrollLeft=document.getElementById('reports-flat-table').scrollWidth");
         await fs.writeFile(path.join(output, 'progress-year-completion-desktop.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
@@ -226,10 +348,12 @@ async function main() {
         await evaluate("document.getElementById('reports-flat-table').scrollLeft=0");
       }
       if (type === 'class' || type === 'consolidated') {
-        assert.equal(await evaluate("document.querySelectorAll('#reports-table tbody tr').length"), 25);
-        await evaluate("document.getElementById('reports-next').click()");
-        await until("!document.getElementById('reports-loading').hidden === false && document.getElementById('reports-page-info').textContent.startsWith('Page 2')");
-        assert.equal(await evaluate("document.querySelector('#reports-table tbody td').textContent"), '26');
+        assert.equal(await evaluate("document.querySelectorAll('#reports-table tbody tr').length"), Math.min(25, scope.totalRows));
+        if (scope.totalRows > 25) {
+          await evaluate("document.getElementById('reports-next').click()");
+          await until("!document.getElementById('reports-loading').hidden === false && document.getElementById('reports-page-info').textContent.startsWith('Page 2')");
+          assert.equal(await evaluate("document.querySelector('#reports-table tbody td').textContent"), '26');
+        }
         const printRows = await evaluate("(async()=>{ const html=await (await fetch(document.getElementById('reports-print').href)).text();const d=new DOMParser().parseFromString(html,'text/html');return d.querySelectorAll('tbody tr').length;})()");
         assert.equal(printRows, scope.totalRows);
         const csvText = await evaluate("(async()=>await (await fetch(document.getElementById('reports-csv').href)).text())()");

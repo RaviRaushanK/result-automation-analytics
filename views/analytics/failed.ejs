@@ -56,6 +56,7 @@
           <button type="submit" class="btn btn-primary">Apply Filters</button>
         </div>
       </div>
+      <p id="failed-filter-state" class="analytics-note mt-2 mb-0" role="status" aria-live="polite"></p>
     </form>
   </div>
   <%# ---- Failure summary cards (populated by the page script) ---- %>
@@ -115,7 +116,7 @@
     <div class="analytics-card">
       <h2 id="failed-table-heading" class="h6 p-2 analytics-card-title">Recorded Failed Subject Results</h2>
       <p class="analytics-note px-2">
-        Original and effective columns reflect stored values and approved revaluation overlays where applicable.
+        Original mode lists recorded subject failures. Effective mode lists failures after approved effective revaluation; revised passes leave this list. Effective values fall back to originals when no approved effective revision exists. Pending and rejected revisions are excluded.
       </p>
       <div class="analytics-toolbar">
         <label class="analytics-search-wrap" for="failed-search">
@@ -187,7 +188,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/reports/chart.umd.min.js"></script>
 <script src="/js/analytics/charts.js"></script>
 <script src="/js/analytics/tabletools.js"></script>
 <script src="/js/analytics/failed.js"></script>

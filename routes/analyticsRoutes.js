@@ -26,6 +26,8 @@ router.use(analyticsAuthorization);
 // -----------------------------
 // Page routes (EJS shells)
 // -----------------------------
+router.get('/', analyticsController.overviewPage);
+router.get('/progress', analyticsController.progressPage);
 router.get('/overview', analyticsController.overviewPage);
 router.get('/toppers', analyticsController.toppersPage);
 router.get('/failed', analyticsController.failedPage);
@@ -37,6 +39,7 @@ router.get('/revaluation', analyticsController.revaluationPage);
 // -----------------------------
 // API routes (JSON)
 // -----------------------------
+router.get('/api/progress', analyticsController.progress);
 router.get('/api/overview', analyticsController.overview);
 router.get('/api/toppers', analyticsController.toppers);
 router.get('/api/failed', analyticsController.failed);

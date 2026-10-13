@@ -48,8 +48,8 @@ test('Overview starts and renders the service response', async () => {
   }
   const requests = [];
   vm.runInNewContext(fs.readFileSync(path.join(root, 'public/js/analytics/overview.js'), 'utf8'), {
-    document: { getElementById: element, querySelector: element, createElement: () => element(Symbol()), documentElement: { getAttribute: () => 'light' } },
-    URLSearchParams, console, setTimeout,
+    document: { getElementById: element, querySelector: element, querySelectorAll: () => [], createElement: () => element(Symbol()), documentElement: { getAttribute: () => 'light' } },
+    location: { search: '' }, URLSearchParams, console, setTimeout,
     fetch: async (url) => {
       requests.push(url);
       return { ok: true, json: async () => url.includes('/filter-options/') ? { data: [] } : response };

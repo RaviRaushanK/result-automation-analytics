@@ -263,7 +263,7 @@ function buildAttemptFragment(f) {
  * Compose the subject-level query skeleton for the requested mode.
  * Returns null when the caller must short-circuit to an empty result.
  */
-function buildSubjectQueryBase(f, resolved, params) {
+function buildSubjectQueryBase(f, resolved, params, includeEffective = false) {
   const attempt = buildAttemptFragment(f);
 
   let sql = SUBJECT_FROM + attempt.join;
@@ -271,7 +271,7 @@ function buildSubjectQueryBase(f, resolved, params) {
   if (sessionFragment === null) return null;
 
   // Joins must precede the WHERE clause.
-  if (f.mode === 'effective') sql += EFFECTIVE_EVENT_JOIN;
+  if (f.mode === 'effective' || includeEffective) sql += EFFECTIVE_EVENT_JOIN;
   sql += ' WHERE 1 = 1' + sessionFragment + attempt.fragment;
 
   const rowFragment = buildRowFilterFragment(f, params);
@@ -660,29 +660,28 @@ async function getTopStudents(filters, options) {
  * 8. getFailedStudents(filters, options)
  * Finalized SUBJECT-LEVEL failures. Original mode filters
  * sr.result_status='fail'; effective mode filters the effective subject
- * status expression. When an approved+effective overlay exists, original vs
- * revised marks/status are returned alongside so provenance is auditable.
+ * status expression. Both comparison columns always include approved-effective
+ * overlays with original fallback, independently of the selected failure basis.
  * "Currently failed / unresolved backlog" semantics are NOT defined here.
  */
 async function getFailedStudents(filters, options) {
-  const f = normalizeFilters(filters);
   const fFail = { ...filters, result_status: 'fail' };
   const fNorm = normalizeFilters(fFail);
   const resolved = await resolveSessionsInternal(fFail);
   const params = {};
-  const base = buildSubjectQueryBase(fNorm, resolved, params);
+  const base = buildSubjectQueryBase(fNorm, resolved, params, true);
   if (base === null) return [];
   const page = pagination(options);
 
-  const overlaySelect = f.mode === 'effective'
-    ? `sr.marks        AS originalMarks,
+  const overlaySelect = `sr.marks        AS originalMarks,
        sr.grade        AS originalGrade,
        sr.result_status AS originalStatus,
        eff.revised_marks  AS revisedMarks,
        eff.revised_grade  AS revisedGrade,
        eff.revised_status AS revisedStatus,
-       (eff.revaluation_id IS NOT NULL) AS hadEffectiveRevaluation,`
-    : '';
+       COALESCE(eff.revised_marks, sr.marks) AS effectiveMarks,
+       COALESCE(eff.revised_status, sr.result_status) AS effectiveStatus,
+       (eff.revaluation_id IS NOT NULL) AS hadEffectiveRevaluation,`;
 
   return select(`
     SELECT

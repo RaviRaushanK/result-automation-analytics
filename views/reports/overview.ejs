@@ -1,0 +1,18 @@
+<div class="reports-page reports-center">
+  <header class="reports-header"><div><h1>Reports</h1><p>Generate, review, export and print academic reports.</p></div></header>
+  <% reportGroups.forEach((group, index) => { %>
+    <section class="mb-4" aria-labelledby="report-group-<%= index %>">
+      <h2 class="h5 mb-3" id="report-group-<%= index %>"><%= group.title %></h2>
+      <div class="reports-center-grid">
+        <% group.cards.forEach(card => { %>
+          <a class="reports-launcher" href="<%= card.href %>">
+            <span class="material-icons reports-launcher-icon" aria-hidden="true"><%= card.icon %></span>
+            <h3><%= card.title %></h3>
+            <p><%= card.description %></p>
+            <span class="reports-launcher-action">Open Report <span class="material-icons" aria-hidden="true">arrow_forward</span></span>
+          </a>
+        <% }); %>
+      </div>
+    </section>
+  <% }); %>
+</div>

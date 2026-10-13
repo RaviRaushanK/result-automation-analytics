@@ -448,10 +448,13 @@ body {
 }
 .sidebar-link .material-icons {
   font-size: 1.2rem;
+  width: 1.2rem;
+  text-align: center;
   vertical-align: middle;
   color: inherit;
   flex-shrink: 0;
 }
+.sidebar-link-label { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 
 /* Text transition for smooth collapse/expand — prevents clipped text */
 .sidebar-link span:not(.material-icons),

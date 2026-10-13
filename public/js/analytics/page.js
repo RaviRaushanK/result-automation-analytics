@@ -4,6 +4,14 @@
   window.AnalyticsPage = function (config) {
     var form = document.getElementById('analytics-filter-form');
     if (!form) return;
+    var initialQuery = new URLSearchParams(location.search);
+    Array.from(form.elements).forEach(function (el) {
+      if (!el.name || !initialQuery.has(el.name)) return;
+      if (el.tagName !== 'SELECT' || Array.from(el.options).some(function (o) { return o.value === initialQuery.get(el.name); })) el.value = initialQuery.get(el.name);
+    });
+    Array.from(initialQuery.keys()).forEach(function (key) {
+      if (['batch_id', 'semester', 'session_id', 'subject_id'].indexOf(key) === -1) initialQuery.delete(key);
+    });
     var request = 0, filterRequest = 0, offset = 0, limit = 25, charts = [];
     // Selects that must NOT offer an empty/"All" choice. Their options are
     // listed newest-first by the API, so the first option is the latest value
@@ -150,6 +158,7 @@
         batch_id: ['session_id', 'subject_id'], session_id: ['subject_id'] };
       (children[changed] || []).forEach(function (name) { if (form.elements.namedItem(name)) form.elements.namedItem(name).value = ''; });
       var params = filters();
+      initialQuery.forEach(function (value, key) { if (form.elements.namedItem(key)) params.set(key, value); });
       await Promise.all(definitions.map(async function (def) {
         var el = form.elements.namedItem(def[1]);
         if (!el) return;
@@ -158,7 +167,8 @@
         try {
           var result = await json('/analytics/api/filter-options/' + def[0] + '?' + scoped);
           if (current !== filterRequest) return;
-          var selected = el.value, seen = new Set();
+          var selected = initialQuery.get(def[1]) || el.value, seen = new Set();
+          initialQuery.delete(def[1]);
           var first = firstOption.indexOf(def[1]) !== -1;
           while (el.options.length > (first ? 0 : 1)) el.remove(first ? 0 : 1);
           (result.data || []).forEach(function (item) {

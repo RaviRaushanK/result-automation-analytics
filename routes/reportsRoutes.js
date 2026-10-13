@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const controller = require('../controllers/reportsController');
 
 router.use(authMiddleware, controller.authorization);
-router.get('/', (req, res) => res.redirect('/reports/student'));
+router.get('/', controller.overview);
 router.get('/api/batches', controller.options('batches'));
 router.get('/api/batches/:batchId/students', controller.options('students'));
 router.get('/api/batches/:batchId/semesters', controller.options('semesters'));

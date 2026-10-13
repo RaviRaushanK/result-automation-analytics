@@ -1,6 +1,14 @@
 'use strict';
 
 const service = require('../services/reportsService');
+const reportCenter = require('../config/reportCenter');
+
+function overview(req, res) {
+  res.render('reports/overview', {
+    title: 'Reports - SRAAS', pageStyles: ['/css/reports.css'], reportGroups: reportCenter,
+    breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '/reports', label: 'Reports' }]
+  });
+}
 
 function authorization(req, res, next) {
   if (['admin', 'faculty'].includes(req.session?.role || req.user?.role)) return next();
@@ -17,7 +25,7 @@ function page(type) {
   return (req, res) => res.render(`reports/${type}`, {
     title: `${service.TITLES[type]} - SRAAS`, reportType: type, reportTitle: service.TITLES[type],
     pageStyles: ['/css/reports.css'],
-    breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: `/reports/${type}`, label: service.TITLES[type] }]
+    breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '/reports', label: 'Reports' }, { href: `/reports/${type}`, label: service.TITLES[type] }]
   });
 }
 
@@ -100,4 +108,4 @@ function print(type) {
   };
 }
 
-module.exports = { authorization, page, api, options, csv, print };
+module.exports = { authorization, overview, page, api, options, csv, print };

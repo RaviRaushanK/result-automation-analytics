@@ -364,5 +364,21 @@
   });
   ui('prev').addEventListener('click', () => { if (!generating && currentPage > 1) generate(currentPage - 1); });
   ui('next').addEventListener('click', () => { if (!generating && currentPage < totalPages) generate(currentPage + 1); });
-  cascade('initial');
+  async function initialize() {
+    const query = new URLSearchParams(location.search);
+    const initialVersion = version;
+    await cascade('initial');
+    for (const name of dependent) {
+      if (version !== initialVersion) return;
+      const select = el(name), value = query.get(name);
+      if (!value || select.disabled || !Array.from(select.options).some(o => o.value === value)) continue;
+      select.value = value;
+      await cascade(name);
+    }
+    if (version !== initialVersion) return;
+    if (el('mode') && Array.from(el('mode').options).some(o => o.value === query.get('mode'))) el('mode').value = query.get('mode');
+    ui('view').textContent = type === 'revaluation' ? 'Revaluation Events' : `${el('mode').value === 'effective' ? 'Effective' : 'Original'} Result`;
+    ready();
+  }
+  initialize();
 })();
