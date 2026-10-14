@@ -15,7 +15,7 @@
     <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-blue"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">event</span></div><div class="stat-content"><div class="stat-value" id="totalSessionsCount">0</div><div class="stat-label">Total Sessions</div></div></div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-green"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">check_circle</span></div><div class="stat-content"><div class="stat-value" id="completedSessionsCount">0</div><div class="stat-label">Completed</div></div></div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-amber"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">schedule</span></div><div class="stat-content"><div class="stat-value" id="upcomingSessionsCount">0</div><div class="stat-label">Upcoming</div></div></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-teal"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">today</span></div><div class="stat-content"><div class="stat-value stat-batch-name" id="currentSessionName">—</div><div class="stat-label">Current Session</div></div></div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-teal"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">today</span></div><div class="stat-content"><div class="stat-value stat-batch-name" id="currentSessionName">—</div><div class="stat-label" id="currentSessionLabel">Current Session</div><div class="small text-muted text-break" id="currentSessionContext"></div></div></div></div></div>
   </div>
 
   <div class="card mb-4">
@@ -30,7 +30,7 @@
     <div class="card-body">
       <div class="table-responsive" id="sessionsTableWrapper">
         <table class="table table-hover align-middle batches-table sessions-table mb-0" id="sessionsTable">
-          <thead class="table-light"><tr><th>Session</th><th>Batch</th><th>Department</th><th>Semester</th><th>Starting Month</th><th>Exam Year</th><th>Status</th><th>Created Date</th><th class="text-center">Actions</th></tr></thead>
+          <thead class="table-light"><tr><th>Session</th><th>Batch</th><th>Department</th><th>Semester</th><th>Month</th><th>Exam Year</th><th>Status</th><th>Created Date</th><th class="text-center">Actions</th></tr></thead>
           <tbody id="sessionsTableBody"><tr><td colspan="9" class="text-center table-loading"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading sessions...</td></tr></tbody>
         </table>
       </div>
@@ -45,10 +45,10 @@
         <div class="alert alert-danger d-none" id="createSessionError" role="alert"></div>
         <div class="mb-3"><label for="createSessionBatch" class="form-label">Batch <span class="text-danger">*</span></label><select class="form-select" id="createSessionBatch" required><option value="">Select a batch</option><% batches.forEach(function(b){ %><option value="<%= b.batch_id %>"><%= b.batch_name %> — <%= b.Department ? b.Department.department_name : '' %></option><% }); %></select><div class="invalid-feedback">Please select a batch.</div></div>
         <div class="row g-3">
-          <div class="col-md-6"><label for="createSessionSemester" class="form-label">Semester <span class="text-danger">*</span></label><input type="number" class="form-control" id="createSessionSemester" min="1" max="24" step="1" required><div class="invalid-feedback">Enter a semester from 1 to 24.</div></div>
-          <div class="col-md-6"><label for="createSessionMonth" class="form-label">Starting Month <span class="text-danger">*</span></label><select class="form-select" id="createSessionMonth" required><option value="">Select month</option></select><div class="invalid-feedback">Select a starting month.</div></div>
-          <div class="col-md-6"><label for="createSessionYear" class="form-label">Exam Year <span class="text-danger">*</span></label><input type="number" class="form-control" id="createSessionYear" min="1900" max="2200" step="1" required><div class="invalid-feedback">Enter a valid exam year.</div></div>
-          <div class="col-md-6"><label for="createSessionStatus" class="form-label">Status</label><input type="text" class="form-control session-readonly-field" id="createSessionStatus" readonly value="Upcoming"></div>
+          <div class="col-md-6"><label for="createSessionSemester" class="form-label">Semester <span class="text-danger">*</span></label><select class="form-select" id="createSessionSemester" required><option value="">Select semester</option></select><div class="invalid-feedback">Select a semester for this batch.</div></div>
+          <div class="col-md-6"><label for="createSessionMonth" class="form-label">Month <span class="text-danger">*</span></label><select class="form-select" id="createSessionMonth" required><option value="">Select month</option></select><div class="invalid-feedback">Select a month.</div></div>
+          <div class="col-md-6"><label for="createSessionYear" class="form-label">Exam Year <span class="text-danger">*</span></label><%- include('../batches/partials/year-input', { controlId: 'createSessionYear', fieldName: 'exam_year', fieldLabel: 'Exam Year', placeholder: '2026', feedback: 'Enter a valid exam year.' }) %></div>
+          <div class="col-md-6"><label for="createSessionStatus" class="form-label">Status (Automatic)</label><input type="text" class="form-control session-readonly-field" id="createSessionStatus" readonly placeholder="Select month and year"></div>
         </div>
       </div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="createSessionSubmitBtn"><span class="material-icons btn-icon">add</span><span class="btn-text">Create Session</span></button></div></form>
     </div></div>
@@ -61,10 +61,10 @@
   <div class="modal fade batches-modal sessions-modal" id="editSessionModal" tabindex="-1" aria-labelledby="editSessionModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="editSessionModalLabel">Edit Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
       <form id="editSessionForm" novalidate><div class="modal-body"><div class="alert alert-danger d-none" id="editSessionError" role="alert"></div><input type="hidden" id="editSessionId"><div class="mb-3"><label for="editSessionBatch" class="form-label">Batch</label><input type="text" class="form-control session-readonly-field" id="editSessionBatch" readonly><div class="form-text session-hint">The batch association cannot be changed.</div></div><div class="row g-3">
-        <div class="col-md-6"><label for="editSessionSemester" class="form-label">Semester <span class="text-danger">*</span></label><input type="number" class="form-control" id="editSessionSemester" min="1" max="24" required><div class="invalid-feedback">Enter a semester from 1 to 24.</div></div>
-        <div class="col-md-6"><label for="editSessionMonth" class="form-label">Starting Month <span class="text-danger">*</span></label><select class="form-select" id="editSessionMonth" required><option value="">Select month</option></select><div class="invalid-feedback">Select a starting month.</div></div>
-        <div class="col-md-6"><label for="editSessionYear" class="form-label">Exam Year <span class="text-danger">*</span></label><input type="number" class="form-control" id="editSessionYear" min="1900" max="2200" required><div class="invalid-feedback">Enter a valid exam year.</div></div>
-        <div class="col-md-6"><label for="editSessionStatus" class="form-label">Status</label><input type="text" class="form-control session-readonly-field" id="editSessionStatus" readonly></div>
+        <div class="col-md-6"><label for="editSessionSemester" class="form-label">Semester <span class="text-danger">*</span></label><select class="form-select" id="editSessionSemester" required aria-describedby="editSessionSemesterNote"><option value="">Select semester</option></select><div class="invalid-feedback">Select a semester for this batch.</div><div class="form-text" id="editSessionSemesterNote" aria-live="polite"></div></div>
+        <div class="col-md-6"><label for="editSessionMonth" class="form-label">Month <span class="text-danger">*</span></label><select class="form-select" id="editSessionMonth" required><option value="">Select month</option></select><div class="invalid-feedback">Select a month.</div></div>
+        <div class="col-md-6"><label for="editSessionYear" class="form-label">Exam Year <span class="text-danger">*</span></label><%- include('../batches/partials/year-input', { controlId: 'editSessionYear', fieldName: 'exam_year', fieldLabel: 'Exam Year', placeholder: '2026', feedback: 'Enter a valid exam year.' }) %></div>
+        <div class="col-md-6"><label for="editSessionStatus" class="form-label">Status (Automatic)</label><input type="text" class="form-control session-readonly-field" id="editSessionStatus" readonly></div>
       </div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="editSessionSubmitBtn"><span class="material-icons btn-icon">save</span><span class="btn-text">Save Changes</span></button></div></form>
     </div></div>
   </div>
@@ -77,6 +77,8 @@
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="sessionDetailsModalLabel">Session Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="sessionDetailsError" role="alert"></div><div class="text-center py-3" id="sessionDetailsLoading"><span class="spinner-border text-primary"></span><div class="mt-2 text-muted">Loading session details...</div></div><div class="batch-confirm-summary d-none" id="sessionDetailsList"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div></div></div>
   </div>
 
+  <script src="/js/academic-form-options.js"></script>
   <script src="/js/sessions.js"></script>
+  <script src="/js/year-picker.js" defer></script>
 
 </div>

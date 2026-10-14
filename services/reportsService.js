@@ -93,6 +93,11 @@ async function getOptions(scope, query = {}) {
   if (!['students', 'semesters', 'sessions', 'subjects', 'student-results', 'student-semesters', 'student-sessions'].includes(scope)) invalid('Unknown filter.', 404);
   f.batch_id = integer(query.batch_id, 'Batch', true);
   await requireBatch(f.batch_id);
+  if (scope === 'students' && query.search !== undefined) {
+    if (typeof query.search !== 'string' || query.search.length > 100 || /[\x00-\x1f\x7f]/.test(query.search)) invalid('Invalid student search.');
+    const search = query.search.trim();
+    if (search) f.studentSearch = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
+  }
   if (scope === 'sessions') f.semester = semester(query.semester);
   if (scope === 'subjects' || scope === 'student-results') {
     f.session_id = integer(query.session_id, 'Result session', true);

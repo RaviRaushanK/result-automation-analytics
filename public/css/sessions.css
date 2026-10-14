@@ -12,6 +12,8 @@
 .sessions-table .session-meta { font-size: .75rem; color: var(--text-secondary); }
 .session-readonly-field { background-color: var(--secondary-bg); color: var(--text-primary); font-weight: 600; }
 .session-hint { font-size: .75rem; color: var(--text-secondary); }
+.sessions-modal .form-text { color: var(--text-secondary); }
+.sessions-modal .form-select:disabled { background-color: var(--secondary-bg); color: var(--text-primary); opacity: 1; }
 #sessionsToastContainer { z-index: 1060; }
 #sessionsToastContainer .alert { min-width: 260px; max-width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,.12); font-size: .9rem; }
 

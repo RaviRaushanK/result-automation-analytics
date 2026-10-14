@@ -3,7 +3,20 @@ document.addEventListener('DOMContentLoaded', function () {
   var tbody = document.querySelector('#studentsTable tbody');
   var searchInput = document.getElementById('studentSearch');
   var batchSelect = document.getElementById('filterBatch');
-  var defaultBatch = batchSelect.value;
+  var listing = document.getElementById('studentListing');
+  var defaultBatch = listing.dataset.defaultBatch;
+  var pagination = JSON.parse(listing.dataset.pagination);
+  var page = pagination.page;
+  var pageSize = document.getElementById('studentPageSize');
+  var previous = document.getElementById('studentPrevPage');
+  var next = document.getElementById('studentNextPage');
+  var count = document.getElementById('studentResultCount');
+  var pageInfo = document.getElementById('studentPageInfo');
+  var loading = document.getElementById('studentSearchLoading');
+  var searchError = document.getElementById('studentSearchError');
+  var clearSearch = document.getElementById('clearStudentSearch');
+  var requestVersion = 0, requestController, statsVersion = 0, statsController;
+  var debounce;
   var categorySelect = document.getElementById('filterCategory');
   var statusSelect = document.getElementById('filterStatus');
   var resetBtn = document.getElementById('resetStudentFilterBtn');
@@ -52,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var batch = (s.Batch && s.Batch.batch_name) || batchName(s.batch_id, '');
     var statusCls = s.status === 'active' ? 'badge-active' : 'badge-inactive';
     return '<tr>' +
-      '<td>' + (index + 1) + '</td>' +
+      '<td>' + ((pagination.page - 1) * pagination.pageSize + index + 1) + '</td>' +
       '<td>' + esc(s.usn) + '</td>' +
       '<td>' + esc(s.student_name) + '</td>' +
       '<td>' + esc(s.email || '--') + '</td>' +
@@ -60,59 +73,120 @@ document.addEventListener('DOMContentLoaded', function () {
       '<td><span class="badge-status badge-category">' + esc(s.category || '--') + '</span></td>' +
       '<td><span class="badge-status ' + statusCls + '">' + esc(s.status) + '</span></td>' +
       '<td><div class="students-actions">' +
-      '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="edit" data-id="' + s.student_id + '">Edit</button>' +
-      '<button type="button" class="btn btn-sm btn-outline-danger" data-act="delete" data-id="' + s.student_id + '">Delete</button>' +
+      '<a class="btn btn-sm btn-outline-primary students-results-link" href="/reports/student?' + esc(new URLSearchParams({ batch_id: s.batch_id, student_id: s.student_id }).toString()) + '" title="View results for ' + esc(s.usn) + '" aria-label="View results for ' + esc(s.usn) + '"><span class="material-icons" aria-hidden="true">assessment</span>View Results</a>' +
+      '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="edit" data-id="' + s.student_id + '" title="Edit ' + esc(s.usn) + '" aria-label="Edit ' + esc(s.usn) + '"><span class="material-icons" aria-hidden="true">edit</span></button>' +
+      '<button type="button" class="btn btn-sm btn-outline-danger" data-act="delete" data-id="' + s.student_id + '" title="Delete ' + esc(s.usn) + '" aria-label="Delete ' + esc(s.usn) + '"><span class="material-icons" aria-hidden="true">delete_outline</span></button>' +
       '</div></td></tr>';
   }
 
-  async function loadStudents() {
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center table-loading">' +
-      '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>' +
-      '<span class="ms-2 text-muted">Loading students...</span></td></tr>';
+  function parameters() {
+    var params = new URLSearchParams();
+    if (searchInput.value.trim()) params.set('search', searchInput.value.trim());
+    params.set('batch_id', batchSelect.value || 'all');
+    if (categorySelect.value) params.set('category', categorySelect.value);
+    if (statusSelect.value) params.set('status', statusSelect.value);
+    params.set('page', page);
+    params.set('pageSize', pageSize.value);
+    return params;
+  }
+  function syncUrl(push) {
+    var url = '/students?' + parameters();
+    if (location.pathname + location.search !== url) history[push ? 'pushState' : 'replaceState'](null, '', url);
+  }
+  function busy(value) {
+    loading.hidden = !value;
+    tbody.setAttribute('aria-busy', String(value));
+    previous.disabled = value || pagination.page <= 1;
+    next.disabled = value || pagination.page >= pagination.totalPages;
+  }
+  function invalidate() {
+    clearTimeout(debounce);
+    requestVersion++;
+    if (requestController) requestController.abort();
+  }
+  async function loadStudents(push) {
+    invalidate();
+    var version = requestVersion;
+    requestController = new AbortController();
+    var params = parameters();
+    var search = params.get('search') || '';
+    syncUrl(push === true);
+    searchError.hidden = true;
+    busy(true);
     try {
-      var params = new URLSearchParams();
-      if (searchInput.value.trim()) params.set('search', searchInput.value.trim());
-      if (batchSelect.value) params.set('batch_id', batchSelect.value);
-      if (categorySelect.value) params.set('category', categorySelect.value);
-      if (statusSelect.value) params.set('status', statusSelect.value);
-      var qs = params.toString();
-      var json = await api('/students/api/list' + (qs ? '?' + qs : ''));
-      var rows = (json.data || []);
+      var json = await api('/students/api/list?' + params, { signal: requestController.signal });
+      if (version !== requestVersion) return;
+      if (!json.success || !Array.isArray(json.data) || !json.pagination) throw new Error('Unable to search students. Please try again.');
+      pagination = json.pagination;
+      page = pagination.page;
+      var rows = json.data;
       tbody.innerHTML = rows.length ? rows.map(rowHtml).join('')
-        : '<tr><td colspan="8" class="text-center text-muted">No students found.</td></tr>';
+        : '<tr><td colspan="8" class="text-center text-muted">' + esc(search ? 'No students matched "' + search + '".' : 'No students found for the selected filters.') + '</td></tr>';
+      count.textContent = pagination.totalRows ? 'Showing ' + ((page - 1) * pagination.pageSize + 1) + '-' + Math.min(page * pagination.pageSize, pagination.totalRows) + ' of ' + pagination.totalRows + ' students' : '0 students found';
+      pageInfo.textContent = 'Page ' + page + ' of ' + Math.max(pagination.totalPages, 1);
+      syncUrl(false);
     } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">' + esc(e.message) + '</td></tr>';
-    }
+      if (version !== requestVersion || e.name === 'AbortError') return;
+      searchError.textContent = e.message + ' Previous results have been kept.';
+      searchError.hidden = false;
+    } finally { if (version === requestVersion) busy(false); }
   }
 
   async function loadStats() {
+    var version = ++statsVersion;
+    if (statsController) statsController.abort();
+    statsController = new AbortController();
     try {
       var params = new URLSearchParams();
       if (batchSelect.value) params.set('batch_id', batchSelect.value);
-      var json = await api('/students/api/stats?' + params.toString());
+      var json = await api('/students/api/stats?' + params.toString(), { signal: statsController.signal });
+      if (version !== statsVersion) return;
       var d = json.data || {};
       document.getElementById('statTotal').textContent = d.total != null ? d.total : '--';
       document.getElementById('statActive').textContent = d.active != null ? d.active : '--';
       document.getElementById('statInactive').textContent = d.inactive != null ? d.inactive : '--';
       document.getElementById('statCategories').textContent = d.categories != null ? d.categories : '--';
-    } catch (e) { /* keep placeholders */ }
+    } catch (e) {
+      if (version !== statsVersion || e.name === 'AbortError') return;
+      ['statTotal', 'statActive', 'statInactive', 'statCategories'].forEach(function (id) { document.getElementById(id).textContent = '--'; });
+    }
   }
   function reloadAll() { loadStudents(); loadStats(); }
 
-  var debounce;
   searchInput.addEventListener('input', function () {
-    clearTimeout(debounce);
-    debounce = setTimeout(loadStudents, 300);
+    invalidate();
+    page = 1;
+    clearSearch.hidden = !searchInput.value;
+    busy(true);
+    debounce = setTimeout(function () { loadStudents(true); }, 300);
   });
   [batchSelect, categorySelect, statusSelect].forEach(function (el) {
-    el.addEventListener('change', loadStudents);
+    el.addEventListener('change', function () { page = 1; loadStudents(true); });
   });
   batchSelect.addEventListener('change', loadStats);
   resetBtn.addEventListener('click', function () {
     searchInput.value = '';
+    clearSearch.hidden = true;
     batchSelect.value = defaultBatch;
     categorySelect.value = '';
     statusSelect.value = '';
+    page = 1;
+    pageSize.value = '25';
+    loadStudents(true); loadStats();
+  });
+  clearSearch.addEventListener('click', function () { searchInput.value = ''; clearSearch.hidden = true; page = 1; searchInput.focus(); loadStudents(true); });
+  pageSize.addEventListener('change', function () { page = 1; loadStudents(true); });
+  previous.addEventListener('click', function () { if (!previous.disabled) { page = pagination.page - 1; loadStudents(true); } });
+  next.addEventListener('click', function () { if (!next.disabled) { page = pagination.page + 1; loadStudents(true); } });
+  window.addEventListener('popstate', function () {
+    var params = new URLSearchParams(location.search);
+    searchInput.value = params.get('search') || params.get('q') || '';
+    batchSelect.value = params.get('batch_id') || defaultBatch;
+    categorySelect.value = params.get('category') || '';
+    statusSelect.value = (params.get('status') || '').toLowerCase();
+    pageSize.value = params.get('pageSize') || '25';
+    page = Number(params.get('page')) || 1;
+    clearSearch.hidden = !searchInput.value;
     reloadAll();
   });
 
@@ -368,7 +442,9 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (e) { toast('danger', e.message); }
   }
 
-  reloadAll();
+  syncUrl(false);
+  busy(false);
+  loadStats();
 });
 
 

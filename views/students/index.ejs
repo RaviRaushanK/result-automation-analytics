@@ -1,4 +1,5 @@
 <div class="container-fluid students-page">
+  <% const filters = listing.filters; const pagination = listing.pagination; %>
   <div id="studentMessages" class="alert-container" aria-live="polite" aria-atomic="true"></div>
   <div class="dashboard-header">
     <div>
@@ -59,16 +60,15 @@
       <form id="studentFilterForm" class="row g-3 align-items-end" onsubmit="return false;">
         <div class="col-md-4">
           <label for="studentSearch" class="form-label">Search</label>
-          <input type="text" id="studentSearch" class="form-control" placeholder="Search by USN, name or email..." value="<%= initialSearch || '' %>" />
+          <div class="students-search-field"><input type="search" id="studentSearch" class="form-control" maxlength="100" placeholder="Search by USN, name or email..." value="<%= filters.search %>" /><button type="button" id="clearStudentSearch" class="students-icon-button" aria-label="Clear search" title="Clear search" <%= filters.search ? '' : 'hidden' %>><span class="material-icons" aria-hidden="true">close</span></button></div>
         </div>
         <div class="col-md-2">
           <label for="filterBatch" class="form-label">Batch</label>
           <select id="filterBatch" class="form-select">
-            <% if (!(batches || []).length) { %>
-              <option value="" disabled selected>No batches available</option>
-            <% } %>
+            <option value="all" <%= filters.batch_id === 'all' || filters.batch_id == null ? 'selected' : '' %>>All Batches</option>
+            <% if (filters.batch_id && filters.batch_id !== 'all' && !batches.some(b => String(b.batch_id) === String(filters.batch_id))) { %><option value="<%= filters.batch_id %>" selected>Batch <%= filters.batch_id %> (unavailable)</option><% } %>
             <% (batches || []).forEach(function(b, index) { %>
-              <option value="<%= b.batch_id %>" <%= index === 0 ? 'selected' : '' %>><%= b.batch_name %></option>
+              <option value="<%= b.batch_id %>" <%= String(filters.batch_id) === String(b.batch_id) ? 'selected' : '' %>><%= b.batch_name %></option>
             <% }); %>
           </select>
         </div>
@@ -76,8 +76,9 @@
           <label for="filterCategory" class="form-label">Category</label>
           <select id="filterCategory" class="form-select">
             <option value="">All</option>
+            <% if (filters.category && !categories.includes(filters.category)) { %><option value="<%= filters.category %>" selected><%= filters.category %></option><% } %>
             <% (categories || []).forEach(function(c) { %>
-              <option value="<%= c %>"><%= c %></option>
+              <option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= c %></option>
             <% }); %>
           </select>
         </div>
@@ -85,8 +86,8 @@
           <label for="filterStatus" class="form-label">Status</label>
           <select id="filterStatus" class="form-select">
             <option value="">All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="active" <%= filters.status === 'active' ? 'selected' : '' %>>Active</option>
+            <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
           </select>
         </div>
         <div class="col-md-2">
@@ -100,10 +101,11 @@
     </div>
   </div>
 
-  <div class="card mb-4">
-    <div class="card-header"><h5 class="card-title mb-0">Students</h5></div>
+  <div class="card mb-4" id="studentListing" data-pagination="<%= JSON.stringify(pagination) %>" data-default-batch="<%= batches[0]?.batch_id || 'all' %>">
+    <div class="card-header students-list-heading"><h5 class="card-title mb-0">Students</h5><span id="studentSearchLoading" role="status" hidden><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Searching...</span></div>
     <div class="card-body">
-      <div class="table-responsive">
+      <div id="studentSearchError" class="alert alert-danger" role="alert" <%= initialError ? '' : 'hidden' %>><%= initialError %></div>
+      <div class="table-responsive" tabindex="0" role="region" aria-label="Students table">
         <table class="table table-hover align-middle students-table mb-0" id="studentsTable">
           <thead>
             <tr>
@@ -117,13 +119,13 @@
               <th scope="col">Actions</th>
             </tr>
           </thead>
-          <tbody>
-            <tr><td colspan="8" class="text-center table-loading">
-              <div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
-              <span class="ms-2 text-muted">Loading students...</span>
-            </td></tr>
-          </tbody>
+          <tbody><%- include('partials/rows', { rows: listing.rows, filters, pagination }) %></tbody>
         </table>
+      </div>
+      <div class="students-pagination">
+        <span id="studentResultCount" role="status"><%= pagination.totalRows ? `Showing ${(pagination.page - 1) * pagination.pageSize + 1}-${Math.min(pagination.page * pagination.pageSize, pagination.totalRows)} of ${pagination.totalRows} students` : '0 students found' %></span>
+        <div class="students-page-size"><label for="studentPageSize">Rows</label><select id="studentPageSize" class="form-select form-select-sm"><% [25,50,100].forEach(size => { %><option value="<%= size %>" <%= pagination.pageSize === size ? 'selected' : '' %>><%= size %></option><% }); %></select></div>
+        <nav aria-label="Students pagination"><button type="button" class="students-icon-button" id="studentPrevPage" aria-label="Previous page" title="Previous page" <%= pagination.page <= 1 ? 'disabled' : '' %>><span class="material-icons" aria-hidden="true">chevron_left</span></button><span id="studentPageInfo">Page <%= pagination.page %> of <%= Math.max(pagination.totalPages, 1) %></span><button type="button" class="students-icon-button" id="studentNextPage" aria-label="Next page" title="Next page" <%= pagination.page >= pagination.totalPages ? 'disabled' : '' %>><span class="material-icons" aria-hidden="true">chevron_right</span></button></nav>
       </div>
     </div>
   </div>
@@ -283,5 +285,5 @@
 
 <div id="batchesData" data-batches="<%= JSON.stringify((batches || []).map(function(b){ return { id: b.batch_id, name: b.batch_name }; })) %>" class="d-none"></div>
 <script src="/js/student-email-validation.js?v=20261004-4"></script>
-<script src="/js/students.js?v=20261004-5"></script>
+<script src="/js/students.js?v=20261014-1"></script>
 </div>

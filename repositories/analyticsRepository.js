@@ -231,6 +231,10 @@ function buildRowFilterFragment(f, params) {
 
   if (f.student_id !== undefined) add('r.student_id = :studentId', 'studentId', f.student_id);
   if (f.usn !== undefined) add('st.usn = :usn', 'usn', f.usn);
+  if (f.student_search !== undefined) {
+    add('(st.usn LIKE :studentSearch OR st.student_name LIKE :studentSearch)', 'studentSearch',
+      '%' + f.student_search.replace(/[\\%_]/g, '\\$&') + '%');
+  }
   if (f.subject_id !== undefined) add('sr.subject_id = :subjectId', 'subjectId', f.subject_id);
   if (f.subject_code !== undefined) add('sub.subject_code = :subjectCode', 'subjectCode', f.subject_code);
   if (f.attempt_no !== undefined) add('r.attempt_no = :attemptNo', 'attemptNo', f.attempt_no);
@@ -578,6 +582,8 @@ async function getSemesterAnalytics(filters) {
  */
 async function getStudentAnalytics(filters, options) {
   const f = normalizeFilters(filters);
+  // This page's USN input also searches names; other Analytics USN filters stay exact.
+  if (f.usn !== undefined) { f.student_search = f.usn; delete f.usn; }
   const resolved = await resolveSessionsInternal(filters);
   const params = {};
   const base = buildSubjectQueryBase(f, resolved, params);

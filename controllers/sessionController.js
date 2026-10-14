@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { ResultSession, Batch, Department, Subject } = require('../database/models');
+const { semesterCount } = require('../public/js/academic-form-options');
 
 const SESSION_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'];
 
@@ -49,14 +50,14 @@ function validateSessionFields(body) {
 
   if (!sem) {
     errors.push('Semester is required.');
-  } else if (!/^\d{1,2}$/.test(sem) || Number(sem) < 1 || Number(sem) > 24) {
-    errors.push('Semester must be a number between 1 and 24.');
+  } else if (!/^\d{1,3}$/.test(sem) || Number(sem) < 1 || Number(sem) > 600) {
+    errors.push('Select a valid semester.');
   }
 
   if (!rawMonth) {
-    errors.push('Starting month is required.');
+    errors.push('Month is required.');
   } else if (!month) {
-    errors.push('Starting month is invalid.');
+    errors.push('Month is invalid.');
   }
 
   if (body.exam_year === undefined || body.exam_year === null || body.exam_year === '') {
@@ -105,7 +106,7 @@ const sessionController = {
         ResultSession.findAll({ include: [includeBatch], order: SESSION_ORDER }),
         Batch.findAll({
           include: [{ model: Department, attributes: ['department_id', 'department_code', 'department_name'] }],
-          order: [['batch_name', 'ASC']]
+          order: [['start_year', 'DESC'], ['end_year', 'DESC'], ['batch_id', 'DESC']]
         })
       ]);
 
@@ -188,6 +189,8 @@ const sessionController = {
       if (!batch) {
         return res.status(404).json({ success: false, message: 'Batch not found.' });
       }
+      const semesters = semesterCount(batch);
+      if (!semesters || Number(check.semester) > semesters) return res.status(400).json({ success: false, message: semesters ? `Semester must be between 1 and ${semesters} for the selected batch.` : 'The batch must have valid start and end years.' });
 
       // Academic semester is independent of the examination sitting.
       const duplicateSemester = await ResultSession.findOne({
@@ -263,6 +266,11 @@ const sessionController = {
 
       if (String(Number(session.semester)) !== check.semester && await Subject.count({ where: { session_id: session.session_id } })) {
         return res.status(409).json({ success: false, message: 'A session with configured courses cannot change academic semester. Create the correct examination session instead.' });
+      }
+      if (String(Number(session.semester)) !== check.semester) {
+        const batch = await Batch.findByPk(session.batch_id);
+        const semesters = semesterCount(batch);
+        if (!semesters || Number(check.semester) > semesters) return res.status(400).json({ success: false, message: 'Semester is outside the selected batch duration.' });
       }
       // Note: the batch association is intentionally not editable here.
       await ResultSession.update({

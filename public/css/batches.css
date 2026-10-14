@@ -258,6 +258,22 @@
     color: #f87171;
 }
 
+.batch-year-control { display: grid; grid-template-columns: minmax(0, 1fr) 38px; gap: 6px; align-items: start; }
+.batch-year-control .invalid-feedback, .batch-year-panel { grid-column: 1 / -1; }
+.batch-year-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; border: 1px solid var(--card-border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); }
+.batch-year-icon .material-icons { font-size: 20px; }
+.batch-year-icon:hover:not(:disabled), .batch-year-choice:hover { background: var(--secondary-bg); color: var(--accent-blue); }
+.batch-year-icon:disabled { opacity: .4; }
+.batch-year-icon:focus-visible, .batch-year-choice:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.batch-year-panel { padding: 8px; border: 1px solid var(--card-border); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); min-width: 0; }
+.batch-year-panel[hidden] { display: none; }
+.batch-year-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; font-size: .875rem; }
+.batch-year-heading .batch-year-icon { width: 30px; height: 30px; }
+.batch-year-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.batch-year-choice { height: 34px; min-width: 0; padding: 0; font-size: .8125rem; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-primary); }
+.batch-year-choice[aria-pressed="true"] { border-color: var(--accent-blue); background: var(--secondary-bg); color: var(--accent-blue); font-weight: 600; }
+.batch-year-choice:disabled { opacity: .3; pointer-events: none; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 767.98px) {
     .batches-table th,

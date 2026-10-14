@@ -11,7 +11,7 @@
       "icon": "school",
       "children": [
         { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin", "faculty"] },
-        { "label": "Sessions", "icon": "calendar", "route": "/sessions", "roles": ["admin", "faculty"] },
+        { "label": "Sessions", "icon": "calendar_today", "route": "/sessions", "roles": ["admin", "faculty"] },
         { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] },
         { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
       ]
@@ -19,9 +19,9 @@
         {
       "label": "Student Repository",
       "icon": "person",
+      "roles": ["admin", "faculty"],
       "children": [
-        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] },
-        { "label": "Student Search", "icon": "search", "route": "/students/search", "roles": ["admin", "faculty", "student"] }
+        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] }
       ]
     },
     {

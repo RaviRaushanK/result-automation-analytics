@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const facultyEmailValidation = require('../public/js/faculty-email-validation');
 const { Op } = require("sequelize");
 const {
   Faculty,
@@ -120,10 +121,11 @@ const facultyController = {
             success: false,
             message: "Faculty code or name is too long.",
           });
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      const emailError = facultyEmailValidation.getError(email);
+      if (emailError)
         return res
           .status(400)
-          .json({ success: false, message: "Enter a valid email address." });
+          .json({ success: false, message: emailError });
       if (
         !(await Department.findByPk(department_id, {
           attributes: ["department_id"],
@@ -175,16 +177,19 @@ const facultyController = {
             success: false,
             message: "Assignments must be provided as a non-empty list.",
           });
-      const requested = req.body.assignments;
-      for (const item of requested) {
-        if (!item.subject_id)
+      const requested = [];
+      const seenSubjects = new Set();
+      for (const item of req.body.assignments) {
+        if (!item || !['number', 'string'].includes(typeof item.subject_id) || !/^[1-9]\d*$/.test(String(item.subject_id)) || !Number.isSafeInteger(Number(item.subject_id)) || seenSubjects.has(String(item.subject_id)))
           return res
             .status(400)
             .json({
               success: false,
-              message: "Every assignment must identify a subject.",
+              message: "Each assignment must identify a valid, distinct subject.",
             });
-        if (cleanIds([item.faculty_1, item.faculty_2]).length > 2)
+        const ids = item.faculty_ids === undefined ? [item.faculty_1, item.faculty_2].filter(value => value !== undefined && value !== null && value !== '') : item.faculty_ids;
+        if (!Array.isArray(ids) || ids.some(id => !['number', 'string'].includes(typeof id) || !/^[1-9]\d*$/.test(String(id)) || !Number.isSafeInteger(Number(id)))) return res.status(400).json({ success: false, message: 'Provide a list of valid faculty IDs.' });
+        if (cleanIds(ids).length !== ids.length)
           return res
             .status(400)
             .json({
@@ -192,6 +197,8 @@ const facultyController = {
               message:
                 "The same faculty member cannot be assigned twice to one subject.",
             });
+        seenSubjects.add(String(item.subject_id));
+        requested.push({ subject_id: item.subject_id, faculty_ids: cleanIds(ids) });
       }
       transaction = await sequelize.transaction();
       const batchId = req.body.batch_id;
@@ -231,7 +238,7 @@ const facultyController = {
           { status: 400 },
         );
       const allFacultyIds = cleanIds(
-        requested.flatMap((item) => [item.faculty_1, item.faculty_2]),
+        requested.flatMap((item) => item.faculty_ids),
       );
       const faculty = await Faculty.findAll({
         where: { faculty_id: { [Op.in]: allFacultyIds }, status: "active" },
@@ -249,7 +256,7 @@ const facultyController = {
         const subject = await Subject.findByPk(item.subject_id, {
           transaction,
         });
-        await subject.setFaculties(cleanIds([item.faculty_1, item.faculty_2]), {
+        await subject.setFaculties(item.faculty_ids, {
           transaction,
         });
       }

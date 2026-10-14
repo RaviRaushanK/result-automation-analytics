@@ -43,8 +43,17 @@ function controllerFixture(saveError) {
     },
     Batch: { findByPk: async () => ({ batch_id: 1, batch_name: '2026' }) }
   };
-  const context = { module: { exports: {} }, console,
+  function load(relative, dependencies) {
+    const sandbox = { module: { exports: {} }, console, URLSearchParams,
+      require: id => dependencies[id] || require(id) };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, relative), 'utf8'), sandbox);
+    return sandbox.module.exports;
+  }
+  const repository = load('../repositories/studentDirectoryRepository.js', { '../database/models': models });
+  const directory = load('../services/studentDirectoryService.js', { '../repositories/studentDirectoryRepository': repository });
+  const context = { module: { exports: {} }, console, URLSearchParams,
     require: (id) => id === '../database/models' ? models
+      : id === '../services/studentDirectoryService' ? directory
       : id === '../public/js/student-email-validation' ? emailValidation : require(id) };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../controllers/studentController.js'), 'utf8'), context);
   return { controller: context.module.exports, writes, models };
@@ -190,6 +199,7 @@ test('browser preview rejects the reported address even if an API marks it valid
     if (!elements.has(id)) {
       const classes = new Set(['d-none']);
       elements.set(id, { value: '', textContent: '', innerHTML: '', dataset: {}, files: [],
+        setAttribute() {},
         handlers: {}, classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name),
           contains: (name) => classes.has(name) },
         addEventListener(event, handler) { this.handlers[event] = handler; } });
@@ -200,12 +210,15 @@ test('browser preview rejects the reported address even if an API marks it valid
     createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }),
     addEventListener(event, handler) { if (event === 'DOMContentLoaded') handler(); } };
   const browser = { document, URLSearchParams, StudentEmailValidation: emailValidation,
+    AbortController, location: { pathname: '/students', search: '' }, history: { replaceState() {}, pushState() {} }, window: { addEventListener() {} },
     bootstrap: { Modal: function () { this.show = () => {}; this.hide = () => {}; } },
     FormData: function () { this.append = () => {}; }, setTimeout, clearTimeout,
     fetch: async (url) => ({ ok: true, json: async () => url.includes('/import/preview')
       ? { data: { total: 1, valid: 1, invalid: 0, rows: [{ ...validStudent,
         email: 'sakldfklaf@gmdslal.com', row: 1, valid: true, message: 'Valid' }] } }
       : { data: url.includes('/stats') ? {} : [] } }) };
+  element('studentListing').dataset = { defaultBatch: '1', pagination: JSON.stringify({ page: 1, pageSize: 25, totalRows: 0, totalPages: 0 }) };
+  element('studentPageSize').value = '25';
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/students.js'), 'utf8'), browser);
   element('importBatch').value = '1';
   element('importStatus').value = 'active';
@@ -227,23 +240,20 @@ test('student list defaults to the latest batch and sorts by USN', async () => {
     return { batch_id: 9 };
   };
   models.Student.findAll = async (options) => {
-    assert.equal(options.where.batch_id, 9);
+    assert.equal(options.where.batch_id, '9');
     assert.equal(JSON.stringify(options.order), JSON.stringify([['usn', 'ASC'], ['student_id', 'ASC']]));
     return [];
   };
+  models.Student.count = async () => 1;
   const response = await call(controller.list, { query: {} });
   assert.equal(response.body.success, true);
 });
 
 test('student stats use the selected batch and count categories', async () => {
   const { controller, models } = controllerFixture();
-  models.Student.findAll = async (options) => {
+  models.Student.count = async (options) => {
     assert.equal(options.where.batch_id, '9');
-    return [
-      { category: 'PGCET', status: 'active' },
-      { category: 'MGT', status: 'active' },
-      { category: 'PGCET', status: 'inactive' }
-    ];
+    return options.distinct ? 2 : options.where.status === 'active' ? 2 : options.where.status === 'inactive' ? 1 : 3;
   };
   const response = await call(controller.stats, { query: { batch_id: '9' } });
   assert.equal(JSON.stringify(response.body.data), JSON.stringify({ total: 3, active: 2, inactive: 1, categories: 2 }));
@@ -264,11 +274,11 @@ test('Students template selects the first batch, removes category cards and show
   const ejs = require('ejs');
   const html = ejs.render(fs.readFileSync(path.join(__dirname, '../views/students/index.ejs'), 'utf8'), {
     batches: [{ batch_id: 9, batch_name: '2026-2028' }, { batch_id: 1, batch_name: '2024-2026' }],
-    categories: [], initialSearch: ''
-  });
+    categories: [], listing: { rows: [], filters: { search: '', batch_id: '9', category: '', status: '' }, pagination: { page: 1, pageSize: 25, totalRows: 0, totalPages: 0 } }, initialError: ''
+  }, { filename: path.join(__dirname, '../views/students/index.ejs') });
   const batchFilter = html.match(/<select id="filterBatch"[\s\S]*?<\/select>/)[0];
   assert.match(batchFilter, /value="9" selected/);
-  assert.doesNotMatch(batchFilter, />All</);
+  assert.match(batchFilter, />All Batches</);
   assert.match(html, /SL No\./);
   assert.match(html, /Categories/);
   assert.doesNotMatch(html, /Emails to Review/);

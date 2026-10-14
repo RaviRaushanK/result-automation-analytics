@@ -166,17 +166,19 @@
                     <div class="modal-body">
                         <div class="alert alert-danger d-none" id="createBatchError" role="alert"></div>
                         <div class="row g-3">
-                            <div class="col-12">
-                                <label for="createBatchName" class="form-label">Batch Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="createBatchName" name="batch_name" maxlength="100" placeholder="MCA 2025" autocomplete="off">
-                                <div class="invalid-feedback">Batch name is required.</div>
+                            <div class="col-md-6">
+                                <label for="createBatchCourseName" class="form-label">Course Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="createBatchCourseName" name="course_name" maxlength="90" placeholder="MCA" autocomplete="off">
+                                <div class="invalid-feedback">Course name is required.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="createBatchYear" class="form-label">Batch Year <span class="text-danger">*</span></label>
+                                <%- include('partials/year-input', { controlId: 'createBatchYear', fieldName: 'batch_year', fieldLabel: 'Batch Year', placeholder: '2025', feedback: 'Batch year is required and must be a valid year.' }) %>
                             </div>
                             <div class="col-md-6">
                                 <label for="createBatchDepartment" class="form-label">Department <span class="text-danger">*</span></label>
-                                <select class="form-select" id="createBatchDepartment" name="department_id">
-                                    <option value="">Select department</option>
-                                </select>
-                                <div class="invalid-feedback">Department is required.</div>
+                                <select class="form-select" id="createBatchDepartment" name="department_id" aria-describedby="createBatchDepartmentError"><option value="">Select department</option></select>
+                                <div class="invalid-feedback" id="createBatchDepartmentError">Please select an active department.</div>
                             </div>
                             <div class="col-md-6">
                                 <label for="createBatchStatus" class="form-label">Status</label>
@@ -187,13 +189,11 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="createBatchStartYear" class="form-label">Start Year <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="createBatchStartYear" name="start_year" placeholder="2025" min="1900" max="2200" step="1">
-                                <div class="invalid-feedback">Start year is required and must be a valid year.</div>
+                                <%- include('partials/year-input', { controlId: 'createBatchStartYear', fieldName: 'start_year', fieldLabel: 'Start Year', placeholder: '2025', feedback: 'Start year is required and must be a valid year.' }) %>
                             </div>
                             <div class="col-md-6">
                                 <label for="createBatchEndYear" class="form-label">End Year <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="createBatchEndYear" name="end_year" placeholder="2027" min="1900" max="2200" step="1">
-                                <div class="invalid-feedback">End year must be greater than start year.</div>
+                                <%- include('partials/year-input', { controlId: 'createBatchEndYear', fieldName: 'end_year', fieldLabel: 'End Year', placeholder: '2027', feedback: 'End year must be greater than start year.' }) %>
                             </div>
                         </div>
                     </div>
@@ -251,9 +251,13 @@
                         <input type="hidden" id="editBatchId">
                         <div class="row g-3">
                             <div class="col-12">
-                                <label for="editBatchName" class="form-label">Batch Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="editBatchName" name="batch_name" maxlength="100" placeholder="25th MCA Batch" autocomplete="off">
-                                <div class="invalid-feedback">Batch name is required.</div>
+                                <label for="editBatchCourseName" class="form-label">Course Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="editBatchCourseName" name="course_name" maxlength="90" placeholder="MCA" autocomplete="off">
+                                <div class="invalid-feedback">Course name is required.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editBatchYear" class="form-label">Batch Year <span class="text-danger">*</span></label>
+                                <%- include('partials/year-input', { controlId: 'editBatchYear', fieldName: 'batch_year', fieldLabel: 'Batch Year', placeholder: '2025', feedback: 'Enter a valid batch year.' }) %>
                             </div>
                             <div class="col-md-6">
                                 <label for="editBatchDepartment" class="form-label">Department <span class="text-danger">*</span></label>
@@ -271,13 +275,11 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="editBatchStartYear" class="form-label">Start Year <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="editBatchStartYear" name="start_year" placeholder="2025" min="1900" max="2200" step="1">
-                                <div class="invalid-feedback">Start year is required and must be a valid year.</div>
+                                <%- include('partials/year-input', { controlId: 'editBatchStartYear', fieldName: 'start_year', fieldLabel: 'Start Year', placeholder: '2025', feedback: 'Start year is required and must be a valid year.' }) %>
                             </div>
                             <div class="col-md-6">
                                 <label for="editBatchEndYear" class="form-label">End Year <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="editBatchEndYear" name="end_year" placeholder="2027" min="1900" max="2200" step="1">
-                                <div class="invalid-feedback">End year must be greater than start year.</div>
+                                <%- include('partials/year-input', { controlId: 'editBatchEndYear', fieldName: 'end_year', fieldLabel: 'End Year', placeholder: '2027', feedback: 'End year must be greater than start year.' }) %>
                             </div>
                         </div>
                     </div>
@@ -364,4 +366,6 @@
      data-departments="<%= JSON.stringify(departments || []) %>"
      class="d-none"></div>
 
+<script src="/js/academic-form-options.js"></script>
 <script src="/js/batches.js"></script>
+<script src="/js/year-picker.js" defer></script>

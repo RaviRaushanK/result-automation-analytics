@@ -7,6 +7,7 @@ const fs = require('fs');
 const documentExtractor = require('../services/documentExtractor');
 const academicPolicy = require('../services/academicPolicy');
 const academicOutcomes = require('../services/academicOutcomeService');
+const { sortBatches } = require('../public/js/academic-form-options');
 const { AcademicCourse } = require('../database/models');
 
 // ============================================
@@ -266,6 +267,7 @@ const resultController = {
   // ============================================================
   showUploadPage: async (req, res) => {
     try {
+      const batches = sortBatches(await Batch.findAll({ attributes: ['batch_id', 'batch_name', 'start_year', 'end_year'], raw: true }));
       const sessions = await ResultSession.findAll({
         include: [{ model: Batch, attributes: ['batch_name'] }],
         order: [['exam_year', 'DESC'], ['semester', 'ASC']]
@@ -273,18 +275,22 @@ const resultController = {
 
       res.render('results/upload', {
         title: 'Upload Results - SRAAS',
+        pageStyles: ['/css/result-upload.css'],
         breadcrumbItems: [
           { label: 'Result Management' },
           { label: 'Upload Results', active: true }
         ],
         sessions: sessions.map(s => ({
           session_id: s.session_id,
+          batch_id: s.batch_id,
           display_name: `${s.Batch.batch_name} | ${s.semester} | ${s.exam_session} ${s.exam_year}`,
           semester: s.semester,
           exam_session: s.exam_session,
           exam_year: s.exam_year,
           batch_name: s.Batch.batch_name
         })),
+        batches,
+        selectedBatchId: batches[0]?.batch_id || '',
         error: req.query.error || null,
         importId: req.query.importId || null
       });
@@ -357,6 +363,13 @@ const resultController = {
       }
       if (!sessionId) {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Please select a result session.'));
+      }
+      if (req.body.batch_id !== undefined) {
+        const selectedSession = await ResultSession.findByPk(sessionId, { attributes: ['session_id', 'batch_id'] });
+        if (!selectedSession || String(selectedSession.batch_id) !== String(req.body.batch_id)) {
+          fs.unlinkSync(req.file.path);
+          return res.redirect('/results/upload?error=' + encodeURIComponent('Select a result session belonging to the selected batch.'));
+        }
       }
 
       // Move multer temp file into permanent results folder

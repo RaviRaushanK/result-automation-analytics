@@ -1,7 +1,12 @@
 /* Faculty Assignment dashboard page styles; colors use existing SRAAS tokens. */
+.faculty-count{width:88px}.faculty-count-value{display:inline-block;min-width:32px;font-variant-numeric:tabular-nums}.faculty-slots{display:grid;gap:.5rem;min-width:220px}.faculty-slot{display:grid;gap:.2rem;margin:0}.faculty-names{margin:0;padding-left:1.1rem}.faculty-actions{display:flex;gap:.4rem;flex-wrap:nowrap}.faculty-table th{letter-spacing:0}.faculty-page .table-responsive{max-width:100%}
 .faculty-table{min-width:900px}.faculty-table th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);white-space:nowrap}.faculty-table td{font-size:.9rem;vertical-align:middle}.faculty-select{min-width:220px}.faculty-editing{background-color:var(--sidebar-active)}.faculty-confirm-list{display:grid;gap:.75rem;min-width:0;max-width:100%}.faculty-confirm-context{padding:.75rem;border:1px solid var(--primary-brand);border-radius:8px;background-color:var(--secondary-bg);color:var(--text-primary);overflow-wrap:anywhere}.faculty-confirm-item{display:grid;gap:.15rem;padding:.75rem;border:1px solid var(--card-border);border-radius:8px;background-color:var(--secondary-bg);min-width:0;max-width:100%;overflow-wrap:anywhere}.faculty-confirm-item strong,.faculty-confirm-item span,.faculty-confirm-item small{min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}.faculty-confirm-item strong{color:var(--primary-brand)}.faculty-confirm-item span,.faculty-confirm-item small{color:var(--text-primary)}.faculty-confirm-item small{color:var(--text-secondary)}
 @media(max-width:767.98px){.faculty-select{min-width:190px}.faculty-table th,.faculty-table td{font-size:.85rem}}
 /* Remove Faculty Assignment dialog: viewport-safe on desktop, laptop, tablet and mobile. */
+.faculty-table th{letter-spacing:0}
+#facultyToastContainer{top:var(--header-height)!important;z-index:1080;max-width:100vw}
+#facultyToastContainer .alert{max-width:100%;overflow-wrap:anywhere}
+@media(max-width:767.98px){.main-content:has(.faculty-page){margin-left:0;width:100%;min-width:0}.faculty-header>div:last-child{flex-wrap:wrap}.faculty-toolbar,.faculty-search{width:100%}.faculty-page .stat-label{letter-spacing:0}}
 #facultyRemoveModal .modal-dialog{max-width:min(92vw,600px);max-height:calc(100dvh - 1rem);margin:.5rem auto}
 #facultyRemoveModal .modal-content{max-height:calc(100dvh - 1rem);overflow:hidden}
 #facultyRemoveModal .modal-body{overflow-y:auto;max-height:calc(100dvh - 9rem);overscroll-behavior:contain}

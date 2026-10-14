@@ -18,6 +18,8 @@
   let currentPage = 1;
   let totalPages = 0;
   let generatedQuery;
+  const studentSearch = type === 'student' ? el('student-search') : null;
+  let studentSearchTimer;
 
   function missingRequired() {
     const names = [...required, ...(type === 'student' && el('session_id').value !== 'all' ? ['attempt_no'] : [])];
@@ -79,8 +81,18 @@
     options.forEach(row => select.add(new Option(label(row), String(row[key]))));
     select.disabled = !options.length;
     if (name === 'attempt_no' && options.length === 1) select.value = String(options[0][key]);
+    if (name === 'student_id' && studentSearch?.value.trim() && options.length === 1) select.value = String(options[0][key]);
     if (name === 'attempt_no') select.closest('[data-report-filter]').hidden = !options.length;
-    ui('filter-state').textContent = options.length ? '' : select.options[0].textContent;
+    ui('filter-state').textContent = options.length ? (name === 'student_id' && studentSearch?.value.trim() ? `${options.length} students found.` : '') : select.options[0].textContent;
+  }
+
+  async function studentPeriods(query, signal, expectedVersion) {
+    query.set('student_id', el('student_id').value);
+    await load('semester', `api/student-semesters?${query}`, 'semester', row => `Semester ${row.semester}`, signal, expectedVersion);
+    if (el('semester').value && expectedVersion === version) {
+      query.set('semester', el('semester').value);
+      await load('session_id', `api/student-sessions?${query}`, 'session_id', row => `${row.exam_session} ${row.exam_year} - Semester ${row.semester}`, signal, expectedVersion);
+    }
   }
 
   async function cascade(name) {
@@ -93,20 +105,21 @@
     ready();
     ui('filter-state').textContent = 'Loading filters...';
     const batch = el('batch_id').value;
+    if (studentSearch) studentSearch.disabled = !batch;
     const query = new URLSearchParams({ batch_id: batch });
     try {
       if (name === 'initial') await load('batch_id', 'api/batches', 'batch_id', row => `${row.batch_name} (${row.start_year}-${row.end_year})`, signal, expectedVersion);
       else if (!batch) ui('filter-state').textContent = '';
       else if (type === 'student-progress') ui('filter-state').textContent = '';
-      else if (name === 'batch_id' && type === 'student') await load('student_id', `api/batches/${batch}/students`, 'student_id', row => `${row.usn} - ${row.student_name}`, signal, expectedVersion);
+      else if (name === 'batch_id' && type === 'student') {
+        const search = new URLSearchParams();
+        if (studentSearch.value.trim()) search.set('search', studentSearch.value.trim());
+        await load('student_id', `api/batches/${batch}/students?${search}`, 'student_id', row => `${row.usn} - ${row.student_name}`, signal, expectedVersion);
+        if (expectedVersion === version && el('student_id').value) await studentPeriods(query, signal, expectedVersion);
+      }
       else if (name === 'batch_id' || name === 'student_id') {
         if (type === 'student' && el('student_id').value) {
-          query.set('student_id', el('student_id').value);
-          await load('semester', `api/student-semesters?${query}`, 'semester', row => `Semester ${row.semester}`, signal, expectedVersion);
-          if (el('semester').value && expectedVersion === version) {
-            query.set('semester', el('semester').value);
-            await load('session_id', `api/student-sessions?${query}`, 'session_id', row => `${row.exam_session} ${row.exam_year} - Semester ${row.semester}`, signal, expectedVersion);
-          }
+          await studentPeriods(query, signal, expectedVersion);
         } else if (type !== 'student') await load('semester', `api/batches/${batch}/semesters`, 'semester', row => row.semester, signal, expectedVersion);
         else ui('filter-state').textContent = '';
       } else if (name === 'semester' && el('semester').value) {
@@ -336,6 +349,8 @@
   }
 
   form.addEventListener('change', event => {
+    if (event.target === studentSearch) return;
+    clearTimeout(studentSearchTimer);
     const name = event.target.name;
     const pendingCascade = cascading ? cascadeName : undefined;
     invalidate();
@@ -352,6 +367,8 @@
   form.addEventListener('submit', event => { event.preventDefault(); generate(); });
   form.addEventListener('reset', event => {
     event.preventDefault();
+    clearTimeout(studentSearchTimer);
+    if (studentSearch) { studentSearch.value = ''; studentSearch.disabled = true; }
     invalidate(); cascadeAbort?.abort(); cascading = false;
     dependent.slice(1).forEach(resetSelect);
     el('batch_id').value = '';
@@ -365,6 +382,16 @@
   });
   ui('prev').addEventListener('click', () => { if (!generating && currentPage > 1) generate(currentPage - 1); });
   ui('next').addEventListener('click', () => { if (!generating && currentPage < totalPages) generate(currentPage + 1); });
+  if (studentSearch) studentSearch.addEventListener('input', () => {
+    clearTimeout(studentSearchTimer);
+    invalidate(); cascadeAbort?.abort();
+    dependent.slice(1).forEach(resetSelect);
+    cascadeName = 'batch_id';
+    cascading = !!el('batch_id').value;
+    ready();
+    ui('filter-state').textContent = cascading ? 'Searching students...' : '';
+    if (cascading) studentSearchTimer = setTimeout(() => cascade('batch_id'), 300);
+  });
   async function initialize() {
     const query = new URLSearchParams(location.search);
     const initialVersion = version;

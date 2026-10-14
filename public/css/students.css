@@ -1,7 +1,8 @@
 /* Student Management Dashboard — scoped styles reuse dashboard tokens. */
+.students-page { color: var(--text-primary); }
 .students-page .students-header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .students-page .students-table th {
-  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0;
   color: var(--text-secondary); font-weight: 600; white-space: nowrap;
 }
 .students-page .students-table td { font-size: 0.9rem; vertical-align: middle; }
@@ -15,6 +16,27 @@
 .students-page .badge-invalid { background-color: rgba(220, 53, 69, 0.12); color: var(--color-danger); }
 .students-page .badge-category { background-color: rgba(37, 99, 235, 0.12); color: var(--primary-brand); }
 .students-page .students-actions { display: flex; gap: 0.35rem; }
+.students-page .students-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; white-space: nowrap; min-height: 32px; }
+.students-page .students-actions .material-icons { font-size: 18px; }
+.students-search-field { position: relative; }
+.students-search-field input { padding-right: 40px; }
+.students-search-field input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.students-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--card-border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); flex-shrink: 0; }
+.students-icon-button:hover:not(:disabled) { background: var(--secondary-bg); color: var(--accent-blue); }
+.students-icon-button:disabled { opacity: .4; cursor: default; }
+.students-icon-button:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.students-icon-button[hidden] { display: none; }
+.students-search-field .students-icon-button { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; }
+.students-list-heading, .students-pagination, .students-pagination nav, .students-page-size { display: flex; align-items: center; gap: .75rem; }
+.students-list-heading { justify-content: space-between; flex-wrap: wrap; }
+#studentSearchLoading { font-size: .875rem; color: var(--text-secondary); }
+#studentSearchLoading:not([hidden]) { display: inline-flex; align-items: center; gap: .5rem; }
+.students-pagination { flex-wrap: wrap; margin-top: 1rem; font-size: .875rem; color: var(--text-primary); }
+#studentResultCount { margin-right: auto; color: var(--text-secondary); }
+.students-page-size select { width: 74px; }
+#studentPageInfo { min-width: 90px; text-align: center; }
+.students-page .form-control, .students-page .form-select { background-color: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); }
+.students-table td:nth-child(2), .students-table td:nth-child(5) { white-space: nowrap; }
 .students-page .students-confirm-list dt { font-weight: 600; color: var(--text-secondary); }
 .students-page .students-confirm-list dd { color: var(--text-primary); }
 .students-page .students-skipped-list { max-height: 220px; overflow-y: auto; padding-left: 1.1rem; }
@@ -59,6 +81,12 @@
   #studentForm > .mb-3:nth-of-type(4) { grid-column: 1 / -1; }
 }
 @media (max-width: 767.98px) {
+  .main-content:has(.students-page) { margin-left: 0; width: 100%; min-width: 0; }
+  .students-page { padding-inline: 0; min-width: 0; }
+  .students-page .card { min-width: 0; }
+  .students-pagination { gap: .75rem .5rem; }
+  #studentResultCount { flex-basis: 100%; }
+  .students-pagination nav { margin-left: auto; gap: .35rem; }
   .students-page .students-header-actions { width: 100%; }
   .students-page .students-header-actions .btn { flex: 1 1 auto; }
 }

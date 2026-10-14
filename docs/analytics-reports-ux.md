@@ -194,3 +194,45 @@ attention list; pending/rejected revisions do not clear courses. A missing secon
 semester still leaves year completion Unknown. The browser submits Effective via
 Apply Filters and compares all six KPIs, both chart datasets, attention links and
 year-level counts with the service. Academic logic remains unchanged.
+
+## Analytics Students Partial Search
+
+Updated on 14 October 2026. Student / USN Search now matches partial USNs or
+student names using escaped, bound LIKE text under the existing case-insensitive
+database collation. Other Analytics pages retain their exact USN-filter semantics.
+Batch, semester, session, result basis, attempt and pagination constraints remain
+in force; no academic calculation or stored record changes.
+
+Typing triggers search after 300 ms and resets pagination. AbortController and
+an immediate sequence invalidation prevent earlier responses from overwriting
+newer text, even before debounce fires. Clearing the field restores all matching
+academic-result rows in the selected scope, not students without recorded results.
+
+Tests cover the bound query, literal wildcard escaping, retained scope/attempt
+filters, real read-only MySQL partial/case/name searches, and unchanged exact-USN
+behavior on other pages. Browser regression verifies live typing, clearing, empty
+results and ignored-cancellation races. Full suite: 156 tests, 150 passes, four
+pre-existing demo-seed failures and two skips.
+
+## Student Result Live Search
+
+The Student Result report now has a Student / USN Search field beside the
+existing Student selector. Partial USN/name text filters the student-options API
+within the selected batch, using validated, trimmed, escaped LIKE replacements.
+Search is bounded to 100 characters and respects soft deletes and existing
+admin/faculty-only report authorization.
+
+Typing uses a 300 ms debounce. It immediately invalidates the report and student
+selection, aborts pending filter/report requests, and resets dependent periods.
+The existing cascade version check rejects late responses even when abort is
+ignored. One matching student is automatically selected and their recorded
+semester/session options load; multiple matches remain an explicit choice.
+Clearing search restores all students in that batch. Reset clears and disables
+search until a batch is selected. Generate Report remains a separate command.
+
+Search text is not submitted as an academic report filter. Report calculations,
+result basis, exports and print remain unchanged. API tests cover text bounds,
+escaping, batch scope, authorization and real read-only MySQL partial/name/case
+matching. Browser checks cover live options, ambiguity, clearing, empty matches,
+single-match period loading and ignored-cancellation races. Full regression:
+159 tests, 153 passed, four pre-existing demo-seed failures and two skipped.

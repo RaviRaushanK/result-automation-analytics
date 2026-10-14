@@ -1,0 +1,9 @@
+<div class="batch-year-control" data-year-picker>
+  <input type="number" class="form-control" id="<%= controlId %>" name="<%= fieldName %>" placeholder="<%= placeholder %>" min="1900" max="2200" step="1" inputmode="numeric" aria-describedby="<%= controlId %>Error">
+  <button type="button" class="batch-year-icon" data-year-toggle aria-label="Choose <%= fieldLabel.toLowerCase() %>" title="Choose <%= fieldLabel.toLowerCase() %>" aria-expanded="false" aria-controls="<%= controlId %>Picker"><span class="material-icons" aria-hidden="true">calendar_month</span></button>
+  <div class="invalid-feedback" id="<%= controlId %>Error"><%= feedback %></div>
+  <div class="batch-year-panel" id="<%= controlId %>Picker" role="group" aria-label="<%= fieldLabel %> picker" hidden>
+    <div class="batch-year-heading"><button type="button" class="batch-year-icon" data-year-prev aria-label="Previous decade" title="Previous decade"><span class="material-icons" aria-hidden="true">chevron_left</span></button><span data-year-range aria-live="polite"></span><button type="button" class="batch-year-icon" data-year-next aria-label="Next decade" title="Next decade"><span class="material-icons" aria-hidden="true">chevron_right</span></button></div>
+    <div class="batch-year-grid" data-year-grid></div>
+  </div>
+</div>

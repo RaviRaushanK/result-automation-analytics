@@ -3,6 +3,7 @@ const multer = require("multer");
 const router = express.Router();
 
 const studentController = require("../controllers/studentController");
+router.use(require('../middlewares/authMiddleware'), require('../middlewares/studentDirectoryMiddleware'));
 
 // Memory storage: import files are parsed in-memory; nothing is
 // inserted until the admin confirms the preview.

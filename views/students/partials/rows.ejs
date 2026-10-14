@@ -1,0 +1,11 @@
+<% rows.forEach((student, index) => { const resultLink = '/reports/student?' + new URLSearchParams({ batch_id: student.batch_id, student_id: student.student_id }); %>
+<tr>
+  <td><%= (pagination.page - 1) * pagination.pageSize + index + 1 %></td>
+  <td><%= student.usn %></td><td><%= student.student_name %></td><td><%= student.email || '--' %></td>
+  <td><%= student.Batch?.batch_name || student.batch_id %></td>
+  <td><span class="badge-status badge-category"><%= student.category || '--' %></span></td>
+  <td><span class="badge-status <%= student.status === 'active' ? 'badge-active' : 'badge-inactive' %>"><%= student.status %></span></td>
+  <td><div class="students-actions"><a href="<%= resultLink %>" class="btn btn-sm btn-outline-primary students-results-link" title="View results for <%= student.usn %>" aria-label="View results for <%= student.usn %>"><span class="material-icons" aria-hidden="true">assessment</span>View Results</a><button type="button" class="btn btn-sm btn-outline-secondary" data-act="edit" data-id="<%= student.student_id %>" title="Edit <%= student.usn %>" aria-label="Edit <%= student.usn %>"><span class="material-icons" aria-hidden="true">edit</span></button><button type="button" class="btn btn-sm btn-outline-danger" data-act="delete" data-id="<%= student.student_id %>" title="Delete <%= student.usn %>" aria-label="Delete <%= student.usn %>"><span class="material-icons" aria-hidden="true">delete_outline</span></button></div></td>
+</tr>
+<% }); %>
+<% if (!rows.length) { %><tr><td colspan="8" class="text-center text-muted"><%= filters.search ? `No students matched "${filters.search}".` : 'No students found for the selected filters.' %></td></tr><% } %>

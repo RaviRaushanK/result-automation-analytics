@@ -103,7 +103,7 @@ test('new regular imports require full verified roster; all three retake types a
 test('session controller allows different periods of one semester and rejects identical periods', async () => {
   const controller=require('../controllers/sessionController');
   const originals=[db.Batch.findByPk,db.ResultSession.findOne,db.ResultSession.create];
-  db.Batch.findByPk=async()=>({batch_id:1});
+  db.Batch.findByPk=async()=>({batch_id:1,start_year:2025,end_year:2027});
   db.ResultSession.findOne=async({where})=>where.exam_session==='Dec'&&where.exam_year===2025?{session_id:1}:null;
   db.ResultSession.create=async data=>data;
   const invoke=async body=>{let status,data;await controller.create({body},{status:n=>{status=n;return{json:value=>{data=value;}};}});return{status,data};};

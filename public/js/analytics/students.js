@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   window.AnalyticsPage({
-    page: 'students', columns: 11,
+    page: 'students', columns: 11, searchField: 'usn',
     render: function (result, ui) {
       var rows = result.data || [];
       rows.forEach(function (r) {

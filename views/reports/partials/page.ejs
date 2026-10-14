@@ -8,6 +8,9 @@
     <div class="row g-3">
       <% const filters = [ ['batch_id', 'Batch'], ...(reportType === 'student' ? [['student_id', 'Student']] : []), ...(reportType === 'student-progress' ? [] : [['semester', 'Semester'], ['session_id', 'Result Session']]), ...(reportType === 'student' ? [['attempt_no', 'Attempt']] : []), ...(['subject', 'revaluation'].includes(reportType) ? [['subject_id', 'Subject']] : []) ]; %>
       <% filters.forEach(([name, label]) => { const optional = reportType === 'revaluation' && name === 'subject_id'; %>
+        <% if (reportType === 'student' && name === 'student_id') { %>
+          <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="report-student-search">Student / USN Search</label><input type="search" class="form-control" id="report-student-search" maxlength="100" placeholder="USN or name" aria-controls="report-student_id" disabled></div>
+        <% } %>
         <div class="col-12 col-sm-6 col-lg-3" data-report-filter="<%= name %>" <%= name === 'attempt_no' ? 'hidden' : '' %>>
           <label class="form-label" for="report-<%= name %>"><%= label %><%= optional ? ' (Optional)' : '' %></label>
           <select class="form-select" name="<%= name %>" id="report-<%= name %>" <%= optional ? '' : 'required' %> disabled>

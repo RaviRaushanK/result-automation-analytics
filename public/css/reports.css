@@ -86,6 +86,7 @@
 .reports-analysis-bottom .reports-summary div:last-child { border-bottom: 0; }
 .reports-page .reports-consolidated { table-layout: fixed; }
 .reports-consolidated th, .reports-consolidated td { text-align: center; border: 1px solid var(--card-border, #bbb); }
+.reports-consolidated .reports-student-name { text-align: left; }
 .reports-page .reports-consolidated td { min-width: 0; }
 .reports-page .reports-consolidated .reports-fixed-0,
 .reports-page .reports-consolidated .reports-fixed-1,

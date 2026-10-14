@@ -2,17 +2,12 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { Student, Batch } = require('../database/models');
+const directory = require('../services/studentDirectoryService');
 
 const emailValidation = require('../public/js/student-email-validation');
 const USN_REGEX = /^[A-Za-z0-9][A-Za-z0-9/-]{2,49}$/;
 const NAME_REGEX = /^[A-Za-z][A-Za-z .'-]{1,99}$/;
 const BATCH_ORDER = [['start_year', 'DESC'], ['end_year', 'DESC'], ['batch_id', 'DESC']];
-
-async function filteredBatchId(query) {
-  if (query && query.batch_id) return query.batch_id;
-  const latest = await Batch.findOne({ attributes: ['batch_id'], order: BATCH_ORDER });
-  return latest ? latest.batch_id : null;
-}
 
 function studentSaveError(err) {
   const labels = { usn: 'USN', email: 'Email', batch_id: 'Batch', student_name: 'Student Name', category: 'Category', status: 'Status' };
@@ -182,69 +177,41 @@ const studentController = {
         where: { category: { [Op.ne]: null } },
         group: ['category'], order: [['category', 'ASC']], raw: true
       });
-      res.render('students/index', { ...base, batches: batches,
-        categories: cats.map((c) => c.category).filter(Boolean),
-        initialSearch: req.query.search || '' });
+      const listing = await directory.list(req.query);
+      res.render('students/index', { ...base, batches,
+        categories: cats.map((c) => c.category).filter(Boolean), listing, initialError: '' });
     } catch (err) {
       console.error('Students render error:', err);
-      res.render('students/index', { ...base, batches: [], categories: [], initialSearch: '' });
+      if (err.status === 400) return res.status(400).send(err.message);
+      res.status(500).render('students/index', { ...base, batches: [], categories: [],
+        listing: { rows: [], filters: { search: '', batch_id: null, category: '', status: '', page: 1, pageSize: 25 },
+          pagination: { page: 1, pageSize: 25, totalRows: 0, totalPages: 0 } }, initialError: 'Unable to load students. Please reload or try again.' });
     }
   },
 
-  // Student Search page — intentionally empty content (sidebar/layout unchanged).
   search: async (req, res) => {
-    res.render('students/search', {
-      layout: 'layouts/main',
-      title: 'Student Search - SRAAS',
-      pageStyles: ['/css/dashboard.css', '/css/students.css'],
-      breadcrumbItems: [
-        { href: '/dashboard', label: 'Dashboard' },
-        { href: '/students/search', label: 'Student Search' }
-      ]
-    });
+    const query = new URLSearchParams();
+    for (const name of ['search', 'batch_id', 'category', 'status', 'page', 'pageSize']) {
+      const value = name === 'search' ? req.query.search ?? req.query.q : req.query[name];
+      if (typeof value === 'string') query.set(name, value);
+    }
+    res.redirect('/students' + (query.size ? '?' + query : ''));
   },
 
   list: async (req, res) => {
     try {
-      const q = req.query || {};
-      const search = (q.search || '').trim();
-      const batchId = await filteredBatchId(q);
-      if (!batchId) return res.json({ success: true, data: [] });
-      const where = { batch_id: batchId };
-      if (q.category) where.category = q.category;
-      if (q.status) where.status = String(q.status).toLowerCase();
-      if (search) {
-        const like = '%' + search + '%';
-        where[Op.or] = [
-          { usn: { [Op.like]: like } },
-          { student_name: { [Op.like]: like } },
-          { email: { [Op.like]: like } }
-        ];
-      }
-      const students = await Student.findAll({
-        where: where,
-        include: [{ model: Batch, attributes: ['batch_id', 'batch_name'] }],
-        order: [['usn', 'ASC'], ['student_id', 'ASC']], limit: 500
-      });
-      res.json({ success: true, data: students });
+      const listing = await directory.list(req.query);
+      res.json({ success: true, data: listing.rows, filters: listing.filters, pagination: listing.pagination });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(err.status || 500).json({ success: false, message: err.status === 400 ? err.message : 'Unable to search students. Please try again.' });
     }
   },
 
   stats: async (req, res) => {
     try {
-      const batchId = await filteredBatchId(req.query);
-      const students = batchId ? await Student.findAll({
-        attributes: ['category', 'status'], where: { batch_id: batchId }, raw: true
-      }) : [];
-      const total = students.length;
-      const active = students.filter((student) => student.status === 'active').length;
-      const inactive = students.filter((student) => student.status === 'inactive').length;
-      const categories = new Set(students.map((student) => student.category).filter(Boolean)).size;
-      res.json({ success: true, data: { total, active, inactive, categories } });
+      res.json({ success: true, data: await directory.stats(req.query) });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(err.status || 500).json({ success: false, message: err.status === 400 ? err.message : 'Unable to load student counts. Please try again.' });
     }
   },
 

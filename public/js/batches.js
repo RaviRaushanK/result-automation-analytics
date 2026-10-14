@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var YEAR_MAX = 2200;
 
     var CREATE_FIELDS = {
-        batch_name: 'createBatchName',
+        course_name: 'createBatchCourseName',
+        batch_year: 'createBatchYear',
         department_id: 'createBatchDepartment',
         start_year: 'createBatchStartYear',
         end_year: 'createBatchEndYear',
@@ -22,7 +23,8 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     var EDIT_FIELDS = {
-        batch_name: 'editBatchName',
+        course_name: 'editBatchCourseName',
+        batch_year: 'editBatchYear',
         department_id: 'editBatchDepartment',
         start_year: 'editBatchStartYear',
         end_year: 'editBatchEndYear',
@@ -335,9 +337,24 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Populate the department dropdowns from the server-rendered department list
+    function mcaDepartment() {
+        return departments.find(function (department) {
+            return String(department.department_code || '').trim().toUpperCase() === 'MCA' &&
+                department.status === 'active';
+        });
+    }
+
+    // Default new batches to MCA while keeping all active departments selectable.
     function loadDepartments() {
-        var selectIds = [CREATE_FIELDS.department_id, EDIT_FIELDS.department_id];
+        var create = document.getElementById(CREATE_FIELDS.department_id);
+        var active = departments.filter(function (department) { return department.status === 'active'; });
+        create.innerHTML = '<option value="">Select department</option>' + active.map(function (department) {
+            return '<option value="' + escapeHtml(department.department_id) + '">' + escapeHtml(department.department_name) + '</option>';
+        }).join('');
+        var defaultDepartment = mcaDepartment();
+        create.value = defaultDepartment ? String(defaultDepartment.department_id) : '';
+        document.getElementById('createBatchSubmitBtn').disabled = !active.length;
+        var selectIds = [EDIT_FIELDS.department_id];
         selectIds.forEach(function (id) {
             var select = document.getElementById(id);
             if (!select) return;
@@ -478,7 +495,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Validate a batch form. Returns { valid, data, errors }.
     function validateForm(fields) {
-        var batchName = document.getElementById(fields.batch_name).value.trim();
+        var creating = fields === CREATE_FIELDS;
+        var courseName = document.getElementById(fields.course_name).value.trim().replace(/\s+/g, ' ');
+        var batchYearRaw = document.getElementById(fields.batch_year).value.trim();
+        var batchYear = batchYearRaw ? Number(batchYearRaw) : null;
+        var batchName = courseName + ' ' + batchYearRaw;
         var departmentId = document.getElementById(fields.department_id).value;
         var startRaw = document.getElementById(fields.start_year).value.trim();
         var endRaw = document.getElementById(fields.end_year).value.trim();
@@ -487,11 +508,11 @@ document.addEventListener('DOMContentLoaded', function () {
         var errors = {};
         var startYear = null;
         var endYear = null;
-        var validDepartmentIds = departments.map(function (d) { return String(d.department_id); });
+        var validDepartmentIds = departments.filter(function (department) { return !creating || department.status === 'active'; }).map(function (d) { return String(d.department_id); });
 
-        if (!batchName) {
-            errors[fields.batch_name] = 'Batch name is required.';
-        }
+        if (!courseName || courseName.length > 90 || /[\x00-\x1f\x7f<>]/.test(courseName)) errors[fields.course_name] = 'Enter a valid course name (up to 90 characters).';
+        if (!Number.isInteger(batchYear) || batchYear < YEAR_MIN || batchYear > YEAR_MAX) errors[fields.batch_year] = 'Batch year must be between 1900 and 2200.';
+        if (Number.isInteger(batchYear)) batchName = courseName + ' ' + batchYear;
 
         if (!departmentId) {
             errors[fields.department_id] = 'Department is required.';
@@ -539,6 +560,7 @@ document.addEventListener('DOMContentLoaded', function () {
             errors: errors,
             data: {
                 batch_name: batchName,
+                course_name: courseName, batch_year: batchYear,
                 department_id: departmentId ? Number(departmentId) : null,
                 start_year: startYear,
                 end_year: endYear,
@@ -575,6 +597,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // =====================
     function resetCreateForm() {
         if (createForm) createForm.reset();
+        var defaultDepartment = mcaDepartment();
+        document.getElementById(CREATE_FIELDS.department_id).value = defaultDepartment ? String(defaultDepartment.department_id) : '';
         clearFormErrors(CREATE_FIELDS);
         hideFormError('createBatchError');
         hideFormError('confirmCreateError');
@@ -583,9 +607,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function openCreateBatch() {
         resetCreateForm();
-        if (!departments.length) {
+        var available = departments.some(function (department) { return department.status === 'active'; });
+        document.getElementById('createBatchSubmitBtn').disabled = !available;
+        if (!available) {
             showFormError('createBatchError',
-                'No departments are available. Please add a department before creating a batch.');
+                'No active departments are available. Configure a department before creating a batch.');
         }
         showModal(createModal);
     }
@@ -601,6 +627,8 @@ document.addEventListener('DOMContentLoaded', function () {
             batch_uuid: generateUuid(),
             department_id: result.data.department_id,
             batch_name: result.data.batch_name,
+            course_name: result.data.course_name,
+            batch_year: result.data.batch_year,
             start_year: result.data.start_year,
             end_year: result.data.end_year,
             status: result.data.status
@@ -666,7 +694,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         resetEditForm();
         document.getElementById('editBatchId').value = batch.batch_id;
-        document.getElementById('editBatchName').value = batch.batch_name || '';
+        var parts = AcademicFormOptions.splitBatchName(batch);
+        document.getElementById('editBatchCourseName').value = parts.course_name;
+        document.getElementById('editBatchYear').value = parts.batch_year;
         document.getElementById('editBatchDepartment').value =
             batch.department_id != null ? String(batch.department_id) : '';
         document.getElementById('editBatchStartYear').value =
@@ -701,6 +731,8 @@ document.addEventListener('DOMContentLoaded', function () {
             payload: {
                 department_id: result.data.department_id,
                 batch_name: result.data.batch_name,
+                course_name: result.data.course_name,
+                batch_year: result.data.batch_year,
                 start_year: result.data.start_year,
                 end_year: result.data.end_year,
                 status: result.data.status

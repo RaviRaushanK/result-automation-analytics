@@ -1,4 +1,4 @@
-<div class="container-fluid">
+<div class="container-fluid result-upload-page">
   <div class="row justify-content-center">
     <div class="col-12 col-xl-9">
 
@@ -17,13 +17,23 @@
 
             <!-- 1. Result Session -->
             <div class="mb-3">
+              <label for="uploadBatchSelect" class="form-label fw-semibold">Batch <span class="text-danger">*</span></label>
+              <select class="form-select form-select-lg" id="uploadBatchSelect" name="batch_id" required>
+                <option value="">Select Batch</option>
+                <% batches.forEach(function (batch) { %>
+                  <option value="<%= batch.batch_id %>" <%= String(batch.batch_id) === String(selectedBatchId) ? 'selected' : '' %>><%= batch.batch_name %> (<%= batch.start_year %>-<%= batch.end_year %>)</option>
+                <% }); %>
+              </select>
+              <div class="invalid-feedback">Select a batch.</div>
+            </div>
+            <div class="mb-3">
               <label for="resultSessionSelect" class="form-label fw-semibold">
                 Result Session <span class="text-danger">*</span>
               </label>
               <select class="form-select form-select-lg" id="resultSessionSelect" name="sessionId" required>
                 <option value="">Select Result Session</option>
                 <% sessions.forEach(function (s) { %>
-                  <option value="<%= s.session_id %>"><%= s.display_name %></option>
+                  <option value="<%= s.session_id %>" data-batch-id="<%= s.batch_id %>"><%= s.display_name %></option>
                 <% }); %>
               </select>
               <div class="invalid-feedback">Please select the result session this marks card belongs to.</div>

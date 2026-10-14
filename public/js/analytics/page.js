@@ -13,6 +13,7 @@
       if (['batch_id', 'semester', 'session_id', 'subject_id'].indexOf(key) === -1) initialQuery.delete(key);
     });
     var request = 0, filterRequest = 0, offset = 0, limit = 25, charts = [];
+    var searchTimer, requestAbort;
     // Selects that must NOT offer an empty/"All" choice. Their options are
     // listed newest-first by the API, so the first option is the latest value
     // and becomes the default when nothing else is selected.
@@ -32,8 +33,8 @@
       });
       return params;
     }
-    async function json(url) {
-      var response = await fetch(url, { headers: { Accept: 'application/json' } });
+    async function json(url, signal) {
+      var response = await fetch(url, { signal: signal, headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error('Request failed: ' + response.status);
       var result = await response.json();
       if (result.success === false) throw new Error(result.message || 'API error');
@@ -115,6 +116,9 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } }));
     }
     async function load() {
+      if (config.searchField) clearTimeout(searchTimer);
+      if (requestAbort) requestAbort.abort();
+      if (config.searchField) requestAbort = new AbortController();
       var current = ++request;
       clearCharts(); message('Loading analytics…');
       body.setAttribute('aria-busy', 'true');
@@ -124,7 +128,7 @@
       var params = filters();
       if (prev) { params.set('limit', limit); params.set('offset', offset); }
       try {
-        var result = await json('/analytics/api/' + config.page + '?' + params);
+        var result = await json('/analytics/api/' + config.page + '?' + params, requestAbort ? requestAbort.signal : undefined);
         if (current !== request) return;
         body.textContent = '';
         var rows = config.render(result, { row: row, number: number, chart: chart, statusBadge: statusBadge });
@@ -142,7 +146,7 @@
         var indicator = document.getElementById(config.page + '-page-indicator');
         if (indicator) indicator.textContent = 'Page ' + (offset / limit + 1);
       } catch (err) {
-        if (current !== request) return;
+        if (current !== request || err.name === 'AbortError') return;
         clearCharts(); message('Unable to load analytics data. Please try again.');
       } finally { if (current === request) body.setAttribute('aria-busy', 'false'); }
     }
@@ -189,6 +193,19 @@
       refresh(event.target.name);
       if (event.target.name === 'mode' || event.target.name === 'attempt') { offset = 0; load(); }
     });
+    if (config.searchField) {
+      var searchInput = form.elements.namedItem(config.searchField);
+      if (searchInput) searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        request++;
+        if (requestAbort) requestAbort.abort();
+        offset = 0;
+        body.setAttribute('aria-busy', 'true');
+        if (prev) prev.disabled = true;
+        if (next) next.disabled = true;
+        searchTimer = setTimeout(load, 300);
+      });
+    }
     if (prev) prev.addEventListener('click', function () { if (offset > 0) { offset -= limit; load(); } });
     if (next) next.addEventListener('click', function () { offset += limit; load(); });
     // Populate the option lists first: the default Batch comes from the

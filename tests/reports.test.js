@@ -541,6 +541,9 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       db.sequelize.query = (sql, options) => originalQuery(fixture + sql, options);
     });
     await t.test('EJS pages, APIs, full CSV and full print through protected router', async () => {
+      const settings = require('../services/settingsService');
+      const getBranding = settings.getBranding;
+      settings.getBranding = async () => ({ institution_name: 'SRAAS', institution_short_name: 'SRAAS', institution_address: '', institution_phone: '', institution_email: '', institution_logo: '', report_footer: '' });
       const app = express();
       app.set('view engine', 'ejs');
       app.set('views', path.join(__dirname, '../views'));
@@ -651,7 +654,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         assert.ok(html.indexOf('Semester 4</h2>') < html.indexOf('Semester 10</h2>'));
         assert.match(html, /<td>-<\/td>/);
         assert.match(html, /IA and External are original stored components/);
-      } finally { await new Promise(resolve => server.close(resolve)); }
+      } finally { settings.getBranding = getBranding; await new Promise(resolve => server.close(resolve)); }
     });
   } finally { db.sequelize.query = realQuery; }
 });

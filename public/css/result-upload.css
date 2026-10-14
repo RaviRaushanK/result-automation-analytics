@@ -1,0 +1,3 @@
+.result-upload-page .form-select{min-width:0;max-width:100%}
+.result-upload-page .form-text{color:var(--text-secondary)}
+@media(max-width:767.98px){.main-content:has(.result-upload-page){margin-left:0;width:100%;min-width:0}.result-upload-page #dropZone{padding:1.25rem!important}}

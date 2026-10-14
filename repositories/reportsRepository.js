@@ -46,7 +46,9 @@ async function options(scope, f) {
   switch (scope) {
     case 'batches': return select('SELECT batch_id, batch_name, start_year, end_year FROM batches WHERE deleted_at IS NULL ORDER BY start_year DESC, batch_name, batch_id');
     case 'students': return select(`SELECT student_id, usn, student_name FROM students
-      WHERE batch_id = :batch_id AND deleted_at IS NULL ORDER BY usn, student_id`, f);
+      WHERE batch_id = :batch_id AND deleted_at IS NULL
+      ${f.studentSearch ? 'AND (usn LIKE :studentSearch OR student_name LIKE :studentSearch)' : ''}
+      ORDER BY usn, student_id`, f);
     case 'semesters': return select(`SELECT DISTINCT semester FROM result_sessions
       WHERE batch_id = :batch_id ORDER BY semester`, f);
     case 'sessions': return select(`SELECT session_id, semester, exam_session, exam_year FROM result_sessions

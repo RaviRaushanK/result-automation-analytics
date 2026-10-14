@@ -140,14 +140,20 @@ document.addEventListener("DOMContentLoaded", function () {
     return "Semester " + (v == null ? "—" : v);
   }
   function statusOf(s) {
-    var now = new Date(),
-      mi =
-        MONTHS.findIndex(function (m) {
-          return m[0] === s.exam_session;
-        }) + 1,
-      start = new Date(Number(s.exam_year), Math.max(0, mi - 1), 1),
-      end = new Date(start.getFullYear(), start.getMonth() + 6, 1);
-    return now >= end ? "completed" : now >= start ? "active" : "upcoming";
+    return AcademicFormOptions.sessionStatus(s);
+  }
+  function semesterOptions(id, selectedBatch, selected) {
+    if (selected) selected = String(Number(selected));
+    var control = document.getElementById(id), count = AcademicFormOptions.semesterCount(selectedBatch);
+    control.replaceChildren(new Option(count ? 'Select semester' : 'No semester range available', ''));
+    for (var number = 1; number <= count; number++) control.add(new Option('Semester ' + number, String(number)));
+    if (selected && Number(selected) > count) control.add(new Option('Semester ' + selected + ' (existing)', String(selected)));
+    control.value = selected ? String(selected) : '';
+    control.disabled = !count && !selected;
+  }
+  function updateStatus(prefix) {
+    var value = statusOf({ exam_session: document.getElementById(prefix + 'Month').value, exam_year: document.getElementById(prefix + 'Year').value });
+    document.getElementById(prefix + 'Status').value = value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
   }
   function badge(st) {
     return st === "completed"
@@ -197,17 +203,21 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderSummary() {
     var completed = 0,
       upcoming = 0,
-      active = null;
+      active = AcademicFormOptions.currentSession(sessions);
     sessions.forEach(function (s) {
       var st = statusOf(s);
       if (st === "completed") completed++;
       if (st === "upcoming") upcoming++;
-      if (st === "active") active = s;
     });
     text("totalSessionsCount", sessions.length);
     text("completedSessionsCount", completed);
     text("upcomingSessionsCount", upcoming);
-    text("currentSessionName", active ? semLabel(active.semester) : "—");
+    text("currentSessionName", active ? semLabel(active.semester) : "No sessions");
+    var currentName = document.getElementById('currentSessionName');
+    text('currentSessionLabel', !active || statusOf(active) === 'active' ? 'Current Session' : statusOf(active) === 'completed' ? 'Latest Session' : 'Next Session');
+    currentName.title = active ? [batchOf(active).batch_name, monthLabel(active.exam_session), active.exam_year].filter(Boolean).join(' - ') : '';
+    var context = document.getElementById('currentSessionContext');
+    if (context) context.textContent = active ? [batchOf(active).batch_name, monthLabel(active.exam_session) + ' ' + active.exam_year, statusOf(active)].filter(Boolean).join(' - ') : '';
   }
   function row(s) {
     var st = statusOf(s),
@@ -316,7 +326,11 @@ document.addEventListener("DOMContentLoaded", function () {
   function openCreate() {
     document.getElementById("createSessionForm").reset();
     showError("createSessionError", "");
-    document.getElementById("createSessionStatus").value = "Upcoming";
+    var latest = AcademicFormOptions.sortBatches(batches)[0];
+    document.getElementById('createSessionBatch').value = latest ? String(latest.batch_id) : '';
+    semesterOptions('createSessionSemester', latest);
+    document.getElementById('createSessionYear').value = new Date().getFullYear();
+    updateStatus('createSession');
     showModal(createModal);
   }
   function createSession(e) {
@@ -359,11 +373,25 @@ document.addEventListener("DOMContentLoaded", function () {
     var b = batchOf(s);
     document.getElementById("editSessionId").value = s.session_id;
     document.getElementById("editSessionBatch").value = b.batch_name || "—";
-    document.getElementById("editSessionSemester").value = s.semester;
-    document.getElementById("editSessionMonth").value = s.exam_session;
+    semesterOptions('editSessionSemester', b, s.semester);
+    document.getElementById('editSessionSemester').disabled = true;
+    document.getElementById('editSessionSemesterNote').textContent = 'Checking configured subjects...';
+    document.getElementById('editSessionSubmitBtn').disabled = true;
+    fetchJSON('/subjects/session/' + encodeURIComponent(s.session_id)).then(function (response) {
+      if (String(document.getElementById('editSessionId').value) !== String(s.session_id)) return;
+      var subjects = Array.isArray(response) ? response : response.data || [];
+      document.getElementById('editSessionSemester').disabled = subjects.length > 0;
+      document.getElementById('editSessionSemesterNote').textContent = subjects.length ? 'Semester is locked because subjects are configured. Month and exam year can still be updated.' : '';
+      document.getElementById('editSessionSubmitBtn').disabled = false;
+    }).catch(function () {
+      if (String(document.getElementById('editSessionId').value) !== String(s.session_id)) return;
+      document.getElementById('editSessionSemesterNote').textContent = 'Semester is locked while subject availability cannot be checked. Month and exam year can still be updated.';
+      document.getElementById('editSessionSubmitBtn').disabled = false;
+    });
+    var existingMonth = MONTHS.find(function (month) { return month[0].toLowerCase() === String(s.exam_session).slice(0, 3).toLowerCase(); });
+    document.getElementById("editSessionMonth").value = existingMonth ? existingMonth[0] : '';
     document.getElementById("editSessionYear").value = s.exam_year;
-    document.getElementById("editSessionStatus").value =
-      statusOf(s).charAt(0).toUpperCase() + statusOf(s).slice(1);
+    updateStatus('editSession');
     showError("editSessionError", "");
     showModal(editModal);
   }
@@ -376,21 +404,11 @@ document.addEventListener("DOMContentLoaded", function () {
       sn = Number(sm.value),
       yn = Number(yr.value),
       valid = true;
-    valid =
-      invalid(
-        sm,
-        !sm.value || !Number.isInteger(sn) || sn < 1 || sn > 24
-          ? "Enter a semester from 1 to 24."
-          : "",
-      ) || valid;
-    valid = invalid(mo, !mo.value && "Select a starting month.") || valid;
-    valid =
-      invalid(
-        yr,
-        !yr.value || !Number.isInteger(yn) || yn < 1900 || yn > 2200
-          ? "Enter a valid exam year."
-          : "",
-      ) || valid;
+    var existing = findSession(document.getElementById('editSessionId').value);
+    var maximum = AcademicFormOptions.semesterCount(batchOf(existing || {}));
+    if (invalid(sm, !sm.value || !Number.isInteger(sn) || sn < 1 || (sn > maximum && String(sn) !== String(existing?.semester)) ? 'Select a semester for this batch.' : '')) valid = false;
+    if (invalid(mo, !mo.value ? 'Select a month.' : '')) valid = false;
+    if (invalid(yr, !yr.value || !Number.isInteger(yn) || yn < 1900 || yn > 2200 ? 'Enter a valid exam year.' : '')) valid = false;
     if (!valid) return;
     var s = findSession(document.getElementById("editSessionId").value);
     if (!s) return showError("editSessionError", "Session not found.");
@@ -447,7 +465,7 @@ document.addEventListener("DOMContentLoaded", function () {
           ["Batch", b.batch_name],
           ["Department", deptOf(s)],
           ["Semester", semLabel(s.semester)],
-          ["Starting Month", monthLabel(s.exam_session)],
+          ["Month", monthLabel(s.exam_session)],
           ["Exam Year", s.exam_year],
           ["Status", st.charAt(0).toUpperCase() + st.slice(1)],
           ["Created At", fmtDateTime(s.created_at)],
@@ -479,7 +497,7 @@ document.addEventListener("DOMContentLoaded", function () {
       ["Batch", b.batch_name || "—"],
       ["Department", deptOf(d)],
       ["Semester", semLabel(d.semester)],
-      ["Starting Month", monthLabel(d.exam_session)],
+      ["Month", monthLabel(d.exam_session)],
       ["Exam Year", d.exam_year],
       ["Status", st.charAt(0).toUpperCase() + st.slice(1)],
     ]
@@ -510,24 +528,14 @@ document.addEventListener("DOMContentLoaded", function () {
       mo = document.getElementById(prefix + "Month"),
       yr = document.getElementById(prefix + "Year"),
       valid = true;
-    valid = invalid(b, !b.value && "Select a batch.") || valid;
+    if (invalid(b, !b.value ? "Select a batch." : '')) valid = false;
     var sn = Number(sm.value);
-    valid =
-      invalid(
-        sm,
-        !sm.value || !Number.isInteger(sn) || sn < 1 || sn > 24
-          ? "Enter a semester from 1 to 24."
-          : "",
-      ) || valid;
-    valid = invalid(mo, !mo.value && "Select a starting month.") || valid;
+    var selectedBatch = batches.find(function (value) { return String(value.batch_id) === b.value; });
+    var semesterLimit = AcademicFormOptions.semesterCount(selectedBatch);
+    if (invalid(sm, !sm.value || !Number.isInteger(sn) || sn < 1 || sn > semesterLimit ? 'Select a semester for this batch.' : '')) valid = false;
+    if (invalid(mo, !mo.value ? "Select a month." : '')) valid = false;
     var yn = Number(yr.value);
-    valid =
-      invalid(
-        yr,
-        !yr.value || !Number.isInteger(yn) || yn < 1900 || yn > 2200
-          ? "Enter a valid exam year."
-          : "",
-      ) || valid;
+    if (invalid(yr, !yr.value || !Number.isInteger(yn) || yn < 1900 || yn > 2200 ? 'Enter a valid exam year.' : '')) valid = false;
     if (!valid) return null;
     if (
       prefix === "createSession" &&
@@ -556,6 +564,14 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   months(document.getElementById("createSessionMonth"));
   months(document.getElementById("editSessionMonth"));
+  document.getElementById('createSessionBatch').addEventListener('change', function () {
+    semesterOptions('createSessionSemester', batches.find(function (value) { return String(value.batch_id) === this.value; }, this));
+  });
+  ['createSession', 'editSession'].forEach(function (prefix) {
+    ['Month', 'Year'].forEach(function (name) {
+      ['input', 'change'].forEach(function (event) { document.getElementById(prefix + name).addEventListener(event, function () { updateStatus(prefix); }); });
+    });
+  });
   document
     .getElementById("createSessionHeaderBtn")
     .addEventListener("click", openCreate);

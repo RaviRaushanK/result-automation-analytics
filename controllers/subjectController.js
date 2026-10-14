@@ -315,11 +315,7 @@ const subjectController = {
           });
       const session = await ResultSession.findByPk(subject.session_id);
       await sequelize.transaction(async transaction => {
-        const course = await academicCourses.resolve(session, check.data, transaction);
-        if (subject.course_id && String(subject.course_id) !== String(course.course_id)) {
-          const error = new Error('An existing subject cannot be reassigned to another academic course. Create a new offering instead.'); error.status = 409; throw error;
-        }
-        await subject.update({ ...check.data, course_id: course.course_id }, { transaction });
+        await academicCourses.updateOffering(subject, session, check.data, transaction);
       });
       const data = await Subject.findByPk(subject.subject_id);
       res.json({
