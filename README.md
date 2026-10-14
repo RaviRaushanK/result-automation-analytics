@@ -28,6 +28,23 @@ Create `config/.env` and set these:
 | `MAX_UPLOAD_SIZE` | `20MB` | Max file upload size |
 | `OCR_PROVIDER` | `tesseract` | OCR engine |
 
+### AI hybrid extraction (optional, FREE via Groq)
+
+Result/revaluation documents are extracted by combining **advanced OCR + a Vision model (VLM) + a text LLM**. All three signals are reconciled into the same structured output as before, so the review flow is unchanged.
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `GROQ_API_KEY` | — | Free key from <https://console.groq.com/keys>. When set, enables the AI path. |
+| `GROQ_VLM_MODEL` | `qwen/qwen3.8-27b` | Vision model that reads the document images |
+| `GROQ_LLM_MODEL` | `openai/gpt-oss-20b` | Text model that reconciles OCR + VLM into JSON |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI-compatible endpoint |
+| `GROQ_TIMEOUT_MS` | `60000` | Per-request timeout |
+| `EXTRACTION_MODE` | `auto` | `auto` (AI when key present, else Tesseract), `vlm` (force AI), `tesseract` (classic only) |
+| `VLM_MAX_PAGES` | `3` | Max PDF pages sent to the VLM (cost/latency guard) |
+| `VLM_RENDER_SCALE` | `2` | Rasterisation scale for scanned PDFs (~144 DPI) |
+
+Without `GROQ_API_KEY`, the app **automatically falls back** to the classic Tesseract pipeline — nothing breaks. Scanned PDFs are rasterised to images (via `@napi-rs/canvas`) so the VLM can read them, since vision models don't accept PDF input.
+
 ---
 
 ## Features
@@ -49,6 +66,7 @@ Create `config/.env` and set these:
 - `express-session` + `bcryptjs` authentication
 - Bootstrap 5, Material Icons
 - `tesseract.js` + `pdfjs-dist` for OCR / PDF extraction
+- Optional AI hybrid extraction via **Groq** (free): `qwen/qwen3.8-27b` (VLM) + `openai/gpt-oss-20b` (LLM), with `@napi-rs/canvas` for PDF page rasterisation
 
 ---
 
@@ -117,7 +135,15 @@ result-automation-analytics/
 ├── routes/                      # Express route modules
 ├── scripts/                     # bootstrap-db.js, runInit.js
 ├── seed/                        # Manual test-data seeder (see seed/README.md)
-├── services/                    # OCR, document/revaluation extractors
+├── services/                    # OCR, document/revaluation extractors, AI (VLM+LLM)
+│   ├── aiProviders.js           #   Groq clients (vision + text) — free models
+│   ├── pageRenderer.js          #   PDF→image rasterisation for the VLM
+│   ├── vlmExtractor.js          #   Hybrid OCR + VLM + LLM extractor
+│   ├── documentExtractor.js     #   Classic Tesseract path + AI dispatch
+│   ├── ocrProvider.js           #   OCR provider abstraction
+│   ├── tesseractProvider.js     #   Tesseract implementation
+│   ├── revaluationExtractor.js  #   Revaluation adapter
+│   └── …
 ├── uploads/                     # Uploaded revaluation files
 └── views/                       # EJS templates
 ```

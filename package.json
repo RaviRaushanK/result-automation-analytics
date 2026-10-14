@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/RaviRaushanK/result-automation-analytics#readme",
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.10",
     "bcryptjs": "^3.0.3",
     "concurrently": "^10.0.5",
     "cookie-parser": "^1.4.7",
