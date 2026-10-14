@@ -13,6 +13,13 @@ config/.env
 # Logs
 *.log
 
+# Tesseract language data (auto-downloaded at runtime)
+eng.traineddata
+*.traineddata
+
+# Runtime uploads (user-uploaded PDFs/images)
+uploads/
+
 # OS files
 Thumbs.db
 Desktop.ini
