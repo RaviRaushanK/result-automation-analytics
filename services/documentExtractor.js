@@ -3,6 +3,11 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
+// Optional AI (VLM + LLM) hybrid extractor. Loaded lazily so the classic
+// Tesseract path keeps working even if the AI modules or their optional
+// dependencies are not installed.
+const aiProviders = require('./aiProviders');
+
 let pdfjsLib = null;
 try {
   pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs');
@@ -17,6 +22,24 @@ const documentExtractor = {
   async extract(filePath, resultType = 'original') {
     try {
       if (!fs.existsSync(filePath)) throw new Error('File not found');
+
+      // ---------------------------------------------------------
+      // AI hybrid path (advanced OCR + VLM + LLM), used when enabled.
+      // Enabled when GROQ_API_KEY is set AND EXTRACTION_MODE !== 'tesseract'.
+      // Any failure here falls back to the classic Tesseract path below so
+      // extraction never regresses to a hard error.
+      // ---------------------------------------------------------
+      const mode = (process.env.EXTRACTION_MODE || 'auto').toLowerCase();
+      if (mode !== 'tesseract' && aiProviders.isConfigured()) {
+        try {
+          const vlmExtractor = require('./vlmExtractor');
+          console.log('[documentExtractor] Using hybrid OCR + VLM + LLM path');
+          return await vlmExtractor.extract(filePath, resultType);
+        } catch (aiErr) {
+          console.warn('[documentExtractor] AI path failed, falling back to Tesseract:', aiErr.message);
+          // fall through to the classic path
+        }
+      }
 
       const fileExt = path.extname(filePath).toLowerCase();
       let textItems = []; // Contains spatial text objects: { text, x, y, width, height }
