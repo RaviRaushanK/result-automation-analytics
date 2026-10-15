@@ -2,6 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const resultController = require('../controllers/resultController');
+router.use((req, res, next) => {
+  res.locals.resultManagementPage = true;
+  next();
+});
 
 // Multer temp storage — files are moved to /uploads/results by the controller
 const upload = multer({

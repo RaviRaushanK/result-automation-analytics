@@ -127,6 +127,12 @@ function safeParseJson(str) {
   try { return JSON.parse(str); } catch (e) { return null; }
 }
 
+function studentRegistrationError(student, session, usn) {
+  if (student && String(student.batch_id) === String(session.batch_id)) return null;
+  const batch = session.Batch?.batch_name || 'batch ' + session.batch_id;
+  return `Student ${usn} is not registered in ${batch}. Add or restore the student in this batch, or correct the USN and selected result session before continuing.`;
+}
+
 // Core validation + computation used by review-validate, preview and import.
 // markInputs: object keyed by `internal_<subject_id>` / `external_<subject_id>`
 async function buildValidatedPayload(sessionId, studentInput, markInputs, options = {}) {
@@ -243,7 +249,7 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs, option
       overallResult: (!hasErrors && failedCount === 0) ? 'pass' : 'fail',
       // SGPA = Σ(credits × grade points) / Σ(credits) over ALL registered courses
       sgpa: !retake && fullRoster && allCredits > 0 ? Number((allPoints / allCredits).toFixed(2)) : null,
-      // Cumulative GPA is determined from accepted course history after persistence.
+      // Preview adds verified history separately; confirmation recalculates after persistence.
       cgpa: null,
       failedSubjectCount: failedCount
     }
@@ -537,8 +543,10 @@ const resultController = {
         ? { attempt_no: savedAttempt.attempt_no, exam_type: savedAttempt.exam_type }
         : { attempt_no: 1, exam_type: 'REGULAR' };
       let duplicateStudent = false;
+      let registrationError = null;
       if (usn) {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
+        registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
         if (existingStudent) {
           const existingResult = await Result.findOne({
             where: {
@@ -565,6 +573,8 @@ const resultController = {
         subjects,
         warnings,
         extractionWarning,
+        formError: typeof req.query?.error === 'string' ? req.query.error : registrationError,
+        registrationBlocked: !!registrationError,
         errors: {},
         duplicateStudent,
         fileUrl: ctx.fileUrl,
@@ -596,6 +606,12 @@ const resultController = {
         markInputs,
         { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
+      let registrationError = null;
+      if (payload.student.usn) {
+        const student = await Student.findOne({ where: { usn: payload.student.usn } });
+        registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
+        if (registrationError) errors.form = [errors.form, registrationError].filter(Boolean).join(' ');
+      }
 
       // Persist the admin's edited values into the stored extraction payload
       const mergedSubjects = payload.subjects.map(s => ({
@@ -703,6 +719,7 @@ const resultController = {
           extractionWarning: (errors.form ? errors.form + ' Please correct the highlighted fields below.' : 'Some required fields are missing. Please correct the highlighted fields below.'),
           errors,
           formError: errors.form || null,
+          registrationBlocked: !!registrationError,
           duplicateStudent: false,
           fileUrl: ctx.fileUrl,
           fileType: (ctx.log.file_type || '').toLowerCase(),
@@ -743,6 +760,16 @@ const resultController = {
 
       if (Object.keys(errors).length > 0) {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
+      }
+
+      const student = await Student.findOne({ where: { usn: payload.student.usn } });
+      const registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
+      if (registrationError) return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
+      const previewAttempt = sanitizeAttempt(ctx.saved.attempt?.attempt_no, ctx.saved.attempt?.exam_type);
+      if (previewAttempt.ok) {
+        const history = await academicOutcomes.load(ctx.session.batch_id, [student.student_id], 'original');
+        payload.cgpa = academicOutcomes.previewCumulative(history, student.student_id, ctx.session,
+          previewAttempt, payload.subjects);
       }
 
       res.render('results/preview', {
@@ -800,24 +827,16 @@ const resultController = {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
       }
 
-      // 1) Find or provision the student inside the session's batch
-      let student = await Student.findOne({
+      // Student registration is required; result imports never provision students.
+      const student = await Student.findOne({
         where: { usn: payload.student.usn },
         transaction: t
       });
 
-      if (!student) {
-        student = await Student.create({
-          student_uuid: crypto.randomUUID(),
-          batch_id: ctx.session.batch_id,
-          usn: payload.student.usn,
-          student_name: payload.student.name,
-          status: 'active'
-        }, { transaction: t });
-      }
-      if (String(student.batch_id) !== String(ctx.session.batch_id)) {
+      const registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
+      if (registrationError) {
         await t.rollback();
-        return res.redirect('/results/logs?error=' + encodeURIComponent('Student does not belong to the selected batch.'));
+        return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
       }
 
       // Attempt authority comes ONLY from the persisted OCR payload, which was

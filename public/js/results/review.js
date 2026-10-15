@@ -198,6 +198,12 @@ document.addEventListener('DOMContentLoaded', function () {
     // Submit-time guard: same validation, never trust the browser submit.
     if (form) {
         form.addEventListener('submit', function (e) {
+            if (form.dataset.registrationBlocked === 'true') {
+                e.preventDefault();
+                var registrationAlert = document.getElementById('resultValidationAlert');
+                if (registrationAlert) registrationAlert.scrollIntoView({ block: 'center' });
+                return false;
+            }
             var missing = collectMissingFields();
             if (missing.length > 0) {
                 e.preventDefault();

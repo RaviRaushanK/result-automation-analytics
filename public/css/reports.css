@@ -155,6 +155,48 @@
   .reports-semester h2, .reports-semester h3, .reports-student-session h3, .reports-student-attempt h4 { break-after: avoid; }
   .reports-student-attempt .reports-table { min-width: 0; }
   .reports-status { background: none !important; color: #000 !important; padding: 0; }
+  .reports-print { font-size: 10px; line-height: 1.25; }
+  .reports-print > header:not(.report-branding) { margin: 0 0 6px; padding: 0; }
+  .reports-print > header > p { margin: 0 0 2px; font-size: 9px; }
+  .reports-print h1 { font-size: 16px; line-height: 1.2; margin: 3px 0 6px; }
+  .reports-print .report-branding { gap: 10px; padding-block: 4px; margin-bottom: 7px; }
+  .reports-print .report-brand-logo { width: 40px; height: 40px; flex-basis: 40px; }
+  .reports-print .report-logo-image { max-width: 40px; max-height: 40px; }
+  .reports-print .report-brand-details h2 { font-size: 13px; line-height: 1.2; margin: 0 0 2px; }
+  .reports-print .report-brand-details p { font-size: 9px; line-height: 1.2; margin: 1px 0; }
+  .reports-print .report-brand-details { flex: 1; display: flex; flex-wrap: wrap; column-gap: 8px; }
+  .reports-print .report-brand-details h2 { flex-basis: 100%; }
+  .reports-print .report-brand-short, .reports-print .report-brand-programme { order: 1; }
+  .reports-print [data-branding-field="institution_address"] { order: 2; flex-basis: 100%; }
+  .reports-print [data-branding-field="institution_phone"], .reports-print [data-branding-field="institution_email"] { order: 3; }
+  .reports-print .reports-context { grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px 12px; margin: 0 0 7px; }
+  .reports-print .reports-context dt { font-size: 9px; line-height: 1.2; }
+  .reports-print .reports-context dd { font-size: 10px; line-height: 1.25; }
+  .reports-print .reports-context-note { grid-column: 1 / -1; order: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+  .reports-print .reports-context-note dt::after { content: ':'; }
+  .reports-print .reports-context-note dd { font-size: 9px; }
+  .reports-print .reports-summary { margin: 0 0 7px; padding: 5px 0; gap: 4px 20px; }
+  .reports-print .reports-summary div { min-width: 48px; }
+  .reports-print .reports-summary span { display: inline; font-size: 9px; }
+  .reports-print .reports-summary strong { display: inline; font-size: 11px; line-height: 1.2; margin-left: 4px; }
+  .reports-print .reports-component-note { font-size: 9px; margin: 4px 0 7px; }
+  .reports-print .reports-student-session { padding-top: 0; border: 0; }
+  .reports-print .reports-student-attempt { margin: 6px 0 10px; }
+  .reports-print .reports-attempt-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 5px; break-after: avoid; }
+  .reports-print .reports-attempt-heading h2 { font-size: 11px; line-height: 1.3; margin: 0; }
+  .reports-print .reports-attempt-heading .reports-summary { border: 0; padding: 0; margin: 0; gap: 4px 12px; }
+  .reports-print .reports-attempt-heading .reports-summary span, .reports-print .reports-attempt-heading .reports-summary strong { display: inline; font-size: 9px; }
+  .reports-print .reports-attempt-heading .reports-summary strong { margin-left: 4px; }
+  .reports-print .report-brand-footer { font-size: 9px; margin-top: 7px; }
+  .reports-print .reports-analysis-header { padding: 0 0 4px; margin: 0 0 6px; border-top: 0; }
+  .reports-print .reports-analysis-header h1 { font-size: 14px; margin: 2px 0 4px; }
+  .reports-print .reports-analysis-header p { font-size: 9px; margin: 1px 0; }
+  .reports-print .reports-progress-notes { font-size: 9px; line-height: 1.3; padding-left: 14px; margin: 7px 0; }
+  .reports-print .reports-progress-notes li { margin: 0 0 3px; }
+  .reports-print .reports-print-caption { display: none; }
+  .reports-print .reports-analysis-bottom { margin-top: 10px; gap: 12px; }
+  .reports-print .reports-analysis-chart h2 { font-size: 11px; margin: 0 0 5px; }
+  .reports-print .reports-analysis-bottom .reports-summary div { padding: 5px 7px; gap: 8px; }
   .reports-muted, .reports-context dt, .reports-summary span { color: #333 !important; }
   a { color: #000 !important; text-decoration: none; }
 }

@@ -1,7 +1,7 @@
 <% const confirmed = typeof savedConfirmed === 'undefined' || savedConfirmed;
 const resultStatus = String(overallResult || '').toLowerCase();
 const gpa = value => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? 'Unavailable' : Number(value).toFixed(2); %>
-<section class="import-success-page" aria-labelledby="importSuccessTitle">
+<section class="import-success-page result-management-page" aria-labelledby="importSuccessTitle">
   <%- include('partials/success-header', { confirmed, headingId: 'importSuccessTitle', eyebrow: confirmed ? 'Import complete' : 'Import record', heading: confirmed ? 'Result imported successfully' : 'Saved result unavailable', description: confirmed ? 'Saved and ready for your academic reports.' : 'No saved result was found for this import. Review the import log before trying again.' }) %>
   <div class="import-student-overview"><span class="material-icons" aria-hidden="true">person</span><div><div class="import-success-student"><%= studentName || 'Unavailable' %></div><div class="import-success-usn"><%= usn %></div></div></div>
   <dl class="import-success-details">

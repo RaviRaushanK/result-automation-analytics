@@ -88,6 +88,23 @@ async function calculateCumulative(batchId, studentId, semester, period, transac
   const data = await repository.load(batchId, [studentId], 'original', transaction);
   return cumulative(data, studentId, semester, period);
 }
+function previewCumulative(data, studentId, session, attempt, subjects) {
+  const cutoff = policy.period(session);
+  if (cutoff === null || !Number.isSafeInteger(Number(attempt.attempt_no)) || Number(attempt.attempt_no) < 1
+    || !policy.EXAM_TYPES.includes(attempt.exam_type)) return null;
+  // A duplicate cannot be previewed as a new academic attempt.
+  if (data.results.some(result => String(result.student_id) === String(studentId)
+    && String(result.session_id) === String(session.session_id) && Number(result.attempt_no) === Number(attempt.attempt_no))) return null;
+  const pending = { result_id: 'preview-result', student_id: studentId, session_id: session.session_id,
+    semester: String(session.semester), exam_session: session.exam_session, exam_year: session.exam_year,
+    attempt_no: Number(attempt.attempt_no), exam_type: attempt.exam_type };
+  const pendingSubjects = subjects.map(subject => ({ ...pending,
+    subject_id: subject.subject_id, course_id_snapshot: subject.course_id, credits_snapshot: subject.credits,
+    grade: subject.grade, grade_point: subject.grade_point, grading_scheme_version: subject.grading_scheme_version,
+    outcome_status: subject.result_status }));
+  return cumulative({ courses: data.courses, results: [...data.results, pending], subjects: [...data.subjects, ...pendingSubjects] },
+    studentId, session.semester, cutoff);
+}
 async function retakeWarnings(session, usn, subjects, transaction, attemptNo) {
   const current = policy.period(session);
   const history = await repository.priorCourses(session.batch_id, usn, transaction);
@@ -96,4 +113,4 @@ async function retakeWarnings(session, usn, subjects, transaction, attemptNo) {
       || policy.period(row) === current && String(row.session_id) === String(session.session_id) && Number(row.attempt_no) < Number(attemptNo))));
   return missing.length ? [`Prior course history could not be verified for ${missing.map(s => s.subject_code).join(', ')}. Review the earlier results before confirming this retake; clearance will remain unknown where history is incomplete.`] : [];
 }
-module.exports = { semesterOutcome, academicYearOutcome, cumulative, calculateCumulative, retakeWarnings, load: repository.load };
+module.exports = { semesterOutcome, academicYearOutcome, cumulative, calculateCumulative, previewCumulative, retakeWarnings, load: repository.load };

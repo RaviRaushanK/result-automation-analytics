@@ -76,6 +76,13 @@ async function main() {
     }
     return next();
   });
+  app.use(require('./fixtures/workspace-pages').api);
+  app.get('/verification/workspace/:page', (req, res) => {
+    const fixture = require('./fixtures/workspace-pages');
+    const page = fixture.pages[req.params.page];
+    if (!page) return res.sendStatus(404);
+    return res.render(page[0], { ...fixture.base, ...page[1] });
+  });
   app.use('/reports', require('../routes/reportsRoutes'));
   app.use('/analytics', require('../routes/analyticsRoutes'));
   app.use('/subjects', require('../routes/subjectRoutes'));
@@ -84,6 +91,12 @@ async function main() {
   app.use('/sessions', require('../routes/sessionRoutes'));
   app.use('/faculty', require('../routes/facultyRoutes'));
   app.use('/results', require('../routes/resultRoutes'));
+  app.get('/verification/result-management/:page', (req, res) => {
+    const fixture = require('./fixtures/result-management-pages');
+    const page = fixture.pages[req.params.page];
+    if (!page) return res.sendStatus(404);
+    return res.render(page[0], { ...fixture.base, ...page[1] });
+  });
   app.get('/verification/sessions', (req, res) => res.render('sessions/index', {
     title: 'Session defaults verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'], sessions: [editSessionFixture],
     batches: [{ batch_id: 9003, batch_name: 'Old Batch', start_year: 2020, end_year: 2022 }, { batch_id: 9001, batch_name: 'MCA Test', start_year: 2025, end_year: 2027 }, { batch_id: 9002, batch_name: 'BTech Test', start_year: 2026, end_year: 2030 }]
@@ -96,6 +109,17 @@ async function main() {
     courses: rosterFixtureCourses.map(course => ({ ...course, roster_verified: req.query.verified === '1' }))
   }));
   app.get('/verification/faculty', (req, res) => res.render('faculty/index', { title: 'Faculty count verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/faculty.css'] }));
+  app.get('/verification/cgpa-preview', (req, res) => {
+    const subject = { subject_id: 1, course_id: 1, subject_code: 'MMC101', subject_name: 'Test Course', credits: 4,
+      internalMarks: 40, externalMarks: 40, totalMarks: 80, percent: 80, grade: 'A+', grade_point: 9,
+      grading_scheme_version: require('../services/academicPolicy').SCHEME, result_status: 'pass' };
+    if (req.query.zero === '1') Object.assign(subject, { internalMarks: 0, externalMarks: 0, totalMarks: 0, percent: 0, grade: 'F', grade_point: 0, result_status: 'fail' });
+    const attempt = { attempt_no: 1, exam_type: 'REGULAR' };
+    const history = { results: [], subjects: [], courses: [{ course_id: 1, semester: '1', subject_code: 'MMC101', credits: 4, status: 'active', is_required: true, roster_verified: req.query.missing !== '1' }] };
+    const cgpa = require('../services/academicOutcomeService').previewCumulative(history, 1, { session_id: 1, semester: '1', exam_session: 'Jun', exam_year: 2026 }, attempt, [subject]);
+    res.render('results/preview', { title: 'Validated Preview', importId: 9000, sessionDisplay: 'MCA 2025 - June 2026 - Semester 1', attempt, warnings: [], fileUrl: '', fileType: 'pdf',
+      data: { student: { usn: 'TEST001', name: 'TEST STUDENT' }, subjects: [subject], overallResult: subject.result_status, sgpa: subject.grade_point, cgpa, failedSubjectCount: subject.result_status === 'fail' ? 1 : 0 } });
+  });
   app.get('/verification/import-success', (req, res) => res.render('results/success', {
     title: 'Import Successful', pageStyles: ['/css/result-success.css'], savedConfirmed: true,
     studentName: 'RAVI RAUSHAN KUMAR', usn: '1MV25MC061', sessionDisplay: 'MCA 2025 - June 2026 - Semester 1',
@@ -163,6 +187,244 @@ async function main() {
     const available = name => until(`!document.getElementById(${JSON.stringify('report-' + name)}).disabled`);
     await command('Page.enable'); await command('Runtime.enable');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    if (process.env.SUBJECT_FORM_RESPONSIVE_ONLY === '1') {
+      for (const [width, height] of [[390,844], [360,640], [320,568], [844,390], [390,420], [1440,1000]]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+        await command('Page.navigate', { url: `${base}/verification/workspace/subjects` });
+        await until("document.readyState==='complete' && !!document.querySelector('#subjectSessionSelect option[value=\"9100\"]')");
+        await evaluate("const select=document.getElementById('subjectSessionSelect');select.value='9100';select.dispatchEvent(new Event('change',{bubbles:true}))");
+        await until("!!document.querySelector('#subjectsTableBody [data-edit-subject]')");
+        await evaluate("window.scrollTo(0, document.documentElement.scrollHeight)");
+        await evaluate("document.querySelector('#subjectsTableBody [data-edit-subject]').click()");
+        await until("document.getElementById('subjectFormModal').classList.contains('show')");
+        await pause(600);
+        await evaluate("document.getElementById('subjectName').focus();const body=document.querySelector('#subjectFormModal .modal-body');body.scrollTop=body.scrollHeight");
+        await pause(100);
+        const visibility = await evaluate(`(() => {
+          const button=document.getElementById('subjectSaveBtn'), rect=button.getBoundingClientRect();
+          const parents=[]; for(let el=button.parentElement;el;el=el.parentElement){const r=el.getBoundingClientRect(), s=getComputedStyle(el); if(['auto','hidden','scroll','clip'].includes(s.overflowY)) parents.push({tag:el.id||el.className,top:r.top,bottom:r.bottom,overflow:s.overflowY}); if(el.classList.contains('modal')) break;}
+          const hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+          return {button:rect.toJSON(),parents,visible:rect.top>=0 && rect.bottom<=innerHeight && parents.every(p=>rect.top>=p.top && rect.bottom<=p.bottom) && !!hit && (hit===button || button.contains(hit))};
+        })()`);
+        await fs.writeFile(path.join(output, `subject-edit-${width}-${height}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        assert.equal(visibility.visible, true, `${width}x${height}: ${JSON.stringify(visibility)}`);
+        await evaluate("document.getElementById('subjectSaveBtn').click()");
+        await until("document.getElementById('subjectConfirmModal').classList.contains('show')");
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Edit Subject actions visible and Review opens confirmation at all six viewport sizes. Screenshots: ${output}`);
+      return;
+    }
+    if (process.env.WORKSPACE_RESPONSIVE_ONLY === '1') {
+      const pages = Object.keys(require('./fixtures/workspace-pages').pages);
+      let pageChecks = 0, modalChecks = 0;
+      const assertBounds = async label => {
+        const bounds = await evaluate(`(() => {
+          const root = document.querySelector('.workspace-page');
+          return { width: innerWidth, document: document.documentElement.scrollWidth,
+            root: root.getBoundingClientRect().toJSON(),
+            overflowing: [...root.querySelectorAll('input,select,button,a.btn')].filter(e => {
+              const r=e.getBoundingClientRect();
+              return r.width && !e.closest('.table-responsive,.modal:not(.show)') && (r.right>innerWidth+2 || r.left < -2);
+            }).map(e=>e.id || e.className) };
+        })()`);
+        assert.ok(bounds.document <= bounds.width + 2, `${label}: page overflow ${JSON.stringify(bounds)}`);
+        assert.ok(bounds.root.width > bounds.width * (bounds.width < 768 ? .8 : .35), `${label}: content width`);
+        assert.deepEqual(bounds.overflowing, [], `${label}: controls fit viewport`);
+      };
+      for (const page of pages) {
+        for (const [width, height, theme] of [[1440, 1000, 'light'], [1024, 900, 'light'], [768, 900, 'light'], [390, 844, 'light'], [360, 740, 'dark'], [844, 390, 'light']]) {
+          await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+          await command('Page.navigate', { url: `${base}/verification/workspace/${page}` });
+          await until("document.readyState==='complete' && !!document.querySelector('.workspace-page') && typeof window.setThemePreference==='function'");
+          await evaluate(`window.setThemePreference(${JSON.stringify(theme)})`);
+          await pause(400);
+          if (page === 'dashboard') {
+            await until("typeof Chart !== 'undefined' && !!Chart.getChart('passFailDoughnutChart')");
+            const charts = await evaluate(`['subjectAverageChart','passFailPieChart','passFailDoughnutChart'].map(id=>{
+              const c=document.getElementById(id), pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+              return { id, width:c.width, height:c.height, painted:pixels.some((v,i)=>i%4===3 && v>0) };
+            })`);
+            assert.ok(charts.every(c=>c.width>0 && c.height>0 && c.painted), `${page}: charts render ${JSON.stringify(charts)}`);
+          }
+          if (page === 'faculty' || page === 'subjects') {
+            const selectId = page === 'faculty' ? 'facultySessionSelect' : 'subjectSessionSelect';
+            await until(`!!document.querySelector('#${selectId} option[value="9100"]')`);
+            await evaluate(`(() => { const select=document.getElementById('${selectId}'); select.value='9100'; select.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+            await until(page === 'faculty' ? "!document.getElementById('facultyDashboard').classList.contains('d-none') && !!document.querySelector('#facultyTableBody tr')" : "!!document.querySelector('#subjectsTableBody tr')");
+          }
+          await assertBounds(`${page} ${width}x${height}`);
+          if (width >= 768) {
+            assert.equal(await evaluate("Math.abs(document.querySelector('.main-content').getBoundingClientRect().left - document.getElementById('sidebar').getBoundingClientRect().right) < 2"), true, `${page}: content follows sidebar`);
+          }
+          if (width >= 768 && width < 1024) {
+            await evaluate("document.getElementById('sidebarCollapseBtn').click()");
+            await pause(400);
+            await assertBounds(`${page} ${width}: sidebar toggled`);
+            const sidebarBounds = await evaluate("({main:document.querySelector('.main-content').getBoundingClientRect().left, sidebar:document.getElementById('sidebar').getBoundingClientRect().right, classes:document.getElementById('sidebar').className, matches:document.querySelector('.main-content').matches('.sidebar.collapsed ~ .main-content:has(.workspace-page)')})");
+            assert.ok(Math.abs(sidebarBounds.main - sidebarBounds.sidebar) < 2, `${page}: toggled sidebar aligns ${JSON.stringify(sidebarBounds)}`);
+            await evaluate("document.getElementById('sidebarCollapseBtn').click()");
+            await pause(400);
+          }
+          if ([1440,768,390,360].includes(width)) await fs.writeFile(path.join(output, `workspace-${page}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          if (page === 'dashboard' && [1440,390,360].includes(width)) {
+            await evaluate("document.querySelector('.dashboard-chart-grid').scrollIntoView()");
+            await pause(250);
+            await fs.writeFile(path.join(output, `workspace-dashboard-charts-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          }
+          pageChecks++;
+          if ([390,844].includes(width)) {
+            const ids = await evaluate("[...document.querySelectorAll('.workspace-page .modal')].map(e=>e.id)");
+            for (const id of ids) {
+              await evaluate(`new Promise(resolve => { const modal=document.getElementById(${JSON.stringify(id)});
+                modal.addEventListener('shown.bs.modal',()=>resolve(true),{once:true}); bootstrap.Modal.getOrCreateInstance(modal).show(); })`);
+              const bounds = await evaluate(`(() => { const modal=document.getElementById(${JSON.stringify(id)}); const c=modal.querySelector('.modal-content').getBoundingClientRect();
+                const footer=modal.querySelector('.modal-footer').getBoundingClientRect(); return {left:c.left,right:c.right,top:c.top,bottom:c.bottom,footerBottom:footer.bottom}; })()`);
+              assert.ok(bounds.left>=0 && bounds.right<=width+1 && bounds.top>=0 && bounds.bottom<=height+1 && bounds.footerBottom<=height+1, `${page} ${id} ${width}x${height}: ${JSON.stringify(bounds)}`);
+              await assertBounds(`${page} ${id} ${width}x${height}`);
+              if (width===390) await fs.writeFile(path.join(output, `workspace-${page}-${id}-mobile.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+              await evaluate(`new Promise(resolve => { const modal=document.getElementById(${JSON.stringify(id)});
+                modal.addEventListener('hidden.bs.modal',()=>resolve(true),{once:true}); bootstrap.Modal.getInstance(modal).hide(); })`);
+              modalChecks++;
+            }
+          }
+        }
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Verified ${pageChecks} workspace viewport checks and ${modalChecks} modal checks. Screenshots: ${output}`);
+      return;
+    }
+    if (process.env.RESULT_MANAGEMENT_RESPONSIVE_ONLY === '1') {
+      const pages = Object.keys(require('./fixtures/result-management-pages').pages);
+      let checked = 0;
+      for (const page of pages) {
+        for (const [width, theme] of [[1440, 'light'], [1024, 'light'], [768, 'light'], [390, 'light'], [360, 'light'], [390, 'dark']]) {
+          await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+          await command('Page.navigate', { url: `${base}/verification/result-management/${page}` });
+          await until("document.readyState==='complete'");
+          assert.equal(await evaluate("!!document.querySelector('.result-management-page,.revaluation-ui')"), true, `${page} rendered`);
+          await pause(350);
+          await evaluate(`document.documentElement.setAttribute('data-theme', ${JSON.stringify(theme)})`);
+          await pause(300);
+          const bounds = await evaluate(`(() => {
+            const root = document.querySelector('.result-management-page,.revaluation-ui');
+            return { viewport: innerWidth, document: document.documentElement.scrollWidth,
+              root: root.getBoundingClientRect().toJSON(),
+              overflowing: [...root.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth + 2 && !e.closest('.table-responsive')).slice(0, 8).map(e => e.tagName + '.' + e.className) };
+          })()`);
+          assert.ok(bounds.document <= width + 2, `${page} ${width}: ${JSON.stringify(bounds)}`);
+          assert.deepEqual(bounds.overflowing, [], `${page} ${width}: controls stay within viewport`);
+          assert.ok(bounds.root.width > width * (width < 768 ? .8 : .35), `${page} usable content width`);
+          await evaluate("document.querySelectorAll('.table-responsive').forEach(e => e.scrollLeft = e.scrollWidth)");
+          if (page === 'blocked') assert.equal(await evaluate("document.querySelector('#reviewForm button[type=submit]').disabled"), true);
+          if (page === 'extraction' && width === 360) {
+            await evaluate("bootstrap.Modal.getOrCreateInstance(document.getElementById('confirmMismatchModal')).show()");
+            await pause(400);
+            const modal = await evaluate("document.querySelector('.modal.show .modal-content').getBoundingClientRect().toJSON()");
+            assert.ok(modal.x >= 0 && modal.right <= width && modal.height <= 900, 'Mismatch modal fits phone');
+            await command('Page.captureScreenshot', { format: 'png' }).then(s => fs.writeFile(path.join(output, 'result-mismatch-modal-mobile.png'), Buffer.from(s.data, 'base64')));
+          }
+          if ([1440, 390].includes(width)) {
+            await fs.writeFile(path.join(output, `result-${page}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+            if (width === 390 && ['confirm', 'preview', 'revaluation-upload'].includes(page)) {
+              await evaluate('window.scrollTo(0, document.body.scrollHeight)');
+              await pause(100);
+              await fs.writeFile(path.join(output, `result-${page}-actions-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+            }
+          }
+          checked++;
+        }
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Verified ${checked} responsive Result Management screens. Screenshots: ${output}`);
+      return;
+    }
+    if (process.env.CGPA_PREVIEW_ONLY === '1') {
+      for (const [query, expected] of [['', '9.00'], ['?missing=1', 'Unavailable'], ['?zero=1', '0.00']]) {
+        await command('Page.navigate', { url: `${base}/verification/cgpa-preview${query}` });
+        await until("document.readyState==='complete' && !!document.getElementById('previewCumulativeCgpa')");
+        assert.equal(await evaluate("document.getElementById('previewCumulativeCgpa').textContent"), expected);
+        if (!query) await fs.writeFile(path.join(output, 'validated-preview-cgpa.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      assert.deepEqual(exceptions, []);
+      console.log('Validated Preview: calculated CGPA, incomplete history and zero GPA render correctly; no result saved');
+      console.log(`Screenshot: ${output}`); return;
+    }
+    if (process.env.COMPACT_ALL_REPORTS_PDF_ONLY === '1') {
+      const [scopes] = await sequelize.query(`SELECT st.student_id,st.batch_id,r.session_id,rs.semester,MIN(sr.subject_id) subject_id
+        FROM students st JOIN results r ON r.student_id=st.student_id
+        JOIN result_sessions rs ON rs.session_id=r.session_id JOIN subject_results sr ON sr.result_id=r.result_id
+        WHERE st.deleted_at IS NULL GROUP BY st.student_id,st.batch_id,r.session_id,rs.semester ORDER BY st.student_id LIMIT 1`);
+      assert.ok(scopes.length, 'All-report print verification requires a saved result');
+      const scope = scopes[0];
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const { createCanvas } = require('@napi-rs/canvas');
+      for (const type of ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress']) {
+        const query = { batch_id: scope.batch_id, mode: type === 'toppers' ? 'original' : 'effective' };
+        if (type === 'student') query.student_id = scope.student_id;
+        else if (type !== 'student-progress') { query.session_id = scope.session_id; query.semester = scope.semester; }
+        if (type === 'subject') query.subject_id = scope.subject_id;
+        const report = await service.getReport(type, query);
+        await command('Emulation.setDeviceMetricsOverride', { width: type === 'student-progress' ? 1588 : 1123, height: type === 'student-progress' ? 1123 : 794, deviceScaleFactor: 1, mobile: false });
+        await command('Emulation.setEmulatedMedia', { media: 'print' });
+        await command('Page.navigate', { url: `${base}/reports/${type}/print?${new URLSearchParams(query)}` });
+        await until("document.readyState==='complete' && document.body.classList.contains('reports-print') && [...document.images].every(image=>image.complete)");
+        if (type === 'result-analysis') await until('window.reportChartReady===true');
+        const tableTop = await evaluate("document.querySelector('.reports-table')?.getBoundingClientRect().top ?? null");
+        if (tableTop !== null) assert.ok(tableTop < 310, `${type}: first table must start within 310px, got ${tableTop}`);
+        const bytes = Buffer.from((await command('Page.printToPDF', { printBackground: true, preferCSSPageSize: true })).data, 'base64');
+        await fs.writeFile(path.join(output, `${type}-compact.pdf`), bytes);
+        const task = pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
+        const pdf = await task.promise;
+        let text = '';
+        for (let n = 1; n <= pdf.numPages; n++) text += (await (await pdf.getPage(n)).getTextContent()).items.map(item => item.str).join(' ') + '\n';
+        assert.ok(text.includes('MCA'), `${type}: branding/context retained in PDF`);
+        if (type === 'student-progress') {
+          assert.ok(text.includes('Missing or unverified semesters'), 'Progress explanatory notes retained after table');
+          assert.equal(await evaluate("document.querySelector('.reports-progress').compareDocumentPosition(document.querySelector('.reports-progress-notes')) & Node.DOCUMENT_POSITION_FOLLOWING"), 4);
+        }
+        const page = await pdf.getPage(1), viewport = page.getViewport({ scale: 1.25 });
+        const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        await fs.writeFile(path.join(output, `${type}-compact.png`), canvas.toBuffer('image/png'));
+        console.log(`${type}: first table at ${tableTop === null ? 'empty report' : Math.round(tableTop) + 'px'}, ${pdf.numPages} PDF page(s), ${report.pagination?.totalRows ?? report.rows.length} records`);
+        await task.destroy();
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`All eight report PDFs and rendered previews: ${output}`); return;
+    }
+    if (process.env.COMPACT_STUDENT_PDF_ONLY === '1') {
+      const [students] = await sequelize.query(`SELECT st.student_id,st.batch_id,COUNT(*) subject_count FROM students st
+        JOIN results r ON r.student_id=st.student_id JOIN subject_results sr ON sr.result_id=r.result_id
+        WHERE st.deleted_at IS NULL GROUP BY st.student_id,st.batch_id
+        HAVING COUNT(DISTINCT r.result_id)=1 AND COUNT(*) BETWEEN 1 AND 12 ORDER BY st.student_id LIMIT 1`);
+      assert.ok(students.length, 'Compact PDF verification requires one student with a single saved attempt');
+      const query = { batch_id: students[0].batch_id, student_id: students[0].student_id, mode: 'effective' };
+      const report = await service.getReport('student', query);
+      await command('Emulation.setDeviceMetricsOverride', { width: 1123, height: 794, deviceScaleFactor: 1, mobile: false });
+      await command('Emulation.setEmulatedMedia', { media: 'print' });
+      await command('Page.navigate', { url: `${base}/reports/student/print?${new URLSearchParams(query)}` });
+      await until("document.readyState==='complete' && !!document.querySelector('.reports-student-attempt .reports-table') && [...document.images].every(image=>image.complete)");
+      const tableTop = await evaluate("document.querySelector('.reports-student-attempt .reports-table').getBoundingClientRect().top");
+      assert.ok(tableTop < 300, `Student table must start within the first 300px, got ${tableTop}`);
+      assert.equal(await evaluate("document.querySelectorAll('.reports-student-attempt tbody tr').length"), report.rows.length);
+      const pdfResult = await command('Page.printToPDF', { printBackground: true, preferCSSPageSize: true });
+      const bytes = Buffer.from(pdfResult.data, 'base64');
+      await fs.writeFile(path.join(output, 'student-report-compact.pdf'), bytes);
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
+      const pdf = await loadingTask.promise;
+      assert.equal(pdf.numPages, 1, 'A normal single-attempt report must fit on one page');
+      const page = await pdf.getPage(1);
+      const text = (await page.getTextContent()).items.map(item => item.str).join(' ');
+      for (const row of report.rows) assert.ok(text.includes(row.subject_code), `PDF must retain ${row.subject_code}`);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = require('@napi-rs/canvas').createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      await fs.writeFile(path.join(output, 'student-report-compact.png'), canvas.toBuffer('image/png'));
+      console.log(`Compact PDF: table starts at ${Math.round(tableTop)}px; ${report.rows.length} subjects preserved on ${pdf.numPages} page; rendered PDF verified`);
+      console.log(`PDF and preview: ${output}`); await loadingTask.destroy(); return;
+    }
     if (process.env.PROGRESS_BASIS_ONLY === '1') {
       const progress = require('../services/progressAnalyticsService');
       const batches = await service.getOptions('batches', {});

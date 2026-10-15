@@ -1,4 +1,4 @@
-<div class="container-fluid">
+<div class="container-fluid result-management-page result-preview-page">
   <div class="row justify-content-center">
     <div class="col-12 col-xl-9">
 
@@ -30,14 +30,14 @@
         <div class="card-body">
 
           <div class="row g-3 mb-4">
-            <div class="col-md-3">
+            <div class="col-sm-6 col-xl-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">Student</h6>
                 <div class="fw-semibold"><%= data.student.name %></div>
                 <code><%= data.student.usn %></code>
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-sm-6 col-xl-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">Overall Result</h6>
                 <% if (data.overallResult === 'pass') { %>
@@ -47,18 +47,18 @@
                 <% } %>
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-sm-6 col-xl-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">SGPA</h6>
                 <span class="fs-4 fw-bold"><%= data.sgpa === null ? '-' : data.sgpa %></span>
                 <div class="small text-muted">all courses incl. F</div>
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-sm-6 col-xl-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">Cumulative CGPA</h6>
-                <span class="fs-4 fw-bold"><%= data.cgpa === null ? '—' : data.cgpa %></span>
-                <div class="small text-muted">Calculated on save when complete course and grading history is verified.</div>
+                <span class="fs-4 fw-bold" id="previewCumulativeCgpa"><%= data.cgpa == null ? 'Unavailable' : Number(data.cgpa).toFixed(2) %></span>
+                <div class="small text-muted"><%= data.cgpa == null ? 'Complete verified course and grading history is required.' : 'Calculated from verified course history and these marks; checked again on save.' %></div>
               </div>
             </div>
           </div>

@@ -5,15 +5,15 @@
   <title><%= report.title %> - SRAAS</title>
   <link rel="stylesheet" href="/css/reports.css">
 </head>
-<body class="reports-print <%= report.type === 'student-progress' ? 'reports-progress-print' : '' %>">
+<body class="reports-print <%= report.type === 'student-progress' ? 'reports-progress-print' : '' %>" data-report-type="<%= report.type %>">
   <% if (report.branding) { %><%- include('partials/branding', { branding: report.branding }) %><% } %>
-  <% if (report.type === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h1><%= report.formalTitle %></h1></header><ul class="reports-progress-notes"><% report.notes.forEach(note => { %><li><%= note %></li><% }); %></ul><% } %>
+  <% if (report.type === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h1><%= report.formalTitle %></h1></header><% } %>
   <% if (report.type === 'result-analysis') { %>
     <header class="reports-analysis-header"><p>Department: MCA</p><h1><%= report.formalHeader.title %></h1><p><%= report.formalHeader.examination %></p><p><%= report.meta.batch.batch_name %></p></header>
   <% } else if (report.type !== 'student-progress') { %><header><p>MCA / SRAAS</p><h1><%= report.title %></h1></header><% } %>
   <button type="button" class="reports-print-action" id="print-report">Print / Save PDF</button>
   <dl class="reports-context">
-    <% context.forEach(([label, value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
+    <% context.forEach(([label, value]) => { %><div class="<%= /Basis|Eligibility|Tie Order/.test(label) ? 'reports-context-note' : '' %>"><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
   </dl>
   <% if (report.type !== 'result-analysis') { %><div class="reports-summary">
     <% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %>
@@ -25,16 +25,15 @@
     <p class="reports-component-note">IA and EX show stored original components. T may reflect an approved effective revaluation. SGPA is the stored original academic header value.</p>
   <% } %>
   <% if (report.type === 'student') { %>
+    <% const attemptCount = report.semesters.reduce((total, term) => total + term.sessions.reduce((count, sitting) => count + sitting.attempts.length, 0), 0); %>
     <% report.semesters.forEach(term => { %>
       <section class="reports-semester">
-        <h2>Semester <%= term.semester %></h2>
         <% term.sessions.forEach(sitting => { %>
           <section class="reports-student-session">
-            <h3><%= sitting.session.exam_session %> <%= sitting.session.exam_year %></h3>
             <% sitting.attempts.forEach(attempt => { %>
               <section class="reports-student-attempt">
-                <h4>Attempt <%= attempt.result.attempt_no %> - <%= attempt.result.exam_type %></h4>
-                <div class="reports-summary"><% attempt.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %></div>
+                <div class="reports-attempt-heading"><h2>Semester <%= term.semester %> &middot; <%= sitting.session.exam_session %> <%= sitting.session.exam_year %> &middot; Attempt <%= attempt.result.attempt_no %> - <%= attempt.result.exam_type %></h2>
+                <% if (attemptCount > 1) { %><div class="reports-summary"><% attempt.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %></div><% } %></div>
                 <%- include('partials/table', { columns: report.columns, rows: attempt.subjects, display }) %>
               </section>
             <% }); %>
@@ -45,6 +44,7 @@
     <% if (!report.semesters.length) { %><p>No persisted results match the selected student and filters.</p><% } %>
   <% } else if (report.type === 'student-progress') { %>
     <%- include('partials/progress-table', { report, display }) %>
+    <ul class="reports-progress-notes"><% report.notes.forEach(note => { %><li><%= note %></li><% }); %></ul>
   <% } else if (report.type === 'result-analysis') { %>
     <%- include('partials/result-analysis-table', { report, display }) %>
     <section class="reports-analysis-bottom">

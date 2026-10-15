@@ -1,0 +1,82 @@
+/* Keep wide academic tables inside their own scroll area. */
+:is(.result-management-page, .revaluation-ui) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+:is(.result-management-page, .revaluation-ui) :is(.row > *, .card, .card-body, .list-group-item > *, .d-flex > *) {
+  min-width: 0;
+}
+:is(.result-management-page, .revaluation-ui) :is(.form-control, .form-select, .input-group, pre) {
+  min-width: 0;
+  max-width: 100%;
+}
+:is(.result-management-page, .revaluation-ui) :is(.card-header.d-flex, .card-footer.d-flex, .list-group-item.d-flex) {
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+:is(.result-management-page, .revaluation-ui) .list-group-item > span:first-child {
+  flex: 1 1 15rem;
+}
+:is(.result-management-page, .revaluation-ui) .badge {
+  white-space: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+:is(.result-management-page, .revaluation-ui) .btn {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:is(.result-management-page, .revaluation-ui) .btn .material-icons {
+  vertical-align: middle;
+}
+:is(.result-management-page, .revaluation-ui) .material-icons { flex-shrink: 0; }
+.result-action-row { flex-wrap: wrap; }
+:is(.result-management-page, .revaluation-ui) .table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+:is(.result-management-page, .revaluation-ui) .table {
+  min-width: 640px;
+}
+.result-review-page .table { min-width: 720px; }
+.revaluation-ui #reviewForm .table { min-width: 960px; }
+:is(.result-management-page, .revaluation-ui) pre { white-space: pre-wrap; }
+.result-document-frame {
+  display: block;
+  width: 100%;
+  height: clamp(320px, 65vh, 760px);
+  border: 0;
+}
+.result-document img { object-fit: contain; }
+
+@media (max-width: 991.98px) {
+  .revaluation-ui > .row:first-child { row-gap: .75rem; }
+  .revaluation-ui > .row:first-child > .col { flex-basis: 100%; }
+  :is(.result-management-page, .revaluation-ui) .card-footer.d-flex > .d-flex { flex-wrap: wrap; gap: .5rem; }
+}
+@media (max-width: 767.98px) {
+  .main-content:has(:is(.result-management-page, .revaluation-ui)) {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+    padding: 1rem .75rem !important;
+  }
+  :is(.result-management-page, .revaluation-ui).container-fluid { padding-inline: 0; }
+  :is(.result-management-page, .revaluation-ui) :is(.card-body, .card-header, .card-footer) { padding: 1rem; }
+  :is(.result-management-page, .revaluation-ui) :is(h4, .h4) { font-size: 1.25rem; }
+  :is(.result-management-page, .revaluation-ui) .btn { min-height: 40px; }
+  :is(.result-management-page, .revaluation-ui) .card-footer.d-flex { align-items: stretch !important; }
+  :is(.result-management-page, .revaluation-ui) .card-footer.d-flex > * { flex: 1 1 100%; }
+  :is(.result-management-page, .revaluation-ui) .card-footer form .btn { width: 100%; }
+  .revaluation-ui form.row > .col-auto { width: 100%; }
+  .revaluation-ui form.row > .col-auto .btn { width: 100%; }
+  .result-action-row > * { flex: 1 1 100%; }
+  .result-action-row > form > .btn { width: 100%; }
+  .result-document-frame { height: 45vh; min-height: 280px; }
+  body:has(.revaluation-ui) .modal-dialog { margin: .5rem; }
+  body:has(.revaluation-ui) .modal-content { max-height: calc(100dvh - 1rem); }
+  body:has(.revaluation-ui) .modal-body { overflow-y: auto; overflow-wrap: anywhere; }
+  body:has(.revaluation-ui) .modal-footer > * { flex: 1 1 100%; white-space: normal; }
+}

@@ -1,4 +1,4 @@
-<div class="container-fluid batches-page subjects-page" data-roster-page data-batches="<%= JSON.stringify(batches) %>">
+<div class="container-fluid batches-page subjects-page workspace-page" data-roster-page data-batches="<%= JSON.stringify(batches) %>">
   <div class="dashboard-header subjects-header"><h4>Subjects Management</h4></div>
   <%- include('partials/tabs', { activeTab: 'roster', canManageRoster: true, selected }) %>
   <p class="subjects-description" id="semester-roster-description">Verified required courses for the batch and semester, used for regular import validation and academic outcomes across examination sittings.</p>

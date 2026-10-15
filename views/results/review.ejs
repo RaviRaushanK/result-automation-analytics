@@ -1,4 +1,5 @@
-<div class="container-fluid">
+<% const registrationIsBlocked = typeof registrationBlocked !== 'undefined' && registrationBlocked; %>
+<div class="container-fluid result-management-page result-review-page">
   <div class="row justify-content-center">
     <div class="col-12 col-xl-12">
 
@@ -18,7 +19,7 @@
       <% } %>
 
       <% if (typeof formError !== 'undefined' && formError) { %>
-      <div class="alert alert-danger extraction-alert d-flex align-items-start mb-3" role="alert">
+      <div class="alert alert-danger extraction-alert d-flex align-items-start mb-3" role="alert" id="resultValidationAlert">
         <i class="material-icons me-2 mt-1 flex-shrink-0">error</i>
         <div><strong>Validation Failed</strong><div class="small mt-1"><%= formError %></div></div>
       </div>
@@ -47,11 +48,11 @@
               </div>
             </div>
           <% } %>
-          <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" novalidate>
+          <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
             <div class="row g-3">
               <!-- LEFT: original marks card -->
-              <div class="col-lg-6">
-                <div class="border rounded bg-light h-100 d-flex flex-column" style="min-height: 480px;">
+              <div class="col-xl-6">
+                <div class="border rounded bg-light d-flex flex-column result-document">
                   <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-white rounded-top">
                     <strong>Original Marks Card</strong>
                     <a href="<%= fileUrl %>" target="_blank" class="btn btn-sm btn-outline-secondary">
@@ -60,7 +61,7 @@
                   </div>
                   <div class="flex-grow-1 overflow-auto p-2">
                     <% if (fileType === 'pdf') { %>
-                      <iframe src="<%= fileUrl %>" style="width:100%; height:759px; border:none;"></iframe>  <!-- Updated 560px to 759px -->
+                      <iframe src="<%= fileUrl %>" title="Original marks card" class="result-document-frame"></iframe>
                     <% } else { %>
                       <img src="<%= fileUrl %>" alt="Original marks card" class="img-fluid rounded mx-auto d-block" style="max-height:640px;">
                     <% } %>
@@ -69,7 +70,7 @@
               </div><!-- /LEFT -->
               
               <!-- RIGHT: editable extracted data -->
-              <div class="col-lg-6">
+              <div class="col-xl-6">
                 <div class="card mb-3">
                   <div class="card-body">
                     <h6 class="text-primary mb-3">Student Information</h6>
@@ -187,10 +188,11 @@
                 </div>
                 <div class="d-flex gap-2 mt-3">
                   <a href="/results/upload" class="btn btn-outline-secondary flex-fill">Cancel</a>
-                  <button type="submit" id="validateButton" class="btn btn-primary btn-lg flex-fill<%= (typeof duplicateStudent !== 'undefined' && duplicateStudent) ? " disabled" : "" %>">
+                  <button type="submit" id="validateButton" class="btn btn-primary btn-lg flex-fill" <%= registrationIsBlocked || (typeof duplicateStudent !== 'undefined' && duplicateStudent) ? 'disabled' : '' %> <%- registrationIsBlocked ? 'aria-describedby="studentRegistrationHint"' : '' %>>
                     Validate <i class="material-icons align-middle ms-1" style="font-size:18px;">arrow_forward</i>
                   </button>
                 </div>
+                <% if (registrationIsBlocked) { %><p id="studentRegistrationHint" class="small text-danger mt-2 mb-0">Register or restore this student in the selected batch, then refresh Review to enable validation.</p><% } %>
               </div><!-- /RIGHT -->
             </div><!-- /row -->
           </form>

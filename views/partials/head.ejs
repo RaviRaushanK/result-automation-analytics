@@ -19,4 +19,8 @@
       <link rel="stylesheet" href="<%= style.startsWith('/') ? style : '/' + style %>">
     <% }); %>
   <% } %>
+  <% if (typeof resultManagementPage !== 'undefined' && resultManagementPage) { %>
+    <link rel="stylesheet" href="/css/result-management.css">
+  <% } %>
+  <link rel="stylesheet" href="/css/workspace-responsive.css?v=20261016-3">
 </head>

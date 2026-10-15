@@ -600,6 +600,8 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           assert.equal(print.status, 200);
           const printText = await print.text();
           assert.match(printText, /reports-print/);
+          assert.ok(printText.includes(`data-report-type="${type}"`));
+          assert.match(printText, /href="\/css\/reports.css"/);
           if (type === 'toppers') {
             assert.doesNotMatch(printText, /Sl\. No\./);
             assert.match(printText, /% Percentage/);
@@ -620,6 +622,8 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           }
           if (type === 'student-progress') {
             assert.match(printText, /reports-progress-print/);
+            assert.ok(printText.indexOf('</table>') < printText.indexOf('<ul class="reports-progress-notes">'));
+            assert.match(printText, /Missing or unverified semesters/);
             assert.equal((printText.match(/Successfully Completed<br>/g) || []).length, 2);
             assert.match(printText, /class="reports-completion-group" colspan="5"/);
             assert.match(printText, />First Year<\/th>/);
@@ -650,8 +654,9 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         assert.doesNotMatch(originalText, /Revaluated|Marks Basis/);
         const print = await fetch(`${url}/reports/student/print?${consolidated}`);
         const html = await print.text();
-        assert.ok(html.indexOf('Semester 1</h2>') < html.indexOf('Semester 2</h2>'));
-        assert.ok(html.indexOf('Semester 4</h2>') < html.indexOf('Semester 10</h2>'));
+        const printSemesters = [...html.matchAll(/<h2>Semester (\d+) &middot;/g)].map(match => Number(match[1]));
+        assert.ok(printSemesters.includes(1) && printSemesters.includes(2) && printSemesters.includes(4) && printSemesters.includes(10));
+        assert.deepEqual(printSemesters, printSemesters.slice().sort((a, b) => a - b));
         assert.match(html, /<td>-<\/td>/);
         assert.match(html, /IA and External are original stored components/);
       } finally { settings.getBranding = getBranding; await new Promise(resolve => server.close(resolve)); }
