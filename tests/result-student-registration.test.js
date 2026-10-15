@@ -22,6 +22,27 @@ test('registration-blocked Review prevents keyboard or scripted submission in th
   assert.equal(prevented, true); assert.equal(alerted, true);
 });
 
+test('correcting a rejected USN enables another server validation attempt', () => {
+  let submit, editUsn;
+  const form = { dataset: { registrationBlocked: 'true' }, addEventListener(name, handler) { if (name === 'submit') submit = handler; } };
+  const usn = { value: '1IMV25MC074', classList: { remove() {} }, addEventListener(name, handler) { if (name === 'input') editUsn = handler; } };
+  const button = { disabled: true, removeAttribute(name) { assert.equal(name, 'aria-describedby'); } };
+  const hint = { hidden: false };
+  const elements = { reviewForm: form, usnInput: usn, validateButton: button, studentRegistrationHint: hint };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/results/review.js'), 'utf8'), {
+    document: { addEventListener(name, handler) { if (name === 'DOMContentLoaded') handler(); }, querySelectorAll: () => [],
+      getElementById: id => elements[id] || null }
+  });
+  editUsn.call(usn);
+  assert.equal(button.disabled, true);
+  usn.value = '1MV25MC074';
+  editUsn.call(usn);
+  assert.equal(button.disabled, false);
+  assert.equal(form.dataset.registrationBlocked, 'false');
+  assert.equal(hint.hidden, true);
+  submit({ preventDefault() { assert.fail('Corrected USN must reach authoritative server validation'); } });
+});
+
 async function fixture(student, run) {
   const restores = [], updates = [];
   let rolledBack = false;
@@ -50,6 +71,17 @@ async function fixture(student, run) {
 }
 
 for (const [name, student] of [['missing or deleted student', null], ['student registered in a different batch', { student_id: 1, batch_id: 2 }]]) {
+  test(`${name}: initial extracted Review allows Validate without a registration alert`, async () => {
+    await fixture(student, async ({ invoke }) => {
+      const response = await invoke('showReviewPage');
+      assert.equal(response.locals.formError, null);
+      assert.equal(response.locals.registrationBlocked, false);
+      const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), response.locals);
+      assert.doesNotMatch(html, /id="resultValidationAlert"/);
+      assert.doesNotMatch(html, /id="validateButton"[^>]*\sdisabled(?:\s|>)/);
+    });
+  });
+
   test(`${name}: validation stays on Review with an alert instead of opening preview`, async () => {
     await fixture(student, async ({ invoke, updates }) => {
       const response = await invoke('validateReview');
@@ -58,6 +90,7 @@ for (const [name, student] of [['missing or deleted student', null], ['student r
       assert.match(response.locals.formError, /TEST001 is not registered in MCA 2025/);
       assert.equal(response.locals.registrationBlocked, true);
       assert.equal(updates[0].validation_status, 'pending');
+      assert.equal(response.locals.extractionWarning, null);
       const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), response.locals);
       assert.match(html, /role="alert"/);
       assert.match(html, /Add or restore the student in this batch/);
@@ -75,12 +108,23 @@ for (const [name, student] of [['missing or deleted student', null], ['student r
       const save = await invoke('confirmImport');
       assert.match(decodeURIComponent(save.url), /not registered in MCA 2025/);
       assert.equal(isRolledBack(), true);
-      const review = await invoke('showReviewPage');
+      const review = await invoke('showReviewPage', { query: { error: new URL(preview.url, 'http://localhost').searchParams.get('error') } });
       assert.match(review.locals.formError, /not registered in MCA 2025/);
       assert.equal(review.locals.registrationBlocked, true);
     });
   });
 }
+
+test('Validate displays the requested registration alert for the submitted OCR USN', async () => {
+  await fixture(null, async ({ invoke }) => {
+    const response = await invoke('validateReview', { body: { usn: '1IMV25MC074', name: 'Test Student', internal_1: 42, external_1: 34 } });
+    assert.equal(response.statusCode, 422);
+    assert.equal(response.locals.formError, 'Student 1IMV25MC074 is not registered in MCA 2025. Add or restore the student in this batch, or correct the USN and selected result session before continuing.');
+    const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), response.locals);
+    assert.match(html, /<strong>Validation Failed<\/strong>/);
+    assert.match(html, /Student 1IMV25MC074 is not registered in MCA 2025/);
+  });
+});
 
 test('registered student in the selected batch can validate and preview with calculated CGPA', async () => {
   await fixture({ student_id: 1, batch_id: 1 }, async ({ invoke, updates }) => {

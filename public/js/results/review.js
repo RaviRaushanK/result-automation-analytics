@@ -179,9 +179,20 @@ document.addEventListener('DOMContentLoaded', function () {
     // Live revalidation of student name + USN fields.
     var usnEl = document.getElementById('usnInput');
     var nameEl = document.getElementById('studentNameInput');
+    var blockedUsn = usnEl ? usnEl.value.trim().toUpperCase() : '';
     if (usnEl) {
         usnEl.addEventListener('input', function () {
             this.classList.remove('is-invalid');
+            if (form && form.dataset.registrationBlocked === 'true' && this.value.trim().toUpperCase() !== blockedUsn) {
+                form.dataset.registrationBlocked = 'false';
+                var validateButton = document.getElementById('validateButton');
+                if (validateButton) {
+                    validateButton.disabled = false;
+                    validateButton.removeAttribute('aria-describedby');
+                }
+                var hint = document.getElementById('studentRegistrationHint');
+                if (hint) hint.hidden = true;
+            }
             updateExtractionWarning();
         });
     }

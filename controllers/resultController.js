@@ -544,9 +544,11 @@ const resultController = {
         : { attempt_no: 1, exam_type: 'REGULAR' };
       let duplicateStudent = false;
       let registrationError = null;
+      const reviewError = typeof req.query?.error === 'string' ? req.query.error : null;
       if (usn) {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
-        registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
+        // Initial extraction remains editable; only failed workflow redirects block Review.
+        if (reviewError) registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
         if (existingStudent) {
           const existingResult = await Result.findOne({
             where: {
@@ -573,7 +575,7 @@ const resultController = {
         subjects,
         warnings,
         extractionWarning,
-        formError: typeof req.query?.error === 'string' ? req.query.error : registrationError,
+        formError: reviewError,
         registrationBlocked: !!registrationError,
         errors: {},
         duplicateStudent,
@@ -716,7 +718,8 @@ const resultController = {
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects,
           warnings: historyWarnings,
-          extractionWarning: (errors.form ? errors.form + ' Please correct the highlighted fields below.' : 'Some required fields are missing. Please correct the highlighted fields below.'),
+          extractionWarning: Object.keys(errors).some(key => key !== 'form')
+            ? 'Some required fields are missing or invalid. Please correct the highlighted fields below.' : null,
           errors,
           formError: errors.form || null,
           registrationBlocked: !!registrationError,
