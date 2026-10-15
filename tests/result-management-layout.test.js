@@ -25,3 +25,18 @@ test('responsive stylesheet is restricted to Result Management requests', async 
   assert.match(await ejs.renderFile(head, { resultManagementPage: true }), /href="\/css\/result-management.css"/);
   assert.doesNotMatch(await ejs.renderFile(head, {}), /href="\/css\/result-management.css"/);
 });
+
+for (const [label, maxInternal, maxExternal] of [['internal-only', 100, 0], ['external-only', 0, 100], ['legacy', null, undefined]]) {
+  test(`Review displays ${label} component limits without replacing zero with a default`, async () => {
+    const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), {
+      ...base, ...pages.review[1],
+      subjects: [{ ...base.subjects[0], max_internal: maxInternal, max_external: maxExternal }]
+    });
+    const internal = maxInternal ?? 50;
+    const external = maxExternal ?? 100;
+    assert.match(html, new RegExp('max="' + internal + '"[^>]*id="internal_1"[^>]*placeholder="0-' + internal + '"'));
+    assert.match(html, new RegExp('max="' + external + '"[^>]*id="external_1"[^>]*placeholder="0-' + external + '"'));
+    assert.match(html, new RegExp('max ' + internal + '</div>'));
+    assert.match(html, new RegExp('max ' + external + '</div>'));
+  });
+}

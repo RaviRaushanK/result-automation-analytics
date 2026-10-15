@@ -8,6 +8,35 @@ const migration = require('../migrations/20261002120000-subject-result-mark-comp
 
 after(() => db.sequelize.close());
 
+test('zero component limits accept zero marks and reject positive marks during result validation', async () => {
+  const originalSubjects = db.Subject.findAll;
+  const originalCourses = db.AcademicCourse.findAll;
+  try {
+    for (const zeroComponent of ['internal', 'external']) {
+      const definition = { subject_id: 1, course_id: 1, subject_code: 'MAEC258',
+        subject_name: 'ABILITY ENHANCEMENT COURSES WITH SEMINAR-I', subject_type: 'theory',
+        credits: 0, max_internal: zeroComponent === 'internal' ? 0 : 100,
+        max_external: zeroComponent === 'external' ? 0 : 100, max_marks: 100 };
+      db.Subject.findAll = async () => [definition];
+      db.AcademicCourse.findAll = async () => [{ ...definition, is_required: true, roster_verified: true }];
+      const inputs = { internal_1: zeroComponent === 'internal' ? '0' : '98', external_1: zeroComponent === 'external' ? '0' : '98' };
+      const validate = () => controller._test.buildValidatedPayload(1, { usn: 'TESTUSN', name: 'TEST STUDENT' }, inputs,
+        { session: { batch_id: 1, semester: '2' }, exam_type: 'REGULAR' });
+      const valid = await validate();
+      assert.equal(valid.hasErrors, false);
+      assert.equal(valid.payload.subjects[0]['max_' + zeroComponent], 0);
+      assert.equal(valid.payload.subjects[0].totalMarks, 98);
+      inputs[zeroComponent + '_1'] = '1';
+      const invalid = await validate();
+      assert.equal(invalid.hasErrors, true);
+      assert.match(invalid.errors['subjects[1]'][zeroComponent + 'Marks'], /between 0 and 0/);
+    }
+  } finally {
+    db.Subject.findAll = originalSubjects;
+    db.AcademicCourse.findAll = originalCourses;
+  }
+});
+
 test('component migration adds nullable integers without backfilling totals', async () => {
   const columns = [];
   await migration.up({ describeTable: async () => ({ marks: {} }), addColumn: async (table, name, options) => columns.push({ table, name, options }) }, require('sequelize'));

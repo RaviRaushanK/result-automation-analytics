@@ -136,8 +136,8 @@
                         </tr></thead>
                         <tbody>
                           <% subjects.forEach(function (s) { %>
-                            <% var maxI = s.max_internal || 50; %>
-                            <% var maxE = s.max_external || 100; %>
+                            <% var maxI = s.max_internal ?? 50; %>
+                            <% var maxE = s.max_external ?? 100; %>
                             <% var maxM = s.max_marks || (maxI + maxE); %>
                             <% var iVal = (s.internalMarks != null && s.internalMarks !== "") ? s.internalMarks : ""; %>
                             <% var xVal = (s.externalMarks != null && s.externalMarks !== "") ? s.externalMarks : ""; %>
