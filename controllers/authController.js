@@ -5,7 +5,7 @@ const LOGIN_PAGE_STYLES = ['/css/login.css'];
 const authController = {
   showLoginPage: (req, res) => {
     if (req.session && req.session.adminId) return res.redirect('/dashboard');
-    res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: null, expired: req.query.expired === '1' , pageStyles: LOGIN_PAGE_STYLES });
+    res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: null, expired: req.query.expired === '1', passwordChanged: req.query.passwordChanged === '1', pageStyles: LOGIN_PAGE_STYLES });
   },
   login: async (req, res) => {
     try {
@@ -57,7 +57,7 @@ const authController = {
       if (!isMatch) return res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: 'Current password is incorrect.', breadcrumbItems: bc });
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await AdminUser.update({ password_hash: hashedPassword }, { where: { admin_id: req.session.adminId } });
-      req.session.destroy((e) => { if (e) console.error('Session destroy error:', e); res.clearCookie('connect.sid'); return res.redirect('/login?expired=1'); });
+      req.session.destroy((e) => { if (e) console.error('Session destroy error:', e); res.clearCookie('connect.sid'); return res.redirect('/login?passwordChanged=1'); });
     } catch (err) {
       console.error('Change password error:', err);
       const bc = [{ href: '/dashboard', label: 'Dashboard' }, { href: '#', label: 'Account Security' }];

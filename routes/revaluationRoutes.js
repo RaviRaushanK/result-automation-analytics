@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const rc = require('../controllers/revaluationController');
+router.use((req, res, next) => {
+  res.locals.resultManagementPage = true;
+  next();
+});
 const { revaluationUpload } = require('../middlewares/upload');
 
 // Mounted at /revaluation in app.js (auth-gated).

@@ -1,0 +1,14 @@
+<header class="report-branding" id="<%= typeof brandingId === 'string' ? brandingId : 'reports-branding' %>">
+  <div class="report-brand-logo">
+    <% if (branding.institution_logo) { %><img src="<%= branding.institution_logo %>" alt="<%= branding.institution_name %> logo" class="report-logo-image"><% } %>
+    <span class="report-brand-fallback" <%= branding.institution_logo ? 'hidden' : '' %>>MCA</span>
+  </div>
+  <div class="report-brand-details">
+    <h2 data-branding-field="institution_name"><%= branding.institution_name %></h2>
+    <p class="report-brand-short" data-branding-field="institution_short_name"><%= branding.institution_short_name %></p>
+    <p data-branding-field="institution_address" <%= branding.institution_address ? '' : 'hidden' %>><%= branding.institution_address %></p>
+    <p data-branding-field="institution_phone" <%= branding.institution_phone ? '' : 'hidden' %>><%= branding.institution_phone %></p>
+    <p data-branding-field="institution_email" <%= branding.institution_email ? '' : 'hidden' %>><%= branding.institution_email %></p>
+    <p class="report-brand-programme">Master of Computer Applications (MCA)</p>
+  </div>
+</header>

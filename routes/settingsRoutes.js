@@ -1,0 +1,16 @@
+'use strict';
+const router = require('express').Router();
+const multer = require('multer');
+const controller = require('../controllers/settingsController');
+const csrf = require('../middlewares/csrfMiddleware');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: require('../config/uploadLimits').institutionLogo, files: 1, fields: 2 } });
+router.use(require('../middlewares/authMiddleware'), controller.currentAccount);
+router.get('/', csrf, controller.page);
+router.post('/account', csrf, controller.account);
+router.post('/institution', controller.administrator, csrf, controller.institution);
+router.post('/logo', controller.administrator, upload.single('logo'), csrf, controller.logo);
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) return res.status(400).send('Choose one institution logo image up to 2 MB.');
+  next(err);
+});
+module.exports = router;

@@ -1,0 +1,86 @@
+/* Shared layout constraints for the dashboard and academic/student workspaces. */
+.workspace-page { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* The page footer must stay behind subject dialogs and their backdrop. */
+body.modal-open:has(.subjects-page) > .footer { z-index: 0; }
+.main-content:has(.workspace-page), .main-content:has(.workspace-page) .page-content { min-width: 0; }
+.workspace-page :is(.row > *, .card, .card-body, .card-header > *, .dashboard-header > *, .input-group, .d-flex > *) { min-width: 0; }
+.workspace-page :is(.form-control, .form-select) { min-width: 0; max-width: 100%; }
+.workspace-page :is(.card-header.d-flex, .card-footer.d-flex, .filter-actions) { flex-wrap: wrap; gap: .5rem; }
+.workspace-page .btn { white-space: normal; overflow-wrap: anywhere; }
+.workspace-page .material-icons { flex-shrink: 0; vertical-align: middle; }
+.workspace-page .stat-value { white-space: normal; overflow-wrap: anywhere; }
+.workspace-page .stat-label { letter-spacing: 0; }
+.workspace-page .table-responsive { width: 100%; max-width: 100%; overscroll-behavior-x: contain; }
+.workspace-page .table-responsive:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.workspace-page .students-table { min-width: 1000px; }
+.workspace-page .top-scorers-table { min-width: 640px; }
+.workspace-page .badge { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+.workspace-page .modal-dialog { min-width: 0; margin: 1rem auto; }
+.workspace-page .modal-dialog-centered { min-height: calc(100% - 2rem); }
+.workspace-page .modal-dialog-scrollable { height: calc(100% - 2rem); }
+.workspace-page .modal-content { max-height: calc(100dvh - 2rem); }
+.workspace-page .modal-dialog-scrollable .modal-content { max-height: 100%; }
+/* Constrain the nested subject form on small screens; only its fields scroll. */
+@media (max-width: 767.98px), (max-height: 500px) {
+  #subjectFormModal .modal-content { height: 100%; }
+  #subjectFormModal #subjectForm { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  #subjectFormModal #subjectForm > .modal-body { flex: 1 1 0; min-height: 0; max-height: none; overflow-y: auto; }
+  #subjectFormModal #subjectForm > .modal-footer { flex: 0 0 auto; background-color: var(--card-bg); }
+}
+/* Some academic dialogs put a form between the content and scrolling body. */
+.workspace-page .modal-content > form { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.workspace-page .modal-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.workspace-page :is(.modal-header, .modal-footer) { flex-shrink: 0; }
+.workspace-page .modal-title { min-width: 0; overflow-wrap: anywhere; }
+.workspace-page .modal-header .btn-close { flex-shrink: 0; }
+.workspace-page .modal-footer { flex-wrap: wrap; gap: .5rem; }
+.workspace-page :is(.batch-summary-value, .batch-details-row dd, .students-confirm-list dd) { overflow-wrap: anywhere; min-width: 0; }
+.workspace-page .alert-container { max-width: 100%; }
+.workspace-page .alert-container .alert { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.workspace-page .faculty-header > .d-flex { flex-wrap: wrap; }
+.faculty-page.workspace-page .stat-card .card-body { flex-direction: column; align-items: flex-start; gap: .5rem; }
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .sidebar:not(.expanded) ~ .main-content:has(.workspace-page) { margin-left: var(--sidebar-collapsed-width); }
+}
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .workspace-page #studentFilterForm > :is(.col-md-4, .col-md-2),
+  .workspace-page #dashboardFilterForm > .col-md-4 { width: 50%; }
+  .workspace-page #studentFilterForm > :first-child,
+  .workspace-page #dashboardFilterForm > :last-child { width: 100%; }
+  .workspace-page .roster-filters > .col-md-6 { width: 100%; }
+  .workspace-page .roster-filters > .col-md-3 { width: 50%; }
+}
+@media (max-width: 1399.98px) {
+  .workspace-page .dashboard-chart-grid > .col-lg-6 { width: 100%; }
+}
+@media (max-width: 767.98px) {
+  .main-content:has(.workspace-page) { margin-left: 0; width: 100%; padding: 1rem .75rem !important; }
+  .workspace-page.container-fluid { padding-inline: 0; }
+  .workspace-page :is(.card-header, .card-body, .card-footer) { padding: 1rem; }
+  .workspace-page :is(h4, .h4) { font-size: 1.25rem; }
+  .workspace-page .btn { min-height: 40px; }
+  .workspace-page .stat-card .card-body { gap: .75rem; }
+  .workspace-page .filter-actions > .btn { flex: 1 1 auto; }
+  .workspace-page .faculty-header > .d-flex { width: 100%; }
+  .workspace-page .faculty-header > .d-flex > .btn { flex: 1 1 100%; }
+  .workspace-page .students-header-actions > .btn { flex: 1 1 100%; }
+  .workspace-page .modal-dialog { width: calc(100% - 1rem); max-width: none; margin: .5rem auto; }
+  .workspace-page .modal-dialog-centered { min-height: calc(100% - 1rem); }
+  .workspace-page .modal-dialog-scrollable { height: calc(100% - 1rem); }
+  .workspace-page .modal-content { max-height: calc(100dvh - 1rem); }
+  .workspace-page .modal-body { max-height: none; }
+  .workspace-page .modal-footer > .btn { flex: 1 1 100%; margin: 0; }
+  .workspace-page #studentFormModal .modal-dialog { width: 100%; }
+  .workspace-page .students-pagination nav { margin-left: 0; flex-wrap: wrap; }
+  .workspace-page .students-pagination .students-icon-button { width: 40px; height: 40px; }
+  .workspace-page .roster-confirmation { align-items: stretch; }
+  .workspace-page .roster-confirmation > .btn { width: 100%; }
+}
+@media (max-height: 500px) {
+  .workspace-page .modal-dialog { margin: .5rem auto; min-height: 0; }
+  .workspace-page .modal-dialog-scrollable { height: calc(100% - 1rem); }
+  .workspace-page .modal-content { max-height: calc(100dvh - 1rem); }
+  .workspace-page #studentFormModal { top: .5rem; bottom: .5rem; }
+  .workspace-page #studentFormModal .modal-content { max-height: calc(100dvh - 1rem); }
+}

@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', function () {
         rows.forEach(function (row) {
             var internalInput = row.querySelector('.internal-input');
             var externalInput = row.querySelector('.external-input');
+            var retake = form.querySelector('[name="exam_type"]').value !== 'REGULAR';
+            if (retake && internalInput.value === '' && externalInput.value === '') return;
             var subjectId = row.dataset.subjectId;
 
             [internalInput, externalInput].forEach(function (input) {
@@ -177,9 +179,20 @@ document.addEventListener('DOMContentLoaded', function () {
     // Live revalidation of student name + USN fields.
     var usnEl = document.getElementById('usnInput');
     var nameEl = document.getElementById('studentNameInput');
+    var blockedUsn = usnEl ? usnEl.value.trim().toUpperCase() : '';
     if (usnEl) {
         usnEl.addEventListener('input', function () {
             this.classList.remove('is-invalid');
+            if (form && form.dataset.registrationBlocked === 'true' && this.value.trim().toUpperCase() !== blockedUsn) {
+                form.dataset.registrationBlocked = 'false';
+                var validateButton = document.getElementById('validateButton');
+                if (validateButton) {
+                    validateButton.disabled = false;
+                    validateButton.removeAttribute('aria-describedby');
+                }
+                var hint = document.getElementById('studentRegistrationHint');
+                if (hint) hint.hidden = true;
+            }
             updateExtractionWarning();
         });
     }
@@ -196,6 +209,12 @@ document.addEventListener('DOMContentLoaded', function () {
     // Submit-time guard: same validation, never trust the browser submit.
     if (form) {
         form.addEventListener('submit', function (e) {
+            if (form.dataset.registrationBlocked === 'true') {
+                e.preventDefault();
+                var registrationAlert = document.getElementById('resultValidationAlert');
+                if (registrationAlert) registrationAlert.scrollIntoView({ block: 'center' });
+                return false;
+            }
             var missing = collectMissingFields();
             if (missing.length > 0) {
                 e.preventDefault();

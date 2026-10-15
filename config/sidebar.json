@@ -11,9 +11,17 @@
       "icon": "school",
       "children": [
         { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin", "faculty"] },
-        { "label": "Sessions", "icon": "calendar", "route": "/sessions", "roles": ["admin", "faculty"] },
-        { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] },
-        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] }
+        { "label": "Sessions", "icon": "calendar_today", "route": "/sessions", "roles": ["admin", "faculty"] },
+        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] },
+        { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
+      ]
+    },
+        {
+      "label": "Student Repository",
+      "icon": "person",
+      "roles": ["admin", "faculty"],
+      "children": [
+        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] }
       ]
     },
     {
@@ -26,23 +34,16 @@
       ]
     },
     {
-      "label": "Student Repository",
-      "icon": "person",
-      "children": [
-        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] },
-        { "label": "Student Search", "icon": "search", "route": "/students/search", "roles": ["admin", "faculty", "student"] }
-      ]
-    },
-    {
       "label": "Analytics",
       "icon": "insights",
       "children": [
         { "label": "Overview", "icon": "dashboard", "route": "/analytics/overview", "roles": ["admin", "faculty"] },
+        { "label": "Students", "icon": "people", "route": "/analytics/students", "roles": ["admin", "faculty"] },
         { "label": "Toppers", "icon": "star", "route": "/analytics/toppers", "roles": ["admin", "faculty"] },
         { "label": "Failed Students", "icon": "error", "route": "/analytics/failed", "roles": ["admin", "faculty"] },
         { "label": "Subject Analysis", "icon": "pie_chart", "route": "/analytics/subjects", "roles": ["admin", "faculty"] },
         { "label": "Semester Analysis", "icon": "timeline", "route": "/analytics/semesters", "roles": ["admin", "faculty"] },
-        { "label": "Student Analysis", "icon": "people", "route": "/analytics/students", "roles": ["admin", "faculty"] },
+        { "label": "Progress / Backlog Trends", "icon": "trending_up", "route": "/analytics/progress", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Analysis", "icon": "sync", "route": "/analytics/revaluation", "roles": ["admin", "faculty"] }
       ]
     },
@@ -50,17 +51,16 @@
       "label": "Reports",
       "icon": "description",
       "children": [
-        { "label": "Summary Report", "icon": "summarize", "route": "/reports/summary", "roles": ["admin", "faculty"] },
-        { "label": "Topper Report", "icon": "star", "route": "/reports/topper", "roles": ["admin", "faculty"] },
-        { "label": "Failed Report", "icon": "error", "route": "/reports/failed", "roles": ["admin", "faculty"] },
+        { "label": "Overview", "icon": "dashboard", "route": "/reports", "roles": ["admin", "faculty"] },
+        { "label": "Student Result", "icon": "person", "route": "/reports/student", "roles": ["admin", "faculty"] },
+        { "label": "Class Result", "icon": "groups", "route": "/reports/class", "roles": ["admin", "faculty"] },
+        { "label": "Subject Result", "icon": "book", "route": "/reports/subject", "roles": ["admin", "faculty"] },
+        { "label": "Toppers", "icon": "star", "route": "/reports/toppers", "roles": ["admin", "faculty"] },
+        { "label": "Consolidated Result", "icon": "table_chart", "route": "/reports/consolidated", "roles": ["admin", "faculty"] },
+        { "label": "All Students Progress Report", "icon": "view_week", "route": "/reports/student-progress", "roles": ["admin", "faculty"] },
+        { "label": "Result Analysis Report", "icon": "bar_chart", "route": "/reports/result-analysis", "roles": ["admin", "faculty"] },
         { "label": "Revaluation Report", "icon": "assignment", "route": "/reports/revaluation", "roles": ["admin", "faculty"] }
       ]
-    },
-    {
-      "label": "Chat Assistant",
-      "icon": "chat",
-      "route": "/chat",
-      "roles": ["admin"]
     }
   ]
 }

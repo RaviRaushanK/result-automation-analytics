@@ -2775,6 +2775,7 @@ exports.showOutcome = async (req, res) => {
   })));
 
   return res.render('revaluation/outcome', {
+    pageStyles: ['/css/result-success.css'],
     title: 'Revaluation — Outcome',
     breadcrumbItems: [
       { label: 'Result Management' },

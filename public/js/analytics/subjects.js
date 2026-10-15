@@ -14,6 +14,9 @@
   const subjectSel = document.getElementById('filter-subject');
   const attemptSel = document.getElementById('filter-attempt');
   const modeSel = document.getElementById('filter-mode');
+  var initialQuery = new URLSearchParams(location.search);
+  if (['original', 'effective'].includes(initialQuery.get('mode'))) modeSel.value = initialQuery.get('mode');
+  if (['latest', 'all'].includes(initialQuery.get('attempt'))) attemptSel.value = initialQuery.get('attempt');
   const emptyState = document.getElementById('analytics-empty-state');
   const tBodyS = document.getElementById('subjects-table-body');
   const chartElS = document.getElementById('subjects-grade-chart');
@@ -201,6 +204,7 @@
     if (changed && changed !== 'subject_id') subjectSel.value = '';
     if (changed && !['subject_id', 'session_id'].includes(changed)) sessionSel.value = '';
     var params = readFilters();
+    ['batch_id', 'semester', 'session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
     await Promise.all(definitions.map(async function (def) {
       var scoped = new URLSearchParams(params);
       scoped.delete(def[4]);
@@ -209,7 +213,8 @@
       try {
         var json = await fetchJSON('/analytics/api/filter-options/' + def[0] + qs(scoped));
         if (request !== filterRequest) return;
-        var previous = def[1].value;
+        var previous = initialQuery.get(def[4]) || def[1].value;
+        initialQuery.delete(def[4]);
         var autoFirst = !!def[5];
         def[1].innerHTML = autoFirst ? '' : '<option value="">All</option>';
         (json.data || []).forEach(function (row) {

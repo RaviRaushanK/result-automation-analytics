@@ -1,0 +1,7 @@
+<table class="reports-table">
+  <thead><tr><th scope="col">Sl. No.</th><% columns.forEach(column => { %><th scope="col" title="<%= column.title || column.label %>"><%= column.label %></th><% }); %></tr></thead>
+  <tbody>
+    <% rows.forEach((row, index) => { %><tr><td><%= index + 1 %></td><% columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %>
+    <% if (!rows.length) { %><tr><td colspan="<%= columns.length + 1 %>">No subject results are stored for this attempt.</td></tr><% } %>
+  </tbody>
+</table>

@@ -20,23 +20,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                     <% } %>
-                    <form method="POST" action="/account-security">
-                        <div class="mb-3">
-                            <label for="currentPassword" class="form-label">Current Password</label>
-                            <input type="password" name="currentPassword" id="currentPassword" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="newPassword" class="form-label">New Password</label>
-                            <input type="password" name="newPassword" id="newPassword" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="confirmPassword" class="form-label">Confirm New Password</label>
-                            <input type="password" name="confirmPassword" id="confirmPassword" class="form-control" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="material-icons me-1">save</i>Update Password
-                        </button>
-                    </form>
+                    <%- include('partials/password-form') %>
                 </div>
             </div>
         </div>

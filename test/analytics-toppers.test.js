@@ -28,6 +28,7 @@ function loadRepository() {
     require(name) {
       if (name === 'sequelize') return { QueryTypes: { SELECT: 'SELECT' } };
       if (name === '../database/models') return database;
+      if (name === '../services/academicPolicy') return require('../services/academicPolicy');
       throw new Error(`Unexpected require: ${name}`);
     }
   });

@@ -1,0 +1,44 @@
+/* ============================================
+   Session Management - SRAAS
+   Academic Management → Sessions
+   Page-specific styles. Uses existing tokens.
+   ============================================ */
+.sessions-page .sessions-header { margin-bottom: 1.5rem; }
+.sessions-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 1rem; }
+.sessions-summary .stat-card { min-width: 0; border-radius: 8px; }
+.sessions-summary .stat-card .card-body { min-height: 96px; padding: 1rem; gap: .75rem; }
+.sessions-summary .stat-icon { width: 40px; height: 40px; border-radius: 8px; }
+.sessions-summary .stat-icon .material-icons { font-size: 22px; }
+.sessions-summary .stat-content { flex: 1; display: grid; gap: .3rem; }
+.sessions-summary .stat-label { margin: 0; font-size: .75rem; line-height: 1.4; letter-spacing: 0; text-transform: none; overflow-wrap: anywhere; }
+.sessions-summary .stat-value { font-size: 1.75rem; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+.sessions-summary #currentSessionName { font-size: 1.25rem; line-height: 1.3; }
+.session-summary-context { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: .35rem .75rem; margin: .65rem 0 1.5rem; color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+.session-summary-context[hidden] { display: none; }
+.session-summary-context > * { min-width: 0; }
+.session-summary-period { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; }
+.session-summary-period .badge { font-size: .6875rem; padding: .2rem .4rem; font-weight: 500; }
+@media (max-width: 1199.98px) { .sessions-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 575.98px) { .sessions-summary { grid-template-columns: minmax(0, 1fr); gap: .75rem; } .session-summary-context { justify-content: flex-start; } }
+.sessions-toolbar { display: flex; flex-wrap: wrap; gap: .75rem; }
+.sessions-search { min-width: min(320px, 100%); }
+.sessions-toolbar > .form-select { width: auto; min-width: 150px; }
+.sessions-table { min-width: 1050px; }
+.sessions-table .session-name { font-weight: 600; color: var(--text-primary); }
+.sessions-table .session-meta { font-size: .75rem; color: var(--text-secondary); }
+.session-readonly-field { background-color: var(--secondary-bg); color: var(--text-primary); font-weight: 600; }
+.session-hint { font-size: .75rem; color: var(--text-secondary); }
+.sessions-modal .form-text { color: var(--text-secondary); }
+.sessions-modal .form-select:disabled { background-color: var(--secondary-bg); color: var(--text-primary); opacity: 1; }
+#sessionsToastContainer { z-index: 1060; }
+#sessionsToastContainer .alert { min-width: 260px; max-width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,.12); font-size: .9rem; }
+
+@media (max-width: 767.98px) {
+  .main-content:has(.sessions-page) { margin-left: 0; width: 100%; min-width: 0; }
+  .sessions-page .sessions-header { flex-wrap: wrap; gap: .75rem; }
+  .sessions-toolbar { width: 100%; }
+  .sessions-search, .sessions-toolbar > .form-select { width: 100%; }
+  .sessions-table th, .sessions-table td { font-size: .85rem; }
+  #sessionsToastContainer .alert { min-width: 0; max-width: calc(100vw - 1.5rem); }
+}
+

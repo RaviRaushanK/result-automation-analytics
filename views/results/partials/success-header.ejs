@@ -1,0 +1,6 @@
+<header class="import-success-header">
+  <% if (confirmed) { %><div class="import-celebration" aria-hidden="true"><% for (let i = 0; i < 96; i++) { %><span style="--origin:<%= i % 2 ? 93 : 7 %>%;--x:<%= (i % 2 ? -1 : 1) * (10 + (i * 13) % 35) %>cqw;--rise:<%= -30 - (i * 17) % 35 %>vh;--fall:<%= 40 + (i * 7) % 20 %>vh;--spin:<%= (i * 137) % 1080 - 540 %>deg;--delay:<%= Math.floor(i / 48) * 400 + (i % 12) * 22 %>ms;--piece:<%= ['#16b67a','#3888ff','#f6bd30','#ed659b','#31c5cf'][i % 5] %>"></span><% } %></div><% } %>
+  <div class="import-success-mark <%= confirmed ? 'is-confirmed' : 'is-unavailable' %>" aria-hidden="true"><span class="material-icons"><%= confirmed ? 'check' : 'info' %></span></div>
+  <div class="import-success-heading"><div class="import-success-eyebrow"><%= eyebrow %></div><h1 id="<%= headingId %>"><%= heading %></h1><p><%= description %></p></div>
+  <% if (confirmed) { %><button type="button" class="import-celebration-replay" id="replayImportCelebration" title="Replay celebration" aria-label="Replay celebration"><span class="material-icons" aria-hidden="true">celebration</span></button><% } %>
+</header>

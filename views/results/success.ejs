@@ -1,43 +1,22 @@
-<div class="container-fluid">
-  <div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-6 text-center">
-
-      <div class="card shadow-sm my-5">
-        <div class="card-body p-5">
-
-          <i class="material-icons text-success mb-3" style="font-size: 80px;">check_circle</i>
-          <h3 class="mb-1">Result Imported Successfully</h3>
-          <p class="text-muted mb-4">The result has been saved to the database.</p>
-
-          <div class="border border-success rounded p-4 text-start mb-4">
-            <p class="mb-2"><strong>Student:</strong> <%= studentName %> (<code><%= usn %></code>)</p>
-            <p class="mb-2"><strong>Result Session:</strong> <%= sessionDisplay %></p>
-            <p class="mb-2"><strong>Attempt:</strong> <%= attemptNo %> <span class="badge bg-info text-dark"><%= examType %></span></p>
-            <p class="mb-2"><strong>Subjects Imported:</strong> <%= subjectsCount %></p>
-            <p class="mb-0">
-              <strong>Result:</strong>
-              <% if (overallResult === 'pass') { %>
-                <span class="badge bg-success">PASS</span>
-              <% } else { %>
-                <span class="badge bg-danger">FAIL</span>
-              <% } %>
-              &nbsp;<strong>SGPA:</strong> <span class="fw-bold"><%= sgpa %></span>
-              &nbsp;&middot;&nbsp;<strong>CGPA:</strong> <span class="fw-bold"><%= typeof cgpa !== 'undefined' && cgpa !== null ? cgpa : '—' %></span>
-            </p>
-          </div>
-
-          <div class="d-flex gap-2 justify-content-center flex-wrap">
-            <a href="/results/logs" class="btn btn-outline-primary btn-lg">
-              <i class="material-icons align-middle me-1" style="font-size:18px;">list_alt</i> View Import Logs
-            </a>
-            <a href="/results/upload" class="btn btn-primary btn-lg">
-              <i class="material-icons align-middle me-1" style="font-size:18px;">cloud_upload</i> Upload Another
-            </a>
-          </div>
-
-        </div>
-      </div>
-
-    </div>
+<% const confirmed = typeof savedConfirmed === 'undefined' || savedConfirmed;
+const resultStatus = String(overallResult || '').toLowerCase();
+const gpa = value => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? 'Unavailable' : Number(value).toFixed(2); %>
+<section class="import-success-page result-management-page" aria-labelledby="importSuccessTitle">
+  <%- include('partials/success-header', { confirmed, headingId: 'importSuccessTitle', eyebrow: confirmed ? 'Import complete' : 'Import record', heading: confirmed ? 'Result imported successfully' : 'Saved result unavailable', description: confirmed ? 'Saved and ready for your academic reports.' : 'No saved result was found for this import. Review the import log before trying again.' }) %>
+  <div class="import-student-overview"><span class="material-icons" aria-hidden="true">person</span><div><div class="import-success-student"><%= studentName || 'Unavailable' %></div><div class="import-success-usn"><%= usn %></div></div></div>
+  <dl class="import-success-details">
+    <div><dt>Examination session</dt><dd><%= sessionDisplay %></dd></div>
+    <div><dt>Attempt</dt><dd><%= attemptNo %><span class="import-success-tag"><%= examType %></span></dd></div>
+    <div><dt>Subjects imported</dt><dd><%= subjectsCount %></dd></div>
+  </dl>
+  <div class="import-success-metrics">
+    <div><div class="import-success-label">Result</div><div class="import-success-value <%= resultStatus === 'pass' ? 'is-pass' : resultStatus === 'fail' ? 'is-fail' : '' %>"><%= resultStatus === 'pass' ? 'PASS' : resultStatus === 'fail' ? 'FAIL' : 'Unavailable' %></div></div>
+    <div><div class="import-success-label">Stored SGPA</div><div class="import-success-value"><%= gpa(sgpa) %></div><p>Saved semester grade point average</p></div>
+    <div><div class="import-success-label">Cumulative CGPA</div><div class="import-success-value"><%= gpa(typeof cgpa === 'undefined' ? null : cgpa) %></div><p><%= gpa(typeof cgpa === 'undefined' ? null : cgpa) === 'Unavailable' ? 'Complete verified course and grading history is required.' : 'Saved cumulative grade point average' %></p></div>
   </div>
-</div>
+  <nav class="import-success-actions" aria-label="Import actions">
+    <a href="/results/upload" class="btn btn-primary"><span class="material-icons" aria-hidden="true">cloud_upload</span>Upload Another</a>
+    <a href="/results/logs" class="btn btn-outline-secondary"><span class="material-icons" aria-hidden="true">list_alt</span>View Import Logs</a>
+  </nav>
+</section>
+<script src="/js/results/success.js" defer></script>

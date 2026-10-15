@@ -14,6 +14,9 @@
   const sessionSel = document.getElementById('filter-session');
   const attemptSel = document.getElementById('filter-attempt');
   const modeSel = document.getElementById('filter-mode');
+  var initialQuery = new URLSearchParams(location.search);
+  if (['original', 'effective'].includes(initialQuery.get('mode'))) modeSel.value = initialQuery.get('mode');
+  if (['latest', 'all'].includes(initialQuery.get('attempt'))) attemptSel.value = initialQuery.get('attempt');
   const emptyState = document.getElementById('analytics-empty-state');
   const tableBody = document.getElementById('toppers-table-body');
   const prevBtn = document.getElementById('toppers-page-prev');
@@ -129,7 +132,8 @@
    */
   function populateSelect(sel, items, valueKey, textKey, placeholder, autoFirst) {
     if (!sel) return;
-    var prev = sel.value;
+    var prev = initialQuery.get(sel.name) || sel.value;
+    initialQuery.delete(sel.name);
     sel.innerHTML = autoFirst ? '' : '<option value="">' + (placeholder || 'All') + '</option>';
     (items || []).forEach(function (item) {
       var opt = document.createElement('option');
@@ -158,6 +162,7 @@
     });
     var params = readFilters();
     // [scope, element, valueKey, textKey, paramName, placeholder, autoSelectFirst]
+    ['batch_id', 'semester', 'session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
     var definitions = [
       ['semesters', semSel, 'semester', 'semester', 'semester', 'All Semesters', false],
       ['batches', batchSel, 'batchId', 'batchName', 'batch_id', 'All Batches', true],

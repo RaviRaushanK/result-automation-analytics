@@ -1,3 +1,5 @@
+const emailValidation = require('../../public/js/student-email-validation');
+
 module.exports = (sequelize, DataTypes) => {
   return sequelize.define('Student', {
     student_id: {
@@ -17,15 +19,41 @@ module.exports = (sequelize, DataTypes) => {
     usn: {
       type: DataTypes.STRING(50),
       allowNull: false,
-      unique: true
+      unique: true,
+      set(value) {
+        this.setDataValue('usn', typeof value === 'string' ? value.trim().toUpperCase() : value);
+      }
     },
     student_name: {
       type: DataTypes.STRING(100),
-      allowNull: false
+      allowNull: false,
+      set(value) {
+        this.setDataValue('student_name', typeof value === 'string' ? value.trim().toUpperCase() : value);
+      }
+    },
+    category: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+      defaultValue: null,
+      validate: { len: [1, 30] }
     },
     email: {
       type: DataTypes.STRING(100),
-      unique: true
+      allowNull: false,
+      unique: true,
+      set(value) {
+        this.setDataValue('email', typeof value === 'string' ? value.trim().toLowerCase() : value);
+      },
+      validate: {
+        validStudentEmail(value) {
+          const error = emailValidation.getError(value);
+          if (error) throw new Error(error);
+        }
+      }
+    },
+    category: {
+      type: DataTypes.STRING(50),
+      allowNull: true
     },
     status: {
       type: DataTypes.ENUM('active', 'inactive'),

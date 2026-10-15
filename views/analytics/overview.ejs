@@ -67,7 +67,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">&mdash;</div>
-              <div class="stat-label">Students</div>
+              <div class="stat-label"><a class="stretched-link analytics-deep-link" href="/analytics/students" data-analytics-target="students">Students</a></div>
             </div>
           </div>
         </div>
@@ -81,7 +81,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">&mdash;</div>
-              <div class="stat-label">Results</div>
+              <div class="stat-label">Result Attempts</div>
             </div>
           </div>
         </div>
@@ -95,7 +95,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">&mdash;</div>
-              <div class="stat-label">Subjects Attempted</div>
+              <div class="stat-label"><a class="stretched-link analytics-deep-link" href="/analytics/subjects" data-analytics-target="subjects">Subjects Attempted</a></div>
             </div>
           </div>
         </div>
@@ -109,7 +109,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">&mdash;</div>
-              <div class="stat-label">Passed</div>
+              <div class="stat-label">Passed Subject Results</div>
             </div>
           </div>
         </div>
@@ -123,7 +123,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">&mdash;</div>
-              <div class="stat-label">Failed</div>
+              <div class="stat-label"><a class="stretched-link analytics-deep-link" href="/analytics/failed" data-analytics-target="failed">Failed Subject Results</a></div>
             </div>
           </div>
         </div>
@@ -137,7 +137,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-value">&mdash;</div>
-              <div class="stat-label">Average Marks</div>
+              <div class="stat-label"><a class="stretched-link analytics-deep-link" href="/analytics/subjects" data-analytics-target="subjects">Average Marks</a></div>
             </div>
           </div>
         </div>
@@ -243,8 +243,20 @@
     <span class="material-icons analytics-empty-icon" aria-hidden="true">inbox</span>
     <p>No analytics data found for the selected filters.</p>
   </div>
+  <section class="mt-4 analytics-explore" aria-labelledby="explore-heading">
+    <h2 id="explore-heading" class="h6">Explore Academic Trends</h2>
+    <nav class="analytics-explore-links" aria-label="Explore academic trends">
+      <% [['semesters','Semester Analysis','timeline'],['progress','Progress / Backlog Trends','trending_up'],['revaluation','Revaluation Analysis','sync']].forEach(([target, label, icon]) => { %>
+        <a class="analytics-nav-link" href="/analytics/<%= target %>" data-analytics-target="<%= target %>">
+          <span class="material-icons analytics-nav-icon" aria-hidden="true"><%= icon %></span>
+          <span class="analytics-nav-label"><%= label %></span>
+          <span class="material-icons analytics-nav-arrow" aria-hidden="true">arrow_forward</span>
+        </a>
+      <% }); %>
+    </nav>
+  </section>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/reports/chart.umd.min.js"></script>
 <script src="/js/analytics/overview.js"></script>
 

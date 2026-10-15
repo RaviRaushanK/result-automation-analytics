@@ -1,0 +1,56 @@
+<div class="analytics-page">
+  <header class="analytics-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div><h1>Student Progress &amp; Backlog Trends</h1><p>Verified academic course completion across recorded sittings.</p></div>
+    <a id="progress-report-link" href="/reports/student-progress" class="btn btn-outline-secondary">Open Student Progress Report</a>
+  </header>
+  <form id="progress-filters" class="analytics-filters" autocomplete="off">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-sm-6 col-lg-3"><label for="progress-batch" class="form-label">Batch</label><select id="progress-batch" name="batch_id" class="form-select" required></select></div>
+      <div class="col-12 col-sm-6 col-lg-4"><label for="progress-period" class="form-label">Academic Period</label><select id="progress-period" class="form-select"></select></div>
+      <div class="col-12 col-sm-6 col-lg-2"><label for="progress-mode" class="form-label">Result Basis</label><select id="progress-mode" name="mode" class="form-select"><option value="original">Original</option><option value="effective" selected>Effective</option></select></div>
+      <div class="col-12 col-sm-6 col-lg-3 d-flex gap-2"><button type="reset" class="btn btn-outline-secondary">Reset</button><button type="submit" class="btn btn-primary">Apply Filters</button></div>
+    </div>
+  </form>
+  <p id="progress-state" role="status" aria-live="polite">Loading academic progress...</p>
+  <section aria-labelledby="progress-summary-heading">
+    <h2 id="progress-summary-heading" class="h5 mb-3">Academic Period Completion</h2>
+    <div class="progress-summary-grid mb-3">
+      <% const metrics = [['total','Total Students','blue','group'],['withoutBacklog','Cleared Without Backlog','green','check_circle'],['withBacklog','Cleared With Backlog','teal','history'],['uncleared','Currently Uncleared','red','error_outline'],['clearanceRate','Backlog Clearance Rate','amber','percent'],['unknown','Unknown / Insufficient Evidence','purple','help_outline']]; %>
+      <% metrics.forEach(([key, label, color, icon]) => { %>
+        <div class="card stat-card stat-<%= color %> progress-metric-card">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon"><span class="material-icons" aria-hidden="true"><%= icon %></span></div>
+            <div class="stat-content">
+              <div class="stat-value analytics-summary-value" id="progress-<%= key %>">-</div>
+              <div class="stat-label analytics-summary-label"><%= label %></div>
+            </div>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+    <p class="analytics-note">Backlog clearance rate: students with verified first-sitting failures who completed the selected period through retake clearance / students with verified first-sitting failures and known completion status. Unknown history and students without backlog are excluded. A dash means no eligible backlog history.</p>
+    <p class="analytics-note">Original uses recorded outcomes. Effective includes approved effective revaluation only. GPA is not recalculated.</p>
+  </section>
+  <div class="analytics-chart-grid mb-4">
+    <% [['status','Student Completion Status'],['trend','Semester Completion Trends']].forEach(([key, title]) => { %>
+      <section aria-labelledby="progress-<%= key %>-heading" class="analytics-chart-card">
+        <h2 class="h6 analytics-card-title mb-2" id="progress-<%= key %>-heading"><%= title %></h2>
+        <div class="analytics-chart-container"><div class="analytics-chart-host" id="progress-<%= key %>-chart" role="img" aria-label="<%= title %>" aria-describedby="progress-<%= key %>-description"></div></div>
+        <p class="analytics-note mt-2" id="progress-<%= key %>-description"></p>
+      </section>
+    <% }); %>
+  </div>
+  <section class="mb-4" aria-labelledby="progress-courses-heading">
+    <h2 id="progress-courses-heading" class="h5">Courses With Recorded Backlog</h2>
+    <div class="table-responsive"><table class="table analytics-table"><thead><tr><th scope="col">Semester</th><th scope="col">Subject Code</th><th scope="col">Subject Name</th><th scope="col">Students With Backlog</th><th scope="col">Cleared Through Retake</th><th scope="col">Still Uncleared</th><th scope="col">Clearance %</th></tr></thead><tbody id="progress-courses-body"></tbody></table></div>
+  </section>
+  <section aria-labelledby="progress-attention-heading">
+    <h2 id="progress-attention-heading" class="h5">Students Requiring Attention</h2>
+    <p id="progress-attention-note" class="analytics-note"></p>
+    <div class="table-responsive"><table class="table analytics-table"><thead><tr><th scope="col">USN</th><th scope="col">Student Name</th><th scope="col">Academic Period</th><th scope="col">Uncleared Courses</th><th scope="col">Latest Relevant Attempt</th><th scope="col" id="progress-clearance-heading">Clearance Status (Effective)</th><th scope="col">Action</th></tr></thead><tbody id="progress-attention-body"></tbody></table></div>
+  </section>
+</div>
+<script src="/js/reports/chart.umd.min.js"></script>
+<script src="/js/analytics/charts.js"></script>
+<script src="/js/analytics/progress.js"></script>

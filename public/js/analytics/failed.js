@@ -15,12 +15,17 @@
   const subjectSel = document.getElementById('filter-subject');
   const attemptSel = document.getElementById('filter-attempt');
   const modeSel = document.getElementById('filter-mode');
+  var initialQuery = new URLSearchParams(location.search);
+  if (['original', 'effective'].includes(initialQuery.get('mode'))) modeSel.value = initialQuery.get('mode');
+  if (['latest', 'all'].includes(initialQuery.get('attempt'))) attemptSel.value = initialQuery.get('attempt');
   const emptyState = document.getElementById('analytics-empty-state');
 
   const cardStudents = document.querySelector('[data-metric="failed-students"] .stat-value');
   const cardAttempts = document.querySelector('[data-metric="failed-subject-attempts"] .stat-value');
   const cardSubjects = document.querySelector('[data-metric="subjects-with-failures"] .stat-value');
   const tableBody = document.getElementById('failed-table-body');
+  const filterState = document.getElementById('failed-filter-state');
+  let filterRequest = 0, dataRequest = 0;
 
   function esc(s) {
     if (s == null) return '';
@@ -94,7 +99,7 @@
   function qs(p) { return p.toString() ? '?' + p.toString() : ''; }
 
   function fetchJSON(url) {
-    return fetch(url, { credentials: 'same-origin' }).then(function (r) {
+    return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
       var ct = (r.headers.get('content-type') || '');
       if (!r.ok || ct.indexOf('application/json') === -1)
         throw new Error('Request failed: HTTP ' + r.status);
@@ -114,9 +119,6 @@
       var data = json.data || [];
       optionCache[key] = data;
       return data;
-    }).catch(function (err) {
-      console.error('Failed to load filter options for ' + scope, err);
-      return [];
     });
     optionInflight[key] = promise;
     return promise.finally(function () { delete optionInflight[key]; });
@@ -130,7 +132,8 @@
    */
   function populateSelect(sel, items, valueKey, textKey, placeholder, autoFirst) {
     if (!sel) return;
-    var prev = sel.value;
+    var prev = initialQuery.get(sel.name) || sel.value;
+    initialQuery.delete(sel.name);
     sel.innerHTML = autoFirst ? '' : '<option value="">' + (placeholder || 'All') + '</option>';
     (items || []).forEach(function (item) {
       var opt = document.createElement('option');
@@ -152,32 +155,40 @@
   // on it) is excluded from the batch list request so the list never collapses
   // to the currently selected batch.
   async function refreshDepends(changed) {
-    if (changed === 'batch') { sessionSel.value = ''; subjectSel.value = ''; }
-    var params = readFilters();
-    var pending = [];
-    if (changed === 'batch' || changed === 'all') {
-      var semesterScope = new URLSearchParams(params);
-      semesterScope.delete('semester');
-      semesterScope.delete('session_id');
-      semesterScope.delete('subject_id');
-      pending.push(loadFilterOptions('semesters', semesterScope).then(function (items) {
-        populateSelect(semSel, items, 'semester', 'semester', 'All Semesters');
+    const current = ++filterRequest;
+    const apply = form.querySelector('[type="submit"]');
+    apply.disabled = true;
+    filterState.textContent = 'Loading filters...';
+    if (changed === 'batch' || changed === 'semester') { sessionSel.value = ''; subjectSel.value = ''; }
+    if (changed === 'session') subjectSel.value = '';
+    try {
+      if (changed === 'all') {
+        const batches = await loadFilterOptions('batches', new URLSearchParams());
+        if (current !== filterRequest) return false;
+        populateSelect(batchSel, batches, 'batchId', 'batchName', 'Batch', true);
+      }
+      const params = readFilters();
+      ['semester', 'session_id', 'subject_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
+      const definitions = [
+        ['semesters', semSel, 'semester', 'semester', 'All Semesters'],
+        ['sessions', sessionSel, 'sessionId', 'examSession', 'All Sessions'],
+        ['subjects', subjectSel, 'subjectId', 'subjectCode', 'All Subjects']
+      ];
+      await Promise.all(definitions.map(async function (definition) {
+        const scoped = new URLSearchParams(params);
+        scoped.delete(definition[1].name);
+        if (definition[0] !== 'subjects') scoped.delete('subject_id');
+        if (definition[0] === 'semesters') scoped.delete('session_id');
+        const rows = await loadFilterOptions(definition[0], scoped);
+        if (current === filterRequest) populateSelect(definition[1], rows, definition[2], definition[3], definition[4]);
       }));
-      var batchScope = new URLSearchParams(params);
-      batchScope.delete('batch_id');
-      batchScope.delete('session_id');
-      batchScope.delete('subject_id');
-      pending.push(loadFilterOptions('batches', batchScope).then(function (items) {
-        populateSelect(batchSel, items, 'batchId', 'batchName', 'All Batches', true);
-      }));
-      var sessionScope = new URLSearchParams(params);
-      sessionScope.delete('session_id');
-      sessionScope.delete('subject_id');
-      pending.push(loadFilterOptions('sessions', sessionScope).then(function (items) {
-        populateSelect(sessionSel, items, 'sessionId', 'examSession', 'All Sessions');
-      }));
-    }
-    await Promise.all(pending);
+      if (current !== filterRequest) return false;
+      filterState.textContent = '';
+      return true;
+    } catch (err) {
+      if (current === filterRequest) filterState.textContent = 'Unable to load filters. Change a filter or reset to retry.';
+      return false;
+    } finally { if (current === filterRequest) apply.disabled = !!filterState.textContent; }
   }
 
   function statusBadge(status) {
@@ -191,18 +202,16 @@
 
   function renderRow(row) {
     var tr = document.createElement('tr');
-    // Original mode returns stored values (marks/resultStatus); effective mode also
-    // returns original* plus the approved overlay values (revised*).
-    var originalMarks = row.originalMarks != null ? row.originalMarks : row.marks;
-    var originalStatus = row.originalStatus != null ? row.originalStatus : row.resultStatus;
+    var originalMarks = row.originalMarks;
+    var originalStatus = row.originalStatus;
     tr.innerHTML =
       '<td>' + esc(row.usn) + '</td>' +
       '<td>' + esc(row.studentName) + '</td>' +
       '<td>' + esc(row.subjectName) + '</td>' +
-      '<td>' + (originalMarks != null ? fmtInt(originalMarks) : '\u2014') + '</td>' +
-      '<td>' + (row.revisedMarks != null ? fmtInt(row.revisedMarks) : '\u2014') + '</td>' +
+      '<td>' + (originalMarks != null ? fmt(originalMarks, 2) : '\u2014') + '</td>' +
+      '<td>' + (row.effectiveMarks != null ? fmt(row.effectiveMarks, 2) : '\u2014') + '</td>' +
       '<td>' + statusBadge(originalStatus) + '</td>' +
-      '<td>' + statusBadge(row.revisedStatus) + '</td>';
+      '<td>' + statusBadge(row.effectiveStatus) + '</td>';
     return tr;
   }
 
@@ -250,7 +259,7 @@
 
     var byStatus = {};
     (rows || []).forEach(function (row) {
-      var status = row.revisedStatus || row.originalStatus || 'unknown';
+      var status = row.effectiveStatus || 'unknown';
       var key = String(status).toUpperCase();
       byStatus[key] = (byStatus[key] || 0) + 1;
     });
@@ -269,12 +278,16 @@
   }
 
   function loadFailed() {
+    const current = ++dataRequest;
     showSkeleton(true);
     showEmpty(false);
+    renderCharts([]);
+    tableBody.setAttribute('aria-busy', 'true');
     var params = readFilters();
     params.set('limit', '50');
     var url = '/analytics/api/failed' + qs(params);
     fetchJSON(url).then(function (json) {
+      if (current !== dataRequest) return;
       if (json.success === false) throw new Error(json.message || 'API error');
       updateModeBadge(json.mode || 'original');
       var d = json;
@@ -311,6 +324,7 @@
       renderCharts(data);
       refreshTable();
     }).catch(function (err) {
+      if (current !== dataRequest) return;
       console.error('Failed students load error:', err);
       setCard(cardStudents, '\u2014'); setCard(cardAttempts, '\u2014'); setCard(cardSubjects, '\u2014');
       renderCharts([]);
@@ -327,25 +341,34 @@
       }
       showEmpty(true);
       refreshTable();
-    });
+    }).finally(function () { if (current === dataRequest) tableBody.setAttribute('aria-busy', 'false'); });
   }
 
   if (form) {
+    form.addEventListener('change', function () {
+      ++dataRequest;
+      showSkeleton(true);
+      renderCharts([]);
+      tableBody.setAttribute('aria-busy', 'false');
+      tableBody.querySelector('td').textContent = 'Apply filters to view the selected results.';
+    }, true);
     form.addEventListener('submit', function (e) { e.preventDefault(); loadFailed(); });
     form.addEventListener('reset', function () {
       // Let the browser restore its own defaults first, then re-list the options
       // so Batch falls back to the latest batch, and reload.
       setTimeout(function () {
         updateModeBadge('original');
-        refreshDepends('all').then(function () { loadFailed(); });
+        refreshDepends('all').then(function (ready) { if (ready) loadFailed(); });
       }, 0);
     });
   }
   if (semSel) semSel.addEventListener('change', function () { refreshDepends('semester'); });
   if (batchSel) batchSel.addEventListener('change', function () { refreshDepends('batch'); });
   if (sessionSel) sessionSel.addEventListener('change', function () { refreshDepends('session'); });
-  if (subjectSel) subjectSel.addEventListener('change', function () { refreshDepends('subject'); });
-  if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadFailed(); });
+  if (modeSel) modeSel.addEventListener('change', function () {
+    updateModeBadge(modeSel.value);
+    refreshDepends().then(function (ready) { if (ready) loadFailed(); });
+  });
 
   // Sortable/searchable results table (presentation only).
   if (window.AnalyticsTable) {
@@ -358,7 +381,7 @@
 
   // Populate the option lists first: the default Batch comes from the
   // API ordering, so the first request must wait for those options.
-  updateModeBadge('original');
-  refreshDepends('all').then(function () { loadFailed(); }, function () { loadFailed(); });
+  updateModeBadge(modeSel.value);
+  refreshDepends('all').then(function (ready) { if (ready) loadFailed(); });
 })();
 

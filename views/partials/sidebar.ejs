@@ -12,6 +12,8 @@
         // Helper function to check active route
         function isActive(itemRoute) {
           if (!itemRoute || !activePath) return false;
+          if (itemRoute === '/reports') return activePath === '/reports' || activePath === '/reports/';
+          if (itemRoute === '/analytics/overview' && (activePath === '/analytics' || activePath === '/analytics/')) return true;
           return (activePath === itemRoute) || (activePath.indexOf(itemRoute + '/') === 0);
         }
         
@@ -59,8 +61,8 @@
               </nav>
             </div>
           <% } else { %>
-            <a class="nav-link <%= linkClass %>" href="<%= item.route %>" <%= itemActive ? 'aria-current="page"' : '' %>>
-              <i class="material-icons me-2"><%= item.icon %></i><%= item.label %>
+            <a class="nav-link <%= linkClass %>" href="<%= item.route %>" <%- itemActive ? 'aria-current="page"' : '' %>>
+              <i class="material-icons me-2" aria-hidden="true"><%= item.icon %></i><span class="sidebar-link-label"><%= item.label %></span>
             </a>
           <% } %>
         </div>

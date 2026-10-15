@@ -5,6 +5,10 @@ const fs = require('fs');
 
 // Document extraction service
 const documentExtractor = require('../services/documentExtractor');
+const academicPolicy = require('../services/academicPolicy');
+const academicOutcomes = require('../services/academicOutcomeService');
+const { sortBatches } = require('../public/js/academic-form-options');
+const { AcademicCourse } = require('../database/models');
 
 // ============================================
 // Academic rules — P.G. 2022/2024 scheme
@@ -35,21 +39,12 @@ const ensureUploadDirectory = () => {
 
 // P.G. 2022/2024 Grade Points Scale — Score Range (%)
 // O 90-100:10 · A+ 80-89:9 · A 70-79:8 · B+ 60-69:7 · B 55-59:6 · C 50-54:5 · F 0-49:0
-const gradeFromPercent = (pct) => {
-  if (pct === null || pct === undefined || isNaN(pct)) return { grade: 'F', point: 0, status: 'fail' };
-  if (pct >= 90) return { grade: 'O', point: 10, status: 'pass' };
-  if (pct >= 80) return { grade: 'A+', point: 9, status: 'pass' };
-  if (pct >= 70) return { grade: 'A', point: 8, status: 'pass' };
-  if (pct >= 60) return { grade: 'B+', point: 7, status: 'pass' };
-  if (pct >= 55) return { grade: 'B', point: 6, status: 'pass' };
-  if (pct >= PASS_PERCENT) return { grade: 'C', point: 5, status: 'pass' };
-  return { grade: 'F', point: 0, status: 'fail' };
-}
+const gradeFromPercent = academicPolicy.gradeFromPercent;
 
 // ============================================
 // Attempt parsing & validation (foundation for multi-attempt results)
 // ============================================
-const ALLOWED_EXAM_TYPES = ['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'];
+const ALLOWED_EXAM_TYPES = academicPolicy.EXAM_TYPES;
 
 // Sanitize attempt_no / exam_type coming from the browser/form state.
 // - attempt_no: absent (undefined/null omitted) -> default 1. Present but
@@ -132,9 +127,15 @@ function safeParseJson(str) {
   try { return JSON.parse(str); } catch (e) { return null; }
 }
 
+function studentRegistrationError(student, session, usn) {
+  if (student && String(student.batch_id) === String(session.batch_id)) return null;
+  const batch = session.Batch?.batch_name || 'batch ' + session.batch_id;
+  return `Student ${usn} is not registered in ${batch}. Add or restore the student in this batch, or correct the USN and selected result session before continuing.`;
+}
+
 // Core validation + computation used by review-validate, preview and import.
 // markInputs: object keyed by `internal_<subject_id>` / `external_<subject_id>`
-async function buildValidatedPayload(sessionId, studentInput, markInputs) {
+async function buildValidatedPayload(sessionId, studentInput, markInputs, options = {}) {
   const errors = {};
   const usn = ((studentInput && studentInput.usn) || '').trim().toUpperCase();
   const name = ((studentInput && studentInput.name) || '').trim();
@@ -145,13 +146,23 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
   const subjects = await Subject.findAll({
     where: { session_id: sessionId },
     order: [['subject_code', 'ASC']],
-    raw: true
+    raw: true,
+    transaction: options.transaction
   });
   if (subjects.length === 0) errors.form = 'This result session has no subjects configured.';
+  const retake = academicPolicy.isRetakeAttempt(options.exam_type);
+  const session = options.session || await ResultSession.findByPk(sessionId, { transaction: options.transaction });
+  const courses = session ? await AcademicCourse.findAll({ where: { batch_id: session.batch_id, semester: String(Number(session.semester)), status: 'active' }, raw: true, transaction: options.transaction }) : [];
+  const byCourse = new Map(courses.map(course => [String(course.course_id), course]));
+  const required = courses.filter(course => Number(course.is_required));
+  const fullRoster = required.length > 0 && courses.every(course => Number(course.roster_verified))
+    && subjects.length === required.length && required.every(course => subjects.some(subject => String(subject.course_id) === String(course.course_id)));
+  if (!retake && !fullRoster) errors.form = 'Confirm the required semester courses and configure the complete regular subject roster before importing.';
+  const suppliedIds = Object.keys(markInputs).map(key => key.match(/^(?:internal|external)_(\d+)$/)?.[1]).filter(Boolean);
+  if (suppliedIds.some(id => !subjects.some(subject => String(subject.subject_id) === id))) errors.form = 'An attempted subject does not belong to this examination session.';
 
   const list = [];
   let allPoints = 0, allCredits = 0;      // SGPA: every registered course
-  let passedPoints = 0, passedCredits = 0; // CGPA: excludes F-grade courses (P.G. 2022/24)
   let failedCount = 0;
 
   for (const s of subjects) {
@@ -163,6 +174,12 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
 
     const iRaw = markInputs[`internal_${s.subject_id}`];
     const eRaw = markInputs[`external_${s.subject_id}`];
+    if (retake && [iRaw, eRaw].every(value => value === undefined || value === null || value === '')) continue;
+    const course = byCourse.get(String(s.course_id));
+    if (!s.course_id || !course || course.subject_code !== String(s.subject_code).trim().toUpperCase()
+      || ['subject_name','subject_type','credits','max_internal','max_external','max_marks'].some(field => String(course[field]) !== String(s[field]))) {
+      errors.form = 'An attempted subject has no matching academic course. Review its course definition before importing.';
+    }
     // Explicitly check for null/undefined/empty-string BEFORE parseInt so that
     // "0" is NOT incorrectly treated as missing. parseInt returns NaN for empty
     // string; we treat that as a required-field error rather than a range error.
@@ -196,9 +213,6 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
     allCredits += credits;
     if (gradeInfo.status === 'fail') {
       failedCount++;
-    } else {
-      passedPoints += gradeInfo.point * credits;
-      passedCredits += credits;
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -218,10 +232,12 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
       totalMarks: total,
       percent: pct,
       grade: gradeInfo.grade,
-      result_status: gradeInfo.status
+      result_status: gradeInfo.status,
+      grade_point: gradeInfo.point, course_id: s.course_id, grading_scheme_version: academicPolicy.SCHEME
     });
   }
 
+  if (retake && !list.length) errors.form = 'Enter marks for at least one attempted subject.';
   const hasErrors = Object.keys(errors).length > 0;
 
   return {
@@ -232,9 +248,9 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs) {
       subjects: list,
       overallResult: (!hasErrors && failedCount === 0) ? 'pass' : 'fail',
       // SGPA = Σ(credits × grade points) / Σ(credits) over ALL registered courses
-      sgpa: allCredits > 0 ? Number((allPoints / allCredits).toFixed(2)) : 0,
-      // CGPA = same, but excluding F-grade courses (P.G. 2022/2024 definition)
-      cgpa: passedCredits > 0 ? Number((passedPoints / passedCredits).toFixed(2)) : null,
+      sgpa: !retake && fullRoster && allCredits > 0 ? Number((allPoints / allCredits).toFixed(2)) : null,
+      // Preview adds verified history separately; confirmation recalculates after persistence.
+      cgpa: null,
       failedSubjectCount: failedCount
     }
   };
@@ -257,6 +273,7 @@ const resultController = {
   // ============================================================
   showUploadPage: async (req, res) => {
     try {
+      const batches = sortBatches(await Batch.findAll({ attributes: ['batch_id', 'batch_name', 'start_year', 'end_year'], raw: true }));
       const sessions = await ResultSession.findAll({
         include: [{ model: Batch, attributes: ['batch_name'] }],
         order: [['exam_year', 'DESC'], ['semester', 'ASC']]
@@ -264,18 +281,22 @@ const resultController = {
 
       res.render('results/upload', {
         title: 'Upload Results - SRAAS',
+        pageStyles: ['/css/result-upload.css'],
         breadcrumbItems: [
           { label: 'Result Management' },
           { label: 'Upload Results', active: true }
         ],
         sessions: sessions.map(s => ({
           session_id: s.session_id,
+          batch_id: s.batch_id,
           display_name: `${s.Batch.batch_name} | ${s.semester} | ${s.exam_session} ${s.exam_year}`,
           semester: s.semester,
           exam_session: s.exam_session,
           exam_year: s.exam_year,
           batch_name: s.Batch.batch_name
         })),
+        batches,
+        selectedBatchId: batches[0]?.batch_id || '',
         error: req.query.error || null,
         importId: req.query.importId || null
       });
@@ -348,6 +369,13 @@ const resultController = {
       }
       if (!sessionId) {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Please select a result session.'));
+      }
+      if (req.body.batch_id !== undefined) {
+        const selectedSession = await ResultSession.findByPk(sessionId, { attributes: ['session_id', 'batch_id'] });
+        if (!selectedSession || String(selectedSession.batch_id) !== String(req.body.batch_id)) {
+          fs.unlinkSync(req.file.path);
+          return res.redirect('/results/upload?error=' + encodeURIComponent('Select a result session belonging to the selected batch.'));
+        }
       }
 
       // Move multer temp file into permanent results folder
@@ -473,6 +501,14 @@ const resultController = {
         warnings = ctx.saved.warnings;
       }
 
+      if (academicPolicy.isRetakeAttempt(ctx.saved.attempt?.exam_type) && ctx.saved.student?.usn) {
+        const attempted = dbSubjects.filter(s => {
+          const value = ctx.saved.subjects?.find(row => String(row.subject_id) === String(s.subject_id));
+          return value && [value.internalMarks, value.externalMarks].some(mark => mark !== '' && mark !== null && mark !== undefined);
+        });
+        warnings = [...new Set(warnings.concat(await academicOutcomes.retakeWarnings(ctx.session, ctx.saved.student.usn.trim().toUpperCase(), attempted, undefined, ctx.saved.attempt?.attempt_no)))];
+      }
+
       // ---- Compute extraction warning for the frontend ----
       // Shown when OCR left required fields empty so the admin knows
       // to manually fill them before submitting.
@@ -484,7 +520,8 @@ const resultController = {
         extractionWarningParts.push('Student name is missing from the extracted data.');
       }
       const missingSubjectCount = subjects.filter(s =>
-        s.internalMarks === '' || s.externalMarks === ''
+        (s.internalMarks === '' || s.externalMarks === '') &&
+        (!academicPolicy.isRetakeAttempt(ctx.saved.attempt?.exam_type) || s.internalMarks !== '' || s.externalMarks !== '' || savedMap.get(String(s.subject_id))?.found_on_card)
       ).length;
       if (missingSubjectCount > 0) {
         const noun = missingSubjectCount === 1 ? 'subject has' : 'subjects have';
@@ -506,8 +543,12 @@ const resultController = {
         ? { attempt_no: savedAttempt.attempt_no, exam_type: savedAttempt.exam_type }
         : { attempt_no: 1, exam_type: 'REGULAR' };
       let duplicateStudent = false;
+      let registrationError = null;
+      const reviewError = typeof req.query?.error === 'string' ? req.query.error : null;
       if (usn) {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
+        // Initial extraction remains editable; only failed workflow redirects block Review.
+        if (reviewError) registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
         if (existingStudent) {
           const existingResult = await Result.findOne({
             where: {
@@ -534,6 +575,8 @@ const resultController = {
         subjects,
         warnings,
         extractionWarning,
+        formError: reviewError,
+        registrationBlocked: !!registrationError,
         errors: {},
         duplicateStudent,
         fileUrl: ctx.fileUrl,
@@ -562,8 +605,15 @@ const resultController = {
       const { errors, payload } = await buildValidatedPayload(
         ctx.session.session_id,
         { usn: req.body.usn, name: req.body.name },
-        markInputs
+        markInputs,
+        { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
+      let registrationError = null;
+      if (payload.student.usn) {
+        const student = await Student.findOne({ where: { usn: payload.student.usn } });
+        registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
+        if (registrationError) errors.form = [errors.form, registrationError].filter(Boolean).join(' ');
+      }
 
       // Persist the admin's edited values into the stored extraction payload
       const mergedSubjects = payload.subjects.map(s => ({
@@ -620,12 +670,14 @@ const resultController = {
         }
       }
 
+      const historyWarnings = academicPolicy.isRetakeAttempt(examType)
+        ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, attemptNo) : [];
       await ctx.ocr.update({
         extracted_json: {
           student: payload.student,
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects: mergedSubjects,
-          warnings: []
+          warnings: historyWarnings
         },
         validation_status: Object.keys(errors).length > 0 ? 'pending' : 'validated'
       });
@@ -665,10 +717,12 @@ const resultController = {
           student: payload.student,
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects,
-          warnings: [],
-          extractionWarning: (errors.form ? errors.form + ' Please correct the highlighted fields below.' : 'Some required fields are missing. Please correct the highlighted fields below.'),
+          warnings: historyWarnings,
+          extractionWarning: Object.keys(errors).some(key => key !== 'form')
+            ? 'Some required fields are missing or invalid. Please correct the highlighted fields below.' : null,
           errors,
           formError: errors.form || null,
+          registrationBlocked: !!registrationError,
           duplicateStudent: false,
           fileUrl: ctx.fileUrl,
           fileType: (ctx.log.file_type || '').toLowerCase(),
@@ -705,10 +759,20 @@ const resultController = {
         }
       });
 
-      const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs);
+      const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR' });
 
       if (Object.keys(errors).length > 0) {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
+      }
+
+      const student = await Student.findOne({ where: { usn: payload.student.usn } });
+      const registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
+      if (registrationError) return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
+      const previewAttempt = sanitizeAttempt(ctx.saved.attempt?.attempt_no, ctx.saved.attempt?.exam_type);
+      if (previewAttempt.ok) {
+        const history = await academicOutcomes.load(ctx.session.batch_id, [student.student_id], 'original');
+        payload.cgpa = academicOutcomes.previewCumulative(history, student.student_id, ctx.session,
+          previewAttempt, payload.subjects);
       }
 
       res.render('results/preview', {
@@ -725,6 +789,8 @@ const resultController = {
           exam_type: (ctx.saved.attempt && ctx.saved.attempt.exam_type) || 'REGULAR'
         },
         data: payload,
+        warnings: academicPolicy.isRetakeAttempt(ctx.saved.attempt?.exam_type)
+          ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, ctx.saved.attempt?.attempt_no) : [],
         fileUrl: ctx.fileUrl,
         fileType: (ctx.log.file_type || '').toLowerCase()
       });
@@ -758,26 +824,22 @@ const resultController = {
         }
       });
 
-      const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs);
+      const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR', transaction: t });
       if (Object.keys(errors).length > 0) {
         await t.rollback();
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
       }
 
-      // 1) Find or provision the student inside the session's batch
-      let student = await Student.findOne({
+      // Student registration is required; result imports never provision students.
+      const student = await Student.findOne({
         where: { usn: payload.student.usn },
         transaction: t
       });
 
-      if (!student) {
-        student = await Student.create({
-          student_uuid: crypto.randomUUID(),
-          batch_id: ctx.session.batch_id,
-          usn: payload.student.usn,
-          student_name: payload.student.name,
-          status: 'active'
-        }, { transaction: t });
+      const registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
+      if (registrationError) {
+        await t.rollback();
+        return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
       }
 
       // Attempt authority comes ONLY from the persisted OCR payload, which was
@@ -819,7 +881,10 @@ const resultController = {
         attempt_no: attempt.attempt_no,
         exam_type: attempt.exam_type,
         sgpa: payload.sgpa,
-        cgpa: payload.cgpa, // P.G. 2022/2024: excludes F-grade courses; NULL if all failed
+        cgpa: null,
+        sgpa_source: payload.sgpa === null ? 'UNKNOWN' : 'CALCULATED',
+        cgpa_source: 'UNKNOWN', cgpa_is_cumulative: false,
+        grading_scheme_version: academicPolicy.SCHEME,
         result_status: payload.overallResult,
         failed_subject_count: payload.failedSubjectCount
       }, { transaction: t });
@@ -828,10 +893,16 @@ const resultController = {
       await SubjectResult.bulkCreate(payload.subjects.map(s => ({
         result_id: result.result_id,
         subject_id: s.subject_id,
+        internal_marks: s.internalMarks,
+        external_marks: s.externalMarks,
         marks: s.totalMarks,
         grade: s.grade,
-        result_status: s.result_status
+        result_status: s.result_status,
+        grading_scheme_version: s.grading_scheme_version, grade_point: s.grade_point,
+        credits_snapshot: s.credits, course_id_snapshot: s.course_id
       })), { transaction: t });
+      const cumulative = await academicOutcomes.calculateCumulative(ctx.session.batch_id, student.student_id, ctx.session.semester, academicPolicy.period(ctx.session), t);
+      if (cumulative !== null) await result.update({ cgpa: cumulative, cgpa_source: 'CALCULATED', cgpa_is_cumulative: true }, { transaction: t });
 
       // 5) Close out the import log
       await ctx.log.update({
@@ -882,6 +953,8 @@ const resultController = {
 
       res.render('results/success', {
         title: 'Import Successful - SRAAS',
+        pageStyles: ['/css/result-success.css'],
+        savedConfirmed: !!result,
         breadcrumbItems: [
           { label: 'Result Management' },
           { label: 'Upload Results', route: '/results/upload' },
@@ -986,6 +1059,7 @@ const resultController = {
         session_id,
         attempt_no: 1,                    // forced — disallow client control
         exam_type: 'REGULAR',             // forced — disallow client control
+        sgpa_source: 'UNKNOWN', cgpa_source: 'UNKNOWN', cgpa_is_cumulative: false,
         sgpa,
         cgpa,
         result_status,
@@ -1006,7 +1080,7 @@ const resultController = {
       const { sgpa, cgpa, result_status, failed_subject_count } = req.body;
 
       const [updated] = await Result.update(
-        { sgpa, cgpa, result_status, failed_subject_count },
+        { sgpa, cgpa, result_status, failed_subject_count, sgpa_source: 'UNKNOWN', cgpa_source: 'UNKNOWN', cgpa_is_cumulative: false, grading_scheme_version: null },
         { where: { result_id: req.params.id } }
       );
       if (!updated) return res.status(404).json({ error: 'Result not found' });

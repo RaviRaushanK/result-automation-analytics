@@ -5,6 +5,9 @@
  */
 document.addEventListener('DOMContentLoaded', function () {
     var sessionSelect = document.getElementById('resultSessionSelect');
+    var batchSelect = document.getElementById('uploadBatchSelect');
+    var sessionOptions = sessionSelect ? Array.from(sessionSelect.options).filter(option => option.value).map(option => option.cloneNode(true)) : [];
+    var detailRequest = 0;
     var detailsCard = document.getElementById('sessionDetailsCard');
     var subjectPreviewList = document.getElementById('subjectPreviewList');
     var dropZone = document.getElementById('dropZone');
@@ -17,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateExtractButton() {
         if (!extractButton) return;
-        var hasSession = sessionSelect && sessionSelect.value !== '';
+        var hasSession = sessionSelect && sessionSelect.value !== '' && (!batchSelect || batchSelect.value !== '');
         var hasFile = fileInput && fileInput.files.length > 0;
         extractButton.disabled = !(hasSession && hasFile);
     }
@@ -27,8 +30,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // ------------------------------
     if (sessionSelect) {
         sessionSelect.addEventListener('change', async function () {
+            var request = ++detailRequest;
             if (sessionSelect.classList) sessionSelect.classList.remove('is-invalid');
             var sessionId = this.value;
+            if (detailsCard) detailsCard.style.display = 'none';
+            updateExtractButton();
 
             if (!sessionId) {
                 if (detailsCard) detailsCard.style.display = 'none';
@@ -39,6 +45,7 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 var response = await fetch('/results/session-details/' + sessionId);
                 var data = await response.json();
+                if (request !== detailRequest || sessionSelect.value !== sessionId) return;
 
                 if (data.success) {
                     setText('displayAcademicYear', data.session.academic_year);
@@ -61,6 +68,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (detailsCard) detailsCard.style.display = 'none';
                 }
             } catch (err) {
+                if (request !== detailRequest) return;
                 console.error('Failed to load session details:', err);
                 if (detailsCard) detailsCard.style.display = 'none';
             }
@@ -68,6 +76,19 @@ document.addEventListener('DOMContentLoaded', function () {
             updateExtractButton();
         });
     }
+
+    function filterSessions() {
+        detailRequest++;
+        var matches = sessionOptions.filter(option => option.dataset.batchId === batchSelect.value);
+        sessionSelect.replaceChildren(new Option(!batchSelect.value ? 'Select Batch first' : matches.length ? 'Select Result Session' : 'No sessions available for this batch', ''));
+        matches.forEach(option => sessionSelect.appendChild(option.cloneNode(true)));
+        sessionSelect.disabled = !batchSelect.value || !matches.length;
+        if (detailsCard) detailsCard.style.display = 'none';
+        if (subjectPreviewList) subjectPreviewList.replaceChildren();
+        sessionSelect.classList.remove('is-invalid'); batchSelect.classList.remove('is-invalid');
+        updateExtractButton();
+    }
+    if (batchSelect && sessionSelect) { batchSelect.addEventListener('change', filterSessions); filterSessions(); }
 
 
     // ------------------------------
@@ -144,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (form) {
         form.addEventListener('submit', function (e) {
             var hasSession = sessionSelect && sessionSelect.value !== '';
+            var hasBatch = !batchSelect || batchSelect.value !== '';
             var hasFile = fileInput && fileInput.files.length > 0;
 
             if (!hasSession && sessionSelect) {
@@ -151,7 +173,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (!hasFile) { showFileError(); }
 
-            if (!hasSession || !hasFile) {
+            if (!hasBatch && batchSelect) batchSelect.classList.add('is-invalid');
+            if (!hasBatch || !hasSession || !hasFile) {
                 e.preventDefault();
                 return;
             }

@@ -14,6 +14,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT,
       allowNull: false
     },
+    course_id: { type: DataTypes.BIGINT, allowNull: true },
     subject_code: {
       type: DataTypes.STRING(20),
       allowNull: false

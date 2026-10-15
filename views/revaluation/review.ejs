@@ -367,7 +367,7 @@
           Approving will create approved + effective <code>RevaluationResult</code> events for every accepted subject
           and permanently demote any earlier effective event for those subjects. Originals are never modified.
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 result-action-row">
           <form method="POST" action="/revaluation/approve/<%= meta.importId %>">
             <button type="submit" class="btn btn-danger btn-lg">
               <i class="material-icons align-middle me-1">task_alt</i>Approve &amp; create revaluation events

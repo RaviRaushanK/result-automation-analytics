@@ -16,6 +16,9 @@
   const sessionSel = document.getElementById('filter-session');
   const attemptSel = document.getElementById('filter-attempt');
   const modeSel = document.getElementById('filter-mode');
+  var initialQuery = new URLSearchParams(location.search);
+  if (['original', 'effective'].includes(initialQuery.get('mode'))) modeSel.value = initialQuery.get('mode');
+  if (['latest', 'all'].includes(initialQuery.get('attempt'))) attemptSel.value = initialQuery.get('attempt');
 
   const emptyState = document.getElementById('analytics-empty-state');
 
@@ -115,6 +118,7 @@
   // and /analytics/api/grade-distribution for the same filter set.
   var gradeDistChart = null;
   var perfSummaryChart = null;
+  var lastChartData = null;
 
   function destroyCharts() {
     // Never reuse a canvas: destroy any existing instance first.
@@ -149,7 +153,10 @@
     return {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false, axis: 'x' },
+      transitions: { active: { animation: { duration: 0 } } },
       plugins: {
+        tooltip: { enabled: true, animation: { duration: 0 } },
         legend: { labels: { color: tokens.text } },
         title: { display: !!title, text: title || '', color: tokens.text }
       },
@@ -196,12 +203,10 @@
       },
       options: (function () {
         var options = baseChartOptions('');
-        options.plugins.tooltip = {
-          callbacks: {
-            afterLabel: function (context) {
-              var bucket = buckets[context.dataIndex] || {};
-              return bucket.percentage == null ? '' : fmt(bucket.percentage, 2) + '%';
-            }
+        options.plugins.tooltip.callbacks = {
+          afterLabel: function (context) {
+            var bucket = buckets[context.dataIndex] || {};
+            return bucket.percentage == null ? '' : fmt(bucket.percentage, 2) + '%';
           }
         };
         return options;
@@ -293,7 +298,8 @@
    */
   function populateSelect(sel, items, valueKey, textKey, placeholder, autoFirst) {
     if (!sel) return;
-    var prev = sel.value;
+    var prev = initialQuery.get(sel.name) || sel.value;
+    initialQuery.delete(sel.name);
     sel.innerHTML = autoFirst ? '' : '<option value="">' + (placeholder || 'All') + '</option>';
     (items || []).forEach(function (item) {
       var opt = document.createElement('option');
@@ -322,6 +328,17 @@
     showSkeleton(true);
     try {
       var params = readFilters();
+      document.querySelectorAll('[data-analytics-target]').forEach(function (link) {
+        var target = link.dataset.analyticsTarget;
+        var compatible = {
+          progress: ['batch_id', 'semester', 'mode'],
+          semesters: ['batch_id', 'semester', 'attempt', 'mode'],
+          revaluation: ['batch_id', 'semester', 'session_id']
+        }[target] || ['batch_id', 'semester', 'session_id', 'attempt', 'mode'];
+        var query = new URLSearchParams();
+        compatible.forEach(function (key) { if (params.has(key)) query.set(key, params.get(key)); });
+        link.href = '/analytics/' + target + qs(query);
+      });
       var responses = await Promise.all([
         fetchJSON('/analytics/api/overview' + qs(params)),
         // Grade Distribution chart consumes its own Analytics endpoint with the
@@ -358,9 +375,11 @@
       showEmpty(!subjectAttempted && !Number(parent.resultTotal));
       renderGradeDistribution(grades);
       renderPerformanceSummary(subject, parent, subjectPassRate);
+      lastChartData = { grades: grades, subject: subject, parent: parent, passRate: subjectPassRate };
     } catch (err) {
       if (request !== overviewRequest) return;
       showEmpty(false);
+      lastChartData = null;
       destroyCharts();
       showPlaceholder(gradeDistChartEl, 'Unable to load analytics. Please try again.');
       showPlaceholder(perfSummaryChartEl, '');
@@ -381,6 +400,7 @@
     ];
     if (changed !== 'all' && changed !== 'session') sessionSel.value = '';
     var params = readFilters();
+    ['batch_id', 'semester', 'session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
     await Promise.all(definitions.map(async function (definition) {
       var scoped = new URLSearchParams(params);
       scoped.delete(definition[4]);
@@ -399,7 +419,7 @@
     form.addEventListener('reset', function () {
       // The browser restores its own defaults first; re-list the options after
       // that so Batch falls back to the latest batch and results reload.
-      setTimeout(function () { refreshDepends('all'); loadOverview(); }, 0);
+      setTimeout(function () { refreshDepends('all').then(loadOverview); }, 0);
     });
   }
   if (semSel) semSel.addEventListener('change', function () { refreshDepends('semester'); });
@@ -408,7 +428,13 @@
   if (modeSel) modeSel.addEventListener('change', function () { updateModeBadge(modeSel.value); loadOverview(); });
 
   // ---------- Init ----------
-  refreshDepends('all');
-  updateModeBadge('original');
-  loadOverview();
+  if (typeof MutationObserver !== 'undefined') {
+    new MutationObserver(function () {
+      if (!lastChartData) return;
+      renderGradeDistribution(lastChartData.grades);
+      renderPerformanceSummary(lastChartData.subject, lastChartData.parent, lastChartData.passRate);
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+  refreshDepends('all').then(loadOverview);
+  updateModeBadge(modeSel.value);
 })();

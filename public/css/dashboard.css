@@ -377,6 +377,36 @@
   background-color: rgba(248, 113, 113, 0.08) !important;
 }
 
+/* ---------- Dashboard Workflows ---------- */
+.dashboard-page .dashboard-shortcuts { display: flex; flex-wrap: wrap; gap: .5rem; }
+.dashboard-page .dashboard-shortcuts .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
+.dashboard-page .dashboard-shortcuts .material-icons { font-size: 18px; }
+.dashboard-page .dashboard-context { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin: -.5rem 0 1.25rem; color: var(--text-secondary); font-size: .8125rem; }
+.dashboard-page #dashboardUpdated { white-space: nowrap; }
+.dashboard-page .dashboard-chart-heading { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.dashboard-page #subjectChartOrder { width: auto; max-width: 100%; }
+.dashboard-page .dashboard-result-counts { display: flex; justify-content: center; gap: 2rem; margin-top: .75rem; color: var(--text-secondary); }
+.dashboard-page .dashboard-result-counts strong { color: var(--text-primary); margin-left: .35rem; font-variant-numeric: tabular-nums; }
+.dashboard-page .dashboard-chart-empty:not([hidden]) { min-height: 240px; display: grid; place-items: center; color: var(--text-secondary); text-align: center; }
+.dashboard-page .dashboard-attention-table { min-width: 400px; font-size: .875rem; }
+.dashboard-page .dashboard-attention-table th { font-size: .75rem; color: var(--text-secondary); white-space: nowrap; letter-spacing: 0; }
+.dashboard-page .dashboard-attention-table td:not(:first-child) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dashboard-page .dashboard-subject-name { display: block; font-size: .8125rem; color: var(--text-secondary); margin-top: .2rem; }
+.dashboard-page .dashboard-record-link { color: var(--text-primary); text-decoration: none; }
+.dashboard-page .dashboard-record-link:hover { color: var(--primary-brand); text-decoration: none; }
+.dashboard-page .dashboard-record-link:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+.dashboard-page .dashboard-failed-count { color: var(--color-danger); font-weight: 600; }
+.dashboard-page .dashboard-grade-details { font-size: .875rem; }
+.dashboard-page .dashboard-grade-details summary { color: var(--primary-brand); cursor: pointer; }
+.dashboard-page .dashboard-grade-details table { min-width: 0; font-variant-numeric: tabular-nums; }
+.dashboard-page[aria-busy="true"] canvas { opacity: .35; }
+@media (max-width: 767.98px) {
+    .dashboard-page .dashboard-shortcuts { width: 100%; }
+    .dashboard-page .dashboard-shortcuts .btn { flex: 1 1 auto; }
+    .dashboard-page .dashboard-chart-heading h5 { font-size: 1.1rem; }
+    .dashboard-page #subjectChartOrder { width: 100%; }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 767.98px) {
     .stat-value {

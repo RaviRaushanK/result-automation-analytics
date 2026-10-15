@@ -1,0 +1,15 @@
+<table class="reports-table reports-analysis-table">
+  <caption class="reports-print-caption">Subject-wise Result Analysis</caption>
+  <thead>
+    <tr>
+      <th scope="col" rowspan="2">SL NO.</th><th scope="col" rowspan="2">SUBJECT CODE</th><th scope="col" rowspan="2">NAME OF THE SUBJECT</th>
+      <% ['REGULAR', 'REPEATERS', 'TOTAL'].forEach(group => { %><th scope="colgroup" colspan="3"><%= group %></th><% }); %>
+      <th scope="col" rowspan="2">NAME OF THE STAFF</th>
+    </tr>
+    <tr><% ['REGULAR', 'REPEATERS', 'TOTAL'].forEach(() => { %><th scope="col">APP</th><th scope="col">PASS</th><th scope="col">% PASS</th><% }); %></tr>
+  </thead>
+  <tbody>
+    <% report.rows.forEach((row, index) => { %><tr><td><%= index + 1 %></td><% report.columns.forEach(column => { %><td><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %>
+    <% if (!report.rows.length) { %><tr><td colspan="13">No subjects belong to the selected result session.</td></tr><% } %>
+  </tbody>
+</table>
