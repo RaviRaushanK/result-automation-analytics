@@ -46,6 +46,7 @@
       period.value = data.filters.academic_year ? 'academic_year:' + data.filters.academic_year : 'semester:' + data.filters.semester;
       ['total', ...categories, 'clearanceRate'].forEach(key => { el(key).textContent = number(data.summary[key]) + (key === 'clearanceRate' && data.summary[key] != null ? '%' : ''); });
       el('summary-heading').textContent = data.label + ' Completion';
+      el('clearance-heading').textContent = 'Clearance Status (' + (data.mode === 'effective' ? 'Effective' : 'Original') + ')';
       el('state').textContent = data.summary.total ? `${data.summary.unknown} students have insufficient verified history for ${data.label}.` : 'No students found for the selected batch.';
       el('report-link').href = '/reports/student-progress?' + new URLSearchParams({ batch_id: data.filters.batch_id, mode: data.mode });
       AnalyticsCharts.render('progress-status-chart', { type: 'bar', scroll: false, labels: data.summary.total ? labels : [], datasets: [{ label: 'Students', data: categories.map(key => data.summary[key]) }], decimals: 0, legend: false, emptyMessage: 'No students found for this selection.' });
@@ -63,7 +64,7 @@
         link.href = '/reports/student?' + new URLSearchParams({ batch_id: data.filters.batch_id, student_id: s.studentId, mode: data.mode });
         return [s.usn, s.name, s.period, s.unclearedCourses, s.latestAttempt, 'Uncleared', link];
       }), 'No students currently have known uncleared courses.');
-      el('attention-note').textContent = `Showing ${data.attention.length} of ${data.attentionTotal} students with known uncleared work.`;
+      el('attention-note').textContent = `${data.mode === 'effective' ? 'Effective results, including approved effective revaluation' : 'Original results, before revaluation'}. Showing ${data.attention.length} of ${data.attentionTotal} students with known uncleared work.`;
     } catch (error) {
       if (request !== version) return;
       el('state').textContent = error.message;
@@ -73,13 +74,13 @@
   form.addEventListener('submit', event => { event.preventDefault(); load(); });
   batch.addEventListener('change', () => load(true));
   mode.addEventListener('change', () => load());
-  form.addEventListener('reset', () => setTimeout(() => { mode.value = 'original'; load(true); }, 0));
+  form.addEventListener('reset', () => setTimeout(() => { mode.value = 'effective'; load(true); }, 0));
   async function init() {
     try {
       const result = await json('/analytics/api/filter-options/batches');
       result.data.forEach(row => batch.add(new Option(row.batchName, row.batchId)));
       if ([...batch.options].some(o => o.value === initial.get('batch_id'))) batch.value = initial.get('batch_id');
-      mode.value = initial.get('mode') === 'effective' ? 'effective' : 'original';
+      mode.value = initial.get('mode') === 'original' ? 'original' : 'effective';
       const key = initial.has('academic_year') ? 'academic_year' : 'semester';
       if (initial.get(key)) period.add(new Option('', key + ':' + initial.get(key)));
       await load();

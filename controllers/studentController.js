@@ -68,7 +68,7 @@ async function validateStudentInput(input, opts) {
   const usn = String(input.usn || '').trim().toUpperCase();
   if (!usn) errors.push('USN is required');
   else if (!USN_REGEX.test(usn)) errors.push('USN must be 3-50 characters, start with a letter or number, and contain only letters, numbers, / or -');
-  const student_name = String(input.student_name || input.name || '').trim();
+  const student_name = String(input.student_name || input.name || '').trim().toUpperCase();
   if (!student_name) errors.push('Student Name is required');
   else if (!NAME_REGEX.test(student_name)) errors.push('Student Name must be 2-100 characters, start with a letter, and contain only letters, spaces, dots, apostrophes or hyphens');
   let email = String(input.email || '').trim().toLowerCase();

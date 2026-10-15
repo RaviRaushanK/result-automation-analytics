@@ -26,7 +26,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     student_name: {
       type: DataTypes.STRING(100),
-      allowNull: false
+      allowNull: false,
+      set(value) {
+        this.setDataValue('student_name', typeof value === 'string' ? value.trim().toUpperCase() : value);
+      }
     },
     category: {
       type: DataTypes.STRING(30),

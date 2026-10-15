@@ -2,12 +2,7 @@
 const resultStatus = String(overallResult || '').toLowerCase();
 const gpa = value => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? 'Unavailable' : Number(value).toFixed(2); %>
 <section class="import-success-page" aria-labelledby="importSuccessTitle">
-  <header class="import-success-header">
-    <% if (confirmed) { %><div class="import-celebration" aria-hidden="true"><% for (let i = 0; i < 36; i++) { %><span style="--x:<%= (i * 73) % 600 - 300 %>px;--rise:<%= -60 - (i * 41) % 130 %>px;--spin:<%= (i * 137) % 720 - 360 %>deg;--delay:<%= (i % 9) * 35 %>ms;--piece:<%= ['#16a36b','#2875ed','#e7ae26','#dd538a','#28a9b0'][i % 5] %>"></span><% } %></div><% } %>
-    <div class="import-success-mark <%= confirmed ? 'is-confirmed' : 'is-unavailable' %>" aria-hidden="true"><span class="material-icons"><%= confirmed ? 'check' : 'info' %></span></div>
-    <div class="import-success-heading"><div class="import-success-eyebrow"><%= confirmed ? 'Import complete' : 'Import record' %></div><h1 id="importSuccessTitle"><%= confirmed ? 'Result imported successfully' : 'Saved result unavailable' %></h1><p><%= confirmed ? 'Saved and ready for your academic reports.' : 'No saved result was found for this import. Review the import log before trying again.' %></p></div>
-    <% if (confirmed) { %><button type="button" class="import-celebration-replay" id="replayImportCelebration" title="Replay celebration" aria-label="Replay celebration"><span class="material-icons" aria-hidden="true">celebration</span></button><% } %>
-  </header>
+  <%- include('partials/success-header', { confirmed, headingId: 'importSuccessTitle', eyebrow: confirmed ? 'Import complete' : 'Import record', heading: confirmed ? 'Result imported successfully' : 'Saved result unavailable', description: confirmed ? 'Saved and ready for your academic reports.' : 'No saved result was found for this import. Review the import log before trying again.' }) %>
   <div class="import-student-overview"><span class="material-icons" aria-hidden="true">person</span><div><div class="import-success-student"><%= studentName || 'Unavailable' %></div><div class="import-success-usn"><%= usn %></div></div></div>
   <dl class="import-success-details">
     <div><dt>Examination session</dt><dd><%= sessionDisplay %></dd></div>

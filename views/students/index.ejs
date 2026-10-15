@@ -144,8 +144,8 @@
             <label class="form-label" for="studentBatch">Batch *</label>
             <select id="studentBatch" class="form-select" required>
               <option value="">Select batch</option>
-              <% (batches || []).forEach(function(b) { %>
-                <option value="<%= b.batch_id %>"><%= b.batch_name %></option>
+              <% (batches || []).forEach(function(b, index) { %>
+                <option value="<%= b.batch_id %>" <%= index === 0 ? 'selected' : '' %>><%= b.batch_name %></option>
               <% }); %>
             </select>
           </div>
@@ -159,7 +159,8 @@
           </div>
           <div class="mb-3">
             <label class="form-label" for="studentEmail">Email *</label>
-            <input type="email" id="studentEmail" class="form-control" placeholder="example@gmail.com" maxlength="100" aria-describedby="studentFormError" required />
+            <input type="email" id="studentEmail" class="form-control" placeholder="example@gmail.com" maxlength="100" autocomplete="email" aria-describedby="studentEmailFeedback" aria-invalid="false" required />
+            <div class="invalid-feedback" id="studentEmailFeedback" aria-live="polite"></div>
           </div>
           <div class="mb-3">
             <label class="form-label" for="studentCategory">Category *</label>
@@ -285,5 +286,5 @@
 
 <div id="batchesData" data-batches="<%= JSON.stringify((batches || []).map(function(b){ return { id: b.batch_id, name: b.batch_name }; })) %>" class="d-none"></div>
 <script src="/js/student-email-validation.js?v=20261004-4"></script>
-<script src="/js/students.js?v=20261014-1"></script>
+<script src="/js/students.js?v=20261015-1"></script>
 </div>

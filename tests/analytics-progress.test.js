@@ -79,6 +79,8 @@ test('attention preview is capped at 20 but totals remain accurate', () => {
   assert.equal(result.summary.uncleared, 25); assert.equal(result.attentionTotal, 25); assert.equal(result.attention.length, 20);
 });
 test('batch, mode and period validation reject malformed selections', () => {
+  assert.equal(service.normalize({ batch_id: '3' }).mode, 'effective');
+  assert.equal(service.normalize({ batch_id: '3', mode: 'original' }).mode, 'original');
   assert.equal(service.normalize({ batch_id: '3', semester: '2', mode: 'effective' }).batch_id, 3);
   for (const query of [{}, { batch_id: ['1'] }, { batch_id: '9007199254740992' }, { batch_id: '1', semester: 'x' }, { batch_id: '1', semester: 25 }, { batch_id: '1', semester: 1, academic_year: 1 }]) assert.throws(() => service.normalize(query));
 });
@@ -91,8 +93,8 @@ test('service forwards batch and Original/Effective mode using batched history, 
     repository.progressStudents = async () => students;
     repository.progressSemesters = async () => [{ semester: '1' }];
     outcomes.load = async (batch, ids, mode) => { calls.push({ batch, ids, mode }); return ids.length ? fixture(mode === 'effective' ? 'pass' : 'fail') : { courses: fixture().courses, results: [], subjects: [] }; };
-    assert.equal((await service.getProgress({ batch_id: '9' })).summary.uncleared, 1);
-    assert.equal((await service.getProgress({ batch_id: '9', mode: 'effective' })).summary.withoutBacklog, 1);
+    assert.equal((await service.getProgress({ batch_id: '9', mode: 'original' })).summary.uncleared, 1);
+    assert.equal((await service.getProgress({ batch_id: '9' })).summary.withoutBacklog, 1);
     assert.equal(calls.length, 4); assert.ok(calls.every(c => c.batch === 9));
     outcomes.load = async () => { throw new Error('Database unavailable'); };
     await assert.rejects(service.getProgress({ batch_id: 9 }), /Database unavailable/);
@@ -132,6 +134,9 @@ test('read-only MySQL overlay: only approved effective revaluation clears progre
     assert.deepEqual(response.summary, result.summary, 'The public service returns the same canonical effective KPIs');
     assert.deepEqual(response.trends.map(t => [t.withoutBacklog, t.withBacklog, t.uncleared, t.unknown]), [[1, 1, 2, 0]]);
     assert.deepEqual(response.attention.map(s => s.usn), ['U2', 'U3'], 'Cleared students leave the attention list');
+    const defaultResponse = await service.getProgress({ batch_id: '1', semester: '1' });
+    assert.equal(defaultResponse.mode, 'effective');
+    assert.deepEqual(defaultResponse.attention.map(s => s.usn), ['U2', 'U3'], 'The default view excludes students cleared by approved revaluation');
     assert.deepEqual(response.courses.map(c => [c.backlog, c.cleared, c.uncleared, c.clearanceRate]), [[3, 1, 2, 33.33]]);
     const year = await service.getProgress({ batch_id: '1', academic_year: '1', mode: 'effective' });
     assert.equal(year.summary.unknown, 4, 'A missing second semester still prevents year-level certification');

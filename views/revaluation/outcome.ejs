@@ -1,4 +1,10 @@
 <div class="container-fluid revaluation-ui">
+  <% const completed = logStatus === 'success' && events.length > 0 && !error; %>
+  <% if (completed) { %>
+    <section class="import-success-page revaluation-completion" aria-labelledby="revaluationSuccessTitle">
+      <%- include('../results/partials/success-header', { confirmed: true, headingId: 'revaluationSuccessTitle', eyebrow: 'Revaluation complete', heading: 'Revaluation processed successfully', description: 'Approved changes are saved. The original result is preserved.' }) %>
+    </section>
+  <% } %>
   <div class="row mb-3 align-items-center">
     <div class="col">
       <h4 class="mb-1"><i class="material-icons me-1">workspace_premium</i> Revaluation — Outcome</h4>
@@ -133,3 +139,4 @@
     </a>
   </div>
 </div>
+<% if (completed) { %><script src="/js/results/success.js" defer></script><% } %>

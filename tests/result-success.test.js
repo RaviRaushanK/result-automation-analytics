@@ -11,7 +11,9 @@ test('success page shows saved metrics, import details and existing next actions
   const html = await ejs.renderFile(template, values);
   for (const text of ['Result imported successfully', '1MV25MC061', '8.00', '8.25', 'PASS', 'is-confirmed', '/results/upload', '/results/logs']) assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /card-body|border-success/);
-  assert.equal((html.match(/--piece:/g) || []).length, 36);
+  assert.equal((html.match(/--piece:/g) || []).length, 96);
+  assert.equal((html.match(/--origin:7%/g) || []).length, 48);
+  assert.equal((html.match(/--origin:93%/g) || []).length, 48);
   assert.match(html, /replayImportCelebration/);
 });
 test('missing GPA stays unavailable and zero remains a valid saved metric', async () => {
@@ -52,4 +54,22 @@ test('celebration replay restarts only celebration animations and honors reduced
   motion.matches = true; motion.change();
   assert.equal(button.hidden, true);
   handlers.click(); assert.equal(calls.length, 6);
+});
+
+test('celebration follows main-content bounds when the sidebar collapses or the viewport changes', () => {
+  let left = 260, resize;
+  const styles = {}, events = {};
+  const main = { getBoundingClientRect: () => ({ left }), addEventListener(name, fn) { events[name] = fn; } };
+  const celebration = { style: { setProperty(name, value) { styles[name] = value; } } };
+  const button = { addEventListener() {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/results/success.js'), 'utf8'), {
+    document: { getElementById: () => button, querySelector: () => ({ querySelector: () => celebration, closest: () => main }) },
+    window: { innerWidth: 1440, addEventListener(name, fn) { events[name] = fn; }, matchMedia: () => ({ matches: false, addEventListener() {} }) },
+    ResizeObserver: class { constructor(fn) { resize = fn; } observe(target) { assert.equal(target, main); } }
+  });
+  assert.equal(styles['--celebration-left'], '260px');
+  left = 72; resize();
+  assert.equal(styles['--celebration-left'], '72px');
+  left = 0; events.resize();
+  assert.equal(styles['--celebration-left'], '0px');
 });

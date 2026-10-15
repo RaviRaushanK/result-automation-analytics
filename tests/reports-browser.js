@@ -101,6 +101,13 @@ async function main() {
     studentName: 'RAVI RAUSHAN KUMAR', usn: '1MV25MC061', sessionDisplay: 'MCA 2025 - June 2026 - Semester 1',
     attemptNo: 1, examType: 'REGULAR', subjectsCount: 6, overallResult: 'pass', sgpa: 8.25, cgpa: req.query.missing === '1' ? null : 8.25
   }));
+  app.get('/verification/revaluation-success', (req, res) => res.render('revaluation/outcome', {
+    title: 'Revaluation Outcome', pageStyles: ['/css/result-success.css'], logStatus: req.query.status || 'success',
+    meta: { importId: 1, resultId: 2, studentName: 'TEST STUDENT', studentUsn: 'TEST001', sessionDisplay: 'June 2026', attemptNo: 1, examType: 'REGULAR', docUrl: null, sessionId: 1 },
+    rows: [], aggregates: { overall_result: 'pass', sgpa: 7, cgpa: 7, failed_subject_count: 0 },
+    origResult: { sgpa: 4, cgpa: 4, result_status: 'fail', failed_subject_count: 1 }, reviewedAt: null, reviewPresent: true, notice: null, error: null,
+    events: [{ id: 1, srid: 2, no: 1, originalMarks: 40, revisedMarks: 60, originalStatus: 'fail', revisedStatus: 'pass', revisedGrade: 'B', isEffective: true, remarks: '' }]
+  }));
   app.use('/settings', require('../routes/settingsRoutes'));
   app.use(require('../routes/authRoutes'));
   const server = app.listen(0, '127.0.0.1');
@@ -156,28 +163,94 @@ async function main() {
     const available = name => until(`!document.getElementById(${JSON.stringify('report-' + name)}).disabled`);
     await command('Page.enable'); await command('Runtime.enable');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
-    if (process.env.IMPORT_SUCCESS_ONLY === '1') {
+    if (process.env.PROGRESS_BASIS_ONLY === '1') {
+      const progress = require('../services/progressAnalyticsService');
+      const batches = await service.getOptions('batches', {});
+      assert.ok(batches.length, 'Progress verification requires an existing batch');
+      const batchId = batches[0].batch_id;
+      const effective = await progress.getProgress({ batch_id: batchId });
+      const original = await progress.getProgress({ batch_id: batchId, semester: effective.filters.semester, mode: 'original' });
+      const route = `${base}/analytics/progress?batch_id=${batchId}&semester=${effective.filters.semester}`;
+      await command('Page.navigate', { url: route });
+      await until("document.readyState==='complete' && document.getElementById('progress-filters')?.getAttribute('aria-busy')==='false' && !!document.getElementById('progress-period').value");
+      assert.equal(await evaluate("document.getElementById('progress-mode').value"), 'effective');
+      assert.equal(await evaluate("document.getElementById('progress-clearance-heading').textContent"), 'Clearance Status (Effective)');
+      assert.equal(await evaluate("document.getElementById('progress-uncleared').textContent"), String(effective.summary.uncleared));
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('#progress-attention-body a')].map(a=>Number(new URL(a.href).searchParams.get('student_id')))"), effective.attention.map(s => Number(s.studentId)));
+      for (const width of [1440, 390]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false }); await pause(350);
+        await fs.writeFile(path.join(output, `progress-effective-${width}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      await command('Page.navigate', { url: route + '&mode=original' });
+      await until("document.getElementById('progress-clearance-heading')?.textContent==='Clearance Status (Original)' && document.getElementById('progress-filters').getAttribute('aria-busy')==='false'");
+      assert.equal(await evaluate("document.getElementById('progress-uncleared').textContent"), String(original.summary.uncleared));
+      await evaluate("document.getElementById('progress-filters').reset()");
+      await until("document.getElementById('progress-mode').value==='effective' && document.getElementById('progress-clearance-heading').textContent==='Clearance Status (Effective)' && document.getElementById('progress-filters').getAttribute('aria-busy')==='false'");
+      assert.equal(await evaluate("document.getElementById('progress-uncleared').textContent"), String(effective.summary.uncleared));
+      assert.deepEqual(exceptions, []);
+      console.log('Progress: Effective default, approved revaluation clearance, Original links, basis labels and Effective reset agree with read-only database results');
+      console.log(`Screenshots: ${output}`); return;
+    }
+    if (process.env.STUDENT_FORM_ONLY === '1') {
+      const batches = await service.getOptions('batches', {});
+      assert.ok(batches.length, 'Student form verification requires an existing batch');
+      await command('Page.navigate', { url: `${base}/students?batch_id=all` });
+      await until("document.readyState==='complete' && !!document.getElementById('addStudentBtn')");
+      await evaluate("document.getElementById('addStudentBtn').click()");
+      await until("document.getElementById('studentFormModal').classList.contains('show')");
+      assert.equal(await evaluate("document.getElementById('studentBatch').value"), String(batches[0].batch_id));
+      assert.equal(await evaluate("document.getElementById('studentStatus').value"), 'active');
+      await evaluate("document.getElementById('studentUsn').value='TEST001';document.getElementById('studentName').value='Test Student';document.getElementById('studentCategory').value='PGCET';document.getElementById('studentEmail').value='student@gmail.clh';document.getElementById('studentEmail').dispatchEvent(new Event('blur'));document.getElementById('studentFormNextBtn').click()");
+      assert.equal(await evaluate("document.getElementById('studentEmail').classList.contains('is-invalid') && !document.getElementById('studentConfirmModal').classList.contains('show')"), true);
+      for (const width of [1440, 390]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false }); await pause(350);
+        assert.equal(await evaluate("document.getElementById('studentFormModal').scrollWidth<=innerWidth+1"), true);
+        await fs.writeFile(path.join(output, `student-form-email-${width}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      await evaluate("document.getElementById('studentEmail').value='STUDENT.NAME@GMAIL.COM';document.getElementById('studentEmail').dispatchEvent(new Event('input'));document.getElementById('studentFormNextBtn').click()");
+      await until("document.getElementById('studentConfirmModal').classList.contains('show')");
+      assert.equal(await evaluate("document.getElementById('studentConfirmDetails').textContent.includes('student.name@gmail.com')"), true);
+      assert.deepEqual(exceptions, []);
+      console.log('Add Student: newest batch, Active status, local inline email validation, correction and confirmation passed on desktop/mobile; no save submitted');
+      console.log(`Screenshots: ${output}`); return;
+    }
+    if (process.env.IMPORT_SUCCESS_ONLY === '1' || process.env.REVALUATION_SUCCESS_ONLY === '1') {
+      const revaluationSuccess = process.env.REVALUATION_SUCCESS_ONLY === '1';
       for (const width of [1440, 900, 390]) for (const theme of ['light', 'dark']) {
         await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
-        await command('Page.navigate', { url: `${base}/verification/import-success?missing=${width === 390 ? 1 : 0}` });
+        await command('Page.navigate', { url: revaluationSuccess ? `${base}/verification/revaluation-success` : `${base}/verification/import-success?missing=${width === 390 ? 1 : 0}` });
         await until("!!document.querySelector('.import-success-mark.is-confirmed') && document.readyState==='complete' && typeof window.setThemePreference==='function'");
         await evaluate(`window.setThemePreference('${theme}')`); await pause(700);
         assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'), true);
         assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-mark')).animationName"), 'import-confirm');
-        assert.equal(await evaluate("document.querySelectorAll('.import-celebration span').length"), 36);
+        assert.equal(await evaluate("document.querySelectorAll('.import-celebration span').length"), 96);
+        assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-celebration')).pointerEvents==='none' && getComputedStyle(document.querySelector('.import-celebration')).position==='fixed'"), true);
+        assert.equal(await evaluate("Math.abs(document.querySelector('.import-celebration').getBoundingClientRect().left-Math.max(0,document.querySelector('.main-content').getBoundingClientRect().left))<2"), true);
         assert.equal(await evaluate("[...document.querySelectorAll('.import-celebration span')].some(piece=>Number(getComputedStyle(piece).opacity)>0)"), true);
         await evaluate("document.getElementById('replayImportCelebration').click()");
         assert.equal(await evaluate("document.querySelector('.import-success-header').getAnimations({subtree:true}).some(a=>a.animationName==='import-confetti'&&a.currentTime<500)"), true);
         assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-header')).opacity"), '1');
-        assert.equal(await evaluate("document.querySelectorAll('.import-success-actions a').length"), 2);
+        if (!revaluationSuccess) assert.equal(await evaluate("document.querySelectorAll('.import-success-actions a').length"), 2);
+        else assert.equal(await evaluate("document.getElementById('revaluationSuccessTitle').textContent"), 'Revaluation processed successfully');
         await pause(900);
-        await fs.writeFile(path.join(output, `import-success-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        await fs.writeFile(path.join(output, `${revaluationSuccess ? 'revaluation' : 'import'}-success-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        if (width === 1440 && theme === 'light') {
+          await evaluate("document.getElementById('sidebarCollapseBtn').click()"); await pause(400);
+          assert.equal(await evaluate("Math.abs(document.querySelector('.import-celebration').getBoundingClientRect().left-document.querySelector('.main-content').getBoundingClientRect().left)<2"), true);
+          await evaluate("document.getElementById('sidebarCollapseBtn').click()"); await pause(400);
+        }
       }
+      await until("[...document.querySelectorAll('.import-celebration span')].every(piece=>Number(getComputedStyle(piece).opacity)===0)");
       await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
       await until("document.getElementById('replayImportCelebration').hidden");
       assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-mark')).animationName"), 'none');
       assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-header')).opacity"), '1');
       assert.equal(await evaluate("document.getElementById('replayImportCelebration').hidden"), true);
+      if (revaluationSuccess) {
+        await command('Page.navigate', { url: `${base}/verification/revaluation-success?status=pending` });
+        await until("document.readyState==='complete' && !!document.querySelector('.revaluation-ui')");
+        assert.equal(await evaluate("!!document.querySelector('.import-celebration')"), false);
+      }
       assert.deepEqual(exceptions, []);
       console.log('Import success: saved metrics, missing CGPA, responsive light/dark layout, confirmation animation and reduced-motion passed; no result saved');
       console.log(`Screenshots: ${output}`); return;

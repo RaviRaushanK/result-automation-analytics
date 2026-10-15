@@ -7,7 +7,7 @@
     <div class="row g-3 align-items-end">
       <div class="col-12 col-sm-6 col-lg-3"><label for="progress-batch" class="form-label">Batch</label><select id="progress-batch" name="batch_id" class="form-select" required></select></div>
       <div class="col-12 col-sm-6 col-lg-4"><label for="progress-period" class="form-label">Academic Period</label><select id="progress-period" class="form-select"></select></div>
-      <div class="col-12 col-sm-6 col-lg-2"><label for="progress-mode" class="form-label">Result Basis</label><select id="progress-mode" name="mode" class="form-select"><option value="original">Original</option><option value="effective">Effective</option></select></div>
+      <div class="col-12 col-sm-6 col-lg-2"><label for="progress-mode" class="form-label">Result Basis</label><select id="progress-mode" name="mode" class="form-select"><option value="original">Original</option><option value="effective" selected>Effective</option></select></div>
       <div class="col-12 col-sm-6 col-lg-3 d-flex gap-2"><button type="reset" class="btn btn-outline-secondary">Reset</button><button type="submit" class="btn btn-primary">Apply Filters</button></div>
     </div>
   </form>
@@ -39,7 +39,7 @@
   <section aria-labelledby="progress-attention-heading">
     <h2 id="progress-attention-heading" class="h5">Students Requiring Attention</h2>
     <p id="progress-attention-note" class="analytics-note"></p>
-    <div class="table-responsive"><table class="table analytics-table"><thead><tr><th scope="col">USN</th><th scope="col">Student Name</th><th scope="col">Academic Period</th><th scope="col">Uncleared Courses</th><th scope="col">Latest Relevant Attempt</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody id="progress-attention-body"></tbody></table></div>
+    <div class="table-responsive"><table class="table analytics-table"><thead><tr><th scope="col">USN</th><th scope="col">Student Name</th><th scope="col">Academic Period</th><th scope="col">Uncleared Courses</th><th scope="col">Latest Relevant Attempt</th><th scope="col" id="progress-clearance-heading">Clearance Status (Effective)</th><th scope="col">Action</th></tr></thead><tbody id="progress-attention-body"></tbody></table></div>
   </section>
 </div>
 <script src="/js/reports/chart.umd.min.js"></script>

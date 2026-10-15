@@ -15,7 +15,7 @@ function normalize(query = {}) {
   if (semester && academic_year || semester > 24 || academic_year > 12) {
     throw Object.assign(new Error('Select one valid academic period.'), { status: 400 });
   }
-  return { batch_id, semester, academic_year, mode: query.mode === 'effective' ? 'effective' : 'original' };
+  return { batch_id, semester, academic_year, mode: query.mode === 'original' ? 'original' : 'effective' };
 }
 
 function periods(data) {

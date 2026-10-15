@@ -11,7 +11,8 @@ function fixture(batches = []) {
   let timerId = 0;
   function element(id) {
     if (!elements.has(id)) elements.set(id, { value: '', hidden: false, disabled: false, textContent: '', innerHTML: '', dataset: {}, attributes: {}, handlers: {},
-      classList: { add() {}, remove() {} }, setAttribute(key, value) { this.attributes[key] = value; },
+      classList: { add() {}, remove() {}, toggle() {} }, setAttribute(key, value) { this.attributes[key] = value; },
+      setCustomValidity(value) { this.validationMessage = value; }, reset() {},
       addEventListener(event, handler) { const previous = this.handlers[event]; this.handlers[event] = previous ? (...args) => { previous(...args); return handler(...args); } : handler; }, focus() {}, appendChild() {} });
     return elements.get(id);
   }
@@ -22,7 +23,7 @@ function fixture(batches = []) {
   element('#studentsTable tbody').innerHTML = '<tr><td>Previous students</td></tr>';
   const location = { pathname: '/students', search: '?batch_id=all&page=2&pageSize=25' };
   const history = { entries: [], pushState(data, title, url) { this.entries.push(url); this.replaceState(data, title, url); }, replaceState(data, title, url) { const parsed = new URL(url, 'http://localhost'); location.pathname = parsed.pathname; location.search = parsed.search; } };
-  const browser = { console, URLSearchParams, AbortController, location, history,
+  const browser = { console, URLSearchParams, AbortController, location, history, StudentEmailValidation: require('../public/js/student-email-validation'),
     window: { addEventListener(name, handler) { events[name] = handler; } },
     document: { getElementById: element, querySelector: element,
       createElement: () => ({ textContent: '', setAttribute() {}, set innerHTML(value) { this.textContent = value; }, get innerHTML() { return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); } }),
@@ -156,4 +157,52 @@ test('failed import keeps existing categories and does not reload them', async (
   await confirm;
   assert.equal(f.element('filterCategory').innerHTML, '<option>Existing</option>');
   assert.equal(f.requests.length, 1);
+});
+
+test('Add Student defaults to latest batch and active on every opening, not the listing filter', () => {
+  const f = fixture([{ id: 9, name: 'Newest' }, { id: 2, name: 'Older' }]);
+  f.element('filterBatch').value = '2';
+  f.element('addStudentBtn').handlers.click();
+  assert.equal(f.element('studentBatch').value, '9');
+  assert.equal(f.element('studentStatus').value, 'active');
+  f.element('studentBatch').value = '2';
+  f.element('addStudentBtn').handlers.click();
+  assert.equal(f.element('studentBatch').value, '9');
+  const empty = fixture(); empty.element('addStudentBtn').handlers.click();
+  assert.equal(empty.element('studentBatch').value, '');
+});
+
+test('email validation blocks Review locally, gives inline feedback, and clears after correction', () => {
+  const f = fixture([{ id: 9, name: 'Newest' }]);
+  f.element('addStudentBtn').handlers.click();
+  f.element('studentUsn').value = 'test001';
+  f.element('studentName').value = 'Student Name';
+  f.element('studentCategory').value = 'PGCET';
+  for (const email of ['', 'studentgmail.com', 'student@@gmail.com', 'student@gmail.clh', 'student..name@gmail.com']) {
+    f.element('studentEmail').value = email;
+    f.element('studentFormNextBtn').handlers.click();
+    assert.ok(f.element('studentEmailFeedback').textContent);
+    assert.equal(f.element('studentEmail').attributes['aria-invalid'], 'true');
+    assert.equal(f.element('studentConfirmTitle').textContent, '');
+    assert.equal(f.requests.length, 0);
+  }
+  f.element('studentEmail').value = ' Student.Name@GMAIL.COM ';
+  f.element('studentEmail').handlers.input();
+  assert.equal(f.element('studentEmailFeedback').textContent, '');
+  assert.equal(f.element('studentEmail').validationMessage, '');
+  assert.equal(f.element('studentEmail').attributes['aria-invalid'], 'false');
+  f.element('studentFormNextBtn').handlers.click();
+  assert.equal(f.element('studentConfirmTitle').textContent, 'Confirm New Student');
+  assert.match(f.element('studentConfirmDetails').innerHTML, /student.name@gmail.com/);
+  assert.equal(f.requests.length, 0);
+});
+
+test('email blur validates before Review and reopening the form clears previous errors', () => {
+  const f = fixture();
+  f.element('studentEmail').value = 'student@gmail.clh';
+  f.element('studentEmail').handlers.blur();
+  assert.match(f.element('studentEmailFeedback').textContent, /Only @gmail.com/);
+  f.element('addStudentBtn').handlers.click();
+  assert.equal(f.element('studentEmailFeedback').textContent, '');
+  assert.equal(f.element('studentEmail').validationMessage, '');
 });

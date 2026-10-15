@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return {
       batch_id: document.getElementById('studentBatch').value,
       usn: document.getElementById('studentUsn').value.trim().toUpperCase(),
-      student_name: document.getElementById('studentName').value.trim(),
+      student_name: document.getElementById('studentName').value.trim().toUpperCase(),
       email: document.getElementById('studentEmail').value.trim().toLowerCase(),
       category: document.getElementById('studentCategory').value.trim().toUpperCase(),
       status: document.getElementById('studentStatus').value
@@ -228,11 +228,34 @@ document.addEventListener('DOMContentLoaded', function () {
     el.classList.remove('d-none');
     el.textContent = msg;
   }
+  var studentEmail = document.getElementById('studentEmail');
+  var emailTouched = false;
+  function validateStudentEmail(showError) {
+    var problem = StudentEmailValidation.getError(studentEmail.value.trim().toLowerCase());
+    studentEmail.setCustomValidity(problem);
+    if (showError) {
+      studentEmail.classList.toggle('is-invalid', !!problem);
+      studentEmail.setAttribute('aria-invalid', String(!!problem));
+      document.getElementById('studentEmailFeedback').textContent = problem;
+    }
+    return !problem;
+  }
+  function resetEmailValidation() {
+    emailTouched = false;
+    studentEmail.setCustomValidity('');
+    studentEmail.classList.remove('is-invalid');
+    studentEmail.setAttribute('aria-invalid', 'false');
+    document.getElementById('studentEmailFeedback').textContent = '';
+  }
+  studentEmail.addEventListener('blur', function () { emailTouched = true; validateStudentEmail(true); });
+  studentEmail.addEventListener('input', function () { validateStudentEmail(emailTouched); });
   addBtn.addEventListener('click', function () {
     document.getElementById('studentFormTitle').textContent = 'Add Student';
     document.getElementById('studentId').value = '';
     document.getElementById('studentForm').reset();
+    document.getElementById('studentBatch').value = batches.length ? String(batches[0].id) : '';
     document.getElementById('studentStatus').value = 'active';
+    resetEmailValidation();
     showFormError('');
     formModal.show();
   });
@@ -253,6 +276,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('studentEmail').value = s.email || '';
         document.getElementById('studentCategory').value = s.category || '';
         document.getElementById('studentStatus').value = s.status || 'active';
+        resetEmailValidation();
         showFormError('');
         formModal.show();
       } catch (err) { toast('danger', err.message); }
@@ -302,13 +326,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!values.batch_id) return showFormError('Batch is required');
     if (!values.usn) return showFormError('USN is required');
     if (!values.student_name) return showFormError('Student Name is required');
-    if (!values.email) return showFormError('Email is required');
-    if (!values.category) return showFormError('Category is required');
-    var emailError = StudentEmailValidation.getError(values.email);
-    if (emailError) {
-      document.getElementById('studentEmail').focus();
-      return showFormError(emailError);
+    emailTouched = true;
+    if (!validateStudentEmail(true)) {
+      studentEmail.focus();
+      return;
     }
+    if (!values.category) return showFormError('Category is required');
     showFormError('');
     askCreateOrUpdate(values, Boolean(document.getElementById('studentId').value));
   });

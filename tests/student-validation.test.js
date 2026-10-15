@@ -174,6 +174,49 @@ test('Student model stores lowercase emails for builds and updates', async () =>
   } finally { await sequelize.close(); }
 });
 
+test('Student model stores uppercase names for builds and updates while retaining punctuation', async () => {
+  const sequelize = new Sequelize('validation', 'test', 'test', { dialect: 'mysql', logging: false });
+  const Student = require('../database/models/Student')(sequelize, DataTypes);
+  try {
+    const student = Student.build({ ...validStudent, student_name: ' ravi raushan kumar ' });
+    assert.equal(student.getDataValue('student_name'), 'RAVI RAUSHAN KUMAR');
+    student.set('student_name', " mary-jane o'connor ");
+    assert.equal(student.getDataValue('student_name'), "MARY-JANE O'CONNOR");
+  } finally { await sequelize.close(); }
+});
+
+test('Add and Edit Student persist uppercase names from lowercase and mixed-case input', async () => {
+  for (const action of ['create', 'update']) {
+    const f = controllerFixture();
+    const response = await call(f.controller[action], { params: { id: '1' }, body: { ...validStudent, student_name: ' ravi Raushan kumar ' } });
+    assert.ok(response.statusCode < 300);
+    assert.equal(f.writes[0].student_name, 'RAVI RAUSHAN KUMAR');
+  }
+});
+
+test('import preview and confirmation normalize names to uppercase', async () => {
+  const f = controllerFixture();
+  const csv = 'USN,Student Name,Email,Category\n1MV25MC061,ravi raushan kumar,student@gmail.com,PGCET';
+  const preview = await call(f.controller.importPreview, {
+    body: { batch_id: '1', status: 'active' }, file: { buffer: Buffer.from(csv) }
+  });
+  assert.equal(preview.body.data.rows[0].student_name, 'RAVI RAUSHAN KUMAR');
+  const response = await importDeleted(f.controller, { student_name: 'ravi raushan kumar' });
+  assert.equal(response.body.data.imported, 1);
+  assert.equal(f.writes[0].student_name, 'RAVI RAUSHAN KUMAR');
+});
+
+test('name migration normalizes stored names without touching student identities or deletion state', async () => {
+  const migration = require('../migrations/20261015140000-normalize-student-names');
+  const transaction = {}, calls = [];
+  await migration.up({ sequelize: { transaction: callback => callback(transaction), query: async (sql, options) => {
+    assert.equal(options.transaction, transaction); calls.push(sql);
+  } } });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /SET student_name = UPPER\(TRIM\(student_name\)\)/);
+  assert.doesNotMatch(calls[0], /student_id|student_uuid|deleted_at/);
+});
+
 test('Add and Edit Student lowercase emails before duplicate lookup and persistence', async () => {
   for (const action of ['create', 'update']) {
     const f = controllerFixture();
@@ -335,7 +378,7 @@ test('Add Student restores an eligible deleted student with original identity an
   assert.equal(response.body.data.student_id, 42);
   assert.equal(response.body.data.student_uuid, 'original-uuid');
   assert.equal(f.record.deleted_at, null);
-  assert.equal(f.record.student_name, 'Updated Name');
+  assert.equal(f.record.student_name, 'UPDATED NAME');
   assert.equal(f.record.status, 'inactive');
   assert.equal(f.writes.length, 0);
   assert.deepEqual(f.events, ['begin', 'update', 'restore', 'commit']);
@@ -387,7 +430,7 @@ test('re-import restores original student ID and UUID, updates details, and pres
   assert.equal(f.record.deleted_at, null);
   assert.equal(f.record.student_id, savedResult.student_id);
   assert.equal(f.record.student_uuid, 'original-uuid');
-  assert.equal(f.record.student_name, 'Updated Name');
+  assert.equal(f.record.student_name, 'UPDATED NAME');
   assert.equal(f.record.category, 'MGT');
   assert.equal(f.record.status, 'active');
   assert.equal(savedResult.marks, 87);
