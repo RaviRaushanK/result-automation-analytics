@@ -12,6 +12,7 @@ after(() => db.sequelize.close());
 
 async function harness(run) {
   const app = express(); app.set('view engine', 'ejs'); app.set('views', path.join(__dirname, '../views')); app.use(layouts); app.set('layout', 'layouts/main');
+  app.use(express.static(path.join(__dirname, '../public')));
   app.use((req, res, next) => {
     const role = req.headers['x-role']; req.session = role ? { adminId: 1, role, username: 'UX test' } : {};
     res.locals.flash = []; res.locals.breadcrumbItems = []; next();
@@ -27,6 +28,26 @@ test('report center covers exactly every formal report with valid destinations',
   assert.deepEqual(cards.map(c => c.type).sort(), [...reports.TYPES].sort());
   for (const card of cards) { assert.equal(card.href, '/reports/' + card.type); assert.equal(card.title, reports.TITLES[card.type]); }
 });
+
+test('every Analytics page loads its real stylesheet after shared styles and uses the local chart asset', async () => harness(async base => {
+  for (const page of ['overview', 'students', 'toppers', 'failed', 'subjects', 'semesters', 'progress', 'revaluation']) {
+    const response = await fetch(base + '/analytics/' + page, { headers: { 'x-role': 'faculty' } });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const styles = [...html.matchAll(/<link[^>]+href="([^"]+)"/g)].map(match => match[1]).filter(href => href.startsWith('/css/'));
+    const analytics = styles.find(href => href.startsWith('/css/analytics.css'));
+    assert.ok(analytics, page + ': Analytics stylesheet declared');
+    assert.ok(styles.indexOf(analytics) > styles.indexOf('/css/dashboard.css'), page + ': specific styles follow shared styles');
+    for (const href of styles) {
+      const asset = await fetch(base + href);
+      assert.equal(asset.status, 200, page + ': ' + href);
+      assert.match(asset.headers.get('content-type'), /text\/css/);
+    }
+    const css = await (await fetch(base + analytics)).text();
+    for (const selector of ['.analytics-page', '.analytics-filters', '.analytics-chart-scroll', '.analytics-table', '.analytics-nav-link', '.analytics-summary-card']) assert.ok(css.includes(selector), selector);
+    assert.match(html, /src="\/js\/reports\/chart\.umd\.min\.js"/);
+  }
+}));
 test('authorized roles render report center, every card, progress page and old pages', async () => harness(async base => {
   for (const role of ['admin', 'faculty']) {
     const response = await fetch(base + '/reports', { headers: { 'x-role': role } });

@@ -15,6 +15,10 @@ for (const [name, [view, locals]] of Object.entries(pages)) {
     if (name === 'dashboard') {
       assert.match(html, /dashboard-chart-grid/);
       assert.equal((html.match(/<canvas /g) || []).length, 3);
+      assert.match(html, /id="passFailPieChart"/);
+      assert.doesNotMatch(html, /id="passFailDoughnutChart"|semesterPerformanceChart|Semester Performance/);
+      assert.match(html, /id="gradeDistributionChart"/);
+      assert.match(html, /id="dashboardAttentionBody"/);
     }
     if (name === 'roster-verified') {
       assert.match(html, /id="editRosterBtn"/);

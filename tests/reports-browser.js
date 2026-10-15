@@ -91,6 +91,7 @@ async function main() {
   app.use('/sessions', require('../routes/sessionRoutes'));
   app.use('/faculty', require('../routes/facultyRoutes'));
   app.use('/results', require('../routes/resultRoutes'));
+  app.use('/dashboard', require('../routes/dashboardRoutes'));
   app.get('/verification/result-management/:page', (req, res) => {
     const fixture = require('./fixtures/result-management-pages');
     const page = fixture.pages[req.params.page];
@@ -187,6 +188,143 @@ async function main() {
     const available = name => until(`!document.getElementById(${JSON.stringify('report-' + name)}).disabled`);
     await command('Page.enable'); await command('Runtime.enable');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    if (process.env.PROGRESS_CARDS_ONLY === '1') {
+      await command('Page.navigate', { url: `${base}/analytics/progress` });
+      await until("document.readyState==='complete' && document.getElementById('progress-filters')?.getAttribute('aria-busy')==='false'");
+      const metrics = await evaluate("[...document.querySelectorAll('.progress-summary-grid .analytics-summary-value')].map(e=>e.textContent)");
+      assert.equal(metrics.length, 6);
+      assert.equal(await evaluate("document.querySelectorAll('.progress-summary-grid .stat-icon .material-icons[aria-hidden=true]').length"), 6);
+      for (const width of [1920,1440,1280,1200,1024,768,390,360]) for (const theme of ['light','dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await evaluate(`window.setThemePreference(${JSON.stringify(theme)});document.querySelector('.progress-summary-grid').scrollIntoView({block:'center',behavior:'instant'})`);
+        await pause(400);
+        const layout = await evaluate(`(() => {
+          const grid=document.querySelector('.progress-summary-grid');
+          return {columns:getComputedStyle(grid).gridTemplateColumns.split(' ').length,document:document.documentElement.scrollWidth,
+            rightGap:grid.getBoundingClientRect().right-grid.children[Math.min(grid.children.length, getComputedStyle(grid).gridTemplateColumns.split(' ').length)-1].getBoundingClientRect().right,
+            cards:[...grid.children].map(e=>({width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,
+              fits:[...e.querySelectorAll('.card-body,.stat-content,.analytics-summary-label,.analytics-summary-value,.stat-icon')].every(c=>c.scrollWidth<=c.clientWidth+1 && c.scrollHeight<=c.clientHeight+1)})),
+            metrics:[...grid.querySelectorAll('.analytics-summary-value')].map(e=>e.textContent)};
+        })()`);
+        assert.equal(layout.columns, width>=1200 ? 6 : width<768 ? 2 : 3);
+        assert.ok(layout.document<=width+1);
+        assert.ok(Math.abs(layout.rightGap)<2, `${width}: cards fill available width`);
+        assert.ok(layout.cards.every(c=>c.height>=80 && c.height<=110 && c.fits), `${width} ${theme}: ${JSON.stringify(layout)}`);
+        assert.deepEqual(layout.metrics, metrics);
+        await fs.writeFile(path.join(output, `progress-compact-cards-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Compact full-width progress cards: sixteen viewport/theme checks passed, all six metrics unchanged. Screenshots: ${output}`);
+      return;
+    }
+    if (process.env.ANALYTICS_STYLES_ONLY === '1') {
+      let checks = 0;
+      for (const page of ['overview','students','toppers','failed','subjects','semesters','progress','revaluation']) {
+        await command('Page.navigate', { url: `${base}/analytics/${page}` });
+        await until("document.readyState==='complete' && !!document.querySelector('.analytics-page') && typeof window.setThemePreference==='function'");
+        await until(page === 'progress' ? "document.getElementById('progress-filters').getAttribute('aria-busy')==='false'" : page === 'overview' ? "document.querySelector('[data-metric=students] .stat-value').textContent !== '\u2014'" : `!!document.querySelector('#${page}-table-body tr') && !/Select filters|Loading/.test(document.getElementById('${page}-table-body').textContent)`);
+        if (['overview','subjects','semesters','progress'].includes(page)) await until(`document.querySelectorAll('.analytics-page canvas').length >= ${page === 'subjects' ? 3 : 2}`);
+        assert.equal(await evaluate("[...document.styleSheets].some(s=>s.href?.includes('/css/analytics.css') && s.cssRules.length>0)"), true, page + ': stylesheet loaded');
+        for (const [width, height, theme] of [[1440,1000,'light'],[1440,1000,'dark'],[1024,900,'light'],[768,900,'light'],[390,844,'light'],[360,740,'dark']]) {
+          await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+          await evaluate(`window.setThemePreference(${JSON.stringify(theme)});window.scrollTo(0,0)`);
+          await pause(450);
+          const layout = await evaluate(`(() => {const root=document.querySelector('.analytics-page');return {
+            document:document.documentElement.scrollWidth,
+            titleSize:parseFloat(getComputedStyle(root.querySelector('h1')).fontSize),
+            controls:[...root.querySelectorAll('input,select,button,a.btn')].filter(e=>{const r=e.getBoundingClientRect();return r.width && !e.closest('.table-responsive') && (r.left<0 || r.right>innerWidth+1)}).map(e=>e.id||e.className),
+            charts:[...root.querySelectorAll('canvas')].filter(c=>c.getBoundingClientRect().width).map(c=>({width:c.width,height:c.height,painted:c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4===3&&v>0)}))};})()`);
+          assert.ok(layout.document<=width+1, `${page} ${width}: document overflow ${JSON.stringify(layout)}`);
+          assert.ok(layout.titleSize<=24, `${page}: title styling applied`);
+          assert.deepEqual(layout.controls, [], `${page} ${width}: controls fit`);
+          assert.ok(layout.charts.every(c=>c.width>0 && c.height>=240 && c.height<=700 && c.painted), `${page} ${width}: charts framed ${JSON.stringify(layout.charts)}`);
+          if (page === 'overview') {
+            assert.equal(await evaluate("[...document.querySelectorAll('.analytics-deep-link,.analytics-nav-link')].every(a=>getComputedStyle(a).textDecorationLine==='none')"), true);
+          }
+          if (width>=768) assert.equal(await evaluate("Math.abs(document.querySelector('.main-content').getBoundingClientRect().left-document.getElementById('sidebar').getBoundingClientRect().right)<2"), true, page + ': sidebar spacing');
+          await fs.writeFile(path.join(output, `analytics-${page}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          if (width===390) {
+            await evaluate("document.querySelector('.analytics-page canvas')?.scrollIntoView({block:'center',behavior:'instant'})");
+            await pause(100);
+            await fs.writeFile(path.join(output, `analytics-${page}-charts-mobile.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          }
+          checks++;
+        }
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Verified Analytics stylesheet assets, controls, chart pixels, links and sidebar spacing across ${checks} page/theme/viewport checks. Screenshots: ${output}`);
+      return;
+    }
+    if (process.env.DASHBOARD_INTERACTIVE_ONLY === '1') {
+      await command('Page.navigate', { url: `${base}/verification/workspace/dashboard` });
+      await until("document.readyState==='complete' && document.querySelector('.dashboard-page').getAttribute('aria-busy')==='false' && !!Chart.getChart('gradeDistributionChart')");
+      assert.equal(await evaluate("Chart.getChart('passFailPieChart').config.type"), 'pie');
+      assert.equal(await evaluate("!!document.getElementById('semesterPerformanceChart') || !!document.getElementById('passFailDoughnutChart')"), false);
+      assert.equal(await evaluate("Chart.getChart('gradeDistributionChart').data.labels.length"), 7);
+      assert.equal(await evaluate("document.querySelectorAll('#dashboardAttentionBody tr').length"), 5);
+      assert.ok((await evaluate("document.querySelector('#topScorersTable tbody a').href")).includes('student_id=9400'));
+      assert.ok((await evaluate("document.querySelector('#dashboardAttentionBody a').href")).includes('mode=original'));
+      await evaluate("const order=document.getElementById('subjectChartOrder');order.value='code';order.dispatchEvent(new Event('change'))");
+      assert.equal(await evaluate("Chart.getChart('subjectAverageChart').data.labels[0]"), 'MMC101');
+      await evaluate("document.getElementById('subjectChartOrder').value='average';document.getElementById('subjectChartOrder').dispatchEvent(new Event('change'))");
+      assert.equal(await evaluate("Chart.getChart('subjectAverageChart').data.labels[0]"), 'MMC112');
+      await evaluate("document.getElementById('subjectAverageChart').scrollIntoView({block:'center'})");
+      await pause(400);
+      const hover = await evaluate("(() => {const c=Chart.getChart('subjectAverageChart'),r=c.canvas.getBoundingClientRect();return {x:r.left+c.getDatasetMeta(0).data[0].x,y:r.top+c.chartArea.top+5}})()");
+      await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hover.x, y: hover.y });
+      await until("Chart.getChart('subjectAverageChart').tooltip.opacity>0");
+      const selectSemester = value => evaluate(`(() => {const s=document.getElementById('filterSemester');s.value=${JSON.stringify(value)};s.dispatchEvent(new Event('change'));})()`);
+      await selectSemester('1'); await selectSemester('2');
+      await until("document.getElementById('totalStudents').textContent==='122' && document.querySelector('.dashboard-page').getAttribute('aria-busy')==='false'");
+      await pause(500);
+      assert.equal(await evaluate("document.getElementById('totalStudents').textContent"), '122');
+      assert.ok((await evaluate("document.querySelector('[data-dashboard-link=\"/reports/class\"]').href")).includes('semester=2'));
+      await selectSemester('3');
+      await until("!document.getElementById('dashboardEmpty').classList.contains('d-none')");
+      assert.equal(await evaluate("!!Chart.getChart('passFailPieChart') || !!Chart.getChart('gradeDistributionChart')"), false);
+      assert.equal(await evaluate("document.getElementById('gradedAttemptCount').textContent"), '0');
+      assert.equal(await evaluate("document.getElementById('averageCGPA').textContent"), '--');
+      await selectSemester('4');
+      await until("!document.getElementById('dashboardError').classList.contains('d-none')");
+      assert.equal(await evaluate("document.getElementById('totalStudents').textContent"), '--');
+      await evaluate("document.getElementById('resetFilterBtn').click()");
+      await until("!!Chart.getChart('gradeDistributionChart') && document.querySelector('.dashboard-page').getAttribute('aria-busy')==='false'");
+      await selectSemester('1');
+      await evaluate("document.getElementById('filterBatch').value='9002';document.getElementById('filterBatch').dispatchEvent(new Event('change'))");
+      await until("document.getElementById('filterSemester').options.length===2 && document.querySelector('.dashboard-page').getAttribute('aria-busy')==='false'");
+      assert.equal(await evaluate("document.getElementById('filterSemester').value"), '');
+      await evaluate("document.getElementById('resetFilterBtn').click()");
+      await until("document.getElementById('totalStudents').textContent==='120' && !!Chart.getChart('gradeDistributionChart')");
+      for (const [width, theme] of [[1440,'light'],[1024,'light'],[768,'light'],[390,'light'],[360,'dark']]) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await evaluate(`window.setThemePreference(${JSON.stringify(theme)});window.scrollTo(0,0)`);
+        await pause(500);
+        assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth+1"), true);
+        for (const id of ['subjectAverageChart','passFailPieChart','gradeDistributionChart']) {
+          await evaluate(`document.getElementById(${JSON.stringify(id)}).scrollIntoView({block:'center'})`);
+          await pause(350);
+          assert.equal(await evaluate(`(() => {const c=document.getElementById(${JSON.stringify(id)}), p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return c.width>0 && c.height>0 && p.some((v,i)=>i%4===3 && v>0)})()`), true, id + ' painted');
+          await fs.writeFile(path.join(output, `dashboard-${id}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+        }
+      }
+      await evaluate("document.getElementById('resetFilterBtn').click()");
+      await until("!!Chart.getChart('gradeDistributionChart') && document.querySelector('.dashboard-page').getAttribute('aria-busy')==='false'");
+      await selectSemester('2');
+      await until("document.getElementById('filterSemester').value==='2' && document.getElementById('totalStudents').textContent==='122'");
+      assert.equal(await evaluate("Chart.getChart('gradeDistributionChart').data.labels.length"), 7, 'Single semester retains all grade categories');
+      await evaluate("document.querySelector('.dashboard-grade-details').open=true");
+      assert.equal(await evaluate("document.querySelectorAll('#gradeBreakdownBody tr').length"), 7);
+      assert.equal(await evaluate("[...document.querySelectorAll('#gradeBreakdownBody tr')].reduce((total,row)=>total+Number(row.cells[1].textContent),0)"), 120);
+      await command('Page.navigate', { url: `${base}/dashboard` });
+      await until("document.readyState==='complete' && !!document.querySelector('.dashboard-page') && document.querySelector('.dashboard-page').getAttribute('aria-busy')==='false'");
+      assert.equal(await evaluate("document.getElementById('dashboardError').classList.contains('d-none')"), true, 'Real dashboard loads current database');
+      const live = await evaluate("fetch('/dashboard/analytics?batch_id='+document.getElementById('filterBatch').value).then(r=>r.json())");
+      assert.equal(await evaluate("document.getElementById('totalStudents').textContent"), String(live.data.statistics.totalStudents));
+      await fs.writeFile(path.join(output, 'dashboard-real-data.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      assert.deepEqual(exceptions, []);
+      console.log(`Dashboard pie, grade distribution, single-semester filters, grade breakdown, rapid changes, sorting, empty/error/recovery states, report links, responsive charts and dark mode passed. Screenshots: ${output}`);
+      return;
+    }
     if (process.env.SUBJECT_FORM_RESPONSIVE_ONLY === '1') {
       for (const [width, height] of [[390,844], [360,640], [320,568], [844,390], [390,420], [1440,1000]]) {
         await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -240,8 +378,8 @@ async function main() {
           await evaluate(`window.setThemePreference(${JSON.stringify(theme)})`);
           await pause(400);
           if (page === 'dashboard') {
-            await until("typeof Chart !== 'undefined' && !!Chart.getChart('passFailDoughnutChart')");
-            const charts = await evaluate(`['subjectAverageChart','passFailPieChart','passFailDoughnutChart'].map(id=>{
+            await until("typeof Chart !== 'undefined' && !!Chart.getChart('passFailPieChart')");
+            const charts = await evaluate(`['subjectAverageChart','gradeDistributionChart','passFailPieChart'].map(id=>{
               const c=document.getElementById(id), pixels=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
               return { id, width:c.width, height:c.height, painted:pixels.some((v,i)=>i%4===3 && v>0) };
             })`);

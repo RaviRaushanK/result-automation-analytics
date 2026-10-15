@@ -14,10 +14,19 @@
   <p id="progress-state" role="status" aria-live="polite">Loading academic progress...</p>
   <section aria-labelledby="progress-summary-heading">
     <h2 id="progress-summary-heading" class="h5 mb-3">Academic Period Completion</h2>
-    <div class="row g-3 mb-3">
-      <% const metrics = [['total','Total Students','blue'],['withoutBacklog','Cleared Without Backlog','green'],['withBacklog','Cleared With Backlog','teal'],['uncleared','Currently Uncleared','red'],['clearanceRate','Backlog Clearance Rate','amber'],['unknown','Unknown / Insufficient Evidence','purple']]; %>
-      <% metrics.forEach(([key, label, color]) => { %>
-        <div class="col-12 col-sm-6 col-xl-4"><div class="analytics-summary-card accent-<%= color %>"><div class="analytics-summary-label"><%= label %></div><div class="analytics-summary-value" id="progress-<%= key %>">-</div></div></div>
+    <div class="progress-summary-grid mb-3">
+      <% const metrics = [['total','Total Students','blue','group'],['withoutBacklog','Cleared Without Backlog','green','check_circle'],['withBacklog','Cleared With Backlog','teal','history'],['uncleared','Currently Uncleared','red','error_outline'],['clearanceRate','Backlog Clearance Rate','amber','percent'],['unknown','Unknown / Insufficient Evidence','purple','help_outline']]; %>
+      <% metrics.forEach(([key, label, color, icon]) => { %>
+        <div class="card stat-card stat-<%= color %> progress-metric-card">
+          <span class="stat-corner" aria-hidden="true"></span>
+          <div class="card-body">
+            <div class="stat-icon"><span class="material-icons" aria-hidden="true"><%= icon %></span></div>
+            <div class="stat-content">
+              <div class="stat-value analytics-summary-value" id="progress-<%= key %>">-</div>
+              <div class="stat-label analytics-summary-label"><%= label %></div>
+            </div>
+          </div>
+        </div>
       <% }); %>
     </div>
     <p class="analytics-note">Backlog clearance rate: students with verified first-sitting failures who completed the selected period through retake clearance / students with verified first-sitting failures and known completion status. Unknown history and students without backlog are excluded. A dash means no eligible backlog history.</p>

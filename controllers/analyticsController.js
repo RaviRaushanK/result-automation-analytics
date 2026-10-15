@@ -16,7 +16,7 @@ const progressService = require('../services/progressAnalyticsService');
 // Roles allowed to access Analytics. Kept in sync with config/sidebar.json.
 const ANALYTICS_ROLES = ['admin', 'faculty'];
 
-const PAGE_STYLES = ['/css/analytics.css', '/css/dashboard.css'];
+const PAGE_STYLES = ['/css/dashboard.css', '/css/analytics.css?v=20261016-1'];
 
 const PAGES = {
     progress: {

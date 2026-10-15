@@ -1,10 +1,17 @@
-<div class="container-fluid workspace-page dashboard-page">
+<% const canReviewResults = typeof user !== 'undefined' && ['admin', 'faculty'].includes(user.role); %>
+<div class="container-fluid workspace-page dashboard-page" data-can-review="<%= canReviewResults %>">
     <!-- Page Header -->
     <div class="dashboard-header">
         <div>
             <h4>Dashboard</h4>
             <p class="text-muted">Student Result Analytics Overview</p>
         </div>
+        <% if (canReviewResults) { %>
+        <nav class="dashboard-shortcuts" aria-label="Academic reports">
+            <a class="btn btn-outline-primary" href="/analytics/overview" data-dashboard-link="/analytics/overview"><span class="material-icons" aria-hidden="true">insights</span> Analytics</a>
+            <a class="btn btn-outline-secondary" href="/reports/class" data-dashboard-link="/reports/class"><span class="material-icons" aria-hidden="true">description</span> Class Report</a>
+        </nav>
+        <% } %>
     </div>
 
     <!-- Filter Section -->
@@ -25,8 +32,8 @@
                 <div class="col-md-4">
                     <div class="filter-actions">
                         <button type="button" id="applyFilterBtn" class="btn btn-primary">
-                            <span class="material-icons btn-icon">filter_alt</span>
-                            Apply Filter
+                            <span class="material-icons btn-icon">refresh</span>
+                            Refresh
                         </button>
                         <button type="button" id="resetFilterBtn" class="btn btn-outline-secondary">
                             <span class="material-icons btn-icon">refresh</span>
@@ -37,6 +44,9 @@
             </form>
         </div>
     </div>
+    <div class="dashboard-context"><span id="dashboardScope">Original results &middot; All attempts</span><span id="dashboardUpdated" role="status" aria-live="polite"></span></div>
+    <div id="dashboardError" class="alert alert-danger d-none" role="alert"></div>
+    <div id="dashboardEmpty" class="alert alert-info d-none" role="status">No imported results for this selection.</div>
 
     <!-- Statistics Cards -->
     <div class="row g-4 mb-4">
@@ -51,7 +61,7 @@
                     </div>
                     <div class="stat-content">
                         <div class="stat-value" id="totalStudents">--</div>
-                        <div class="stat-label">Total Students</div>
+                        <div class="stat-label">Students with Results</div>
                     </div>
                 </div>
             </div>
@@ -67,7 +77,7 @@
                     </div>
                     <div class="stat-content">
                         <div class="stat-value" id="totalPass">--</div>
-                        <div class="stat-label">Total Pass</div>
+                        <div class="stat-label">Passed Attempts</div>
                     </div>
                 </div>
             </div>
@@ -83,7 +93,7 @@
                     </div>
                     <div class="stat-content">
                         <div class="stat-value" id="totalFail">--</div>
-                        <div class="stat-label">Total Fail</div>
+                        <div class="stat-label">Failed Attempts</div>
                     </div>
                 </div>
             </div>
@@ -147,7 +157,7 @@
                     </div>
                     <div class="stat-content">
                         <div class="stat-value" id="highestScore">--</div>
-                        <div class="stat-label">Highest Score</div>
+                        <div class="stat-label">Highest Subject Mark</div>
                     </div>
                 </div>
             </div>
@@ -175,7 +185,7 @@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-baseline flex-wrap gap-1">
             <h5 class="card-title mb-0">Top 10 Scorers</h5>
-            <small class="text-muted">Passed results only, ranked by stored CGPA. Legacy GPA is not certified cumulative GPA.</small>
+            <small class="text-muted">Passing attempts with stored CGPA. Legacy GPA is not certified cumulative GPA.</small>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -209,15 +219,18 @@
     <div class="row g-4 dashboard-chart-grid">
         <div class="col-lg-6">
             <div class="card h-100">
-                <div class="card-header">
+                <div class="card-header dashboard-chart-heading">
                     <h5 class="card-title mb-0">Subject Wise Average Marks</h5>
+                    <select id="subjectChartOrder" class="form-select form-select-sm" aria-label="Sort subjects">
+                        <option value="average">Highest average</option><option value="failures">Most failures</option><option value="code">Subject code</option>
+                    </select>
                 </div>
                 <div class="card-body">
                     <div id="subjectAverageMessage" class="alert alert-warning py-2 mb-2 d-none"></div>
                     <div class="chart-container chart-scroll-container">
                         <div class="chart-scroll">
                             <div class="chart-scroll-inner" id="subjectAverageChartWrap">
-                                <canvas id="subjectAverageChart"></canvas>
+                                <canvas id="subjectAverageChart" role="img" aria-label="Average original marks by subject"></canvas>
                             </div>
                         </div>
                     </div>
@@ -230,18 +243,30 @@
                     <h5 class="card-title mb-0">Pass vs Fail Analysis</h5>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3 mt-2">
-                        <div class="col-md-6">
-                            <div class="chart-container-sm">
-                                <canvas id="passFailPieChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="chart-container-sm">
-                                <canvas id="passFailDoughnutChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
+                    <div id="passFailEmpty" class="dashboard-chart-empty" hidden>No result attempts available.</div>
+                    <div class="chart-container" id="passFailChartWrap"><canvas id="passFailPieChart" role="img" aria-label="Passed and failed original result attempts"></canvas></div>
+                    <div class="dashboard-result-counts"><span>Passed <strong id="chartPassedCount">0</strong></span><span>Failed <strong id="chartFailedCount">0</strong></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-4 mt-1 dashboard-chart-grid">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header dashboard-chart-heading"><h5 class="card-title mb-0">Grade Distribution</h5><small class="text-muted">Stored subject grades</small></div>
+                <div class="card-body">
+                    <div id="gradeEmpty" class="dashboard-chart-empty" hidden>No subject grades available for this selection.</div>
+                    <div class="chart-container" id="gradeChartArea"><canvas id="gradeDistributionChart" role="img" aria-label="Number of original subject attempts in each stored grade"></canvas></div>
+                    <div class="dashboard-result-counts"><span>Graded <strong id="gradedAttemptCount">--</strong></span><span>Not recorded <strong id="missingGradeCount">--</strong></span></div>
+                    <details class="dashboard-grade-details mt-3"><summary>Grade Breakdown</summary><div class="table-responsive mt-2"><table class="table table-sm mb-0"><thead><tr><th>Grade</th><th>Attempts</th><th>Share</th></tr></thead><tbody id="gradeBreakdownBody"></tbody></table></div></details>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header dashboard-chart-heading"><h5 class="card-title mb-0">Subjects to Review</h5><small class="text-muted">Original failed subject attempts</small></div>
+                <div class="card-body">
+                    <div class="table-responsive" tabindex="0" role="region" aria-label="Subjects with failed attempts"><table class="table align-middle mb-0 dashboard-attention-table"><thead><tr><th>Subject</th><th>Failed / Attempts</th><th>Pass %</th></tr></thead><tbody id="dashboardAttentionBody"><tr><td colspan="3" class="text-muted">Loading...</td></tr></tbody></table></div>
                 </div>
             </div>
         </div>
@@ -252,6 +277,7 @@
 <div id="dashboardFilters"
      data-batches="<%= JSON.stringify(batches || []) %>"
      data-semesters="<%= JSON.stringify(semesters || []) %>"
+     data-batch-semesters="<%= JSON.stringify(typeof batchSemesters !== 'undefined' ? batchSemesters : null) %>"
      class="d-none"></div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/js/dashboard.js"></script>
+<script src="/js/reports/chart.umd.min.js"></script>
+<script src="/js/dashboard.js?v=20261016-2"></script>
