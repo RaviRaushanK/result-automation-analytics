@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var loading = document.getElementById('studentSearchLoading');
   var searchError = document.getElementById('studentSearchError');
   var clearSearch = document.getElementById('clearStudentSearch');
-  var requestVersion = 0, requestController, statsVersion = 0, statsController;
+  var requestVersion = 0, requestController, statsVersion = 0, statsController, categoriesVersion = 0;
   var debounce;
   var categorySelect = document.getElementById('filterCategory');
   var statusSelect = document.getElementById('filterStatus');
@@ -152,6 +152,28 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
   function reloadAll() { loadStudents(); loadStats(); }
+  async function loadCategories() {
+    var version = ++categoriesVersion;
+    try {
+      var json = await api('/students/api/categories');
+      if (version !== categoriesVersion) return;
+      if (!json.success || !Array.isArray(json.data)) throw new Error('Invalid category response.');
+      var categories = Array.from(new Set(json.data.filter(function (value) { return typeof value === 'string' && value.trim(); })));
+      var selected = categorySelect.value;
+      var options = categories.slice();
+      if (selected && !options.includes(selected)) options.push(selected);
+      categorySelect.innerHTML = '<option value="">All Categories</option>' + options.map(function (value) {
+        return '<option value="' + esc(value) + '">' + esc(value) + '</option>';
+      }).join('');
+      categorySelect.value = selected;
+      document.getElementById('studentCategoryList').innerHTML = categories.map(function (value) {
+        return '<option value="' + esc(value) + '"></option>';
+      }).join('');
+    } catch (e) {
+      if (version === categoriesVersion) toast('warning', 'Student data was saved, but categories could not be refreshed. Please refresh the page to retry.');
+    }
+  }
+  function reloadAfterMutation() { reloadAll(); loadCategories(); }
 
   searchInput.addEventListener('input', function () {
     invalidate();
@@ -193,9 +215,9 @@ document.addEventListener('DOMContentLoaded', function () {
   function formValues() {
     return {
       batch_id: document.getElementById('studentBatch').value,
-      usn: document.getElementById('studentUsn').value.trim(),
+      usn: document.getElementById('studentUsn').value.trim().toUpperCase(),
       student_name: document.getElementById('studentName').value.trim(),
-      email: document.getElementById('studentEmail').value.trim(),
+      email: document.getElementById('studentEmail').value.trim().toLowerCase(),
       category: document.getElementById('studentCategory').value.trim().toUpperCase(),
       status: document.getElementById('studentStatus').value
     };
@@ -298,9 +320,9 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   async function doCreate(values) {
     try {
-      await api('/students/api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
-      toast('success', 'Student created successfully');
-      reloadAll();
+      var json = await api('/students/api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
+      toast('success', json.message || 'Student created successfully');
+      reloadAfterMutation();
     } catch (e) { showFormError(e.message); formModal.show(); }
   }
   async function doUpdate(values) {
@@ -308,20 +330,20 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       await api('/students/api/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
       toast('success', 'Student updated successfully');
-      reloadAll();
+      reloadAfterMutation();
     } catch (e) { showFormError(e.message); formModal.show(); }
   }
   async function doDelete(id) {
     try {
       await api('/students/api/' + id, { method: 'DELETE' });
       toast('success', 'Student deleted successfully');
-      reloadAll();
+      reloadAfterMutation();
     } catch (e) { toast('danger', e.message); }
   }
 
   importBtn.addEventListener('click', function () {
-    document.getElementById('importBatch').value = '';
-    document.getElementById('importStatus').value = '';
+    document.getElementById('importBatch').value = batches.length ? String(batches[0].id) : '';
+    document.getElementById('importStatus').value = 'active';
     document.getElementById('importFile').value = '';
     hideImportError();
     showImportWarning('');
@@ -438,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }).join('') || '<li>All valid records imported.</li>';
       resultModal.show();
       toast(json.data.skipped > 0 ? 'warning' : 'success', json.message);
-      reloadAll();
+      reloadAfterMutation();
     } catch (e) { toast('danger', e.message); }
   }
 

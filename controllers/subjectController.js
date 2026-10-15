@@ -109,6 +109,7 @@ const subjectController = {
           layout: "layouts/main",
           title: "Subjects Management - SRAAS",
           pageStyles: SUBJECT_PAGE_STYLES,
+          canManageRoster: req.user?.role === 'admin',
           breadcrumbItems: [
             { href: "#", label: "Academic Management" },
             { label: "Subjects" },

@@ -6,29 +6,30 @@ const path = require('node:path');
 const vm = require('node:vm');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function fixture() {
+function fixture(batches = []) {
   const elements = new Map(), events = {}, requests = [], timers = new Map();
   let timerId = 0;
   function element(id) {
     if (!elements.has(id)) elements.set(id, { value: '', hidden: false, disabled: false, textContent: '', innerHTML: '', dataset: {}, attributes: {}, handlers: {},
       classList: { add() {}, remove() {} }, setAttribute(key, value) { this.attributes[key] = value; },
-      addEventListener(event, handler) { const previous = this.handlers[event]; this.handlers[event] = previous ? (...args) => { previous(...args); return handler(...args); } : handler; }, focus() {} });
+      addEventListener(event, handler) { const previous = this.handlers[event]; this.handlers[event] = previous ? (...args) => { previous(...args); return handler(...args); } : handler; }, focus() {}, appendChild() {} });
     return elements.get(id);
   }
   element('studentListing').dataset = { defaultBatch: '2', pagination: JSON.stringify({ page: 2, pageSize: 25, totalRows: 60, totalPages: 3 }) };
   element('studentPageSize').value = '25'; element('filterBatch').value = 'all';
   element('studentSearchError').hidden = true;
+  element('batchesData').dataset.batches = JSON.stringify(batches);
   element('#studentsTable tbody').innerHTML = '<tr><td>Previous students</td></tr>';
   const location = { pathname: '/students', search: '?batch_id=all&page=2&pageSize=25' };
   const history = { entries: [], pushState(data, title, url) { this.entries.push(url); this.replaceState(data, title, url); }, replaceState(data, title, url) { const parsed = new URL(url, 'http://localhost'); location.pathname = parsed.pathname; location.search = parsed.search; } };
   const browser = { console, URLSearchParams, AbortController, location, history,
     window: { addEventListener(name, handler) { events[name] = handler; } },
     document: { getElementById: element, querySelector: element,
-      createElement: () => ({ textContent: '', get innerHTML() { return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); } }),
+      createElement: () => ({ textContent: '', setAttribute() {}, set innerHTML(value) { this.textContent = value; }, get innerHTML() { return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); } }),
       addEventListener(name, handler) { if (name === 'DOMContentLoaded') handler(); } },
     bootstrap: { Modal: function () { this.show = () => {}; this.hide = () => {}; } },
     setTimeout(fn) { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
-    fetch(url, options) {
+    fetch(url, options = {}) {
       if (url.includes('/stats')) return Promise.resolve({ ok: true, json: async () => ({ data: {} }) });
       return new Promise((resolve, reject) => requests.push({ url, signal: options.signal, reject,
         respond(body, ok = true) { resolve({ ok, status: ok ? 200 : 500, json: async () => body }); } }));
@@ -108,4 +109,51 @@ test('clear search cancels queued debounce and safely escapes no-match text', as
   assert.equal(f.requests.length, 2);
   assert.equal(new URLSearchParams(f.requests[1].url.split('?')[1]).has('search'), false);
   assert.equal(f.element('clearStudentSearch').hidden, true);
+});
+
+test('opening Student Import defaults to newest batch and active, independently of directory filters', () => {
+  const f = fixture([{ id: 9, name: 'Newest' }, { id: 2, name: 'Older' }]);
+  f.element('filterBatch').value = '2';
+  f.element('importStudentsBtn').handlers.click();
+  assert.equal(f.element('importBatch').value, '9');
+  assert.equal(f.element('importStatus').value, 'active');
+  f.element('importBatch').value = '2'; f.element('importStatus').value = 'inactive';
+  f.element('importStudentsBtn').handlers.click();
+  assert.equal(f.element('importBatch').value, '9');
+  assert.equal(f.element('importStatus').value, 'active');
+  const empty = fixture();
+  empty.element('importStudentsBtn').handlers.click();
+  assert.equal(empty.element('importBatch').value, '');
+});
+
+test('successful import refreshes categories and suggestions without navigation or losing the filter', async () => {
+  const f = fixture([{ id: 9, name: 'Newest' }]);
+  f.element('filterCategory').value = 'PGCET';
+  f.element('importStudentsBtn').handlers.click();
+  f.element('importConfirmBtn').handlers.click();
+  const confirm = f.element('studentConfirmBtn').handlers.click();
+  const request = f.requests.find(r => r.url === '/students/api/import/confirm');
+  request.respond({ success: true, message: 'Imported', data: { imported: 1, skipped: 0 } });
+  await confirm;
+  const categories = f.requests.find(r => r.url === '/students/api/categories');
+  assert.ok(categories);
+  categories.respond({ success: true, data: ['MGT', 'PGCET', 'NEW "<CATEGORY>'] });
+  await pause(0);
+  assert.match(f.element('filterCategory').innerHTML, /MGT/);
+  assert.match(f.element('filterCategory').innerHTML, /NEW &quot;&lt;CATEGORY>/);
+  assert.equal(f.element('filterCategory').value, 'PGCET');
+  assert.match(f.element('studentCategoryList').innerHTML, /MGT/);
+  assert.ok(f.requests.find(r => r.url.startsWith('/students/api/list?')));
+  assert.equal(f.history.entries.length, 0);
+});
+
+test('failed import keeps existing categories and does not reload them', async () => {
+  const f = fixture();
+  f.element('filterCategory').innerHTML = '<option>Existing</option>';
+  f.element('importConfirmBtn').handlers.click();
+  const confirm = f.element('studentConfirmBtn').handlers.click();
+  f.requests[0].respond({ message: 'Import failed' }, false);
+  await confirm;
+  assert.equal(f.element('filterCategory').innerHTML, '<option>Existing</option>');
+  assert.equal(f.requests.length, 1);
 });

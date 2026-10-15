@@ -216,8 +216,17 @@ document.addEventListener("DOMContentLoaded", function () {
     var currentName = document.getElementById('currentSessionName');
     text('currentSessionLabel', !active || statusOf(active) === 'active' ? 'Current Session' : statusOf(active) === 'completed' ? 'Latest Session' : 'Next Session');
     currentName.title = active ? [batchOf(active).batch_name, monthLabel(active.exam_session), active.exam_year].filter(Boolean).join(' - ') : '';
+    text('currentSessionBatch', active ? batchOf(active).batch_name : '');
     var context = document.getElementById('currentSessionContext');
-    if (context) context.textContent = active ? [batchOf(active).batch_name, monthLabel(active.exam_session) + ' ' + active.exam_year, statusOf(active)].filter(Boolean).join(' - ') : '';
+    if (context) context.hidden = !active;
+    text('currentSessionPeriod', active ? monthLabel(active.exam_session) + ' ' + active.exam_year : '');
+    var currentStatus = document.getElementById('currentSessionStatus');
+    if (currentStatus) {
+      var status = active ? statusOf(active) : '';
+      currentStatus.textContent = status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
+      currentStatus.className = 'badge ' + (status ? badge(status) : '');
+      currentStatus.hidden = !active;
+    }
   }
   function row(s) {
     var st = statusOf(s),

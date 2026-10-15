@@ -36,9 +36,9 @@ Updates retain the stable academic course ID instead of creating or resolving a 
 
 ## Faculty email
 
-Email remains optional. When supplied, inline client validation and matching server validation reject malformed addresses and allow institutional domains, not just Gmail. Validation does not verify mailbox ownership or deliverability.
+Email has been removed from Add Faculty and its confirmation summary. Existing faculty email values are retained. The optional email API remains backward-compatible and validates email when an older client supplies it; the current form does not collect or send email.
 
-Both validators use the bundled IANA top-level-domain snapshot in `public/js/email-tlds.js`, sourced from https://data.iana.org/TLD/tlds-alpha-by-domain.txt. Invalid endings such as `.clh` are rejected without runtime network requests. Refresh this snapshot when newly delegated domains need support; a registered suffix alone does not prove the domain or mailbox can receive mail.
+The legacy email validator uses the bundled IANA top-level-domain snapshot in `public/js/email-tlds.js`, sourced from https://data.iana.org/TLD/tlds-alpha-by-domain.txt. Invalid endings such as `.clh` are rejected without runtime network requests. Refresh this snapshot when newly delegated domains need support; a registered suffix alone does not prove the domain or mailbox can receive mail.
 
 ## Verification
 

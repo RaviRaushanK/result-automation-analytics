@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var $ = id => document.getElementById(id);
   state = { batches: [], sessions: [], faculty: [], subjects: [], drafts: {}, pending: [], removing: null, removeTarget: null };
   batch = $('facultyBatchSelect'); session = $('facultySessionSelect');
-  var sessionRequest = 0, subjectRequest = 0, departmentRequest = 0;
+  var sessionRequest = 0, subjectRequest = 0, departmentRequest = 0, facultyLoaded = false;
   function esc(v) { var e = document.createElement('div'); e.textContent = v == null ? '' : String(v); return e.innerHTML; }
   function batchLabel(b) { return b.batch_name + ' (' + b.start_year + '–' + b.end_year + ')'; }
   function sessionLabel(s) { return /^\d+$/.test(String(s.semester)) ? 'Semester ' + s.semester : s.semester; }
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function currentSession() { return state.sessions.find(s => String(s.session_id) === session.value); }
   function facultyOptions(selected) { return '<option value="">Select Faculty</option>' + state.faculty.map(f => '<option value="' + esc(f.faculty_id) + '"' + (String(f.faculty_id) === String(selected || '') ? ' selected' : '') + '>' + esc((f.faculty_name || '') + (f.designation ? ' — ' + f.designation : '')) + '</option>').join(''); }
   function getSelects(subject) { return Array.from(document.querySelectorAll('[data-faculty-subject="' + subject.subject_id + '"]')); }
-  function action(attribute, id, icon, label, kind) { return '<button type="button" class="btn btn-sm btn-outline-' + kind + '" ' + attribute + '="' + esc(id) + '" title="' + label + '" aria-label="' + label + '"><span class="material-icons action-icon">' + icon + '</span></button>'; }
+  function action(attribute, id, icon, label, kind) { var disabled = attribute === 'data-edit-faculty' && (!facultyLoaded || !state.faculty.length); return '<button type="button" class="btn btn-sm btn-outline-' + kind + '" ' + attribute + '="' + esc(id) + '" title="' + label + '" aria-label="' + label + '"' + (disabled ? ' disabled' : '') + '><span class="material-icons action-icon">' + icon + '</span></button>'; }
   function editableSlots(a) {
     return a.faculty_ids.map((id, index) => {
       var options = facultyOptions(id);
@@ -72,23 +72,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }).join(''); modal('facultyConfirmModal', true);
   }
   function editRow(id) {
+    if (!facultyLoaded || !state.faculty.length) return;
     var s = state.subjects.find(x => String(x.subject_id) === String(id)); if (!s) return;
     if (!state.drafts[id]) state.drafts[id] = assignedFaculty(s).map(f => String(f.faculty_id));
     if (!state.drafts[id].length) state.drafts[id].push('');
     render(); document.querySelector('[data-faculty-count="' + id + '"]').focus();
   }
   async function loadDepartments() { var request = ++departmentRequest; $('facultyDepartment').disabled = true; try { var j = await api('/faculty/api/departments'); if (request !== departmentRequest) return; var data = j.data || []; $('facultyDepartment').innerHTML = '<option value="">Select Department</option>' + data.map(d => '<option value="' + esc(d.department_id) + '">' + esc(d.department_name) + '</option>').join(''); var mca = data.find(d => String(d.department_code || '').trim().toUpperCase() === 'MCA'); $('facultyDepartment').value = mca ? String(mca.department_id) : ''; $('facultyDepartment').disabled = false; } catch (e) { if (request === departmentRequest) error('addFacultyError', e.message); } }
-  function validateFacultyEmail() {
-    var input = $('facultyEmailInput'), problem = FacultyEmailValidation.getError(input.value);
-    input.classList.toggle('is-invalid', !!problem);
-    input.setAttribute('aria-invalid', String(!!problem));
-    input.setCustomValidity(problem);
-    $('facultyEmailFeedback').textContent = problem;
-    return problem;
-  }
-  function facultyDraft() { return { department_id: $('facultyDepartment').value, faculty_code: $('facultyCodeInput').value.trim().toUpperCase(), faculty_name: $('facultyNameInput').value.trim(), email: $('facultyEmailInput').value.trim(), designation: $('facultyDesignationInput').value.trim() }; }
-  function reviewFaculty(event) { event.preventDefault(); var draft = facultyDraft(); if (validateFacultyEmail()) { $('facultyEmailInput').focus(); return; } if (!draft.department_id || !draft.faculty_code || !draft.faculty_name) { error('addFacultyError', 'Department, faculty code, and faculty name are required.'); return; } error('addFacultyError', ''); state.facultyDraft = draft; state.pending = []; $('facultyConfirmTitle').textContent = 'Confirm Add Faculty'; $('facultyConfirmSummary').innerHTML = '<div class="faculty-confirm-item"><strong>' + esc(draft.faculty_name) + '</strong><span>' + esc(draft.faculty_code) + '</span><small>Department: ' + esc($('facultyDepartment').selectedOptions[0].textContent) + '</small><small>Email: ' + esc(draft.email || 'None') + '</small><small>Designation: ' + esc(draft.designation || 'None') + '</small></div>'; modal('addFacultyModal', false); setTimeout(() => modal('facultyConfirmModal', true), 180); }
-  function openFacultyForm() { $('addFacultyForm').reset(); validateFacultyEmail(); error('addFacultyError', ''); modal('addFacultyModal', true); loadDepartments(); }
+  function facultyDraft() { return { department_id: $('facultyDepartment').value, faculty_code: $('facultyCodeInput').value.trim().toUpperCase(), faculty_name: $('facultyNameInput').value.trim(), designation: $('facultyDesignationInput').value.trim() }; }
+  function reviewFaculty(event) { event.preventDefault(); var draft = facultyDraft(); if (!draft.department_id || !draft.faculty_code || !draft.faculty_name) { error('addFacultyError', 'Department, faculty code, and faculty name are required.'); return; } error('addFacultyError', ''); state.facultyDraft = draft; state.pending = []; $('facultyConfirmTitle').textContent = 'Confirm Add Faculty'; $('facultyConfirmSummary').innerHTML = '<div class="faculty-confirm-item"><strong>' + esc(draft.faculty_name) + '</strong><span>' + esc(draft.faculty_code) + '</span><small>Department: ' + esc($('facultyDepartment').selectedOptions[0].textContent) + '</small><small>Designation: ' + esc(draft.designation || 'None') + '</small></div>'; modal('addFacultyModal', false); setTimeout(() => modal('facultyConfirmModal', true), 180); }
+  function openFacultyForm() { $('addFacultyForm').reset(); error('addFacultyError', ''); modal('addFacultyModal', true); loadDepartments(); }
   async function confirmSave() {
     var button = $('facultyConfirmSaveBtn'); button.disabled = true; error('facultyConfirmError', '');
     try {
@@ -111,28 +104,31 @@ document.addEventListener('DOMContentLoaded', function () {
   function closeRemove() { state.removing = null; state.removeTarget = null; error('facultyRemoveError', ''); var button = $('facultyRemoveBtn'); button.disabled = false; button.textContent = 'Remove Assignment'; }
   async function confirmRemove() { if (!state.removing) return; var button = $('facultyRemoveBtn'), subjectId = state.removing.subject_id, target = state.removeTarget; var url = '/faculty/api/assignments/' + encodeURIComponent(subjectId) + (target ? '/faculty/' + encodeURIComponent(target.faculty_id) : ''); button.disabled = true; button.textContent = 'Removing Assignment...'; error('facultyRemoveError', ''); try { await api(url, { method: 'DELETE' }); state.removing = null; state.removeTarget = null; modal('facultyRemoveModal', false); toast('success', 'Faculty assignment removed successfully.'); delete state.drafts[subjectId]; await loadSubjects(true); } catch (e) { error('facultyRemoveError', e.message); } finally { button.disabled = false; button.textContent = removeTargetLabel(); } }
 
-  $('addFacultyBtn').addEventListener('click', openFacultyForm); $('addFacultyForm').addEventListener('submit', reviewFaculty);
-  $('facultyEmailInput').addEventListener('input', validateFacultyEmail);
-  $('facultyEmailInput').addEventListener('blur', validateFacultyEmail);
+  $('addFacultyBtn').addEventListener('click', openFacultyForm); $('addAssignmentFacultyBtn').addEventListener('click', openFacultyForm); $('addFacultyForm').addEventListener('submit', reviewFaculty);
   batch.addEventListener('change', loadSessions); session.addEventListener('change', () => loadSubjects()); $('facultySearch').addEventListener('input', render);
   $('saveFacultyAssignmentsBtn').addEventListener('click', () => openConfirmation()); $('facultyConfirmSaveBtn').addEventListener('click', confirmSave);
-  $('facultyTableBody').addEventListener('change', function (e) {
+  function updateFacultyCount(e) {
     var countId = e.target.dataset.facultyCount;
     if (countId) {
       var count = Number(e.target.value), maximum = Number(e.target.max);
       if (!Number.isInteger(count) || count < 1 || count > maximum) {
-        e.target.value = state.drafts[countId].length;
         e.target.classList.add('is-invalid');
+        e.target.setAttribute('aria-invalid', 'true');
         document.querySelector('[data-assignment-error="' + countId + '"]').textContent = 'Choose a faculty count between 1 and ' + maximum + '.';
         return;
       }
       var ids = state.drafts[countId]; ids.length = count;
       state.drafts[countId] = Array.from(ids, id => id || '');
       e.target.classList.remove('is-invalid');
+      e.target.setAttribute('aria-invalid', 'false');
       var row = document.querySelector('[data-subject-row="' + countId + '"]');
       row.querySelector('.faculty-slots').innerHTML = editableSlots(assignment(state.subjects.find(s => String(s.subject_id) === countId)));
       row.querySelector('[data-assignment-error]').textContent = '';
     }
+  }
+  $('facultyTableBody').addEventListener('input', updateFacultyCount);
+  $('facultyTableBody').addEventListener('change', function (e) {
+    updateFacultyCount(e);
     if (e.target.classList.contains('faculty-select')) {
       var id = e.target.dataset.facultySubject;
       state.drafts[id][Number(e.target.dataset.position)] = e.target.value;
@@ -153,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function reset() { state.subjects = []; state.drafts = {}; state.pending = []; $('facultyDashboard').classList.add('d-none'); $('facultyPrompt').classList.remove('d-none'); $('saveFacultyAssignmentsBtn').disabled = true; }
   async function loadBatches() { try { var j = await api('/batches?format=json'); const json = Array.isArray(j) ? j : (j.data || []); state.batches = AcademicFormOptions.sortBatches(json); batch.innerHTML = '<option value="">Select Batch</option>' + state.batches.map(b => '<option value="' + esc(b.batch_id) + '">' + esc(batchLabel(b)) + '</option>').join(''); batch.disabled = !state.batches.length; batch.value = state.batches.length ? String(state.batches[0].batch_id) : ''; await loadSessions(); } catch (e) { batch.innerHTML = '<option value="">Unable to load batches</option>'; error('facultySelectionError', e.message); } }
   async function loadSessions() { var request = ++sessionRequest, selected = batch.value; subjectRequest++; state.sessions = []; session.disabled = true; reset(); if (!selected) { session.innerHTML = '<option value="">Select Batch first</option>'; return; } session.innerHTML = '<option value="">Loading sessions...</option>'; try { var j = await api('/sessions?format=json&batch_id=' + encodeURIComponent(selected)); if (request !== sessionRequest || selected !== batch.value) return; const json = Array.isArray(j) ? j : (j.data || []); state.sessions = json; session.innerHTML = '<option value="">Select Session</option>' + state.sessions.map(s => '<option value="' + esc(s.session_id) + '">' + esc(sessionLabel(s)) + '</option>').join(''); session.disabled = false; } catch (e) { if (request === sessionRequest) error('facultySelectionError', e.message); } }
-  async function loadFaculty() { try { var j = await api('/faculty/api'); const json = Array.isArray(j) ? j : (j.data || []); state.faculty = json; if (state.subjects.length) render(); } catch (e) { error('facultySelectionError', e.message); toast('danger', e.message); } }
+  async function loadFaculty() { try { var j = await api('/faculty/api'); const json = Array.isArray(j) ? j : (j.data || []); state.faculty = json; facultyLoaded = true; $('facultyAvailabilityNotice').classList.toggle('d-none', state.faculty.length > 0); if (state.subjects.length) render(); } catch (e) { error('facultySelectionError', e.message); toast('danger', e.message); } }
   async function loadSubjects(preserveDrafts) { var request = ++subjectRequest, selected = session.value; if (!preserveDrafts) { state.drafts = {}; state.pending = []; } state.subjects = []; $('saveFacultyAssignmentsBtn').disabled = true; error('facultySelectionError', ''); if (!batch.value || !selected) return reset(); $('facultyPrompt').classList.add('d-none'); $('facultyDashboard').classList.remove('d-none'); $('facultySubjectsTitle').textContent = 'Subjects for ' + sessionLabel(currentSession()); var tbody = $('facultyTableBody'); tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading subjects...</td></tr>'; try { var j = await api('/subjects/session/' + encodeURIComponent(selected)); if (request !== subjectRequest || selected !== session.value) return; const json = Array.isArray(j) ? j : (j.data || []); state.subjects = json; render(); } catch (e) { if (request !== subjectRequest) return; error('facultySelectionError', e.message); toast('danger', e.message); } }
 });
 

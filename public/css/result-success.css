@@ -1,0 +1,55 @@
+.import-success-page { max-width: 840px; margin: .5rem auto 2rem; color: var(--text-primary); min-width: 0; }
+.import-success-header { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1rem; padding: 1.5rem 1rem 1.75rem; overflow: hidden; }
+.import-success-heading { min-width: 0; position: relative; animation: import-arrive .5s ease-out .15s both; }
+.import-success-mark { position: relative; width: 80px; height: 80px; flex: 0 0 80px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #168253; border: 7px solid var(--card-bg); box-shadow: 0 0 0 1px var(--card-border), 0 8px 20px #16825320; }
+.import-success-mark.is-confirmed { animation: import-confirm .7s cubic-bezier(.2,.8,.3,1.2) both; }
+.import-success-mark .material-icons { font-size: 38px; }
+.import-success-mark.is-confirmed .material-icons { animation: import-check .45s ease-out .35s both; }
+.import-success-mark.is-unavailable { background: var(--text-secondary); }
+.import-success-eyebrow { color: var(--text-secondary); font-size: .8125rem; margin-bottom: .4rem; }
+.import-success-header h1 { font-size: 1.75rem; line-height: 1.25; font-weight: 650; margin: 0 0 .6rem; overflow-wrap: anywhere; }
+.import-success-header p { color: var(--text-secondary); margin: 0; line-height: 1.5; }
+.import-celebration { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.import-celebration span { position: absolute; left: 50%; top: 95px; width: 7px; height: 11px; border-radius: 1px; background: var(--piece); opacity: 0; animation: import-confetti 1.9s ease-out calc(.25s + var(--delay)) both; }
+.import-celebration span:nth-child(3n) { width: 5px; height: 5px; }
+.import-celebration-replay { position: absolute; right: .25rem; top: 1.5rem; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--card-border); border-radius: 6px; background: var(--card-bg); color: var(--text-secondary); }
+.import-celebration-replay:hover { color: var(--primary-brand); border-color: var(--primary-brand); }
+.import-celebration-replay:focus-visible { outline: 2px solid var(--primary-brand); outline-offset: 3px; }
+.import-celebration-replay .material-icons { font-size: 20px; }
+.import-celebration-replay[hidden] { display: none; }
+.import-student-overview { display: flex; align-items: center; gap: .875rem; border-top: 1px solid var(--card-border); padding: 1.25rem 0; }
+.import-student-overview > .material-icons { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; font-size: 24px; border-radius: 8px; background: var(--secondary-bg); color: var(--primary-brand); }
+.import-student-overview > div { min-width: 0; }
+.import-success-student { font-weight: 600; overflow-wrap: anywhere; }
+.import-success-usn { color: var(--text-secondary); font-size: .875rem; margin-top: .25rem; overflow-wrap: anywhere; }
+.import-success-details { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem 1.5rem; margin: 0; padding: 0 0 1.25rem; }
+.import-success-details > div { min-width: 0; }
+.import-success-details dt, .import-success-label { color: var(--text-secondary); font-size: .8125rem; font-weight: 500; margin-bottom: .5rem; }
+.import-success-details dd { margin: 0; line-height: 1.5; font-size: .875rem; overflow-wrap: anywhere; }
+.import-success-tag { display: inline-block; margin-left: .5rem; padding: .1rem .4rem; font-size: .6875rem; border: 1px solid var(--card-border); border-radius: 4px; color: var(--text-secondary); }
+.import-success-metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: .875rem; padding: 0 0 1.5rem; animation: import-arrive .4s ease-out .3s both; }
+.import-success-metrics > div { min-width: 0; padding: 1rem; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
+.import-success-value { font-size: 1.5rem; font-weight: 650; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.import-success-value.is-pass { color: var(--color-success); }
+.import-success-value.is-fail { color: var(--color-danger); }
+.import-success-metrics p { font-size: .75rem; line-height: 1.5; color: var(--text-secondary); margin: .5rem 0 0; }
+.import-success-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: .75rem; padding-top: 1.25rem; border-top: 1px solid var(--card-border); }
+.import-success-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 42px; white-space: normal; }
+.import-success-actions .material-icons { font-size: 20px; flex-shrink: 0; }
+@keyframes import-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes import-confirm { from { transform: scale(.5); opacity: 0; } 65% { transform: scale(1.12); opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes import-check { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes import-confetti { 0% { opacity: 0; transform: translate(0,0) rotate(0deg) scale(.5); } 12% { opacity: 1; } 45% { opacity: 1; transform: translate(calc(var(--x) * .65),var(--rise)) rotate(var(--spin)) scale(1); } 100% { opacity: 0; transform: translate(var(--x),170px) rotate(calc(var(--spin) + 180deg)) scale(.7); } }
+@media (max-width: 767.98px) { .main-content:has(.import-success-page) { margin-left: 0; width: 100%; min-width: 0; } }
+@media (max-width: 575.98px) {
+  .import-success-header { padding: 1rem 0 1.5rem; }
+  .import-success-header h1 { font-size: 1.5rem; }
+  .import-success-header p { font-size: .875rem; }
+  .import-success-details { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .import-success-details > div:first-child { grid-column: 1 / -1; }
+  .import-success-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .import-success-metrics > div:last-child { grid-column: 1 / -1; }
+  .import-success-value { font-size: 1.375rem; }
+  .import-success-actions .btn { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .import-success-page *, .import-success-page *::before, .import-success-page *::after { animation: none !important; transition: none !important; } .import-celebration, .import-celebration-replay { display: none; } }

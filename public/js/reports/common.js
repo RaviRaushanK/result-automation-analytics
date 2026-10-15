@@ -371,13 +371,14 @@
     if (studentSearch) { studentSearch.value = ''; studentSearch.disabled = true; }
     invalidate(); cascadeAbort?.abort(); cascading = false;
     dependent.slice(1).forEach(resetSelect);
-    el('batch_id').value = '';
+    el('batch_id').value = el('batch_id').options[1]?.value || '';
     for (const name of ['exam_type', 'result_status', 'revaluation_status']) if (el(name)) el(name).value = '';
     if (el('mode')) el('mode').value = type === 'toppers' ? 'original' : 'effective';
     if (el('pageSize')) el('pageSize').value = '25';
     ui('view').textContent = type === 'revaluation' ? 'Revaluation Events' : type === 'toppers' ? 'Original Result' : 'Effective Result';
     ui('filter-state').textContent = '';
-    if (el('batch_id').disabled) cascade('initial');
+    if (el('batch_id').disabled) initialize(false);
+    else if (el('batch_id').value) cascade('batch_id');
     else ready();
   });
   ui('prev').addEventListener('click', () => { if (!generating && currentPage > 1) generate(currentPage - 1); });
@@ -392,13 +393,13 @@
     ui('filter-state').textContent = cascading ? 'Searching students...' : '';
     if (cascading) studentSearchTimer = setTimeout(() => cascade('batch_id'), 300);
   });
-  async function initialize() {
-    const query = new URLSearchParams(location.search);
+  async function initialize(useQuery = true) {
+    const query = new URLSearchParams(useQuery ? location.search : '');
     const initialVersion = version;
     await cascade('initial');
     for (const name of dependent) {
       if (version !== initialVersion) return;
-      const select = el(name), value = query.get(name);
+      const select = el(name), value = query.get(name) || (name === 'batch_id' ? select.options[1]?.value : undefined);
       if (!value || select.disabled || !Array.from(select.options).some(o => o.value === value)) continue;
       select.value = value;
       await cascade(name);

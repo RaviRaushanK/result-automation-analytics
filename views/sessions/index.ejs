@@ -11,12 +11,13 @@
     </button>
   </div>
 
-  <div class="row g-4 mb-4">
-    <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-blue"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">event</span></div><div class="stat-content"><div class="stat-value" id="totalSessionsCount">0</div><div class="stat-label">Total Sessions</div></div></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-green"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">check_circle</span></div><div class="stat-content"><div class="stat-value" id="completedSessionsCount">0</div><div class="stat-label">Completed</div></div></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-amber"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">schedule</span></div><div class="stat-content"><div class="stat-value" id="upcomingSessionsCount">0</div><div class="stat-label">Upcoming</div></div></div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="card stat-card stat-teal"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon"><span class="material-icons">today</span></div><div class="stat-content"><div class="stat-value stat-batch-name" id="currentSessionName">—</div><div class="stat-label" id="currentSessionLabel">Current Session</div><div class="small text-muted text-break" id="currentSessionContext"></div></div></div></div></div>
+  <div class="sessions-summary">
+    <div class="card stat-card stat-blue"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">event</span></div><div class="stat-content"><div class="stat-label">Total Sessions</div><div class="stat-value" id="totalSessionsCount">0</div></div></div></div>
+    <div class="card stat-card stat-green"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">check_circle</span></div><div class="stat-content"><div class="stat-label">Completed</div><div class="stat-value" id="completedSessionsCount">0</div></div></div></div>
+    <div class="card stat-card stat-amber"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">schedule</span></div><div class="stat-content"><div class="stat-label">Upcoming</div><div class="stat-value" id="upcomingSessionsCount">0</div></div></div></div>
+    <div class="card stat-card stat-teal session-summary-current"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">today</span></div><div class="stat-content"><div class="stat-label" id="currentSessionLabel">Current Session</div><div class="stat-value" id="currentSessionName">—</div></div></div></div>
   </div>
+  <div class="session-summary-context" id="currentSessionContext"><span id="currentSessionBatch"></span><div class="session-summary-period"><span id="currentSessionPeriod"></span><span class="badge" id="currentSessionStatus"></span></div></div>
 
   <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">

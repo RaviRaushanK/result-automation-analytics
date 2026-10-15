@@ -1,0 +1,11 @@
+<%
+  const tabScope = typeof selected !== 'undefined' ? selected : {};
+  const batchQuery = tabScope.batch_id ? '&batch_id=' + encodeURIComponent(tabScope.batch_id) : '';
+  const semesterQuery = tabScope.semester ? '&semester=' + encodeURIComponent(tabScope.semester) : '';
+%>
+<nav class="nav nav-tabs subjects-tabs mb-3" aria-label="Subjects Management views">
+  <a class="nav-link<%= activeTab === 'examinations' ? ' active' : '' %>" id="examination-subjects-tab" href="/subjects<%= batchQuery ? '?' + batchQuery.slice(1) : '' %>" <%- activeTab === 'examinations' ? 'aria-current="page"' : '' %>>Examination Subjects</a>
+  <% if (canManageRoster) { %>
+    <a class="nav-link<%= activeTab === 'roster' ? ' active' : '' %>" id="semester-roster-tab" href="/subjects?tab=roster<%= batchQuery %><%= semesterQuery %>" <%- activeTab === 'roster' ? 'aria-current="page"' : '' %>>Semester Roster</a>
+  <% } %>
+</nav>

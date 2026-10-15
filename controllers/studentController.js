@@ -1,7 +1,7 @@
 // Student Management Dashboard controller.
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { Student, Batch } = require('../database/models');
+const { Student, Batch, sequelize } = require('../database/models');
 const directory = require('../services/studentDirectoryService');
 
 const emailValidation = require('../public/js/student-email-validation');
@@ -65,13 +65,13 @@ async function validateStudentInput(input, opts) {
     : (input.batch !== undefined ? input.batch : input.batch_name);
   const resolved = await resolveBatchId(batchRef);
   if (!resolved.batch_id) errors.push(resolved.error);
-  const usn = String(input.usn || '').trim();
+  const usn = String(input.usn || '').trim().toUpperCase();
   if (!usn) errors.push('USN is required');
   else if (!USN_REGEX.test(usn)) errors.push('USN must be 3-50 characters, start with a letter or number, and contain only letters, numbers, / or -');
   const student_name = String(input.student_name || input.name || '').trim();
   if (!student_name) errors.push('Student Name is required');
   else if (!NAME_REGEX.test(student_name)) errors.push('Student Name must be 2-100 characters, start with a letter, and contain only letters, spaces, dots, apostrophes or hyphens');
-  let email = String(input.email || '').trim();
+  let email = String(input.email || '').trim().toLowerCase();
   const emailError = emailValidation.getError(email);
   if (emailError) errors.push(emailError);
   if (!email) email = null;
@@ -82,19 +82,40 @@ async function validateStudentInput(input, opts) {
   if (status !== 'active' && status !== 'inactive') errors.push("Status must be 'active' or 'inactive'");
   const value = { batch_id: resolved.batch_id, batch_name: resolved.batch_name || null,
     usn: usn, student_name: student_name, email: email, category: category, status: status };
+  let restoreStudentId = null;
   if (usn) {
     const where = { usn: usn };
     if (opts.ignoreStudentId) where.student_id = { [Op.ne]: opts.ignoreStudentId };
-    const dup = await Student.findOne({ where: where, attributes: ['student_id'], paranoid: false });
-    if (dup) errors.push('Duplicate USN: ' + usn + ' already exists');
+    const dup = await Student.findOne({ where: where, attributes: ['student_id', 'batch_id', 'deleted_at'], paranoid: false });
+    if (dup) {
+      if (opts.allowRestore && dup.deleted_at && String(dup.batch_id) === String(resolved.batch_id)) restoreStudentId = dup.student_id;
+      else errors.push('Duplicate USN: ' + usn + ' already exists' + (dup.deleted_at ? ' in a deleted student record; check the original batch before restoring' : ''));
+    }
   }
   if (email) {
     const where = { email: email };
     if (opts.ignoreStudentId) where.student_id = { [Op.ne]: opts.ignoreStudentId };
     const dupMail = await Student.findOne({ where: where, attributes: ['student_id'], paranoid: false });
-    if (dupMail) errors.push('Duplicate Email: ' + email + ' already exists');
+    if (dupMail && String(dupMail.student_id) !== String(restoreStudentId)) errors.push('Duplicate Email: ' + email + ' already exists');
   }
-  return { value: value, errors: errors };
+  return { value: value, errors: errors, restoreStudentId };
+}
+
+async function createOrRestoreStudent(checked) {
+  const { batch_name, ...values } = checked.value;
+  if (!checked.restoreStudentId) return Student.create({ student_uuid: crypto.randomUUID(), ...values });
+  // Restore the original identity atomically so historical results retain their owner.
+  return sequelize.transaction(async transaction => {
+    const student = await Student.findByPk(checked.restoreStudentId, {
+      paranoid: false, transaction, lock: transaction.LOCK.UPDATE
+    });
+    if (!student || !student.deleted_at || String(student.batch_id) !== String(values.batch_id)) {
+      throw Object.assign(new Error('The student record changed. Review the student details again before restoring.'), { status: 409 });
+    }
+    await student.update(values, { transaction });
+    await student.restore({ transaction });
+    return student;
+  });
 }
 
 // Preview rows kept in-memory per import session (no DB writes before confirm).
@@ -138,7 +159,7 @@ async function buildImportPreview(rawRows, opts) {
       category: pickField(row, ['category']),
       status: opts.status
     };
-    const checked = await validateStudentInput(input);
+    const checked = await validateStudentInput(input, { allowRestore: true });
     const rowErrors = checked.errors.slice();
     const usnKey = String(checked.value.usn || '').toUpperCase();
     if (usnKey && seenUsn.has(usnKey)) rowErrors.push('Duplicate USN in file: ' + checked.value.usn);
@@ -151,7 +172,7 @@ async function buildImportPreview(rawRows, opts) {
       usn: checked.value.usn, student_name: checked.value.student_name,
       email: checked.value.email || '', category: checked.value.category,
       status: checked.value.status, valid: rowErrors.length === 0,
-      message: rowErrors.length ? rowErrors.join('; ') : 'Valid' });
+      message: rowErrors.length ? rowErrors.join('; ') : checked.restoreStudentId ? 'Valid - will restore deleted student and preserve result history' : 'Valid' });
   }
   return preview;
 }
@@ -240,14 +261,14 @@ const studentController = {
 
   create: async (req, res) => {
     try {
-      const checked = await validateStudentInput(req.body || {});
+      const checked = await validateStudentInput(req.body || {}, { allowRestore: true });
       if (checked.errors.length) return res.status(400).json({ success: false, message: checked.errors.join('; ') });
-      const v = checked.value;
-      const data = await Student.create({ student_uuid: crypto.randomUUID(),
-        batch_id: v.batch_id, usn: v.usn, student_name: v.student_name,
-        email: v.email, category: v.category, status: v.status });
-      res.status(201).json({ success: true, message: 'Student created successfully', data: data });
+      const data = await createOrRestoreStudent(checked);
+      const restored = !!checked.restoreStudentId;
+      res.status(restored ? 200 : 201).json({ success: true, restored,
+        message: restored ? 'Student restored successfully' : 'Student created successfully', data: data });
     } catch (err) {
+      if (err.status === 409) return res.status(409).json({ success: false, message: err.message });
       const error = studentSaveError(err);
       res.status(error.status).json({ success: false, message: error.message });
     }
@@ -320,6 +341,7 @@ const studentController = {
       const validRows = rows.filter((r) => r && r.valid);
       if (!validRows.length) return res.status(400).json({ success: false, message: 'No valid records to import' });
       let imported = 0;
+      let restored = 0;
       const skipped = [];
       const seenUsn = new Set();
       const seenEmail = new Set();
@@ -339,23 +361,21 @@ const studentController = {
           if (emailKey) seenEmail.add(emailKey);
           const checked = await validateStudentInput({
             batch_id: importBatchId, usn: r.usn, student_name: r.student_name,
-            email: r.email, category: r.category, status: importStatus });
+            email: r.email, category: r.category, status: importStatus }, { allowRestore: true });
           if (checked.errors.length) {
             skipped.push({ row: r.row, usn: r.usn, reason: checked.errors.join('; ') });
             continue;
           }
-          const v = checked.value;
-          await Student.create({ student_uuid: crypto.randomUUID(),
-            batch_id: v.batch_id, usn: v.usn, student_name: v.student_name,
-            email: v.email, category: v.category, status: v.status });
+          await createOrRestoreStudent(checked);
           imported++;
+          if (checked.restoreStudentId) restored++;
         } catch (e) {
-          skipped.push({ row: r.row, usn: r.usn, reason: studentSaveError(e).message });
+          skipped.push({ row: r.row, usn: r.usn, reason: e.status === 409 ? e.message : studentSaveError(e).message });
         }
       }
       res.json({ success: true,
-        message: 'Import completed. Successfully imported: ' + imported + ', Skipped: ' + skipped.length,
-        data: { imported: imported, skipped: skipped.length, skippedRows: skipped } });
+        message: 'Import completed. Successfully imported: ' + imported + (restored ? ' (including ' + restored + ' restored)' : '') + ', Skipped: ' + skipped.length,
+        data: { imported: imported, restored, skipped: skipped.length, skippedRows: skipped } });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }

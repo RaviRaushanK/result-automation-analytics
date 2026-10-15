@@ -37,12 +37,24 @@ async function main() {
   const editSessionFixture = { session_id: 9100, batch_id: 9001, semester: '1', exam_session: 'Jan', exam_year: 2000, Batch: editBatchFixture };
   const editSubjectFixture = { subject_id: 9200, session_id: 9100, course_id: 9300, subject_code: 'VERIFY', subject_name: 'Verification Project', subject_type: 'project', credits: 0, max_internal: 0, max_external: 100, max_marks: 100 };
   const verificationWrites = [];
+  const rosterFixtureCourses = [{ course_id: 9400, subject_code: 'VERIFY', subject_name: 'Required course', credits: 4, max_marks: 100, is_required: true }, { course_id: 9401, subject_code: 'EXTRA', subject_name: 'Course to exclude', credits: 3, max_marks: 100, is_required: true }];
   const assignmentFaculty = [1, 2, 3, 4].map(faculty_id => ({ faculty_id, faculty_name: 'Test Faculty ' + faculty_id, status: 'active' }));
+  let emptyFacultyFixture = false;
   const assignmentSubjects = [{ ...editSubjectFixture, Faculties: [assignmentFaculty[0]] }, { ...editSubjectFixture, subject_id: 9201, subject_code: 'OTHER', subject_name: 'Unassigned Subject', Faculties: [] }];
   app.use((req, res, next) => {
-    if (!/\/verification\/(sessions|subjects|faculty)/.test(req.get('referer') || '')) return next();
+    if (!/\/verification\/(sessions|subjects|faculty|roster)/.test(req.get('referer') || '')) return next();
+    if (req.method === 'POST' && req.path === '/subjects/roster' && (req.get('referer') || '').includes('/verification/roster')) {
+      verificationWrites.push({ path: req.path, body: req.body });
+      const ids = [req.body.required_courses || []].flat().map(String);
+      rosterFixtureCourses.forEach(course => { course.is_required = ids.includes(String(course.course_id)); });
+      return res.redirect('/verification/roster?verified=1&saved=1');
+    }
+    if (req.method === 'POST' && req.path === '/subjects' && (req.get('referer') || '').includes('/verification/subjects')) {
+      verificationWrites.push({ path: req.path, body: req.body });
+      return res.status(201).json({ success: true, data: { ...req.body, subject_id: 9202 } });
+    }
     if ((req.get('referer') || '').includes('/verification/faculty')) {
-      if (req.method === 'GET' && req.path === '/faculty/api') return res.json({ data: assignmentFaculty });
+      if (req.method === 'GET' && req.path === '/faculty/api') return res.json({ data: emptyFacultyFixture ? [] : assignmentFaculty });
       if (req.method === 'GET' && req.path === '/subjects/session/9100') return res.json(assignmentSubjects);
       if (req.method === 'PUT' && req.path === '/faculty/api/assignments') {
         verificationWrites.push({ path: req.path, body: req.body });
@@ -76,8 +88,19 @@ async function main() {
     title: 'Session defaults verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'], sessions: [editSessionFixture],
     batches: [{ batch_id: 9003, batch_name: 'Old Batch', start_year: 2020, end_year: 2022 }, { batch_id: 9001, batch_name: 'MCA Test', start_year: 2025, end_year: 2027 }, { batch_id: 9002, batch_name: 'BTech Test', start_year: 2026, end_year: 2030 }]
   }));
-  app.get('/verification/subjects', (req, res) => res.render('subjects/index', { title: 'Subject edit verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/subjects.css'] }));
+  app.get('/verification/subjects', (req, res) => res.render('subjects/index', { title: 'Subject edit verification', canManageRoster: true, pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/subjects.css'] }));
+  app.get('/verification/roster', (req, res) => res.render('subjects/courses', {
+    title: 'Semester Roster verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/subjects.css'], canManageRoster: true,
+    batches: [{ batch_id: 9001, batch_name: 'MCA', start_year: 2025, end_year: 2027 }, { batch_id: 9002, batch_name: 'BTech', start_year: 2026, end_year: 2030 }],
+    selected: { batch_id: 9002, semester: '1' }, semesterLimit: 8, saved: req.query.saved === '1', editingRoster: req.query.verified !== '1' || req.query.edit === '1',
+    courses: rosterFixtureCourses.map(course => ({ ...course, roster_verified: req.query.verified === '1' }))
+  }));
   app.get('/verification/faculty', (req, res) => res.render('faculty/index', { title: 'Faculty count verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/faculty.css'] }));
+  app.get('/verification/import-success', (req, res) => res.render('results/success', {
+    title: 'Import Successful', pageStyles: ['/css/result-success.css'], savedConfirmed: true,
+    studentName: 'RAVI RAUSHAN KUMAR', usn: '1MV25MC061', sessionDisplay: 'MCA 2025 - June 2026 - Semester 1',
+    attemptNo: 1, examType: 'REGULAR', subjectsCount: 6, overallResult: 'pass', sgpa: 8.25, cgpa: req.query.missing === '1' ? null : 8.25
+  }));
   app.use('/settings', require('../routes/settingsRoutes'));
   app.use(require('../routes/authRoutes'));
   const server = app.listen(0, '127.0.0.1');
@@ -133,6 +156,102 @@ async function main() {
     const available = name => until(`!document.getElementById(${JSON.stringify('report-' + name)}).disabled`);
     await command('Page.enable'); await command('Runtime.enable');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    if (process.env.IMPORT_SUCCESS_ONLY === '1') {
+      for (const width of [1440, 900, 390]) for (const theme of ['light', 'dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await command('Page.navigate', { url: `${base}/verification/import-success?missing=${width === 390 ? 1 : 0}` });
+        await until("!!document.querySelector('.import-success-mark.is-confirmed') && document.readyState==='complete' && typeof window.setThemePreference==='function'");
+        await evaluate(`window.setThemePreference('${theme}')`); await pause(700);
+        assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'), true);
+        assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-mark')).animationName"), 'import-confirm');
+        assert.equal(await evaluate("document.querySelectorAll('.import-celebration span').length"), 36);
+        assert.equal(await evaluate("[...document.querySelectorAll('.import-celebration span')].some(piece=>Number(getComputedStyle(piece).opacity)>0)"), true);
+        await evaluate("document.getElementById('replayImportCelebration').click()");
+        assert.equal(await evaluate("document.querySelector('.import-success-header').getAnimations({subtree:true}).some(a=>a.animationName==='import-confetti'&&a.currentTime<500)"), true);
+        assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-header')).opacity"), '1');
+        assert.equal(await evaluate("document.querySelectorAll('.import-success-actions a').length"), 2);
+        await pause(900);
+        await fs.writeFile(path.join(output, `import-success-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+      await until("document.getElementById('replayImportCelebration').hidden");
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-mark')).animationName"), 'none');
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('.import-success-header')).opacity"), '1');
+      assert.equal(await evaluate("document.getElementById('replayImportCelebration').hidden"), true);
+      assert.deepEqual(exceptions, []);
+      console.log('Import success: saved metrics, missing CGPA, responsive light/dark layout, confirmation animation and reduced-motion passed; no result saved');
+      console.log(`Screenshots: ${output}`); return;
+    }
+    if (process.env.SESSION_SUMMARY_ONLY === '1') {
+      await command('Page.navigate', { url: `${base}/verification/sessions` });
+      await until("document.getElementById('currentSessionName')?.textContent==='Semester 1'");
+      assert.equal(await evaluate("document.getElementById('currentSessionLabel').textContent"), 'Latest Session');
+      assert.equal(await evaluate("document.getElementById('currentSessionStatus').textContent"), 'Completed');
+      for (const width of [1440, 1280, 900, 390]) for (const theme of ['light', 'dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+        await evaluate(`window.setThemePreference('${theme}')`); await pause(350);
+        assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'), true, JSON.stringify(await evaluate("({width:innerWidth,overflow:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1&&getComputedStyle(e).position!=='fixed').slice(0,8).map(e=>[e.tagName,e.className])})")));
+        assert.equal(await evaluate("[...document.querySelectorAll('.sessions-summary .stat-card')].every(card=>card.scrollWidth<=card.clientWidth+1)"), true);
+        assert.equal(await evaluate("new Set([...document.querySelectorAll('.sessions-summary .stat-card')].map(card=>Math.round(card.getBoundingClientRect().height))).size"), 1);
+        assert.equal(await evaluate("new Set([...document.querySelectorAll('.sessions-summary .stat-card')].map(card=>Math.round(card.getBoundingClientRect().width))).size"), 1);
+        assert.equal(await evaluate("[...document.querySelectorAll('.sessions-summary .stat-card')].every(card=>card.getBoundingClientRect().height<=100)"), true);
+        assert.equal(await evaluate("!document.querySelector('.sessions-summary #currentSessionContext') && document.getElementById('currentSessionBatch').textContent==='MCA 2025'"), true);
+        await fs.writeFile(path.join(output, `session-summary-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      }
+      await evaluate("document.getElementById('currentSessionBatch').textContent='Master of Computer Applications Academic Batch 2025-2027';document.getElementById('currentSessionName').textContent='Semester 12'");
+      assert.equal(await evaluate("[...document.querySelectorAll('.sessions-summary .stat-content')].every(content=>content.scrollWidth<=content.clientWidth+1)"), true);
+      assert.deepEqual(exceptions, []);
+      console.log('Session summary: structured details, equal card heights, desktop/tablet/mobile, light/dark and long labels passed; no data saved');
+      console.log(`Screenshots: ${output}`); return;
+    }
+    if (process.env.REPORT_BATCH_DEFAULTS_ONLY === '1') {
+      const batches = await service.getOptions('batches', {});
+      assert.ok(batches.length, 'At least one batch is required for browser verification');
+      const latest = String(batches[0].batch_id);
+      for (const type of ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress']) {
+        await command('Page.navigate', { url: `${base}/reports/${type}` });
+        await until(`document.getElementById('report-batch_id')?.value===${JSON.stringify(latest)} && !document.getElementById('report-batch_id').disabled && document.getElementById('reports-filter-state').textContent!=='Loading filters...'`);
+        assert.equal(await evaluate("document.getElementById('reports-error').hidden"), true);
+        await choose('batch_id', '');
+        await evaluate("document.getElementById('reports-filters').dispatchEvent(new Event('reset',{cancelable:true}))");
+        await until(`document.getElementById('report-batch_id').value===${JSON.stringify(latest)} && document.getElementById('reports-filter-state').textContent!=='Loading filters...'`);
+        if (type === 'class') {
+          for (const width of [1440, 390]) {
+            await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+            await pause(350);
+            await fs.writeFile(path.join(output, `report-default-batch-${width}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+            assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'), true);
+          }
+        }
+        console.log(`${type}: latest batch selected on opening and Reset`);
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Screenshots: ${output}`); return;
+    }
+    if (process.env.ROSTER_LINK_ONLY === '1') {
+      const models = require('../database/models');
+      const courses = await models.AcademicCourse.findAll({ where: { roster_verified: true }, raw: true });
+      const batches = await models.Batch.findAll({ raw: true });
+      const selected = courses.find(course => Number(course.semester) <= require('../public/js/academic-form-options').semesterCount(batches.find(batch => String(batch.batch_id) === String(course.batch_id))));
+      assert.ok(selected, 'A verified roster is required for the real edit-link check');
+      await command('Page.navigate', { url: `${base}/subjects?tab=roster&batch_id=${selected.batch_id}&semester=${selected.semester}` });
+      await until("!!document.getElementById('editRosterBtn') && document.readyState==='complete'");
+      const target = await evaluate("(()=>{const b=document.getElementById('editRosterBtn');const r=b.getBoundingClientRect();return{href:b.href,x:r.x+r.width/2,y:r.y+r.height/2}})()");
+      console.log('Edit link:', target.href);
+      await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+      await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+      await until("document.querySelectorAll('[name=required_courses]').length>0 && document.readyState==='complete'");
+      assert.equal(await evaluate("location.pathname"), '/subjects/roster/edit');
+      assert.equal(await evaluate("new URLSearchParams(location.search).get('batch_id')"), String(selected.batch_id));
+      assert.equal(await evaluate("new URLSearchParams(location.search).get('semester')"), String(selected.semester));
+      await evaluate("document.querySelector('[name=required_courses]').checked=false;document.getElementById('reviewRosterBtn').click()");
+      await until("document.getElementById('rosterReviewModal').classList.contains('show')"); await pause(400);
+      await evaluate("document.getElementById('rosterAcknowledge').click()");
+      assert.equal(await evaluate("document.getElementById('confirmRosterBtn').disabled"), false);
+      await fs.writeFile(path.join(output, 'real-roster-edit-review.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      console.log('Real roster: actual Edit link, edit controls, review and acknowledgement passed; no save submitted');
+      console.log(`Screenshots: ${output}`); return;
+    }
     await command('Page.navigate', { url: `${base}/batches` });
     await until("!!document.getElementById('createBatchHeaderBtn') && document.readyState === 'complete'");
     await evaluate("document.getElementById('createBatchHeaderBtn').click()");
@@ -249,6 +368,17 @@ async function main() {
     await evaluate("document.getElementById('subjectConfirmBtn').click()");
     await until("!document.getElementById('subjectConfirmModal').classList.contains('show')");
     assert.equal(verificationWrites[1].body.subject_name, 'Corrected Project');
+    await pause(400);
+    await evaluate("document.getElementById('createSubjectBtn').click()");
+    await until("document.getElementById('subjectFormModal').classList.contains('show')"); await pause(400);
+    await evaluate("document.getElementById('subjectCode').value='NEW';document.getElementById('subjectName').value='New Course';document.getElementById('subjectSaveBtn').click()");
+    await until("document.getElementById('subjectConfirmModal').classList.contains('show')"); await pause(400);
+    await evaluate("document.getElementById('subjectConfirmBtn').click()");
+    await until("!!document.querySelector('#subjectsToastContainer .alert-link')");
+    assert.equal(await evaluate("new URL(document.querySelector('#subjectsToastContainer .alert-link').href).searchParams.get('semester')"), '1');
+    assert.equal(await evaluate("new URL(document.querySelector('#subjectsToastContainer .alert-link').href).searchParams.get('batch_id')"), '9001');
+    await pause(6500);
+    assert.equal(await evaluate("document.querySelector('#subjectsToastContainer .alert-link') === null"), true);
     console.log('Edit forms: split batch fields, year pickers, locked semester/month-year update, session summary and zero-credit/project subject confirmation passed (fixture saves only)');
     const batchResponse = await (await fetch(`${base}/batches?format=json`)).json();
     const latestBatch = require('../public/js/academic-form-options').sortBatches(batchResponse.data)[0];
@@ -271,13 +401,24 @@ async function main() {
       await evaluate("document.getElementById('uploadBatchSelect').value='';document.getElementById('uploadBatchSelect').dispatchEvent(new Event('change',{bubbles:true}))");
       assert.equal(await evaluate("document.getElementById('resultSessionSelect').disabled && document.getElementById('sessionDetailsCard').style.display==='none' && document.getElementById('extractButton').disabled"), true);
     }
+    emptyFacultyFixture = true;
+    await command('Page.navigate', { url: `${base}/verification/faculty` });
+    await until("!document.getElementById('facultyAvailabilityNotice')?.classList.contains('d-none') && document.getElementById('facultySessionSelect')?.options.length>1");
+    await evaluate("document.getElementById('facultySessionSelect').value='9100';document.getElementById('facultySessionSelect').dispatchEvent(new Event('change',{bubbles:true}))");
+    await until("!!document.querySelector('[data-edit-faculty=\"9201\"]')");
+    assert.equal(await evaluate("document.querySelector('[data-edit-faculty=\"9201\"]').disabled && document.querySelector('[data-subject-row=\"9201\"] .faculty-count-value').textContent==='0' && document.querySelector('[data-subject-row=\"9201\"]').textContent.includes('Unassigned')"), true);
+    await evaluate("document.getElementById('addAssignmentFacultyBtn').click()");
+    await until("document.getElementById('addFacultyModal').classList.contains('show')");
+    emptyFacultyFixture = false;
     await command('Page.navigate', { url: `${base}/verification/faculty` });
     await until("document.getElementById('facultySessionSelect')?.options.length>1 && !document.getElementById('facultySessionSelect').disabled");
     await evaluate("document.getElementById('facultySessionSelect').value='9100';document.getElementById('facultySessionSelect').dispatchEvent(new Event('change',{bubbles:true}))");
     await until("!!document.querySelector('[data-edit-faculty=\"9200\"]')");
     await evaluate("document.querySelector('[data-edit-faculty=\"9200\"]').click()");
     assert.equal(await evaluate("document.getElementById('facultyConfirmModal').classList.contains('show')"), false);
-    await evaluate("document.querySelector('[data-faculty-count=\"9200\"]').value=3;document.querySelector('[data-faculty-count=\"9200\"]').dispatchEvent(new Event('change',{bubbles:true}))");
+    await evaluate("document.querySelector('[data-faculty-count=\"9200\"]').value=5;document.querySelector('[data-faculty-count=\"9200\"]').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-review-faculty=\"9200\"]').click()");
+    assert.equal(await evaluate("document.querySelector('[data-faculty-count=\"9200\"]').value==='5' && document.querySelector('[data-faculty-count=\"9200\"]').classList.contains('is-invalid') && !document.getElementById('facultyConfirmModal').classList.contains('show')"), true);
+    await evaluate("document.querySelector('[data-faculty-count=\"9200\"]').value=3;document.querySelector('[data-faculty-count=\"9200\"]').dispatchEvent(new Event('input',{bubbles:true}))");
     assert.equal(await evaluate("document.querySelectorAll('[data-faculty-subject=\"9200\"]').length"), 3);
     await evaluate("[...document.querySelectorAll('[data-faculty-subject=\"9200\"]')].forEach((s,i)=>{s.value=String(i===2?2:i+1);s.dispatchEvent(new Event('change',{bubbles:true}))});document.querySelector('[data-review-faculty=\"9200\"]').click()");
     assert.equal(await evaluate("document.getElementById('facultyConfirmModal').classList.contains('show')"), false);
@@ -312,23 +453,68 @@ async function main() {
     await until("document.getElementById('addFacultyModal').classList.contains('show') && !document.getElementById('facultyDepartment').disabled && !!document.getElementById('facultyDepartment').value");
     await pause(400);
     assert.equal(await evaluate("/master of computer applications/i.test(document.getElementById('facultyDepartment').selectedOptions[0].textContent)"), true);
-    await evaluate("document.getElementById('facultyCodeInput').value='VERIFY';document.getElementById('facultyNameInput').value='Verification Faculty';document.getElementById('facultyEmailInput').value='bad@@college.edu';document.getElementById('facultyEmailInput').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#addFacultyForm [type=submit]').click()");
-    assert.equal(await evaluate("document.getElementById('facultyEmailInput').classList.contains('is-invalid')"), true);
-    assert.equal(await evaluate("document.getElementById('facultyConfirmModal').classList.contains('show')"), false);
-    await evaluate("document.getElementById('facultyEmailInput').value='teacher@gmail.clh';document.getElementById('facultyEmailInput').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#addFacultyForm [type=submit]').click()");
-    assert.equal(await evaluate("document.getElementById('facultyEmailFeedback').textContent.includes('domain ending')"), true);
+    assert.equal(await evaluate("document.getElementById('facultyEmailInput') === null"), true);
+    await evaluate("document.getElementById('facultyCodeInput').value='VERIFY';document.getElementById('facultyNameInput').value='Verification Faculty'");
     assert.equal(await evaluate("document.getElementById('facultyConfirmModal').classList.contains('show')"), false);
     for (const width of [1440, 390]) for (const theme of ['light', 'dark']) {
       await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
       await evaluate(`window.setThemePreference('${theme}')`); await pause(150);
       assert.equal(await evaluate("document.getElementById('addFacultyModal').scrollWidth <= innerWidth + 1"), true);
-      await fs.writeFile(path.join(output, `faculty-create-email-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      await fs.writeFile(path.join(output, `faculty-create-form-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     }
-    await evaluate("document.getElementById('facultyEmailInput').value='teacher@college.edu';document.getElementById('facultyEmailInput').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#addFacultyForm [type=submit]').click()");
+    await evaluate("document.querySelector('#addFacultyForm [type=submit]').click()");
     await until("document.getElementById('facultyConfirmModal').classList.contains('show')");
-    assert.equal(await evaluate("document.getElementById('facultyConfirmSummary').textContent.includes('teacher@college.edu')"), true);
-    console.log('Academic forms: latest batch defaults, 4/8 semester options, consistent automatic session status, MCA department defaults and faculty email validation passed (no saves)');
+    assert.equal(await evaluate("!document.getElementById('facultyConfirmSummary').textContent.includes('Email:')"), true);
+    console.log('Academic forms: latest batch defaults, 4/8 semesters, automatic status, MCA default and Add Faculty without email passed (no saves)');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    for (const width of [1440,390]) for (const theme of ['light','dark']) {
+      await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await command('Page.navigate', { url: `${base}/verification/roster?verified=1` });
+      await until("!!document.getElementById('editRosterBtn') && document.readyState === 'complete'");
+      await evaluate(`window.setThemePreference('${theme}')`); await pause(300);
+      assert.equal(await evaluate("!document.querySelector('[name=required_courses]') && !document.querySelector('[name=confirm]')"), true);
+      assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'), true);
+      await fs.writeFile(path.join(output, `roster-readonly-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    }
+    await command('Page.navigate', { url: `${base}/verification/roster` });
+    await until("!!document.getElementById('course-semester') && document.readyState === 'complete'");
+    assert.equal(await evaluate("document.getElementById('course-semester').options.length"), 8);
+    await command('Page.navigate', { url: `${base}/verification/roster?verified=1` });
+    await until("!!document.getElementById('editRosterBtn') && document.readyState === 'complete'");
+    assert.equal(await evaluate("!document.querySelector('[name=required_courses]') && !document.querySelector('[name=confirm]')"), true);
+    await command('Page.navigate', { url: `${base}/verification/roster?verified=1&edit=1` });
+    await until("!!document.getElementById('reviewRosterBtn') && document.readyState === 'complete'");
+    await evaluate("document.querySelectorAll('[name=required_courses]').forEach(input=>input.checked=false);document.getElementById('reviewRosterBtn').click()");
+    assert.equal(await evaluate("document.getElementById('rosterReviewError').textContent.includes('at least one')"), true);
+    await evaluate("document.querySelector('[name=required_courses][value=\"9400\"]').checked=true;document.getElementById('reviewRosterBtn').click()");
+    await until("document.getElementById('rosterReviewModal').classList.contains('show')"); await pause(400);
+    assert.equal(await evaluate("document.getElementById('rosterReviewSummary').textContent.includes('Removed from required roster (1)') && document.getElementById('rosterReviewSummary').textContent.includes('EXTRA')"), true);
+    await evaluate("document.querySelector('#rosterReviewModal [data-bs-dismiss=modal]').click()");
+    await until("!document.getElementById('rosterReviewModal').classList.contains('show')"); await pause(400);
+    assert.equal(await evaluate("!document.querySelector('[name=required_courses][value=\"9401\"]').checked && document.getElementById('rosterAcknowledge').disabled"), true);
+    await evaluate("document.getElementById('reviewRosterBtn').click()");
+    await until("document.getElementById('rosterReviewModal').classList.contains('show')"); await pause(400);
+    const beforeReviewWrites = verificationWrites.length;
+    await evaluate("document.getElementById('confirmRosterBtn').click()");
+    assert.equal(verificationWrites.length, beforeReviewWrites);
+    for (const width of [1440,390]) for (const theme of ['light','dark']) {
+      await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await evaluate(`window.setThemePreference('${theme}')`); await pause(300);
+      assert.equal(await evaluate("document.getElementById('rosterReviewModal').scrollWidth <= innerWidth+1"), true);
+      await fs.writeFile(path.join(output, `roster-correction-review-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    }
+    await evaluate("document.getElementById('rosterAcknowledge').checked=true;document.getElementById('rosterAcknowledge').dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('confirmRosterBtn').click()");
+    await until("!!document.getElementById('editRosterBtn') && document.getElementById('rosterContent').textContent.includes('Not required')");
+    assert.equal(await evaluate("!document.querySelector('[name=required_courses]') && !document.querySelector('[name=confirm]')"), true);
+    const correctionWrite = verificationWrites.find(write=>write.path==='/subjects/roster');
+    assert.equal(correctionWrite.body.confirm, '1'); assert.deepEqual([correctionWrite.body.required_courses].flat(), ['9400']);
+    console.log('Roster correction: verified read-only view, explicit editing, empty selection guard, added/removed review, cancel, acknowledgement and corrected required selection passed; creation reminder expires after six seconds (fixture writes only)');
+    await evaluate("document.getElementById('course-batch').value='9001';document.getElementById('course-batch').dispatchEvent(new Event('change',{bubbles:true}))");
+    assert.equal(await evaluate("document.getElementById('course-semester').options.length"), 4);
+    assert.equal(await evaluate("document.getElementById('rosterContent').hidden && (!document.getElementById('confirmRosterBtn') || document.getElementById('confirmRosterBtn').disabled)"), true);
+    await evaluate("document.getElementById('course-batch').value='9002';document.getElementById('course-batch').dispatchEvent(new Event('change',{bubbles:true}))");
+    assert.equal(await evaluate("document.getElementById('course-semester').options.length"), 8);
+    if (process.env.ACADEMIC_FORMS_ONLY === '1') { assert.deepEqual(exceptions, []); console.log(`Screenshots: ${output}`); return; }
     const batches = await service.getOptions('batches');
     let scope;
     for (const batch of batches) {
@@ -819,17 +1005,31 @@ async function main() {
     assert.ok(Buffer.from(studentPdf.data, 'base64').length > 1000);
     await fs.writeFile(path.join(output, 'student-consolidated-print.pdf'), Buffer.from(studentPdf.data, 'base64'));
     await fs.writeFile(path.join(output, 'student-consolidated-print.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-    await command('Page.navigate', { url: `${base}/subjects/courses?batch_id=${scope.query.batch_id}&semester=${scope.query.semester}` });
-    await until("document.querySelectorAll('input[name=required_courses]').length > 0");
-    assert.equal(await evaluate("document.querySelector('input[name=confirm]').required"), true);
-    await fs.writeFile(path.join(output, 'semester-courses-desktop.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-    await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await command('Page.navigate', { url: `${base}/subjects/courses?batch_id=${scope.query.batch_id}&semester=${scope.query.semester}` });
-    await until("document.querySelector('input[name=confirm]') !== null");
-    await evaluate("document.documentElement.setAttribute('data-theme','dark')");
-    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true);
-    await fs.writeFile(path.join(output, 'semester-courses-mobile-dark.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
-    console.log('semester courses: required-roster form and responsive layout passed (no database writes)');
+    for (const width of [1440, 390]) for (const theme of ['light', 'dark']) {
+      await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await command('Page.navigate', { url: `${base}/subjects/courses?batch_id=${scope.query.batch_id}&semester=${scope.query.semester}` });
+      await until("!!document.querySelector('[data-roster-page]') && document.readyState === 'complete'");
+      await evaluate(`window.setThemePreference('${theme}')`); await pause(300);
+      assert.equal(await evaluate("location.pathname === '/subjects' && new URLSearchParams(location.search).get('tab') === 'roster'"), true);
+      assert.equal(await evaluate("document.getElementById('editRosterBtn') ? !document.querySelector('input[name=required_courses]') && !document.querySelector('input[name=confirm]') : document.getElementById('rosterAcknowledge').required && document.getElementById('rosterAcknowledge').disabled"), true);
+      assert.equal(await evaluate("document.getElementById('course-batch').value"), String(scope.query.batch_id));
+      assert.equal(await evaluate("document.getElementById('course-semester').value"), String(scope.query.semester));
+      assert.equal(await evaluate("document.getElementById('semester-roster-tab').getAttribute('aria-current')"), 'page');
+      assert.equal(await evaluate("!document.getElementById('subjectSessionSelect')"), true);
+      assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true);
+      await fs.writeFile(path.join(output, `semester-roster-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      await evaluate("document.getElementById('examination-subjects-tab').click()");
+      await until(`document.getElementById('subjectBatchSelect')?.value === '${scope.query.batch_id}' && !document.getElementById('subjectSessionSelect').disabled`);
+      await evaluate(`document.getElementById('subjectSessionSelect').value='${scope.query.session_id}';document.getElementById('subjectSessionSelect').dispatchEvent(new Event('change',{bubbles:true}))`);
+      await until("document.querySelectorAll('#subjectsTableBody [data-edit-subject]').length > 0");
+      assert.equal(await evaluate("document.getElementById('examination-subjects-tab').getAttribute('aria-current')"), 'page');
+      assert.equal(await evaluate(`new URL(document.getElementById('semester-roster-tab').href).searchParams.get('semester') === '${scope.query.semester}'`), true);
+      assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true);
+      await fs.writeFile(path.join(output, `examination-subjects-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+    }
+    await command('Page.navigate', { url: `${base}/subjects?tab=roster` });
+    await until("!!document.getElementById('course-batch') && document.readyState === 'complete'");
+    assert.equal(await evaluate("document.getElementById('course-batch').value"), String(latestBatch.batch_id));
     const settingsRepository = require('../repositories/settingsRepository');
     const settingsService = require('../services/settingsService');
     const originalSettings = { ...settingsRepository };

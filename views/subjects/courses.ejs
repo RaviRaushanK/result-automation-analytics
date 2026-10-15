@@ -1,18 +1,69 @@
-<section class="reports-page">
-  <header class="reports-header"><h1>Semester Courses</h1></header>
-  <form method="get" class="reports-filters row g-3 align-items-end">
-    <div class="col-md-6"><label class="form-label" for="course-batch">Batch</label><select class="form-select" id="course-batch" name="batch_id" required><option value="">Select Batch</option><% batches.forEach(batch => { %><option value="<%= batch.batch_id %>" <%= String(selected.batch_id) === String(batch.batch_id) ? 'selected' : '' %>><%= batch.batch_name %></option><% }); %></select></div>
-    <div class="col-md-3"><label class="form-label" for="course-semester">Semester</label><input type="number" class="form-control" min="1" max="24" id="course-semester" name="semester" value="<%= selected.semester %>" required></div>
-    <div class="col-auto"><button class="btn btn-primary" type="submit">Load Courses</button></div>
-  </form>
-  <% if (saved) { %><div class="alert alert-success" role="status">Required semester courses confirmed.</div><% } %>
-  <% if (courses.some(course => !course.roster_verified)) { %><div class="alert alert-warning">This semester's required courses await review.</div><% } %>
-  <form method="post" action="/subjects/courses">
-    <input type="hidden" name="batch_id" value="<%= selected.batch_id %>"><input type="hidden" name="semester" value="<%= selected.semester %>">
-    <div class="table-responsive"><table class="table reports-table academic-course-table"><thead><tr><th scope="col">Required</th><th scope="col">Code</th><th scope="col">Course</th><th scope="col">Credits</th><th scope="col">Maximum Marks</th></tr></thead><tbody>
-    <% courses.forEach(course => { %><tr><td><input type="checkbox" name="required_courses" value="<%= course.course_id %>" <%= course.is_required ? 'checked' : '' %> aria-label="Required course <%= course.subject_code %>"></td><td><%= course.subject_code %></td><td><%= course.subject_name %></td><td><%= course.credits %></td><td><%= course.max_marks %></td></tr><% }); %>
-    <% if (!courses.length) { %><tr><td colspan="5">No semester courses available.</td></tr><% } %>
-    </tbody></table></div>
-    <% if (courses.length) { %><label class="form-check mt-3"><input type="checkbox" class="form-check-input" name="confirm" value="1" required><span class="form-check-label">I confirm this is the required course roster for this batch and semester.</span></label><button class="btn btn-primary mt-3" type="submit">Confirm Required Courses</button><% } %>
-  </form>
-</section>
+<div class="container-fluid batches-page subjects-page" data-roster-page data-batches="<%= JSON.stringify(batches) %>">
+  <div class="dashboard-header subjects-header"><h4>Subjects Management</h4></div>
+  <%- include('partials/tabs', { activeTab: 'roster', canManageRoster: true, selected }) %>
+  <p class="subjects-description" id="semester-roster-description">Verified required courses for the batch and semester, used for regular import validation and academic outcomes across examination sittings.</p>
+  <section aria-labelledby="semester-roster-tab" aria-describedby="semester-roster-description">
+    <form method="get" action="/subjects" class="roster-filters row g-3 align-items-end mb-4" id="rosterFilters">
+      <input type="hidden" name="tab" value="roster">
+      <div class="col-md-6"><label class="form-label" for="course-batch">Batch <span class="text-danger">*</span></label>
+        <select class="form-select" id="course-batch" name="batch_id" required>
+          <option value="">Select Batch</option>
+          <% batches.forEach(batch => { %><option value="<%= batch.batch_id %>" <%= String(selected.batch_id) === String(batch.batch_id) ? 'selected' : '' %>><%= batch.batch_name %> (<%= batch.start_year %>-<%= batch.end_year %>)</option><% }); %>
+        </select>
+      </div>
+      <div class="col-md-3"><label class="form-label" for="course-semester">Semester <span class="text-danger">*</span></label>
+        <select class="form-select" id="course-semester" name="semester" required <%= semesterLimit ? '' : 'disabled' %>>
+          <% if (!semesterLimit) { %><option value="">No semester range available</option><% } %>
+          <% for (let number = 1; number <= semesterLimit; number++) { %><option value="<%= number %>" <%= String(selected.semester) === String(number) ? 'selected' : '' %>>Semester <%= number %></option><% } %>
+        </select>
+      </div>
+      <div class="col-md-3"><button class="btn btn-outline-primary" type="submit" id="loadRosterBtn" <%= semesterLimit ? '' : 'disabled' %>><span class="material-icons btn-icon" aria-hidden="true">refresh</span>Load Roster</button></div>
+    </form>
+    <div class="alert alert-info d-none" id="rosterSelectionChanged" role="status">Selection changed. Load the selected semester roster before confirming.</div>
+    <% if (saved) { %><div class="alert alert-success" role="status" id="rosterSaved">Required semester courses confirmed.</div><% } %>
+    <% if (!batches.length) { %><div class="alert alert-info" role="status">No batches available.</div><% } else if (!semesterLimit) { %><div class="alert alert-warning" role="status">The selected batch needs valid start and end years before its semester roster can be reviewed.</div><% } %>
+    <% const editRoster = typeof editingRoster !== 'undefined' ? editingRoster : courses.some(course => !Number(course.roster_verified)); %>
+    <% const rosterUrl = '/subjects?tab=roster&batch_id=' + encodeURIComponent(selected.batch_id) + '&semester=' + encodeURIComponent(selected.semester); %>
+    <div id="rosterContent">
+      <% const selectedBatch = batches.find(batch => String(batch.batch_id) === String(selected.batch_id)); %>
+      <% if (selected.semester) { %>
+        <div class="roster-heading"><h5><%= selectedBatch?.batch_name %> / Semester <%= selected.semester %></h5><span class="roster-review-status"><%= !courses.length ? 'No courses' : courses.every(course => Number(course.roster_verified)) ? (editRoster ? 'Editing verified roster' : 'Verified') : 'Review required' %></span></div>
+      <% } %>
+      <% if (courses.some(course => !Number(course.roster_verified))) { %><div class="alert alert-warning" role="status">This semester's required courses await review.</div><% } %>
+      <% if (courses.length && !editRoster) { %><a class="btn btn-outline-primary mb-3" id="editRosterBtn" href="/subjects/roster/edit?batch_id=<%= encodeURIComponent(selected.batch_id) %>&amp;semester=<%= encodeURIComponent(selected.semester) %>"><span class="material-icons btn-icon" aria-hidden="true">edit</span>Edit Required Courses</a><% } %>
+      <% if (courses.length && editRoster) { %><p class="subjects-description">Uncheck a course to exclude it from the required roster. Its course record and saved results are retained.</p><% } %>
+      <form method="post" action="/subjects/roster" id="rosterConfirmation">
+        <input type="hidden" name="batch_id" value="<%= selected.batch_id %>"><input type="hidden" name="semester" value="<%= selected.semester %>">
+        <div class="table-responsive"><table class="table table-hover align-middle academic-course-table mb-0"><thead><tr><th scope="col">Required</th><th scope="col">Code</th><th scope="col">Course</th><th scope="col">Credits</th><th scope="col">Maximum Marks</th><th scope="col">Review</th></tr></thead><tbody>
+          <% courses.forEach(course => { %><tr>
+            <td><% if (editRoster) { %><input class="form-check-input" type="checkbox" name="required_courses" value="<%= course.course_id %>" data-original-required="<%= Number(course.is_required) ? '1' : '0' %>" data-course-label="<%= course.subject_code + ' - ' + course.subject_name %>" <%= Number(course.is_required) ? 'checked' : '' %> aria-label="Required course <%= course.subject_code %>"><% } else { %><span><%= Number(course.is_required) ? 'Required' : 'Not required' %></span><% } %></td>
+            <td class="fw-semibold"><%= course.subject_code %></td><td><%= course.subject_name %></td><td><%= course.credits %></td><td><%= course.max_marks %></td><td><%= Number(course.roster_verified) ? 'Verified' : 'Pending' %></td>
+          </tr><% }); %>
+          <% if (!courses.length) { %><tr><td colspan="6" class="text-center py-4">No semester courses available.</td></tr><% } %>
+        </tbody></table></div>
+        <% if (courses.length && editRoster) { %>
+          <div class="alert alert-danger d-none mt-3" id="rosterReviewError" role="alert"></div>
+          <div class="roster-confirmation">
+            <a class="btn btn-outline-secondary" href="<%= rosterUrl %>" id="cancelRosterEdit">Cancel</a>
+            <button class="btn btn-primary" type="submit" id="reviewRosterBtn"><span class="material-icons btn-icon" aria-hidden="true">fact_check</span>Review Required Courses</button>
+          </div>
+          <noscript><label><input type="checkbox" name="confirm" value="1" required> I confirm the required course selection.</label><button type="submit" class="btn btn-primary">Confirm Required Courses</button></noscript>
+        <% } %>
+      </form>
+    </div>
+  </section>
+  <% if (courses.length && editRoster) { %>
+    <div class="modal fade batches-modal" id="rosterReviewModal" tabindex="-1" aria-labelledby="rosterReviewTitle" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="rosterReviewTitle">Review Required Courses</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <p><strong><%= selectedBatch?.batch_name %> / Semester <%= selected.semester %></strong></p>
+        <div id="rosterReviewSummary"></div>
+        <p class="subjects-description mt-3">Required-course changes affect regular import validation and recalculated academic outcomes. Saved result marks are not rewritten.</p>
+        <label class="form-check"><input class="form-check-input" type="checkbox" id="rosterAcknowledge" form="rosterConfirmation" name="confirm" value="1" required disabled><span class="form-check-label">I have reviewed and confirm this required course roster.</span></label>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back to Editing</button><button type="submit" form="rosterConfirmation" class="btn btn-primary" id="confirmRosterBtn" disabled>Confirm Roster</button></div>
+    </div></div></div>
+  <% } %>
+  <script src="/js/academic-form-options.js"></script>
+  <script src="/js/subjects-roster.js"></script>
+</div>

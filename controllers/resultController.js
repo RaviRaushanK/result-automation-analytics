@@ -931,6 +931,8 @@ const resultController = {
 
       res.render('results/success', {
         title: 'Import Successful - SRAAS',
+        pageStyles: ['/css/result-success.css'],
+        savedConfirmed: !!result,
         breadcrumbItems: [
           { label: 'Result Management' },
           { label: 'Upload Results', route: '/results/upload' },

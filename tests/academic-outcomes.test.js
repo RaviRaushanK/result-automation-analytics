@@ -176,6 +176,9 @@ test('subject creation passes the academic semester into stable-course resolutio
 });
 
 test('academic roster endpoints require administrators and validate scope and explicit confirmation before writes', async () => {
+  const savedBatch=db.Batch.findByPk,savedTransaction=db.sequelize.transaction;
+  db.Batch.findByPk=async()=>({batch_id:1,start_year:2025,end_year:2027});
+  db.sequelize.transaction=async fn=>fn({LOCK:{UPDATE:'UPDATE'}});
   const express=require('express');const app=express();app.use(express.urlencoded({extended:true}));
   app.use((req,res,next)=>{req.user={role:req.get('x-role')};req.session={adminId:1};next();});
   app.use('/subjects',require('../routes/subjectRoutes'));
@@ -186,7 +189,7 @@ test('academic roster endpoints require administrators and validate scope and ex
     for(const body of ['batch_id=1&semester=25&confirm=1&required_courses=1','batch_id=1&semester=1&required_courses=1','batch_id=1&semester=1&confirm=1&required_courses=oops']){
       assert.equal((await fetch(base,{method:'POST',headers:{'x-role':'admin','Content-Type':'application/x-www-form-urlencoded'},body})).status,400);
     }
-  }finally{await new Promise(resolve=>server.close(resolve));}
+  }finally{db.Batch.findByPk=savedBatch;db.sequelize.transaction=savedTransaction;await new Promise(resolve=>server.close(resolve));}
 });
 
 test('additive course migration is idempotent and does not update academic results or revaluation ledger', async () => {
@@ -228,7 +231,8 @@ test('session academic semester cannot change after configuring stable course of
 
 test('explicit semester roster confirmation writes only reviewed course definitions and rejects unmapped offerings', async () => {
   const controller=require('../controllers/academicCoursesController');
-  const saved=[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction];const writes=[];let unmapped=0;
+  const saved=[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction,db.Batch.findByPk];const writes=[];let unmapped=0;
+  db.Batch.findByPk=async()=>({batch_id:1,start_year:2025,end_year:2027});
   db.AcademicCourse.findAll=async()=>[1,2].map(course_id=>({course_id,update:async data=>writes.push({course_id,...data})}));
   db.Subject.count=async()=>unmapped;db.sequelize.transaction=async fn=>fn({LOCK:{UPDATE:'UPDATE'}});
   let status,redirected;
@@ -242,7 +246,7 @@ test('explicit semester roster confirmation writes only reviewed course definiti
     writes.length=0;unmapped=1;
     await controller.confirm(request,response,error=>{throw error;});
     assert.equal(status,409);assert.equal(writes.length,0);
-  }finally{[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction]=saved;}
+  }finally{[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction,db.Batch.findByPk]=saved;}
 });
 
 test('Progress cumulative GPA includes later semesters even when the newest Result is an earlier-semester retake', async () => {

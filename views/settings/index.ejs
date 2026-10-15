@@ -51,7 +51,7 @@
       <% } else if (section === 'academic-policy') { %>
         <dl class="settings-details"><div><dt>Grading Scheme</dt><dd><%= academic.scheme %></dd></div><div><dt>Participation Types</dt><dd><%= academic.examTypes.join(', ') %></dd></div><div><dt>Programme</dt><dd>MCA</dd></div></dl>
         <div class="table-responsive"><table class="table settings-policy-table"><caption>Current production grading scale</caption><thead><tr><th scope="col">Grade</th><th scope="col">Points</th><th scope="col">Percentage Band</th></tr></thead><tbody><% academic.grades.forEach(row => { %><tr><td><%= row.grade %></td><td><%= row.points %></td><td><%= row.band %></td></tr><% }); %></tbody></table></div>
-        <% if (account.role === 'admin') { %><a href="/subjects/courses" class="btn btn-outline-primary settings-save"><span class="material-icons" aria-hidden="true">fact_check</span>Review Course Rosters</a><% } %>
+        <% if (account.role === 'admin') { %><a href="/subjects?tab=roster" class="btn btn-outline-primary settings-save"><span class="material-icons" aria-hidden="true">fact_check</span>Review Semester Roster</a><% } %>
         <details class="mt-4"><summary>Academic Result Semantics</summary><pre class="settings-policy-reference"><%= academic.reference %></pre></details>
       <% } else if (section === 'system') { %>
         <dl class="settings-details">

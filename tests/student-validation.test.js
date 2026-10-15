@@ -33,6 +33,7 @@ function controllerFixture(saveError) {
     writes.push(value);
   } };
   const models = {
+    sequelize: {},
     Student: {
       findOne: async () => null,
       findByPk: async () => existing,
@@ -151,6 +152,111 @@ test('email errors explain the particular mistake', () => {
   assert.equal(emailValidation.getError('student.name@gmail.com'), '');
 });
 
+test('Student model normalizes USNs at the write boundary for builds and updates', async () => {
+  const sequelize = new Sequelize('validation', 'test', 'test', { dialect: 'mysql', logging: false });
+  const Student = require('../database/models/Student')(sequelize, DataTypes);
+  try {
+    const student = Student.build({ ...validStudent, usn: ' 1mv25mc061 ' });
+    assert.equal(student.getDataValue('usn'), '1MV25MC061');
+    student.set('usn', ' 1mV25mC062 ');
+    assert.equal(student.getDataValue('usn'), '1MV25MC062');
+  } finally { await sequelize.close(); }
+});
+
+test('Student model stores lowercase emails for builds and updates', async () => {
+  const sequelize = new Sequelize('validation', 'test', 'test', { dialect: 'mysql', logging: false });
+  const Student = require('../database/models/Student')(sequelize, DataTypes);
+  try {
+    const student = Student.build({ ...validStudent, email: ' RAVIRAUSHAN@GMAIL.COM ' });
+    assert.equal(student.getDataValue('email'), 'raviraushan@gmail.com');
+    student.set('email', ' STUDENT.NAME+TAG@GMAIL.COM ');
+    assert.equal(student.getDataValue('email'), 'student.name+tag@gmail.com');
+  } finally { await sequelize.close(); }
+});
+
+test('Add and Edit Student lowercase emails before duplicate lookup and persistence', async () => {
+  for (const action of ['create', 'update']) {
+    const f = controllerFixture();
+    f.models.Student.findOne = async options => {
+      if (options.where.email) assert.equal(options.where.email, 'raviraushan@gmail.com');
+      return null;
+    };
+    const response = await call(f.controller[action], { params: { id: '1' }, body: { ...validStudent, email: ' RAVIRAUSHAN@GMAIL.COM ' } });
+    assert.ok(response.statusCode < 300);
+    assert.equal(f.writes[0].email, 'raviraushan@gmail.com');
+  }
+});
+
+test('import preview and confirmation lowercase emails', async () => {
+  const f = controllerFixture();
+  const csv = 'USN,Student Name,Email,Category\n1MV25MC061,Student Name,RAVIRAUSHAN@GMAIL.COM,PGCET';
+  const preview = await call(f.controller.importPreview, {
+    body: { batch_id: '1', status: 'active' }, file: { buffer: Buffer.from(csv) }
+  });
+  assert.equal(preview.body.data.rows[0].email, 'raviraushan@gmail.com');
+  const response = await importDeleted(f.controller, { email: ' RAVIRAUSHAN@GMAIL.COM ' });
+  assert.equal(response.body.data.imported, 1);
+  assert.equal(f.writes[0].email, 'raviraushan@gmail.com');
+});
+
+test('email migration checks collisions before normalizing active and deleted rows', async () => {
+  const migration = require('../migrations/20261015130000-normalize-student-emails');
+  for (const conflicts of [[], [{ normalized_email: 'duplicate@gmail.com' }]]) {
+    const calls = [], transaction = {};
+    const queryInterface = { sequelize: { transaction: callback => callback(transaction),
+      query: async (sql, options) => { assert.equal(options.transaction, transaction); calls.push(sql); return [conflicts]; } } };
+    if (conflicts.length) await assert.rejects(migration.up(queryInterface), /duplicate normalized/);
+    else await migration.up(queryInterface);
+    assert.equal(calls.length, conflicts.length ? 1 : 2);
+    if (!conflicts.length) {
+      assert.match(calls[1], /SET email = LOWER\(TRIM\(email\)\)/);
+      assert.doesNotMatch(calls[1], /deleted_at|student_id|student_uuid/);
+    }
+  }
+});
+
+test('Add and Edit Student normalize USNs before duplicate lookup and persistence', async () => {
+  for (const action of ['create', 'update']) {
+    const f = controllerFixture();
+    f.models.Student.findOne = async options => {
+      if (options.where.usn) assert.equal(options.where.usn, '1MV25MC061');
+      return null;
+    };
+    const response = await call(f.controller[action], { params: { id: '1' }, body: { ...validStudent, usn: ' 1mv25mc061 ' } });
+    assert.ok(response.statusCode < 300);
+    assert.equal(f.writes[0].usn, '1MV25MC061');
+  }
+});
+
+test('import preview and confirmation normalize lowercase USNs', async () => {
+  const f = controllerFixture();
+  const csv = 'USN,Student Name,Email,Category\n1mv25mc061,Student Name,student@gmail.com,PGCET';
+  const preview = await call(f.controller.importPreview, {
+    body: { batch_id: '1', status: 'active' }, file: { buffer: Buffer.from(csv) }
+  });
+  assert.equal(preview.body.data.rows[0].usn, '1MV25MC061');
+  const result = await importDeleted(f.controller, { usn: ' 1mv25mc061 ' });
+  assert.equal(result.body.data.imported, 1);
+  assert.equal(f.writes[0].usn, '1MV25MC061');
+});
+
+test('USN migration checks collisions before normalizing active and deleted rows', async () => {
+  const migration = require('../migrations/20261015120000-normalize-student-usns');
+  for (const conflicts of [[], [{ normalized_usn: 'DUPLICATE' }]]) {
+    const calls = [], transaction = {};
+    const queryInterface = { sequelize: { transaction: callback => callback(transaction),
+      query: async (sql, options) => { assert.equal(options.transaction, transaction); calls.push(sql); return [conflicts]; } } };
+    if (conflicts.length) await assert.rejects(migration.up(queryInterface), /duplicate normalized/);
+    else await migration.up(queryInterface);
+    assert.equal(calls.length, conflicts.length ? 1 : 2);
+    assert.match(calls[0], /HAVING COUNT\(\*\) > 1/);
+    if (!conflicts.length) {
+      assert.match(calls[1], /SET usn = UPPER\(TRIM\(usn\)\)/);
+      assert.doesNotMatch(calls[1], /deleted_at|student_id|student_uuid/);
+    }
+  }
+});
+
 for (const action of ['create', 'update']) {
   test(action + ' exposes the underlying Sequelize field error', async () => {
     const error = { name: 'SequelizeValidationError', message: 'Validation error',
@@ -181,6 +287,143 @@ test('duplicate checks include deleted students that still occupy a unique key',
   assert.equal(response.statusCode, 400);
   assert.match(response.body.message, /Duplicate Email/);
   assert.equal(writes.length, 0);
+});
+
+function deletedStudentFixture({ batch = 1, active = false, emailConflict = false, failRestore = false, changed = false } = {}) {
+  const f = controllerFixture();
+  const original = { ...validStudent, student_id: 42, student_uuid: 'original-uuid', batch_id: batch,
+    deleted_at: active ? null : new Date('2026-01-01') };
+  const record = { ...original };
+  const events = [];
+  f.models.Student.findOne = async options => {
+    assert.equal(options.paranoid, false);
+    if (options.where.usn) return record;
+    if (options.where.email) return emailConflict ? { student_id: 99 } : record;
+    return null;
+  };
+  f.models.Student.findByPk = async (id, options) => {
+    assert.equal(id, 42); assert.equal(options.paranoid, false);
+    assert.equal(options.lock, 'UPDATE');
+    if (changed) record.deleted_at = null;
+    return record;
+  };
+  record.update = async (values, options) => { assert.ok(options.transaction); Object.assign(record, values); events.push('update'); };
+  record.restore = async options => {
+    assert.ok(options.transaction);
+    if (failRestore) throw new Error('restore failed');
+    record.deleted_at = null; events.push('restore');
+  };
+  f.models.sequelize.transaction = async callback => {
+    events.push('begin');
+    try { const result = await callback({ LOCK: { UPDATE: 'UPDATE' } }); events.push('commit'); return result; }
+    catch (e) { Object.assign(record, original); events.push('rollback'); throw e; }
+  };
+  return { ...f, record, events };
+}
+
+function importDeleted(controller, overrides = {}) {
+  return call(controller.importConfirm, { body: { batch_id: '1', status: 'active',
+    rows: [{ ...validStudent, row: 1, valid: true, ...overrides }] } });
+}
+
+test('Add Student restores an eligible deleted student with original identity and submitted details', async () => {
+  const f = deletedStudentFixture();
+  const response = await call(f.controller.create, { body: { ...validStudent, student_name: 'Updated Name', status: 'inactive' } });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.restored, true);
+  assert.equal(response.body.message, 'Student restored successfully');
+  assert.equal(response.body.data.student_id, 42);
+  assert.equal(response.body.data.student_uuid, 'original-uuid');
+  assert.equal(f.record.deleted_at, null);
+  assert.equal(f.record.student_name, 'Updated Name');
+  assert.equal(f.record.status, 'inactive');
+  assert.equal(f.writes.length, 0);
+  assert.deepEqual(f.events, ['begin', 'update', 'restore', 'commit']);
+});
+
+test('Add Student still rejects active duplicates, different batches, and conflicting emails', async () => {
+  for (const options of [{ active: true }, { batch: 2 }, { emailConflict: true }]) {
+    const f = deletedStudentFixture(options);
+    const response = await call(f.controller.create, { body: validStudent });
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body.message, /Duplicate/);
+    assert.deepEqual(f.events, []);
+    assert.equal(f.writes.length, 0);
+  }
+});
+
+test('Add Student rolls back failed restoration and reports concurrent changes without overwriting', async () => {
+  for (const options of [{ failRestore: true }, { changed: true }]) {
+    const f = deletedStudentFixture(options);
+    const response = await call(f.controller.create, { body: { ...validStudent, student_name: 'Updated Name' } });
+    assert.equal(response.statusCode, options.changed ? 409 : 500);
+    assert.equal(f.record.student_name, validStudent.student_name);
+    assert.ok(f.record.deleted_at);
+    assert.equal(f.events.at(-1), 'rollback');
+    if (options.changed) assert.match(response.body.message, /record changed/);
+  }
+});
+
+test('import preview accepts a deleted student in the same batch and explains restoration without writes', async () => {
+  const f = deletedStudentFixture();
+  const csv = 'USN,Student Name,Email,Category\n' + [validStudent.usn, validStudent.student_name, validStudent.email, 'PGCET'].join(',');
+  const response = await call(f.controller.importPreview, {
+    body: { batch_id: '1', status: 'active' }, file: { buffer: Buffer.from(csv) }
+  });
+  assert.equal(response.body.data.valid, 1);
+  assert.match(response.body.data.rows[0].message, /restore deleted student/);
+  assert.ok(f.record.deleted_at);
+  assert.deepEqual(f.events, []);
+  assert.equal(f.writes.length, 0);
+});
+
+test('re-import restores original student ID and UUID, updates details, and preserves result ownership', async () => {
+  const f = deletedStudentFixture();
+  const savedResult = { student_id: 42, marks: 87 };
+  const response = await importDeleted(f.controller, { student_name: 'Updated Name', category: 'MGT' });
+  assert.equal(response.body.data.imported, 1);
+  assert.equal(response.body.data.restored, 1);
+  assert.equal(response.body.data.skipped, 0);
+  assert.equal(f.record.deleted_at, null);
+  assert.equal(f.record.student_id, savedResult.student_id);
+  assert.equal(f.record.student_uuid, 'original-uuid');
+  assert.equal(f.record.student_name, 'Updated Name');
+  assert.equal(f.record.category, 'MGT');
+  assert.equal(f.record.status, 'active');
+  assert.equal(savedResult.marks, 87);
+  assert.equal(f.writes.length, 0);
+  assert.deepEqual(f.events, ['begin', 'update', 'restore', 'commit']);
+  const again = await importDeleted(f.controller);
+  assert.equal(again.body.data.imported, 0);
+  assert.match(again.body.data.skippedRows[0].reason, /Duplicate USN/);
+});
+
+test('restoration rejects active duplicates, different batches and email conflicts without writes', async () => {
+  for (const options of [{ active: true }, { batch: 2 }, { emailConflict: true }]) {
+    const f = deletedStudentFixture(options);
+    const response = await importDeleted(f.controller);
+    assert.equal(response.body.data.imported, 0);
+    assert.equal(response.body.data.skipped, 1);
+    assert.match(response.body.data.skippedRows[0].reason, /Duplicate/);
+    assert.deepEqual(f.events, []);
+  }
+});
+
+test('failed restoration rolls back detail updates and leaves the original deleted record intact', async () => {
+  const f = deletedStudentFixture({ failRestore: true });
+  const response = await importDeleted(f.controller, { student_name: 'Updated Name' });
+  assert.equal(response.body.data.imported, 0);
+  assert.ok(f.record.deleted_at);
+  assert.equal(f.record.student_name, validStudent.student_name);
+  assert.deepEqual(f.events, ['begin', 'update', 'rollback']);
+});
+
+test('concurrently restored students are not overwritten by an older import preview', async () => {
+  const f = deletedStudentFixture({ changed: true });
+  const response = await importDeleted(f.controller);
+  assert.equal(response.body.data.imported, 0);
+  assert.match(response.body.data.skippedRows[0].reason, /record changed/);
+  assert.deepEqual(f.events, ['begin', 'rollback']);
 });
 
 test('import results explain model errors for the affected row', async () => {

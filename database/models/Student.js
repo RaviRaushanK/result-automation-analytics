@@ -19,7 +19,10 @@ module.exports = (sequelize, DataTypes) => {
     usn: {
       type: DataTypes.STRING(50),
       allowNull: false,
-      unique: true
+      unique: true,
+      set(value) {
+        this.setDataValue('usn', typeof value === 'string' ? value.trim().toUpperCase() : value);
+      }
     },
     student_name: {
       type: DataTypes.STRING(100),
@@ -35,6 +38,9 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(100),
       allowNull: false,
       unique: true,
+      set(value) {
+        this.setDataValue('email', typeof value === 'string' ? value.trim().toLowerCase() : value);
+      },
       validate: {
         validStudentEmail(value) {
           const error = emailValidation.getError(value);

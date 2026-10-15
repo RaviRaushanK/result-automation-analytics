@@ -220,8 +220,8 @@
             <label class="form-label" for="importBatch">Batch *</label>
             <select id="importBatch" class="form-select" required>
               <option value="">Select batch</option>
-              <% (batches || []).forEach(function(b) { %>
-                <option value="<%= b.batch_id %>"><%= b.batch_name %></option>
+              <% (batches || []).forEach(function(b, index) { %>
+                <option value="<%= b.batch_id %>" <%= index === 0 ? 'selected' : '' %>><%= b.batch_name %></option>
               <% }); %>
             </select>
           </div>
@@ -229,7 +229,7 @@
             <label class="form-label" for="importStatus">Status *</label>
             <select id="importStatus" class="form-select" required>
               <option value="">Select status</option>
-              <option value="active">active</option>
+              <option value="active" selected>active</option>
               <option value="inactive">inactive</option>
             </select>
           </div>
