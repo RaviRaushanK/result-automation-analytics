@@ -7,6 +7,7 @@ const fs = require('fs');
 const documentExtractor = require('../services/documentExtractor');
 const academicPolicy = require('../services/academicPolicy');
 const academicOutcomes = require('../services/academicOutcomeService');
+const resultHistory = require('../services/resultHistoryService');
 const { sortBatches } = require('../public/js/academic-form-options');
 const { AcademicCourse } = require('../database/models');
 
@@ -131,6 +132,14 @@ function studentRegistrationError(student, session, usn) {
   if (student && String(student.batch_id) === String(session.batch_id)) return null;
   const batch = session.Batch?.batch_name || 'batch ' + session.batch_id;
   return `Student ${usn} is not registered in ${batch}. Add or restore the student in this batch, or correct the USN and selected result session before continuing.`;
+}
+
+async function duplicateResultError(student, session, attempt, transaction) {
+  const existing = await Result.findOne({ where: {
+    student_id: student.student_id, session_id: session.session_id, attempt_no: attempt.attempt_no
+  }, transaction });
+  return existing ? 'A result for USN ' + student.usn + ' already exists in this examination session for attempt ' +
+    attempt.attempt_no + ' (' + attempt.exam_type + '). Correct the USN or choose the appropriate session and attempt before continuing.' : null;
 }
 
 // Core validation + computation used by review-validate, preview and import.
@@ -533,7 +542,7 @@ const resultController = {
         ? extractionWarningParts.join(' ')
         : null;
 
-      // ---- Duplicate student detection (per student + session + attempt) ----
+      // Initial extraction remains editable; duplicate checks run on Validate.
       const usn = (ctx.saved.student && ctx.saved.student.usn) || '';
       const savedAttempt = sanitizeAttempt(
         (ctx.saved.attempt && ctx.saved.attempt.attempt_no),
@@ -549,16 +558,6 @@ const resultController = {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
         // Initial extraction remains editable; only failed workflow redirects block Review.
         if (reviewError) registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
-        if (existingStudent) {
-          const existingResult = await Result.findOne({
-            where: {
-              student_id: existingStudent.student_id,
-              session_id: ctx.session.session_id,
-              attempt_no: attemptInfo.attempt_no
-            }
-          });
-          if (existingResult) duplicateStudent = true;
-        }
       }
 
       res.render('results/review', {
@@ -609,8 +608,10 @@ const resultController = {
         { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
       let registrationError = null;
+      let registeredStudent = null;
       if (payload.student.usn) {
         const student = await Student.findOne({ where: { usn: payload.student.usn } });
+        registeredStudent = student;
         registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
         if (registrationError) errors.form = [errors.form, registrationError].filter(Boolean).join(' ');
       }
@@ -670,6 +671,12 @@ const resultController = {
         }
       }
 
+      if (!registrationError && registeredStudent) {
+        const duplicateError = await duplicateResultError(registeredStudent, ctx.session, { attempt_no: attemptNo, exam_type: examType });
+        if (duplicateError) errors.form = [errors.form, duplicateError].filter(Boolean).join(' ');
+        const historyError = await resultHistory.validationError(ctx.session, registeredStudent, { attempt_no: attemptNo, exam_type: examType });
+        if (historyError) errors.form = [errors.form, historyError].filter(Boolean).join(' ');
+      }
       const historyWarnings = academicPolicy.isRetakeAttempt(examType)
         ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, attemptNo) : [];
       await ctx.ocr.update({
@@ -770,6 +777,13 @@ const resultController = {
       if (registrationError) return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
       const previewAttempt = sanitizeAttempt(ctx.saved.attempt?.attempt_no, ctx.saved.attempt?.exam_type);
       if (previewAttempt.ok) {
+        const duplicateError = await duplicateResultError(student, ctx.session, previewAttempt);
+        if (duplicateError) return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(duplicateError));
+      }
+      const historyError = previewAttempt.ok
+        ? await resultHistory.validationError(ctx.session, student, previewAttempt) : previewAttempt.errors.join(' ');
+      if (historyError) return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(historyError));
+      if (previewAttempt.ok) {
         const history = await academicOutcomes.load(ctx.session.batch_id, [student.student_id], 'original');
         payload.cgpa = academicOutcomes.previewCumulative(history, student.student_id, ctx.session,
           previewAttempt, payload.subjects);
@@ -851,6 +865,12 @@ const resultController = {
       if (!attempt.ok) {
         await t.rollback();
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
+      }
+
+      const historyError = await resultHistory.validationError(ctx.session, student, attempt, t);
+      if (historyError) {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(historyError));
       }
 
       // 2) Duplicate guard: block if this exact attempt already exists for
@@ -1039,6 +1059,7 @@ const resultController = {
   },
 
   create: async (req, res) => {
+    const t = await sequelize.transaction();
     try {
       // LEGACY JSON endpoint (intentionally NOT an attempt-authoring surface).
       // attempt_no / exam_type are always server-controlled: first sitting /
@@ -1053,6 +1074,13 @@ const resultController = {
         failed_subject_count
       } = req.body;
 
+      const session = await ResultSession.findByPk(session_id, { transaction: t });
+      const student = await Student.findByPk(student_id, { transaction: t });
+      const historyError = await resultHistory.validationError(session, student, { attempt_no: 1, exam_type: 'REGULAR' }, t);
+      if (historyError) {
+        await t.rollback();
+        return res.status(422).json({ error: historyError });
+      }
       const result = await Result.create({
         result_uuid: crypto.randomUUID(), // server-generated, never client-controlled
         student_id,
@@ -1064,9 +1092,11 @@ const resultController = {
         cgpa,
         result_status,
         failed_subject_count
-      });
+      }, { transaction: t });
+      await t.commit();
       res.status(201).json(result);
     } catch (err) {
+      await t.rollback();
       // DB-level UNIQUE(student_id, session_id, attempt_no) remains the backstop.
       res.status(500).json({ error: err.message });
     }

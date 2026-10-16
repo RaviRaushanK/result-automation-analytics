@@ -318,19 +318,7 @@ exports.confirmAttemptSelection = async (req, res) => {
         opr.importId + '). Complete or retry that submission before starting another.'));
   }
 
-  // PROMPT 19 — Case A: an official revaluation submission was already
-  // approved for this Student + ResultSession + Attempt. Block immediately.
-  let appr;
-  try { appr = await hasApprovedRevaluationForResult(result.result_id); }
-  catch (err) { appr = { ok: false, approved: false }; }
-  if (!appr.ok) {
-    return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
-  }
-  if (appr.approved) {
-    return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('A revaluation result has already been approved for this student for this examination session.'));
-  }
+  // Approved-result duplicates are reported after review validation, not selection.
 
   // Server-authoritative draft — scoped to the chosen Result.
   // The wizard's upload page re-resolves the FULL subject scope via
@@ -502,26 +490,7 @@ exports.processUpload = async (req, res) => {
     // into the new import after the old one is deleted.
   }
 
-  // PROMPT 19 — Case A: an approved revaluation already exists for this
-  // Student + ResultSession + Attempt. Reject the new submission BEFORE the
-  // document is stored. Fail closed when the lookup itself errors.
-  let apprEarly;
-  try {
-    apprEarly = await hasApprovedRevaluationForResult(result.result_id);
-  } catch (err) {
-    console.error('[revaluation] processUpload approved-guard error:', err);
-    apprEarly = { ok: false, approved: false };
-  }
-  if (!apprEarly.ok) {
-    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
-    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
-  }
-  if (apprEarly.approved) {
-    try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
-    return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('A revaluation result has already been approved for this student for this examination session.'));
-  }
+  // Upload stores processing data only. Duplicate approval checks run on Validate.
 
   // Move the validated file into the revaluation upload directory.
   ensureRevalDir();
@@ -535,9 +504,8 @@ exports.processUpload = async (req, res) => {
   try {
     // PROMPT 19 — race protection: lock the Result row (FOR UPDATE) so two
     // concurrent submissions for the same Round/Attempt serialize. The lock is
-    // the SAME lock TX-B approval takes on the Result (loadResultContextFull
-    // with t.LOCK.UPDATE), so an upload racing an approval either sees the
-    // pending import (open-guard) or the already-approved event and aborts.
+    // the SAME lock TX-B approval takes on the Result. Open staging imports
+    // remain serialized; approved-result duplicates are deferred to Validate.
     const locked = await Result.findByPk(result.result_id, {
       transaction: t,
       lock: t.LOCK.UPDATE,
@@ -565,14 +533,7 @@ exports.processUpload = async (req, res) => {
       console.log(`[revaluation] processUpload re-upload: superseded import #${sup.deletedImportId} for result #${result.result_id}.`);
     }
 
-    // PROMPT 19 — in-transaction Case A recheck under the Result row lock.
-    const apprInTx = await hasApprovedRevaluationForResult(result.result_id, t);
-    if (!apprInTx.ok) {
-      throw Object.assign(new Error('APPROVED_GUARD_UNAVAILABLE'), { openGuardUnavailable: true, storedPath });
-    }
-    if (apprInTx.approved) {
-      throw Object.assign(new Error('ALREADY_APPROVED'), { alreadyApproved: true, storedPath });
-    }
+    // Existing approved results are checked at validation and again under the approval lock.
 
     importLog = await ImportLog.create({
       session_id: Number(result.session_id),
@@ -668,10 +629,6 @@ exports.processUpload = async (req, res) => {
       return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
         encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
           err.openImportId + '). Complete or retry that submission before starting another.'));
-    }
-    if (err && err.alreadyApproved) {
-      return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-        encodeURIComponent('A revaluation result has already been approved for this student for this examination session.'));
     }
     if (err && err.resultMissing) {
       return res.redirect('/revaluation/start?error=' + encodeURIComponent('The selected Result no longer exists.'));
@@ -1166,6 +1123,13 @@ async function hasApprovedRevaluationForResult(resultId, t) {
     console.error('[revaluation] hasApprovedRevaluationForResult error:', err);
     return { ok: false, approved: false };
   }
+}
+
+async function duplicateRevaluationError(result, transaction) {
+  const guard = await hasApprovedRevaluationForResult(result.result_id, transaction);
+  if (!guard.ok) return 'Could not verify existing revaluation results. Please try validation again.';
+  return guard.approved ? 'A revaluation result for USN ' + (result.Student?.usn || 'in this attempt') +
+    ' already exists for this examination session and attempt. Another revaluation result cannot be saved.' : null;
 }
 
 /**
@@ -2014,6 +1978,8 @@ exports.submitReview = async (req, res) => {
   const attempts = [];       // { sourceSrid, targetSrid, dup?, proposal }
   const fieldErrors = {};    // srid -> [messages]
   const enteredVals = {};
+  const duplicateError = await duplicateRevaluationError(st.result);
+  if (duplicateError) return failRender(duplicateError);
 
   for (const row of st.rows) {
     const srid = row.srid;
@@ -2146,7 +2112,8 @@ exports.submitReview = async (req, res) => {
       errors: fieldErrors,
       enteredVals,
       notice: null,
-      error: message
+      error: message,
+      validationFailed: true
     });
   }
 
@@ -2492,6 +2459,8 @@ exports.approveReview = async (req, res) => {
 
     const result = await loadResultContextFull(saved.result_id, t, t.LOCK.UPDATE);
     if (!result) throw new BadState('The selected Result no longer exists.');
+    const duplicateError = await duplicateRevaluationError(result, t);
+    if (duplicateError) throw new BadState(duplicateError);
     if (Number(result.student_id) !== Number(saved.student_id) ||
         Number(result.session_id) !== Number(saved.session_id) ||
         (saved.attempt && Number(result.attempt_no) !== Number(saved.attempt.attempt_no)) ||

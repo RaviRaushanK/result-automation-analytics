@@ -44,7 +44,7 @@
             <% } %>
           </td>
           <td class="text-end">
-            <% if (st === 'APPROVED' || st === 'IN_PROGRESS') { %>
+            <% if (st === 'IN_PROGRESS') { %>
               <button type="button" class="btn btn-sm btn-secondary" disabled title="A revaluation submission already exists for this attempt">Continue</button>
             <% } else { %>
               <form method="post" action="/revaluation/start/attempt">

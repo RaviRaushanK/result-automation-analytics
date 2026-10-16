@@ -67,6 +67,9 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   replace(require('../services/academicOutcomeService'), 'calculateCumulative', async () => null);
   replace(db.Student, 'findOne', async () => ({ student_id: 101, batch_id: 1 }));
   replace(db.Result, 'findOne', async () => duplicate ? { result_id: 99 } : null);
+  replace(db.Result, 'findAll', async () => [{ result_id: 6, session_id: 1, attempt_no: 1,
+    ResultSession: { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 },
+    SubjectResults: [{ subject_result_id: 1 }] }]);
   replace(db.Result, 'create', async data => { header = data; return { result_id: 7 }; });
   replace(db.SubjectResult, 'bulkCreate', async data => { subjectRows = data; });
   const invoke = () => controller.confirmImport({ params: { importId: '9' }, body: { internal_1: 1, external_1: 1 } }, { redirect: url => { redirected = url; } });

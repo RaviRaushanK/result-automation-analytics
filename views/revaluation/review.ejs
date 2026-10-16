@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
+  <% if (error) { %><div class="alert alert-danger" role="alert"><% if (typeof validationFailed !== 'undefined' && validationFailed) { %><strong>Validation Failed</strong><div class="mt-1"><%= error %></div><% } else { %><%= error %><% } %></div><% } %>
   <% if (notice) { %><div class="alert alert-info"><%= notice %></div><% } %>
 
   <div class="card mb-3">

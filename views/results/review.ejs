@@ -1,8 +1,5 @@
 <% const registrationIsBlocked = typeof registrationBlocked !== 'undefined' && registrationBlocked; %>
 <div class="container-fluid result-management-page result-review-page">
-  <div class="row justify-content-center">
-    <div class="col-12 col-xl-12">
-
       <% if (typeof warnings !== 'undefined' && warnings.length) { %>
       <div class="alert alert-warning" role="alert">
         <% warnings.forEach(function (warning) { %><div><%= warning %></div><% }); %>
@@ -24,17 +21,16 @@
         <div><strong>Validation Failed</strong><div class="small mt-1"><%= formError %></div></div>
       </div>
       <% } %>
-      <% if (typeof user !== 'undefined' && user?.role === 'admin') { %><a class="btn btn-outline-secondary mb-3" href="/subjects?tab=roster">Review Semester Roster</a><% } %>
 
-      <div class="card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <div>
-            <h4 class="mb-0">Review & Edit</h4>
-            <small class="text-muted"><%= sessionDisplay %></small>
-          </div>
-          <span class="badge bg-warning text-dark">Step 2 of 4 &mdash; compare the card, fix any OCR mistakes</span>
-        </div>
-        <div class="card-body">
+  <header class="result-review-header">
+    <div><h4 class="mb-1">Review &amp; Edit</h4><div class="small text-muted"><%= sessionDisplay %></div></div>
+    <div class="result-review-header-actions">
+      <span class="badge bg-secondary-subtle text-secondary">Step 2 of 4</span>
+      <% if (typeof user !== 'undefined' && user?.role === 'admin') { %>
+      <a class="btn btn-sm btn-outline-secondary" href="/subjects?tab=roster"><i class="material-icons" aria-hidden="true">fact_check</i> Semester roster</a>
+      <% } %>
+    </div>
+  </header>
           <% if (typeof duplicateStudent !== 'undefined' && duplicateStudent) { %>
             <div class="alert alert-danger d-flex align-items-start" role="alert">
               <i class="material-icons me-2 mt-1">block</i>
@@ -48,36 +44,28 @@
               </div>
             </div>
           <% } %>
-          <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
-            <div class="row g-3">
-              <!-- LEFT: original marks card -->
-              <div class="col-xl-6">
-                <div class="border rounded bg-light d-flex flex-column result-document">
-                  <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-white rounded-top">
-                    <strong>Original Marks Card</strong>
-                    <a href="<%= fileUrl %>" target="_blank" class="btn btn-sm btn-outline-secondary">
-                      <i class="material-icons" style="font-size:16px;">open_in_new</i> Open
-                    </a>
-                  </div>
-                  <div class="flex-grow-1 overflow-auto p-2">
-                    <% if (fileType === 'pdf') { %>
-                      <iframe src="<%= fileUrl %>" title="Original marks card" class="result-document-frame"></iframe>
-                    <% } else { %>
-                      <img src="<%= fileUrl %>" alt="Original marks card" class="img-fluid rounded mx-auto d-block" style="max-height:640px;">
-                    <% } %>
-                  </div>
-                </div>
-              </div><!-- /LEFT -->
-              
-              <!-- RIGHT: editable extracted data -->
-              <div class="col-xl-6">
-                <div class="card mb-3">
-                  <div class="card-body">
-                    <h6 class="text-primary mb-3">Student Information</h6>
-                    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-                      <span class="badge bg-secondary">Attempt <%= attempt.attempt_no %></span>
-                      <span class="badge bg-info text-dark"><%= attempt.exam_type %></span>
-                    </div>
+
+  <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
+    <div class="result-review-layout">
+      <section class="result-document result-review-document" aria-labelledby="reviewDocumentTitle">
+        <div class="result-review-section-heading">
+          <h6 id="reviewDocumentTitle" class="mb-0">Original Marks Card</h6>
+          <a href="<%= fileUrl %>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="material-icons" aria-hidden="true">open_in_new</i> Open</a>
+        </div>
+        <div class="result-review-document-body">
+          <% if (fileType === 'pdf') { %>
+            <iframe src="<%= fileUrl %>" title="Original marks card" class="result-document-frame"></iframe>
+          <% } else { %>
+            <img src="<%= fileUrl %>" alt="Original marks card" class="result-review-document-image">
+          <% } %>
+        </div>
+      </section>
+      <div class="result-review-editor">
+        <section class="result-review-student" aria-labelledby="reviewStudentTitle">
+          <div class="result-review-section-heading">
+            <h6 id="reviewStudentTitle" class="mb-0">Student Information</h6>
+            <div class="d-flex flex-wrap gap-2"><span class="badge bg-secondary">Attempt <%= attempt.attempt_no %></span><span class="badge bg-info text-dark"><%= attempt.exam_type %></span></div>
+          </div>
                     <div class="row g-3">
                       <div class="col-md-5">
                         <label class="form-label small fw-semibold" for="usnInput">
@@ -118,23 +106,15 @@
                          it is re-sanitized server-side, never trusted at import. -->
                     <input type="hidden" name="attempt_no" value="<%= attempt.attempt_no %>">
                     <input type="hidden" name="exam_type" value="<%= attempt.exam_type %>">
-                  </div>
-                </div>
-                <div class="card">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <h6 class="text-primary">Subject Results</h6>
-                      <span class="badge bg-secondary small"><%= subjects.length %> subjects</span>
-                    </div>
-                    <div class="table-responsive">
-                      <table class="table table-bordered table-striped align-middle mb-0" id="subjectsTable">
-                        <thead class="table-light"><tr>
-                          <th style="width:10%;">Code</th><th style="width:35%;">Subject</th>
-                          <th class="text-center" style="width:15%;">Internal</th>
-                          <th class="text-center" style="width:15%;">External</th>
-                          <th class="text-center">Total</th><th class="text-center">Status</th>
-                        </tr></thead>
-                        <tbody>
+
+        </section>
+        <section class="result-review-subjects" aria-labelledby="reviewSubjectsTitle">
+          <div class="result-review-section-heading"><h6 id="reviewSubjectsTitle" class="mb-0">Subject Results</h6><span class="small text-muted"><%= subjects.length %> subjects</span></div>
+          <div class="table-responsive result-review-table-scroll" role="region" aria-label="Subject marks" tabindex="0">
+            <table class="table table-bordered align-middle mb-0" id="subjectsTable">
+              <colgroup><col class="review-code-column"><col class="review-subject-column"><col class="review-marks-column"><col class="review-marks-column"><col class="review-total-column"><col class="review-status-column"></colgroup>
+              <thead class="table-light"><tr><th scope="col">Code</th><th scope="col">Subject</th><th scope="col" class="text-center">Internal</th><th scope="col" class="text-center">External</th><th scope="col" class="text-center">Total</th><th scope="col" class="text-center">Status</th></tr></thead>
+              <tbody>
                           <% subjects.forEach(function (s) { %>
                             <% var maxI = s.max_internal ?? 50; %>
                             <% var maxE = s.max_external ?? 100; %>
@@ -146,7 +126,7 @@
                             <% var rowErrors = (typeof errors !== 'undefined' && errors['subjects[' + sid + ']']) ? errors['subjects[' + sid + ']'] : null; %>
                             <tr data-max-marks="<%= maxM %>" data-max-internal="<%= maxI %>" data-max-external="<%= maxE %>" data-subject-id="<%= sid %>" class="<%= rowErrors ? 'table-danger' : '' %>">
                               <td><code><%= s.subject_code %></code></td>
-                              <td><%= s.subject_name %></td>
+                              <td class="review-subject"><%= s.subject_name %></td>
                               <td>
                                 <input type="number"
                                        min="0"
@@ -156,8 +136,8 @@
                                        name="internal_<%= sid %>"
                                        value="<%= iVal %>"
                                        <%= attempt.exam_type === 'REGULAR' ? 'required' : '' %>
-                                       placeholder="0-<%= maxI %>">
-                                <div class="small text-muted">max <%= maxI %></div>
+                                       placeholder="0-<%= maxI %>" aria-label="<%= s.subject_code %> internal marks" aria-describedby="internalLimit_<%= sid %>">
+                                <div class="small text-muted" id="internalLimit_<%= sid %>">max <%= maxI %></div>
                                 <% if (rowErrors && rowErrors.internalMarks) { %>
                                   <div class="field-error-message text-danger small mt-1"><%= rowErrors.internalMarks %></div>
                                 <% } %>
@@ -171,8 +151,8 @@
                                        name="external_<%= sid %>"
                                        value="<%= xVal %>"
                                        <%= attempt.exam_type === 'REGULAR' ? 'required' : '' %>
-                                       placeholder="0-<%= maxE %>">
-                                <div class="small text-muted">max <%= maxE %></div>
+                                       placeholder="0-<%= maxE %>" aria-label="<%= s.subject_code %> external marks" aria-describedby="externalLimit_<%= sid %>">
+                                <div class="small text-muted" id="externalLimit_<%= sid %>">max <%= maxE %></div>
                                 <% if (rowErrors && rowErrors.externalMarks) { %>
                                   <div class="field-error-message text-danger small mt-1"><%= rowErrors.externalMarks %></div>
                                 <% } %>
@@ -181,24 +161,22 @@
                               <td class="status-cell text-center"><% if (total !== "") { %><% var pct = Math.floor((total/maxM)*100); %><% if (pct >= 50) { %><span class="badge bg-success">PASS</span><% } else { %><span class="badge bg-danger">FAIL</span><% } %><% } else { %><span class="badge bg-secondary">N/A</span><% } %></td>
                             </tr>
                           <% }); %>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-                <div class="d-flex gap-2 mt-3">
-                  <a href="/results/upload" class="btn btn-outline-secondary flex-fill">Cancel</a>
-                  <button type="submit" id="validateButton" class="btn btn-primary btn-lg flex-fill" <%= registrationIsBlocked || (typeof duplicateStudent !== 'undefined' && duplicateStudent) ? 'disabled' : '' %> <%- registrationIsBlocked ? 'aria-describedby="studentRegistrationHint"' : '' %>>
-                    Validate <i class="material-icons align-middle ms-1" style="font-size:18px;">arrow_forward</i>
-                  </button>
-                </div>
-                <% if (registrationIsBlocked) { %><p id="studentRegistrationHint" class="small text-danger mt-2 mb-0">Correct the USN to validate again, or register or restore this student in the selected batch, then refresh Review to enable validation.</p><% } %>
-              </div><!-- /RIGHT -->
-            </div><!-- /row -->
-          </form>
-        </div>
+
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <footer class="result-review-actions">
+          <div class="result-review-action-buttons">
+            <a href="/results/upload" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" id="validateButton" class="btn btn-primary" <%= registrationIsBlocked || (typeof duplicateStudent !== 'undefined' && duplicateStudent) ? 'disabled' : '' %> <%- registrationIsBlocked ? 'aria-describedby="studentRegistrationHint"' : '' %>>
+              Validate <i class="material-icons" aria-hidden="true">arrow_forward</i>
+            </button>
+          </div>
+          <% if (registrationIsBlocked) { %><p id="studentRegistrationHint" class="small text-danger mt-2 mb-0">Correct the USN to validate again, or register or restore this student in the selected batch, then refresh Review to enable validation.</p><% } %>
+        </footer>
       </div>
     </div>
-  </div>
+  </form>
 </div>
 <script src="/js/results/review.js?v=20261016-1"></script>

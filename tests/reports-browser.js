@@ -96,7 +96,12 @@ async function main() {
     const fixture = require('./fixtures/result-management-pages');
     const page = fixture.pages[req.params.page];
     if (!page) return res.sendStatus(404);
-    return res.render(page[0], { ...fixture.base, ...page[1] });
+    const locals = { ...fixture.base, ...page[1] };
+    if (['review', 'blocked'].includes(req.params.page) && req.query.rows === '8') {
+      const names = ['ABILITY ENHANCEMENT COURSES WITH SEMINAR-I', 'MACHINE LEARNING AND DATA ANALYTICS USING PYTHON', 'OBJECT ORIENTED PROGRAMMING USING JAVA', 'DATA STRUCTURE AND ALGORITHMS', 'SOFTWARE ENGINEERING', 'WEB APPLICATION DEVELOPMENT', 'OBJECT ORIENTED PROGRAMMING USING JAVA LABORATORY', 'DATA STRUCTURE AND ALGORITHMS LABORATORY'];
+      locals.subjects = names.map((subject_name, index) => ({ ...fixture.base.subjects[0], subject_id: index + 1, subject_code: index ? 'MMC20' + index : 'MAEC258', subject_name, max_internal: index ? 50 : 100, max_external: index ? 50 : 0, internalMarks: index ? 40 : 98, externalMarks: index ? 40 : 0 }));
+    }
+    return res.render(page[0], locals);
   });
   app.get('/verification/sessions', (req, res) => res.render('sessions/index', {
     title: 'Session defaults verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'], sessions: [editSessionFixture],
@@ -430,6 +435,58 @@ async function main() {
       }
       assert.deepEqual(exceptions, []);
       console.log(`Verified ${pageChecks} workspace viewport checks and ${modalChecks} modal checks. Screenshots: ${output}`);
+      return;
+    }
+    if (process.env.RESULT_REVIEW_LAYOUT_ONLY === '1') {
+      let checked = 0;
+      for (const [width,height] of [[1920,1080],[1440,900],[1280,800],[1024,900],[768,900],[390,844],[360,740]]) for (const theme of ['light','dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+        await command('Page.navigate', { url: base + '/verification/result-management/review?rows=8' });
+        await until("document.readyState==='complete' && !!document.querySelector('.result-review-layout')");
+        await evaluate('window.setThemePreference(' + JSON.stringify(theme) + ')');
+        await pause(350);
+        const layout = await evaluate("(() => {const box=s=>document.querySelector(s).getBoundingClientRect().toJSON();const wrap=document.querySelector('.result-review-table-scroll');return {document:document.documentElement.scrollWidth,grid:box('.result-review-layout'),frame:box('.result-document-frame'),source:box('.result-review-document'),subjects:box('.result-review-subjects'),actions:box('.result-review-actions'),tableScroll:wrap.scrollWidth>wrap.clientWidth+1,rows:document.querySelectorAll('#subjectsTable tbody tr').length,columns:document.querySelectorAll('#subjectsTable th').length,inputs:document.querySelectorAll('#subjectsTable input').length,externalZero:document.getElementById('external_1').getAttribute('max')};})()");
+        assert.ok(layout.document <= width + 1, JSON.stringify(layout));
+        assert.equal(layout.rows, 8); assert.equal(layout.columns, 6); assert.equal(layout.inputs, 16); assert.equal(layout.externalZero, '0');
+        assert.ok(layout.frame.width > 250 && layout.frame.height >= 220, JSON.stringify(layout));
+        if (width >= 1200) {
+          assert.ok(Math.abs(layout.source.bottom-layout.subjects.bottom)<2, 'Document bottom matches Subject Results: '+JSON.stringify(layout));
+          assert.ok(Math.abs(layout.source.width-layout.subjects.width)<2, 'Original equal-width columns retained');
+          assert.ok(layout.actions.top>=layout.subjects.bottom, 'Actions stay below both comparison panels');
+          assert.ok(await evaluate("(() => {const body=document.querySelector('#subjectsTable tbody'),row=body.firstElementChild.cloneNode(true);body.appendChild(row);const left=document.querySelector('.result-review-document').getBoundingClientRect(),right=document.querySelector('.result-review-subjects').getBoundingClientRect();const matches=Math.abs(left.bottom-right.bottom)<2;row.remove();return matches;})()"), 'Document follows dynamically growing subject content');
+        } else {
+          assert.ok(layout.subjects.top>layout.source.bottom, 'Source and marks stack on narrow screens');
+        }
+        await evaluate("document.querySelector('.result-review-actions').scrollIntoView({block:'end',behavior:'instant'})");
+        const action=await evaluate("document.getElementById('validateButton').getBoundingClientRect().toJSON()");
+        assert.ok(action.left>=0 && action.right<=width && action.bottom<=height+1, JSON.stringify(action));
+        await fs.writeFile(path.join(output,'review-actions-'+width+'-'+theme+'.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        await evaluate('window.scrollTo(0,0)');
+        await evaluate("document.getElementById('internal_2').value='30';document.getElementById('internal_2').dispatchEvent(new Event('input',{bubbles:true}))");
+        assert.equal(await evaluate("document.getElementById('internal_2').closest('tr').querySelector('.total-cell').textContent"),'70');
+        await fs.writeFile(path.join(output,'review-layout-'+width+'-'+theme+'.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        checked++;
+      }
+      assert.deepEqual(exceptions,[]);
+      if (process.env.RESULT_REVIEW_IMPORT_ID) {
+        const id=Number(process.env.RESULT_REVIEW_IMPORT_ID);
+        assert.ok(Number.isSafeInteger(id) && id>0);
+        await command('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+        await command('Page.navigate',{url:base+'/results/upload/'+id+'/review'});
+        await until("document.readyState==='complete' && !!document.querySelector('.result-review-layout')");
+        await evaluate("window.setThemePreference('light')");
+        const asset=await evaluate("document.querySelector('.result-document-frame').getAttribute('src')");
+        const response=await fetch(base+asset);
+        assert.ok(response.ok,'Original document is accessible');
+        assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0,5).toString(),'%PDF-');
+        await pause(1000);
+        await fs.writeFile(path.join(output,'review-real-document.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        assert.ok(await evaluate("Math.abs(document.querySelector('.result-review-document').getBoundingClientRect().bottom-document.querySelector('.result-review-subjects').getBoundingClientRect().bottom)<2"), 'Actual document height matches Subject Results');
+        await evaluate("document.querySelector('.result-review-actions').scrollIntoView({block:'end',behavior:'instant'})");
+        await fs.writeFile(path.join(output,'review-real-document-bottom.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        console.log('Actual Review page and source PDF verified read-only for import '+id);
+      }
+      console.log('Review layout: '+checked+' desktop/mobile/theme checks passed. Screenshots: '+output);
       return;
     }
     if (process.env.RESULT_MANAGEMENT_RESPONSIVE_ONLY === '1') {
