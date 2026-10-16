@@ -20,6 +20,16 @@ for (const [name, [view, locals]] of Object.entries(pages)) {
   });
 }
 
+for (const fileType of ['png', 'jpg', 'jpeg']) {
+  test('original result review renders ' + fileType + ' marks card as an image', async () => {
+    const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), {
+      ...base, ...pages.review[1], fileType, fileUrl: '/test/card.' + fileType
+    });
+    assert.match(html, /<img[^>]*src="\/test\/card\./);
+    assert.doesNotMatch(html, /<iframe/);
+  });
+}
+
 test('revaluation preview keeps identity confirmation and replacement controls before Validate', async () => {
   const html = await ejs.renderFile(path.join(__dirname, '../views/revaluation/review.ejs'), {
     ...base, ...pages['revaluation-review'][1],

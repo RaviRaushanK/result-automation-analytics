@@ -81,6 +81,9 @@
   body:has(.revaluation-ui) .modal-footer > * { flex: 1 1 100%; white-space: normal; }
 }
 
+.revaluation-document-image-scroll { position: absolute; inset: .5rem; overflow: auto; }
+.revaluation-document-image { display: block; width: 100%; height: auto; }
+
 /* Revaluation comparison uses the same restrained document/editor layout. */
 .revaluation-preview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: stretch; }
 .revaluation-preview-grid > * { min-width: 0; }

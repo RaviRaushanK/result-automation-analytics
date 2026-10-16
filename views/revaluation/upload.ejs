@@ -59,10 +59,10 @@
       </div>
       <div class="card-body">
         <div class="mb-3">
-          <label for="revalidationDocument" class="form-label fw-semibold">Choose PDF file</label>
-          <input class="form-control form-control-lg" type="file" id="revalidationDocument" name="revalidationDocument" accept="application/pdf" required>
+          <label for="revalidationDocument" class="form-label fw-semibold">Choose marks card</label>
+          <input class="form-control form-control-lg" type="file" id="revalidationDocument" name="revalidationDocument" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" required>
           <div class="form-text">
-            <span class="badge bg-light text-dark border me-1">PDF only</span>
+            <span class="badge bg-light text-dark border me-1">PDF / PNG / JPG / JPEG</span>
             <span class="badge bg-light text-dark border me-1">Maximum 15 MB</span>
             The file is stored for the OCR revaluation stage and does not modify existing marks.
           </div>
@@ -84,6 +84,7 @@
   </form>
 </div>
 
+<script src="/js/marks-card-validation.js"></script>
 <script>
 (function() {
   var fileInput = document.getElementById('revalidationDocument');
@@ -95,12 +96,7 @@
 
   fileInput.addEventListener('change', function() {
     var file = fileInput.files && fileInput.files[0];
-    var error = '';
-    if (file && (!/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf'))) {
-      error = 'Choose a PDF document.';
-    } else if (file && file.size > 15 * 1024 * 1024) {
-      error = 'The PDF must be 15 MB or smaller.';
-    }
+    var error = file ? MarksCardValidation.error(file) : '';
     fileInput.setCustomValidity(error);
     submitBtn.disabled = !file || !!error;
     selectedFile.classList.toggle('d-none', !file);

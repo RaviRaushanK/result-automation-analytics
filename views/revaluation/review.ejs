@@ -144,7 +144,13 @@
       </div>
       <div class="revaluation-preview-document-body">
         <% if (meta.docUrl) { %>
-          <iframe src="<%= meta.docUrl %>" title="Original revaluation marks card" class="revaluation-document-frame"></iframe>
+          <% if (['png', 'jpg', 'jpeg'].includes(meta.docType)) { %>
+            <div class="revaluation-document-image-scroll">
+              <img src="<%= meta.docUrl %>" alt="Original revaluation marks card" class="revaluation-document-image">
+            </div>
+          <% } else { %>
+            <iframe src="<%= meta.docUrl %>" title="Original revaluation marks card" class="revaluation-document-frame"></iframe>
+          <% } %>
         <% } else { %>
           <p class="text-muted p-3">Original document is unavailable.</p>
         <% } %>

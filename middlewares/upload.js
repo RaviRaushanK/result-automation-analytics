@@ -1,11 +1,4 @@
-/**
- * File-upload middleware + helpers for the REVALUATION upload flow.
- *
- * Reuses the same conventions as the original results upload (PDF only, 15 MB
- * limit, `uploads/temp` staging then a final `uploads/<scope>/<secure>` dest).
- * Kept separate from resultRoutes' inline multer so the working original flow
- * is never touched; logic is shared via this module.
- */
+/** Revaluation staging, supported marks-card formats, and secure filenames. */
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -14,20 +7,16 @@ const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const TEMP_DIR = path.join(UPLOAD_ROOT, 'temp');
 const REVAL_DIR = path.join(UPLOAD_ROOT, 'revaluation');
 
-const REVAL_ALLOWED_MIMES = ['application/pdf'];
-const REVAL_ALLOWED_EXT = ['.pdf'];
+const validation = require('../public/js/marks-card-validation');
+const { marksCardFilter } = require('./marksCardUpload');
+const REVAL_ALLOWED_MIMES = Object.values(validation.formats);
+const REVAL_ALLOWED_EXT = validation.extensions;
 const REVAL_MAX_BYTES = require('../config/uploadLimits').revaluationPdf;
 
 const revaluationUpload = multer({
   dest: TEMP_DIR,
   limits: { fileSize: REVAL_MAX_BYTES },
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (REVAL_ALLOWED_EXT.includes(ext) && REVAL_ALLOWED_MIMES.includes((file.mimetype || '').toLowerCase())) {
-      return cb(null, true);
-    }
-    cb(new Error('Only PDF documents are accepted.'));
-  }
+  fileFilter: marksCardFilter
 });
 
 function ensureUploadDirectory(dirPath) {

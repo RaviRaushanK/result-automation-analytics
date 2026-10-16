@@ -90,6 +90,26 @@ async function main() {
   app.use('/batches', require('../routes/batchRoutes'));
   app.use('/sessions', require('../routes/sessionRoutes'));
   app.use('/faculty', require('../routes/facultyRoutes'));
+
+  if (process.env.MARKS_CARD_IMAGES_ONLY === '1') {
+    app.get('/results/session-details/9000', (req,res) => res.json({
+      success:true, session:{academic_year:'2025-2027',semester:'1',exam_session:'Jun',exam_year:2026,subjects_count:1,
+        subjects:[{subject_code:'MMC101',subject_name:'PROGRAMMING',credits:4}]}
+    }));
+    app.get('/verification/marks-card.png', (req,res) => {
+      const canvas = require('@napi-rs/canvas').createCanvas(1000,1100);
+      const context=canvas.getContext('2d');
+      context.fillStyle='#fff';context.fillRect(0,0,1000,1100);
+      context.fillStyle='#111';context.font='bold 34px Arial';
+      context.fillText('UNIVERSITY RESULT CARD',60,90);
+      context.font='26px Arial';
+      ['University Seat Number: 1MV25MC001','Student Name: TEST STUDENT','Semester: 1',
+        'Subject       Internal    External    Total    Result',
+        'MMC101          40             40           80        P'].forEach((line,i)=>context.fillText(line,60,180+i*85));
+      context.strokeStyle='#999';context.strokeRect(40,350,920,200);
+      res.type('png').send(canvas.toBuffer('image/png'));
+    });
+  }
   app.use('/results', require('../routes/resultRoutes'));
   app.use('/dashboard', require('../routes/dashboardRoutes'));
   app.get('/verification/result-management/:page', async (req, res) => {
@@ -97,6 +117,10 @@ async function main() {
     const page = fixture.pages[req.params.page];
     if (!page) return res.sendStatus(404);
     const locals = { ...fixture.base, ...page[1] };
+    if (req.query.image === '1') {
+      locals.fileUrl = '/verification/marks-card.png'; locals.fileType = 'png';
+      locals.meta = { ...locals.meta, docType:'png',docUrl:'/verification/marks-card.png' };
+    }
     if (['review', 'blocked'].includes(req.params.page) && req.query.rows === '8') {
       const names = ['ABILITY ENHANCEMENT COURSES WITH SEMINAR-I', 'MACHINE LEARNING AND DATA ANALYTICS USING PYTHON', 'OBJECT ORIENTED PROGRAMMING USING JAVA', 'DATA STRUCTURE AND ALGORITHMS', 'SOFTWARE ENGINEERING', 'WEB APPLICATION DEVELOPMENT', 'OBJECT ORIENTED PROGRAMMING USING JAVA LABORATORY', 'DATA STRUCTURE AND ALGORITHMS LABORATORY'];
       locals.subjects = names.map((subject_name, index) => ({ ...fixture.base.subjects[0], subject_id: index + 1, subject_code: index ? 'MMC20' + index : 'MAEC258', subject_name, max_internal: index ? 50 : 100, max_external: index ? 50 : 0, internalMarks: index ? 40 : 98, externalMarks: index ? 40 : 0 }));
@@ -515,6 +539,70 @@ async function main() {
       return;
     }
 
+
+    if (process.env.MARKS_CARD_IMAGES_ONLY === '1') {
+      const capture=async name=>fs.writeFile(path.join(output,name+'.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+      let checked=0;
+      for(const page of ['upload','revaluation-upload']) for(const width of [1440,390]) for(const theme of ['light','dark']){
+        await command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+        await command('Page.navigate',{url:base+'/verification/result-management/'+page});
+        await until("document.readyState==='complete' && !!window.MarksCardValidation");
+        await evaluate('document.documentElement.setAttribute("data-theme",'+JSON.stringify(theme)+')');
+        const result=page==='upload';
+        const inputId=result?'marksCardInput':'revalidationDocument';
+        const buttonId=result?'extractButton':'submitUploadBtn';
+        if(result){
+          await evaluate('document.getElementById("resultSessionSelect").value="9000";document.getElementById("resultSessionSelect").dispatchEvent(new Event("change",{bubbles:true}))');
+          await until('document.getElementById("displaySubjectCount").textContent==="1"');
+        }
+        const accept=await evaluate('document.getElementById('+JSON.stringify(inputId)+').accept');
+        for(const extension of ['.pdf','.png','.jpg','.jpeg'])assert.ok(accept.includes(extension));
+        async function choose(name,type,drop,large){
+          await evaluate('('+ (async function(inputId,name,type,drop,large){
+            const bytes=large?new Uint8Array(15*1024*1024+1):await(await fetch('/verification/marks-card.png')).arrayBuffer();
+            const transfer=new DataTransfer();transfer.items.add(new File([bytes],name,{type}));
+            const input=document.getElementById(inputId);
+            if(drop)document.getElementById('dropZone').dispatchEvent(new DragEvent('drop',{dataTransfer:transfer,bubbles:true,cancelable:true}));
+            else{input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))}
+          }).toString()+')('+[inputId,name,type,drop,large].map(v=>JSON.stringify(v)).join(',')+')');
+        }
+        // Browser validity popovers are not needed for assertions.
+        await evaluate('document.querySelector("input[type=file]").reportValidity=()=>true');
+        for(const [name,type] of [['card.PNG','image/png'],['card.jpg','image/jpeg'],['card.jpeg','image/jpeg']]){
+          await choose(name,type,result,false);
+          assert.equal(await evaluate('document.getElementById('+JSON.stringify(buttonId)+').disabled'),false,name);
+          assert.equal(await evaluate('document.getElementById('+JSON.stringify(inputId)+').validationMessage'),'');
+        }
+        await choose('card.svg','image/svg+xml',result,false);
+        assert.equal(await evaluate('document.getElementById('+JSON.stringify(buttonId)+').disabled'),true);
+        await choose('large.png','image/png',result,true);
+        assert.equal(await evaluate('document.getElementById('+JSON.stringify(buttonId)+').disabled'),true);
+        await choose('card.png','image/png',result,false);
+        await evaluate('document.getElementById('+JSON.stringify(buttonId)+').scrollIntoView({block:"center",behavior:"instant"})');
+        await capture('image-upload-'+page+'-'+width+'-'+theme);
+        assert.ok(await evaluate('document.documentElement.scrollWidth')<=width+2);
+        await evaluate('window.testSubmissions=0;document.getElementById("uploadForm").addEventListener("submit",event=>{event.preventDefault();window.testSubmissions++});document.getElementById('+JSON.stringify(buttonId)+').click()');
+        assert.equal(await evaluate('window.testSubmissions'),1);
+        assert.equal(await evaluate('document.getElementById('+JSON.stringify(buttonId)+').disabled'),true);
+        checked++;
+      }
+      for(const page of ['review','revaluation-review']) for(const width of [1440,390]) for(const theme of ['light','dark']){
+        await command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+        await command('Page.navigate',{url:base+'/verification/result-management/'+page+'?image=1'});
+        await until('document.readyState==="complete" && !!document.querySelector("img[alt]") && document.querySelector("img[alt]").naturalWidth>0');
+        await evaluate('document.documentElement.setAttribute("data-theme",'+JSON.stringify(theme)+');document.querySelector("img[alt]").scrollIntoView({block:"center",behavior:"instant"})');
+        await pause(200);
+        const image=await evaluate('document.querySelector(".revaluation-document-image,.result-review-document-image").getBoundingClientRect().toJSON()');
+        assert.ok(image.width>200 && image.height>200);
+        assert.ok(image.right<=width+2);
+        assert.ok(await evaluate('document.documentElement.scrollWidth')<=width+2);
+        await capture('image-preview-'+page+'-'+width+'-'+theme);
+        checked++;
+      }
+      assert.deepEqual(exceptions,[]);
+      console.log('Verified '+checked+' image-upload/preview viewport/theme cases: PNG/JPG/JPEG selection, result drag/drop, size/type rejection and processing locks. No academic data submitted. Screenshots: '+output);
+      return;
+    }
     if (process.env.REVALUATION_PREVIEW_ONLY === '1') {
       const screenshot = async name => fs.writeFile(path.join(output, name + '.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
       for (const width of [1440, 1024, 768, 390, 360]) for (const theme of ['light', 'dark']) {

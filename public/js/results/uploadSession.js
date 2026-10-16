@@ -17,12 +17,18 @@ document.addEventListener('DOMContentLoaded', function () {
     var fileError = document.getElementById('fileErrorFeedback');
     var form = document.getElementById('uploadForm');
     var extractButton = document.getElementById('extractButton');
+    var uploading = false;
+
+    function selectedFileError() {
+        if (fileInput && fileInput.files.length > 1) return 'Choose one marks card at a time.';
+        return MarksCardValidation.error(fileInput && fileInput.files[0]);
+    }
 
     function updateExtractButton() {
         if (!extractButton) return;
         var hasSession = sessionSelect && sessionSelect.value !== '' && (!batchSelect || batchSelect.value !== '');
         var hasFile = fileInput && fileInput.files.length > 0;
-        extractButton.disabled = !(hasSession && hasFile);
+        extractButton.disabled = uploading || !(hasSession && hasFile) || !!selectedFileError();
     }
 
     // ------------------------------
@@ -137,16 +143,22 @@ document.addEventListener('DOMContentLoaded', function () {
     function handleFileChosen() {
         if (fileInput.files.length > 0) {
             fileNameLabel.textContent = fileInput.files[0].name;
-            fileNameLabel.classList.remove('text-danger');
-            hideFileError();
+            var error = selectedFileError();
+            fileInput.setCustomValidity(error);
+            fileNameLabel.classList.toggle('text-danger', !!error);
+            if (error) showFileError(error);
+            else hideFileError();
         } else {
             fileNameLabel.textContent = '';
+            fileInput.setCustomValidity('');
+            hideFileError();
         }
         updateExtractButton();
     }
 
-    function showFileError() {
+    function showFileError(message) {
         if (fileError) {
+            fileError.textContent = message || 'Choose a PDF, PNG, JPG or JPEG marks card.';
             fileError.classList.remove('d-none');
             fileError.classList.add('text-danger');
         }
@@ -171,15 +183,17 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!hasSession && sessionSelect) {
                 sessionSelect.classList.add('is-invalid');
             }
-            if (!hasFile) { showFileError(); }
+            var chosenFileError = selectedFileError();
+            if (!hasFile || chosenFileError) showFileError(chosenFileError);
 
             if (!hasBatch && batchSelect) batchSelect.classList.add('is-invalid');
-            if (!hasBatch || !hasSession || !hasFile) {
+            if (uploading || !hasBatch || !hasSession || !hasFile || chosenFileError || !form.checkValidity()) {
                 e.preventDefault();
                 return;
             }
 
-            // Lock UI while OCR runs server-side
+            // Lock UI while OCR runs server-side.
+            uploading = true;
             extractButton.disabled = true;
             extractButton.innerHTML =
                 '<span class="spinner-border spinner-border-sm align-middle me-2"></span> Processing Marks Card…' +

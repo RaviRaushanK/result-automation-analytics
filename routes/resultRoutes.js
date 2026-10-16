@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const resultController = require('../controllers/resultController');
+const { marksCardFilter, marksCardUpload } = require('../middlewares/marksCardUpload');
 router.use((req, res, next) => {
   res.locals.resultManagementPage = true;
   next();
@@ -11,13 +12,7 @@ router.use((req, res, next) => {
 const upload = multer({
   dest: 'uploads/temp/',
   limits: { fileSize: require('../config/uploadLimits').resultPdf },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf'];
-    const ext = require('path').extname(file.originalname).toLowerCase();
-    const isPdfMime = file.mimetype === 'application/pdf';
-    if (allowed.includes(ext) && isPdfMime) return cb(null, true);
-    cb(new Error('Only PDF marks cards are accepted (image support coming later).'));
-  }
+  fileFilter: marksCardFilter
 });
 
 /**
@@ -40,7 +35,7 @@ const upload = multer({
 
 // ---- Upload flow ----
 router.get('/upload', resultController.showUploadPage);
-router.post('/upload', upload.single('resultDocument'), resultController.processUpload);
+router.post('/upload', marksCardUpload(upload, 'resultDocument', '/results/upload', require('../config/uploadLimits').resultPdf), resultController.processUpload);
 router.get('/upload/:importId/review', resultController.showReviewPage);
 router.post('/upload/:importId/validate', resultController.validateReview);
 router.get('/upload/:importId/preview', resultController.showPreviewPage);

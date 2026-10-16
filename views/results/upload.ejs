@@ -88,12 +88,12 @@
                    style="border-style: dashed !important; border-width: 2px !important; cursor: pointer;">
                 <i class="material-icons text-muted" style="font-size: 48px;">cloud_upload</i>
                 <p class="mb-0 mt-2">Drag &amp; drop marks card here</p>
-                <p class="text-muted small mb-2">PDF marks card &middot; max 15 MB</p>
+                <p class="text-muted small mb-2">PDF, PNG, JPG or JPEG &middot; max 15 MB</p>
                 <button type="button" class="btn btn-sm btn-outline-primary" id="chooseFileButton">Choose File</button>
                 <div class="mt-2 fw-medium text-primary" id="fileNameLabel"></div>
               </div>
               <input type="file" id="marksCardInput" name="resultDocument"
-                     accept=".pdf" class="d-none" required>
+                     accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" class="d-none" required>
               <div class="invalid-feedback d-none" id="fileErrorFeedback">Please choose a marks card file.</div>
             </div>
 
@@ -117,4 +117,5 @@
   </div>
 </div>
 
+<script src="/js/marks-card-validation.js"></script>
 <script src="/js/results/uploadSession.js"></script>

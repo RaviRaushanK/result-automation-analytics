@@ -20,8 +20,9 @@ const {
   ImportLog, OcrExtraction, RevaluationResult, sequelize
 } = require('../database/models');
 const {
-  ensureRevalDir, generateSecureFilename, REVAL_DIR, REVAL_ALLOWED_EXT
+  ensureRevalDir, generateSecureFilename, REVAL_DIR
 } = require('../middlewares/upload');
+const marksCardValidation = require('../public/js/marks-card-validation');
 const revaluationValidator = require('../services/revaluationValidator');
 const revaluationPersistence = require('../services/revaluationPersistence');
 
@@ -452,14 +453,14 @@ exports.processUpload = async (req, res) => {
   // File validation (multer already gates MIME/type/size; verify again here).
   if (!req.file) {
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('Please choose a revaluation document (PDF).'));
+      encodeURIComponent('Please choose a revaluation marks card (PDF, PNG, JPG or JPEG).'));
   }
   const ext = path.extname(req.file.originalname).toLowerCase();
-  const mimeType = (req.file.mimetype || '').toLowerCase();
-  if (!REVAL_ALLOWED_EXT.includes(ext) || !mimeType.includes('pdf')) {
+  const fileError = marksCardValidation.error(req.file, { requireMime: true });
+  if (fileError) {
     try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('Only PDF documents are accepted.'));
+      encodeURIComponent(fileError));
   }
 
   // Prompt (11/12) defense-in-depth: refuse the upload if an open submission
@@ -1694,6 +1695,7 @@ async function loadReviewState(importId, optsIn) {
       ? ocr.missing_subjects : [],
       docName: doc.file_name || log.file_name || '',
       docUrl: doc.file_url || null,
+      docType: String(doc.file_type || log.file_type || path.extname(doc.file_name || log.file_name || '').slice(1)).toLowerCase(),
       ocrStudent: ocr.student_candidates || {},
       warnings: ocr.warnings || [],
       unmatched: (ocr.unmatched_ocr_details && ocr.unmatched_ocr_details.length)

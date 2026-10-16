@@ -49,7 +49,7 @@ function fixture(approved = true) {
     require(name) {
       if (name === '../database/models') return db;
       if (name === 'fs') return { renameSync() {}, unlinkSync() {}, existsSync: () => true };
-      if (name === '../middlewares/upload') return { ensureRevalDir() {}, generateSecureFilename: () => 'test.pdf', REVAL_DIR: '/test', REVAL_ALLOWED_EXT: ['.pdf'] };
+      if (name === '../middlewares/upload') return { ensureRevalDir() {}, generateSecureFilename: name => 'test' + path.extname(name).toLowerCase(), REVAL_DIR: '/test', REVAL_ALLOWED_EXT: ['.pdf'] };
       if (name === '../services/revaluationValidator' || name === '../services/revaluationPersistence') return {};
       if (name === '../services/revaluationExtractor') return { STATUS_MAP: { P: 'PASS', F: 'FAIL' },
         extractAndBuild: async () => {
@@ -88,6 +88,26 @@ test('approved revaluation can reach extraction and editable review without a du
   assert.equal(state.countCalls.length, 0);
   assert.equal(state.writes, 0);
 });
+
+for (const ext of ['png', 'jpg', 'jpeg']) {
+  test('revaluation ' + ext + ' upload reaches editable preview with the stored image type', async () => {
+    const { invoke, state, log, ocr } = fixture(false);
+    const response = await invoke('processUpload', {
+      file: { path: '/test/upload', originalname: 'card.' + ext, mimetype: ext === 'png' ? 'image/png' : 'image/jpeg', size: 100 }
+    });
+    assert.equal(response.url, '/revaluation/review/9');
+    assert.equal(log.file_type, ext);
+    assert.equal(ocr.extracted_json.documents[0].file_type, ext);
+    const preview = await invoke('showReview');
+    assert.equal(preview.locals.meta.docType, ext);
+    const html = await ejs.renderFile(path.join(root, 'views/revaluation/review.ejs'), preview.locals);
+    assert.match(html, /class="revaluation-document-image"/);
+    assert.doesNotMatch(html, /<iframe/);
+    assert.equal(ocr.validation_status, 'pending');
+    assert.equal(state.writes, 0);
+    assert.equal(state.countCalls.length, 0);
+  });
+}
 
 for (const scenario of ['available', 'in_progress', 'lookup_failed']) {
   test('Continue follows registered routes for ' + scenario + ' attempts', async () => {
