@@ -24,7 +24,7 @@ const base = {
   errors: {}, enteredVals: {}, missingSubjects: [],
   rows: [{ srid: 1, code: subject.subject_code, name: subject.subject_name, original: { total: 40, status: 'fail', grade: 'F' },
     max_internal: 50, max_external: 50, max_marks: 100, evidence: { ...subject, revised_int: 40, revised_ext: 40 },
-    credits: 4, maxMarks: 100, origMarks: 40, origStatus: 'fail', origGrade: 'F', changed: true,
+    credits: 4, maxInternal: 50, maxExternal: 50, maxMarks: 100, origMarks: 40, origStatus: 'fail', origGrade: 'F', changed: true,
     effective: { marks: 80, status: 'pass', grade: 'A+' } }]
 };
 const review = { proposal: [], aggregate_preview: { overall_result: 'pass', sgpa: 9, cgpa: 9 }, submitted_at: '2026-10-16', submitted_by: 'Test Admin' };
@@ -40,10 +40,10 @@ const pages = {
   attempts: ['revaluation/result-attempt-picker', { studentName: student.name, attempts: [{ result_id: 9000, attempt_no: 1, exam_type: 'REGULAR', result_status: 'fail', sgpa: 4, cgpa: 4, reval_state: 'AVAILABLE' }] }],
   'revaluation-upload': ['revaluation/upload', { isReplace: false }],
   pending: ['revaluation/pending', { status: 'extracted', import_type: 'REVALUATION', uploadedBy: 'Test Admin', createdAt: '2026-10-16', documents: [{ file_name: base.file_name, file_url: 'about:blank' }] }],
-  extraction: ['revaluation/extraction', { extractionStatus: 'extracted', logStatus: 'extracted', failedReason: null, errorMsg: null,
-    serverStudent: { student_name: student.name, usn: student.usn }, ocrStudent: { name: 'DIFFERENT STUDENT', usn: '1MV25MC099' },
-    identityCheck: { severity: 'mismatch', message: 'The uploaded card belongs to another student.' }, identityConfirmed: false, identityBlocking: true,
-    semesterCandidate: 1, extractionMethod: 'text', confidenceScore: 90, extractedAt: '2026-10-16', unmatched: [], docName: base.file_name, docLink: 'about:blank', rawText: 'OCR'.repeat(300) }],
+  extraction: ['revaluation/review', { mode: 'edit', review: null,
+    meta: { ...base.meta, ocrStudent: { name: 'DIFFERENT STUDENT', usn: '1MV25MC099' } },
+    identityCheck: { severity: 'mismatch', message: 'The uploaded card belongs to another student.' },
+    identityConfirmed: false, identityBlocking: true }],
   'revaluation-review': ['revaluation/review', { mode: 'edit', review: null }],
   locked: ['revaluation/review', { mode: 'locked', review }],
   confirm: ['revaluation/review', { mode: 'confirm', review }],

@@ -21,16 +21,13 @@
       <div>
         <strong>Re-uploading the marks card.</strong>
         The previous OCR extraction will be discarded and replaced with the new document you are about to upload.
-        After uploading, you will be taken back to the extraction page to re-run OCR.
+        The new extracted preview will open after uploading.
       </div>
     </div>
   <% } %>
 
-  <div class="card mb-3">
-    <div class="card-header d-flex justify-content-between">
-      <span><i class="material-icons me-1">school</i> Subjects in this attempt (<%= subjectCount %>) — reference for OCR matching</span>
-      <span class="badge bg-secondary">Original marks will not change</span>
-    </div>
+  <details class="mb-3">
+    <summary class="py-2">Original subjects and marks (<%= subjectCount %>)</summary>
     <div class="table-responsive mb-0">
       <table class="table table-sm table-light align-middle mb-0">
         <thead class="table-light">
@@ -53,7 +50,7 @@
         </tbody>
       </table>
     </div>
-  </div>
+  </details>
 
   <form id="uploadForm" method="post" action="/revaluation/<%= resultId %>/upload" enctype="multipart/form-data">
     <div class="card mb-3">
@@ -79,41 +76,12 @@
     </div>
     <div class="d-flex align-items-center gap-2 result-action-row">
       <button type="submit" class="btn btn-success" id="submitUploadBtn" disabled>
-        <i class="material-icons align-middle">cloud_upload</i> Submit Revaluation
+        <i class="material-icons align-middle" aria-hidden="true">cloud_upload</i> Upload &amp; Preview
       </button>
       <a href="/revaluation/start/attempts?session=<%= sessionId %>&student=<%= studentId %>" class="btn btn-outline-secondary">Back</a>
     </div>
+    <p id="uploadProgress" class="text-muted mt-3 d-none" role="status">Uploading and extracting the marks card...</p>
   </form>
-</div>
-
-<!-- Submit confirmation modal -->
-<div class="modal fade" id="submitConfirmModal" tabindex="-1" aria-labelledby="submitConfirmModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-success-subtle">
-        <h5 class="modal-title" id="submitConfirmModalLabel">
-          <i class="material-icons align-middle">cloud_upload</i> Submit revaluation document
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Register this revaluation document and proceed to the OCR extraction stage?</p>
-        <% if (isReplace) { %>
-          <div class="alert alert-warning small">
-            <i class="material-icons align-middle">warning_amber</i>
-            The previous document and its OCR data will be discarded before this file is registered.
-          </div>
-        <% } %>
-        <p class="text-muted small mb-0">The file will be validated (PDF &middot; ≤ 15 MB) and stored. No marks are modified at this stage.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-success" id="submitConfirmBtn">
-          <i class="material-icons align-middle">check_circle</i> Yes, register document
-        </button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -122,54 +90,40 @@
   var submitBtn = document.getElementById('submitUploadBtn');
   var form = document.getElementById('uploadForm');
   var selectedFile = document.getElementById('selectedFile');
-  var selectedFileName = document.getElementById('selectedFileName');
-  var selectedFileSize = document.getElementById('selectedFileSize');
-  var submitConfirmBtn = document.getElementById('submitConfirmBtn');
-
+  var submitting = false;
   if (!fileInput || !submitBtn || !form) return;
 
-  function formatSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  }
-
   fileInput.addEventListener('change', function() {
-    if (fileInput.files && fileInput.files.length > 0) {
-      var f = fileInput.files[0];
-      selectedFileName.textContent = f.name;
-      selectedFileSize.textContent = formatSize(f.size);
-      selectedFile.classList.remove('d-none');
-      submitBtn.disabled = false;
-    } else {
-      selectedFile.classList.add('d-none');
-      submitBtn.disabled = true;
+    var file = fileInput.files && fileInput.files[0];
+    var error = '';
+    if (file && (!/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf'))) {
+      error = 'Choose a PDF document.';
+    } else if (file && file.size > 15 * 1024 * 1024) {
+      error = 'The PDF must be 15 MB or smaller.';
     }
+    fileInput.setCustomValidity(error);
+    submitBtn.disabled = !file || !!error;
+    selectedFile.classList.toggle('d-none', !file);
+    if (file) {
+      document.getElementById('selectedFileName').textContent = file.name;
+      document.getElementById('selectedFileSize').textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+    if (error) fileInput.reportValidity();
   });
 
-  // Intercept the submit button: open a confirmation modal first.
-  submitBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    if (submitBtn.disabled) return;
-    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-      var m = new bootstrap.Modal(document.getElementById('submitConfirmModal'));
-      m.show();
-    } else {
-      // Bootstrap JS unavailable: fall back to native confirm.
-      if (window.confirm('Register this revaluation document?')) {
-        form.submit();
-      }
+  form.addEventListener('submit', function(event) {
+    if (submitting || !form.checkValidity()) {
+      event.preventDefault();
+      return;
     }
+    submitting = true;
+    submitBtn.disabled = true;
+    form.setAttribute('aria-busy', 'true');
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Extracting...';
+    document.getElementById('uploadProgress').classList.remove('d-none');
   });
-
-  // Confirm button: actually submit the form.
-  if (submitConfirmBtn) {
-    submitConfirmBtn.addEventListener('click', function() {
-      submitBtn.disabled = true;
-      submitConfirmBtn.disabled = true;
-      submitConfirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Uploading…';
-      form.submit();
-    });
-  }
+  window.addEventListener('pageshow', function(event) {
+    if (event.persisted) window.location.reload();
+  });
 })();
 </script>

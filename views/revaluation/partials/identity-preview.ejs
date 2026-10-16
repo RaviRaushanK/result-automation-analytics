@@ -1,0 +1,43 @@
+<% const check = typeof identityCheck !== 'undefined' ? identityCheck : null;
+   const blocked = typeof identityBlocking !== 'undefined' && identityBlocking;
+   const cardStudent = meta.ocrStudent || {}; %>
+<% if (check && check.severity !== 'match') { %>
+  <div class="alert alert-<%= blocked ? 'warning' : 'info' %>" role="alert">
+    <strong>Student identity<%= blocked ? ' needs confirmation' : '' %></strong>
+    <p class="mb-2"><%= check.message %></p>
+    <div class="small mb-2">
+      <strong>On card:</strong> <%= cardStudent.name || '(name not extracted)' %> &middot; <%= cardStudent.usn || '(USN not extracted)' %><br>
+      <strong>Selected student:</strong> <%= meta.studentName %> &middot; <%= meta.studentUsn %>
+    </div>
+    <% if (blocked) { %>
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" id="confirmIdentityBtn" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#confirmMismatchModal">Confirm identity mismatch</button>
+        <a href="/revaluation/<%= meta.resultId %>/upload?replace=1" class="btn btn-outline-secondary btn-sm">Replace document</a>
+      </div>
+    <% } %>
+  </div>
+<% } %>
+<% if (blocked) { %>
+<div class="modal fade" id="confirmMismatchModal" tabindex="-1" aria-labelledby="confirmMismatchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" action="/revaluation/pending/<%= meta.importId %>/confirm-identity" id="confirmMismatchForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmMismatchModalLabel">Confirm student identity mismatch</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p><strong>On card:</strong> <%= cardStudent.name || '(not extracted)' %> &middot; <%= cardStudent.usn || '(not extracted)' %></p>
+          <p><strong>Selected student:</strong> <%= meta.studentName %> &middot; <%= meta.studentUsn %></p>
+          <p class="mb-0">Confirm that this marks card belongs to the selected student despite the extracted identity mismatch.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning">Confirm mismatch</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<% } %>
+

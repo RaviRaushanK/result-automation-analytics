@@ -20,6 +20,32 @@ for (const [name, [view, locals]] of Object.entries(pages)) {
   });
 }
 
+test('revaluation preview keeps identity confirmation and replacement controls before Validate', async () => {
+  const html = await ejs.renderFile(path.join(__dirname, '../views/revaluation/review.ejs'), {
+    ...base, ...pages['revaluation-review'][1],
+    identityCheck: { severity: 'mismatch', message: 'Student identity does not match.' },
+    identityBlocking: true,
+    meta: { ...base.meta, ocrStudent: { name: 'OTHER STUDENT', usn: '1MV25MC099' } }
+  });
+  assert.match(html, /id="validateRevaluationBtn"[^>]*disabled/);
+  assert.match(html, /action="\/revaluation\/pending\/9000\/confirm-identity"/);
+  assert.match(html, /id="confirmMismatchModal"/);
+  assert.match(html, /upload\?replace=1/);
+  assert.match(html, /OTHER STUDENT/);
+  assert.match(html, /title="Original revaluation marks card"/);
+  assert.doesNotMatch(html, /action="\/revaluation\/approve/);
+});
+
+test('validated revaluation preview has one explicit approval POST, not another confirmation page', async () => {
+  const html = await ejs.renderFile(path.join(__dirname, '../views/revaluation/review.ejs'), {
+    ...base, ...pages.locked[1]
+  });
+  assert.match(html, /action="\/revaluation\/approve\/9000"/);
+  assert.match(html, /Approve &amp; Save/);
+  assert.doesNotMatch(html, /href="\/revaluation\/approve/);
+  assert.match(html, /review\/9000\?edit=1/);
+});
+
 test('responsive stylesheet is restricted to Result Management requests', async () => {
   const head = path.join(__dirname, '../views/partials/head.ejs');
   assert.match(await ejs.renderFile(head, { resultManagementPage: true }), /href="\/css\/result-management.css"/);

@@ -92,7 +92,7 @@ async function main() {
   app.use('/faculty', require('../routes/facultyRoutes'));
   app.use('/results', require('../routes/resultRoutes'));
   app.use('/dashboard', require('../routes/dashboardRoutes'));
-  app.get('/verification/result-management/:page', (req, res) => {
+  app.get('/verification/result-management/:page', async (req, res) => {
     const fixture = require('./fixtures/result-management-pages');
     const page = fixture.pages[req.params.page];
     if (!page) return res.sendStatus(404);
@@ -101,8 +101,33 @@ async function main() {
       const names = ['ABILITY ENHANCEMENT COURSES WITH SEMINAR-I', 'MACHINE LEARNING AND DATA ANALYTICS USING PYTHON', 'OBJECT ORIENTED PROGRAMMING USING JAVA', 'DATA STRUCTURE AND ALGORITHMS', 'SOFTWARE ENGINEERING', 'WEB APPLICATION DEVELOPMENT', 'OBJECT ORIENTED PROGRAMMING USING JAVA LABORATORY', 'DATA STRUCTURE AND ALGORITHMS LABORATORY'];
       locals.subjects = names.map((subject_name, index) => ({ ...fixture.base.subjects[0], subject_id: index + 1, subject_code: index ? 'MMC20' + index : 'MAEC258', subject_name, max_internal: index ? 50 : 100, max_external: index ? 50 : 0, internalMarks: index ? 40 : 98, externalMarks: index ? 40 : 0 }));
     }
+
+    if (['revaluation-review', 'locked'].includes(req.params.page) && req.query.rows === '8') {
+      locals.rows = Array.from({ length: 8 }, (_, i) => ({
+        ...fixture.base.rows[0], srid: i + 1, code: 'MMC20' + (i + 1),
+        maxInternal: i ? 50 : 100, maxExternal: i ? 50 : 0, pickOptions: [],
+        evidence: { ...fixture.base.rows[0].evidence, revised_int: i ? 40 : 100, revised_ext: i ? 40 : 0 }
+      }));
+    }
+    if (req.query.document === '1' && req.params.page === 'revaluation-review') {
+      const files = await fs.readdir(path.join(__dirname, '../uploads/revaluation')).catch(() => []);
+      const pdf = files.find(file => file.endsWith('.pdf'));
+      if (pdf) locals.meta = { ...locals.meta, docUrl: '/uploads/revaluation/' + encodeURIComponent(pdf), docName: pdf };
+    }
     return res.render(page[0], locals);
   });
+
+  // Isolated form targets for this mode never reach production revaluation routes.
+  if (process.env.REVALUATION_PREVIEW_ONLY === '1') {
+    app.post('/revaluation/review/9000', (req,res) => {
+      verificationWrites.push({path:req.path,body:req.body});
+      res.redirect('/verification/result-management/locked');
+    });
+    app.post('/revaluation/approve/9000', (req,res) => {
+      verificationWrites.push({path:req.path,body:req.body});
+      res.redirect('/verification/result-management/outcome');
+    });
+  }
   app.get('/verification/sessions', (req, res) => res.render('sessions/index', {
     title: 'Session defaults verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'], sessions: [editSessionFixture],
     batches: [{ batch_id: 9003, batch_name: 'Old Batch', start_year: 2020, end_year: 2022 }, { batch_id: 9001, batch_name: 'MCA Test', start_year: 2025, end_year: 2027 }, { batch_id: 9002, batch_name: 'BTech Test', start_year: 2026, end_year: 2030 }]
@@ -487,6 +512,86 @@ async function main() {
         console.log('Actual Review page and source PDF verified read-only for import '+id);
       }
       console.log('Review layout: '+checked+' desktop/mobile/theme checks passed. Screenshots: '+output);
+      return;
+    }
+
+    if (process.env.REVALUATION_PREVIEW_ONLY === '1') {
+      const screenshot = async name => fs.writeFile(path.join(output, name + '.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+      for (const width of [1440, 1024, 768, 390, 360]) for (const theme of ['light', 'dark']) {
+        await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+        await command('Page.navigate', { url: base + '/verification/result-management/revaluation-review?rows=8&document=1' });
+        await until("document.readyState==='complete' && !!document.getElementById('validateRevaluationBtn')");
+        await evaluate('document.documentElement.setAttribute("data-theme",' + JSON.stringify(theme) + ')');
+        await pause(400);
+        const bounds = await evaluate(`(() => {
+          const doc = document.querySelector('.revaluation-preview-document').getBoundingClientRect();
+          const editor = document.getElementById('reviewForm').getBoundingClientRect();
+          return { width: document.documentElement.scrollWidth, doc: doc.toJSON(), editor: editor.toJSON(),
+            rows: document.querySelectorAll('#reviewTable tbody tr').length };
+        })()`);
+        assert.ok(bounds.width <= width + 2, 'Preview fits ' + width);
+        assert.equal(bounds.rows, 8);
+        if (width >= 1200) {
+          assert.ok(Math.abs(bounds.doc.y - bounds.editor.y) <= 2);
+          assert.ok(Math.abs(bounds.doc.right - bounds.editor.left) <= 20);
+        } else assert.ok(bounds.editor.y >= bounds.doc.bottom, 'Panels stack on smaller screens');
+        assert.equal(await evaluate('document.getElementById("ext_1").max'), '0');
+        assert.equal(await evaluate('document.getElementById("tot_1").textContent'), '100');
+        await evaluate('document.querySelector("label[for=reject_2]").click()');
+        assert.equal(await evaluate('document.getElementById("int_2").disabled'), true);
+        await evaluate('document.querySelector("label[for=accept_2]").click(); document.getElementById("ext_2").value="45"; document.getElementById("ext_2").dispatchEvent(new Event("input",{bubbles:true}))');
+        assert.equal(await evaluate('document.getElementById("tot_2").textContent'), '85');
+        if (width === 1440) {
+          const doc = await evaluate('(async () => { const src=document.querySelector(".revaluation-document-frame").getAttribute("src"); if(src==="about:blank") return null; const r=await fetch(src); return {status:r.status, header:(await r.text()).slice(0,4)}; })()');
+          if (doc) { assert.equal(doc.status,200); assert.equal(doc.header,'%PDF'); }
+        }
+        await evaluate('document.querySelectorAll(".table-responsive").forEach(e=>e.scrollLeft=0)');
+        await screenshot('revaluation-preview-' + width + '-' + theme);
+        await evaluate('document.getElementById("validateRevaluationBtn").scrollIntoView({block:"center",behavior:"instant"})');
+        await pause(150);
+        await screenshot('revaluation-preview-actions-' + width + '-' + theme);
+      }
+
+      await command('Page.navigate', { url: base + '/verification/result-management/revaluation-upload' });
+      await until("document.readyState==='complete' && !!document.getElementById('uploadForm')");
+      assert.equal(await evaluate('!!document.getElementById("submitConfirmModal")'),false);
+      await evaluate(`(() => {
+        const transfer = new DataTransfer();
+        transfer.items.add(new File(['%PDF-1.4 test'], 'test.pdf', {type:'application/pdf'}));
+        const input=document.getElementById('revalidationDocument');
+        input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+        window.uploadRequests=0;
+        document.getElementById('uploadForm').addEventListener('submit',e=>{e.preventDefault();window.uploadRequests++});
+        document.getElementById('submitUploadBtn').click();
+      })()`);
+      assert.equal(await evaluate('window.uploadRequests'),1);
+      assert.equal(await evaluate('document.getElementById("submitUploadBtn").disabled'),true);
+      assert.equal(await evaluate('document.getElementById("uploadProgress").classList.contains("d-none")'),false);
+
+      await command('Page.navigate',{url:base+'/verification/result-management/extraction'});
+      await until("document.readyState==='complete' && !!document.getElementById('confirmMismatchModal')");
+      assert.equal(await evaluate('document.getElementById("validateRevaluationBtn").disabled'),true);
+      await evaluate('document.getElementById("confirmIdentityBtn").click()');
+      await pause(400);
+      await until('!!document.querySelector(".modal.show .modal-content")');
+      const modal=await evaluate('document.querySelector(".modal.show .modal-content").getBoundingClientRect().toJSON()');
+      assert.ok(modal.left>=0 && modal.right<=360 && modal.height<=900);
+      await screenshot('revaluation-preview-identity-mobile');
+
+      await command('Page.navigate',{url:base+'/verification/result-management/revaluation-review'});
+      await until("document.readyState==='complete' && !!document.getElementById('validateRevaluationBtn')");
+      await evaluate('document.getElementById("validateRevaluationBtn").click()');
+      await until('location.pathname.endsWith("/locked")');
+      assert.equal(verificationWrites.length,1);
+      assert.equal(verificationWrites[0].body.decision_1,'accept');
+      assert.equal(verificationWrites[0].body.internal_1,'40');
+      assert.equal(await evaluate('document.querySelectorAll("#approveRevaluationForm").length'),1);
+      assert.equal(await evaluate('[...document.querySelectorAll("a")].filter(a=>a.getAttribute("href")==="/revaluation/approve/9000").length'),0);
+      await evaluate('document.querySelector("#approveRevaluationForm button").click()');
+      await until('location.pathname.endsWith("/outcome")');
+      assert.equal(verificationWrites.length,2);
+      assert.deepEqual(exceptions,[]);
+      console.log('Revaluation: 10 viewport/theme checks, real PDF read, mark editing, upload progress, identity modal, Validate and explicit approval passed. Screenshots: '+output);
       return;
     }
     if (process.env.RESULT_MANAGEMENT_RESPONSIVE_ONLY === '1') {

@@ -300,22 +300,22 @@ exports.confirmAttemptSelection = async (req, res) => {
       encodeURIComponent('Result does not belong to the selected student. Please re-select.'));
   }
 
+  const attemptPage = `/revaluation/start/attempts?session=${sessionId}&student=${studentId}`;
+
   // Prompt-12 open-submission guard — unchanged, must run before proceeding.
   let opr;
   try { opr = await findOpenRevaluationImportForResult(result.result_id); }
   catch (err) {
     console.error('[revaluation] confirmAttemptSelection open-guard error:', err);
-    return res.redirect(`/revaluation/${result.result_id}?error=` +
+    return res.redirect(attemptPage + `&error=` +
       encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
   }
   if (!opr.ok) {
-    return res.redirect(`/revaluation/${result.result_id}?error=` +
+    return res.redirect(attemptPage + `&error=` +
       encodeURIComponent('Could not verify existing revaluation submissions. Please try again.'));
   }
   if (opr.importId) {
-    return res.redirect(`/revaluation/${result.result_id}?error=` +
-      encodeURIComponent('An active revaluation upload already exists for this Result/Attempt (Import #' +
-        opr.importId + '). Complete or retry that submission before starting another.'));
+    return res.redirect(`/revaluation/pending/${opr.importId}`);
   }
 
   // Approved-result duplicates are reported after review validation, not selection.
@@ -611,7 +611,7 @@ exports.processUpload = async (req, res) => {
         // The full student SubjectResults set is persisted. The review
         // page uses this to offer "Add Subject" candidates (admin manual
         // entry for subjects OCR did not detect). The Extraction page
-        // does not render a Missing list — see views/revaluation/extraction.ejs.
+        // remains available for manual review in the combined preview.
         subjects: selectedSubjects
       },
       confidence_score: 0,
@@ -620,7 +620,7 @@ exports.processUpload = async (req, res) => {
 
     await t.commit();
     delete req.session.revaluationDraft;
-    return res.redirect(`/revaluation/pending/${importLog.import_id}`);
+    // Extraction follows registration; only processing records exist at this point.
   } catch (err) {
     await t.rollback();
     try { if (fs.existsSync(storedPath)) fs.unlinkSync(storedPath); } catch { /* ignore */ }
@@ -644,6 +644,8 @@ exports.processUpload = async (req, res) => {
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
       encodeURIComponent('Failed to register revaluation: ' + (err.message || 'server error')));
   }
+
+  return extractRevaluationImport(importLog.import_id, res);
 };
 
 /**
@@ -668,19 +670,23 @@ exports.showPending = async (req, res) => {
     console.error('[revaluation] showPending error:', err);
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load revaluation record.'));
   }
-  if (!log) {
+  if (!log || log.import_type !== 'REVALUATION') {
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Revaluation record not found.'));
   }
+  if (log.status === 'success') return res.redirect(`/revaluation/outcome/${importId}`);
 
   const ocr = log.OcrExtractions && log.OcrExtractions[0];
   const saved = safeJson(ocr ? ocr.extracted_json : null);
+  if (!req.query.error && saved && saved.ocr && saved.ocr.extraction_status === 'extracted') {
+    return res.redirect(`/revaluation/review/${importId}`);
+  }
 
   return res.render('revaluation/pending', {
-    title: 'Revaluation — Pending OCR',
+    title: 'Revaluation - Extraction Recovery',
     breadcrumbItems: [
       { label: 'Result Management' },
       { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Pending OCR', active: true }
+      { label: 'Extraction Recovery', active: true }
     ],
     importId: log.import_id,
     status: log.status,
@@ -695,7 +701,8 @@ exports.showPending = async (req, res) => {
     subjects: (saved && saved.subjects) || [],
     subjectCount: (saved && saved.subjects) ? saved.subjects.length : 0,
     sessionId: (saved && saved.session_id) || null,
-    error: req.query.error || null
+    resultId: (saved && saved.result_id) || null,
+    error: req.query.error || (saved && saved.ocr && saved.ocr.error) || null
   });
 };
 
@@ -708,10 +715,11 @@ const revaluationExtractor = require('../services/revaluationExtractor');
 
 /**
  * POST /pending/:importId/extract — trigger (or retry) OCR extraction.
- * Always redirects to GET /extraction/:importId.
+ * Upload and retry share this processing-only operation.
  */
-exports.runExtraction = async (req, res) => {
-  const importId = Number(req.params.importId);
+exports.runExtraction = (req, res) => extractRevaluationImport(Number(req.params.importId), res);
+
+async function extractRevaluationImport(importId, res) {
   if (!Number.isInteger(importId) || importId <= 0) {
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid revaluation record.'));
   }
@@ -731,6 +739,10 @@ exports.runExtraction = async (req, res) => {
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('No OCR processing record is attached to this import.'));
   }
   const saved = safeJson(ocrRow.extracted_json);
+  if (log.status === 'success') return res.redirect(`/revaluation/outcome/${importId}`);
+  if (saved && saved.ocr && saved.ocr.extraction_status === 'extracted') {
+    return res.redirect(`/revaluation/review/${importId}`);
+  }
   if (!stored_guardHasContext(saved)) {
     return res.redirect(`/revaluation/pending/${importId}?error=` +
       encodeURIComponent('Stored extraction context is incomplete.'));
@@ -796,11 +808,23 @@ exports.runExtraction = async (req, res) => {
     student: { name: result.Student ? result.Student.student_name : '', usn: result.Student ? result.Student.usn : '' }
   });
   delete nextJson.review;
+  delete nextJson.identity_confirmed;
 
   const t = await sequelize.transaction();
   try {
-    await ocrRow.update({ extracted_json: nextJson, validation_status: 'pending' }, { transaction: t });
-    await log.update({ status: 'extracted' }, { transaction: t });
+    // A delayed OCR response must not overwrite a validated or approved preview.
+    const currentLog = await ImportLog.findByPk(importId, { transaction: t, lock: t.LOCK.UPDATE });
+    const currentOcr = await OcrExtraction.findByPk(ocrRow.extraction_id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!currentLog || !currentOcr) throw new Error('This upload was replaced. Open the new upload instead.');
+    const current = safeJson(currentOcr.extracted_json);
+    if (currentLog.status === 'success' || (current && current.ocr && current.ocr.extraction_status === 'extracted')) {
+      await t.commit();
+      return res.redirect(currentLog.status === 'success'
+        ? `/revaluation/outcome/${importId}` : `/revaluation/review/${importId}`);
+    }
+    if (JSON.stringify(current) !== JSON.stringify(saved)) throw new Error('The upload changed during extraction. Please retry.');
+    await currentOcr.update({ extracted_json: nextJson, validation_status: 'pending' }, { transaction: t });
+    await currentLog.update({ status: extractionResult.ok ? 'extracted' : 'failed' }, { transaction: t });
     await t.commit();
   } catch (err) {
     await t.rollback();
@@ -809,8 +833,10 @@ exports.runExtraction = async (req, res) => {
       encodeURIComponent('Failed to save extraction result. Please try again.'));
   }
 
-  return res.redirect('/revaluation/extraction/' + importId);
-};
+  return res.redirect(extractionResult.ok
+    ? '/revaluation/review/' + importId
+    : '/revaluation/pending/' + importId);
+}
 
 /**
  * Normalise a string for safe comparison:
@@ -886,153 +912,11 @@ function checkOcrIdentity(ocrCandidates, serverStudent) {
   return { severity, nameMatch, usnMatch, bothMissing, requiresConfirmation, message };
 }
 
-/**
- * GET /extraction/:importId — render the OCR extraction review page.
- * Reads the stored candidates (no new OCR pass here), derives the
- * server-authoritative student identity, runs the identity check, and
- * passes everything needed by views/revaluation/extraction.ejs.
- */
-exports.showExtraction = async (req, res) => {
-  const importId = Number(req.params.importId);
-  if (!Number.isInteger(importId) || importId <= 0) {
-    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid revaluation record.'));
-  }
-
-  let log;
-  try {
-    log = await ImportLog.findByPk(importId, {
-      include: [
-        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] },
-        { model: OcrExtraction }
-      ]
-    });
-  } catch (err) {
-    console.error('[revaluation] showExtraction load error:', err);
-    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load revaluation record.'));
-  }
-  if (!log || log.import_type !== 'REVALUATION') {
-    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Revaluation record not found.'));
-  }
-
-  const ocrRow = log.OcrExtractions && log.OcrExtractions[0];
-  if (!ocrRow) {
-    return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('No OCR processing record is attached.'));
-  }
-
-  const saved = safeJson(ocrRow.extracted_json);
-  if (!stored_guardHasContext(saved)) {
-    return res.redirect(`/revaluation/pending/${importId}?error=` + encodeURIComponent('Stored extraction context is incomplete.'));
-  }
-
-  const ocr = saved.ocr || {};
-  const ocrCandidates = ocr.student_candidates || {};
-
-  let serverStudent = null;
-  let sessionId = (saved && saved.session_id) || null;
-  let sessionDisplayVal = sessionDisplay(log.ResultSession);
-
-  if (saved && saved.result_id) {
-    try {
-      const full = await loadResultContext(saved.result_id);
-      if (full && full.Student) {
-        serverStudent = { student_name: full.Student.student_name, usn: full.Student.usn };
-        if (!sessionId) sessionId = full.session_id;
-        if (!sessionDisplayVal) sessionDisplayVal = sessionDisplay(full.ResultSession);
-      }
-    } catch (_) {}
-  }
-
-  const identityCheck = checkOcrIdentity(ocrCandidates, serverStudent || {});
-  const identityConfirmed = !!(saved && saved.identity_confirmed === true);
-  const identityBlocking = identityCheck.requiresConfirmation && !identityConfirmed;
-
-  const serverName = serverStudent ? (serverStudent.student_name || '') : '';
-  const serverUsn  = serverStudent ? (serverStudent.usn || '') : '';
-  const ocrName    = ocrCandidates.name || '';
-  const ocrUsn     = ocrCandidates.usn || '';
-  // I/O-tolerant USN comparison (mirrors normalizeUsnForCompare in the extractor).
-  // I→1 and O→0 on both sides so OCR drift does not cause false mismatches.
-  // normText is NOT used for USN — it lacks I/O folding and would produce
-  // false mismatches when OCR reads 'I'/'O' vs the DB's '1'/'0'.
-  const normUsn = v => String(v || '').toUpperCase().replace(/I/g, '1').replace(/O/g, '0').replace(/[^A-Z0-9]/g, '');
-  const usnMatch   = serverUsn  && ocrUsn  && normUsn(serverUsn)  === normUsn(ocrUsn);
-  const nameMatch  = serverName && ocrName && normText(serverName) === normText(ocrName);
-
-  const savedDocs = (saved && saved.documents) || [];
-  const doc0 = savedDocs[0] || {};
-  const docName = log.file_name || doc0.original_name || doc0.name || '';
-  const docLink = doc0.url || doc0.path || null;
-
-  // Derive a human-readable USN identity status.
-  // usn_normalized is already corrected by documentExtractor (I->1, O->0),
-  // so we compare it directly to the authoritative server USN.
-  // EXACT_MATCH:                 usn_normalized exactly equals server USN (no I/O drift)
-  // MATCH_AFTER_NORMALIZATION:  usn_normalized matches server USN, but raw OCR
-  //                              differed (I/O correction was needed/applied)
-  // MISMATCH:                   usn_normalized does not equal server USN (genuine diff)
-  // null:                       no USN extracted from the document
-  const usnStatus = (function() {
-    const normU = (ocr.student_candidates && ocr.student_candidates.usn_normalized) || null;
-    if (!normU) return null;
-    const serverU = serverUsn || '';
-    if (normU === serverU) {
-      // Normalized USN matches server. Check if raw OCR needed I/O correction.
-      const rawU = ocrCandidates.usn || '';
-      if (rawU && rawU !== normU) return 'MATCH_AFTER_NORMALIZATION';
-      return 'EXACT_MATCH';
-    }
-    return 'MISMATCH';
-  })();
-
-  return res.render('revaluation/extraction', {
-    title: 'Revaluation — OCR Extraction',
-    breadcrumbItems: [
-      { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
-      { label: 'OCR Extraction', active: true }
-    ],
-    importId: log.import_id,
-    logStatus: log.status,
-    resultId: saved.result_id || null,
-    serverStudent: serverStudent || {},
-    sessionDisplay: sessionDisplayVal,
-    attempt: (saved && saved.attempt) || {},
-    identityCheck: identityCheck,
-    identityConfirmed: identityConfirmed,
-    identityBlocking: identityBlocking,
-    ocrStudent: {
-      // Raw OCR USN as captured on the document — preserved for audit evidence
-      usn: ocrCandidates.usn || null,
-      // Normalized USN (I→1, O→0) used for server identity comparison
-      usn_normalized: (ocr.student_candidates && ocr.student_candidates.usn_normalized) || null,
-      // Human-readable status: EXACT_MATCH | MATCH_AFTER_NORMALIZATION | MISMATCH | null
-      usnStatus: usnStatus,
-      name: ocrCandidates.name || null,
-      name_matches_server: nameMatch
-    },
-    semesterCandidate: (ocr.semester_candidate !== undefined && ocr.semester_candidate !== null) ? ocr.semester_candidate : null,
-    extractionMethod: ocr.extraction_method || null,
-    confidenceScore: ocr.confidence_score || null,
-    extractedAt: ocr.extracted_at || null,
-    subjects: (ocr.subjects && Array.isArray(ocr.subjects)) ? ocr.subjects : [],
-    // NOTE: missing_subjects is NOT passed to the extraction view.
-    // There is no pre-upload subject selection; the Extraction page must not
-    // render a "Missing / Not Detected" section. The review page gets
-    // missing_subjects from the same ocr record via loadReviewState.
-    unmatched: (ocr.unmatched_ocr_details && Array.isArray(ocr.unmatched_ocr_details))
-      ? ocr.unmatched_ocr_details
-      : (ocr.unmatched_ocr_codes || []).map(c => ({ ocr_subject_code: c })),
-    warnings: (ocr.warnings && Array.isArray(ocr.warnings)) ? ocr.warnings : [],
-    docName: docName,
-    docLink: docLink,
-    rawText: ocr.raw_text || '',
-    extractionStatus: ocr.extraction_status || log.status || 'pending',
-    failedReason: ocr.failed_reason || null,
-    errorMsg: ocr.error || null,
-    sessionId: sessionId,
-    error: req.query.error ? decodeURIComponent(req.query.error) : null
-  });
+/** Legacy extraction links now open the combined review preview. */
+// Compatibility URL: preview now includes identity confirmation and OCR evidence.
+exports.showExtraction = (req, res) => {
+  const query = req.query.error ? '?error=' + enc(req.query.error) : '';
+  return res.redirect('/revaluation/review/' + encodeURIComponent(req.params.importId) + query);
 };
 
 /** Shared loader for the extraction stage (ImportLog + session + extractions). */
@@ -1562,7 +1446,7 @@ exports.confirmIdentity = async (req, res) => {
   }
   const identityCheck = checkOcrIdentity(ocrCandidates, serverStudent || {});
   if (!identityCheck.requiresConfirmation) {
-    return res.redirect('/revaluation/extraction/' + importId);
+    return res.redirect('/revaluation/review/' + importId);
   }
   // Use a raw UPDATE to guarantee the JSON field is written to the DB.
   // The ORM's .save() / .update() on JSON columns silently fails to emit
@@ -1599,11 +1483,11 @@ exports.confirmIdentity = async (req, res) => {
     const affected = Array.isArray(updated) ? updated[1] : updated;
     if (!affected || affected.affectedRows === 0) throw new Error('OcrExtraction row not found for confirmIdentity.');
     await t.commit();
-    return res.redirect('/revaluation/extraction/' + importId);
+    return res.redirect('/revaluation/review/' + importId);
   } catch (err) {
     await t.rollback();
     console.error('[revaluation] confirmIdentity error:', err);
-    return res.redirect('/revaluation/extraction/' + importId + '?error=' +
+    return res.redirect('/revaluation/review/' + importId + '?error=' +
       encodeURIComponent('Could not save confirmation.'));
   }
 };
@@ -1658,7 +1542,7 @@ async function loadReviewState(importId, optsIn) {
       enc('Stored extraction context is incomplete.') };
   }
   const ocr = saved.ocr || {};
-  const backTo = opts.failureBack || `/revaluation/extraction/${importId}`;
+  const backTo = opts.failureBack || `/revaluation/pending/${importId}`;
 
   let result = null;
   try { result = await loadResultContextFull(saved.result_id, opts.t, opts.t ? opts.lock : undefined); }
@@ -1774,12 +1658,12 @@ async function loadReviewState(importId, optsIn) {
         // PHASE 4: canonical 9-card fields — authoritative, never calculated
         subjectCode:   ev ? (ev.subjectCode   || ev.subject_code   || null) : null,
         subjectName:   ev ? (ev.subjectName   || ev.subject_name   || null) : null,
-        internalMarks: ev ? (ev.internalMarks || ev.revised_internal_marks || null) : null,
-        oldMarks:      ev ? (ev.oldMarks      || null) : null,
+        internalMarks: ev ? (ev.internalMarks ?? ev.revised_internal_marks ?? null) : null,
+        oldMarks:      ev ? (ev.oldMarks      ?? null) : null,
         oldResult:     ev ? (ev.oldResult     || null) : null,
-        rvMarks:       ev ? (ev.rvMarks       || null) : null,
+        rvMarks:       ev ? (ev.rvMarks       ?? null) : null,
         rvResult:      ev ? (ev.rvResult      || null) : null,
-        finalMarks:    ev ? (ev.finalMarks    || ev.revised_marks || null) : null,
+        finalMarks:    ev ? (ev.finalMarks    ?? ev.revised_marks ?? null) : null,
         finalResult:   ev ? (ev.finalResult   || ev.revised_status_candidate || null) : null
       },
       // Edit-time defaults derived from a prior frozen proposal (used by the
@@ -1839,17 +1723,18 @@ exports.showReview = async (req, res) => {
   }
   if (!st.ok) return res.redirect(st.redirect);
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
+  const identityCheck = checkOcrIdentity(st.ocr.student_candidates || {}, st.result.Student || {});
 
   return res.render('revaluation/review', {
     title: 'Revaluation — Review & Validate',
     breadcrumbItems: [
       { label: 'Result Management' },
       { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
-      { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
-      { label: 'Review & Validate', active: true }
+      { label: st.review && req.query.edit !== '1' ? 'Validated Preview' : 'Review & Validate', active: true }
     ],
-    mode: st.review ? 'locked' : 'edit',
+    identityCheck,
+    identityBlocking: identityCheck.requiresConfirmation && st.saved.identity_confirmed !== true,
+    mode: st.review && req.query.edit !== '1' ? 'locked' : 'edit',
     review: st.review,
     rows: st.rows,
     missingSubjects: (st.meta && st.meta.missingSubjects) || [],
@@ -1967,8 +1852,8 @@ exports.submitReview = async (req, res) => {
       : {};
     const idCheck = checkOcrIdentity(ocrCandidates, resultStudent);
     if (idCheck.requiresConfirmation && !(st.saved.identity_confirmed === true)) {
-      return res.redirect('/revaluation/extraction/' + importId + '?error=' +
-        enc('Student identity on the marks card does not match the selected student. Please confirm the mismatch on the extraction page before proceeding.'));
+      return res.redirect('/revaluation/review/' + importId + '?error=' +
+        enc('Student identity on the marks card does not match the selected student. Confirm the mismatch or replace the document before validating.'));
     }
   }
 
@@ -2101,8 +1986,6 @@ exports.submitReview = async (req, res) => {
       breadcrumbItems: [
         { label: 'Result Management' },
         { label: 'Upload Revaluation', href: '/revaluation/start' },
-        { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
-        { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
         { label: 'Review & Validate', active: true }
       ],
       mode: 'edit',
@@ -2349,45 +2232,11 @@ class BadState extends Error {}
 class StaleState extends Error {}
 class AuthzError extends Error {}
 
-/**
- * GET /revaluation/approve/:importId — confirmation interstitial.
- * Reachable ONLY from a validated, not-yet-approved review (S1).
- */
-exports.showApproveConfirm = async (req, res) => {
-  const importId = Number(req.params.importId);
-  let st;
-  try { st = await loadReviewState(importId, { requireExtracted: true }); }
-  catch (err) {
-    console.error('[revaluation] showApproveConfirm error:', err);
-    return res.redirect('/revaluation/start?error=' + enc('Could not load revaluation record.'));
-  }
-  if (!st.ok) return res.redirect(st.redirect);
-  if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
-  if (!st.review) {
-    return res.redirect(`/revaluation/review/${importId}?error=` +
-      enc('Save the decisions first — nothing has been validated yet.'));
-  }
-
-  return res.render('revaluation/review', {
-    title: 'Revaluation — Review & Validate',
-    breadcrumbItems: [
-      { label: 'Result Management' },
-      { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
-      { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
-      { label: 'Review & Validate', active: true }
-    ],
-    mode: 'confirm',
-    review: st.review,
-    rows: st.rows,
-    meta: st.meta,
-    missingSubjects: (st.meta && Array.isArray(st.meta.missingSubjects))
-      ? st.meta.missingSubjects : [],
-    errors: {},
-    enteredVals: {},
-    notice: null,
-    error: req.query.error ? decodeURIComponent(req.query.error) : null
-  });
+/** Legacy approval links now open the validated preview. */
+// The validated preview contains the explicit approval POST. Keep old links working.
+exports.showApproveConfirm = (req, res) => {
+  const query = req.query.error ? '?error=' + enc(req.query.error) : '';
+  return res.redirect('/revaluation/review/' + encodeURIComponent(req.params.importId) + query);
 };
 
 /**
@@ -2749,8 +2598,6 @@ exports.showOutcome = async (req, res) => {
     breadcrumbItems: [
       { label: 'Result Management' },
       { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Pending OCR', href: `/revaluation/pending/${importId}` },
-      { label: 'OCR Extraction', href: `/revaluation/extraction/${importId}` },
       { label: 'Review & Validate', href: `/revaluation/review/${importId}` },
       { label: 'Outcome', active: true }
     ],
