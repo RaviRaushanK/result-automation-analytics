@@ -1,476 +1,318 @@
 # Student Result Automation and Analytics System (SRAAS)
 
-A Node.js, Express, Sequelize, MySQL and EJS application for processing VTU MCA
-results, reviewing revaluation documents, exploring analytics and generating
-formal academic reports.
+Reviewed against the repository on 17 October 2026.
 
----
-
-## Prerequisites
-
-- **Node.js** v18+ with npm v9+
-- **MySQL** v8.0+ (must be running before setup)
-- **Tesseract OCR** (required for PDF/table extraction in the revaluation workflow)
-
----
-
-## Required `.env` variables
-
-Create `config/.env` and set these:
-
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `DB_HOST` | `localhost` | MySQL host |
-| `DB_PORT` | `3306` | MySQL port |
-| `DB_USER` | `root` | MySQL user |
-| `DB_PASSWORD` | — | MySQL password |
-| `DB_NAME` | `academic_result_analytics_db` | Database name |
-| `SESSION_SECRET` | — | **Change for production.** Long random string recommended. |
-| `APP_PORT` | `3000` | App listen port |
-| `MAX_UPLOAD_SIZE` | `20MB` | Max file upload size |
-| `OCR_PROVIDER` | `tesseract` | OCR engine |
-
-### AI hybrid extraction (optional, FREE via Groq)
-
-Result/revaluation documents are extracted by combining **advanced OCR + a Vision model (VLM) + a text LLM**. All three signals are reconciled into the same structured output as before, so the review flow is unchanged.
-
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `GROQ_API_KEY` | — | Free key from <https://console.groq.com/keys>. When set, enables the AI path. |
-| `GROQ_VLM_MODEL` | `qwen/qwen3.8-27b` | Vision model that reads the document images |
-| `GROQ_LLM_MODEL` | `openai/gpt-oss-20b` | Text model that reconciles OCR + VLM into JSON |
-| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI-compatible endpoint |
-| `GROQ_TIMEOUT_MS` | `60000` | Per-request timeout |
-| `EXTRACTION_MODE` | `auto` | `auto` (AI when key present, else Tesseract), `vlm` (force AI), `tesseract` (classic only) |
-| `VLM_MAX_PAGES` | `3` | Max PDF pages sent to the VLM (cost/latency guard) |
-| `VLM_RENDER_SCALE` | `2` | Rasterisation scale for scanned PDFs (~144 DPI) |
-
-Without `GROQ_API_KEY`, the app **automatically falls back** to the classic Tesseract pipeline — nothing breaks. Scanned PDFs are rasterised to images (via `@napi-rs/canvas`) so the VLM can read them, since vision models don't accept PDF input.
-
----
-
-## Features
-
-- Dashboard and interactive Analytics: overview, toppers, failed results, subject
-  performance, semesters, student exploration, grade distribution and revaluation.
-- Batch, result-session, subject and faculty management.
-- Stable AcademicCourse identities, session-specific subject offerings and explicit
-  administrator review of required semester rosters.
-- Original PDF result upload, extraction, editable review, validation, preview and
-  transactional import.
-- Separate revaluation selection/upload/review/approval workflow with an event
-  ledger and approved-effective result overlays.
-- Eight read-only Reports with browser previews, CSV exports and dedicated
-  Print / Save as PDF views.
-- Light/dark themes and horizontally scrollable wide academic tables.
-- Guarded deterministic demo data with automatic academic integrity checks.
+An Express, EJS, Sequelize and MySQL application for managing MCA students and
+academic sessions, importing result/revaluation cards, exploring academic
+outcomes, and generating reports.
 
 ## Requirements
 
-- **Node.js 24**, the runtime used for repository verification. The installed
-  `pdfjs-dist` package declares `>=22.13.0 || >=24`; the old Node 18 prerequisite
-  does not cover the current dependency set.
-- npm and **MySQL 8.0+**, running before database setup. Queries use MySQL 8 features
-  including common table expressions and window functions.
-- A modern browser. Optional automated browser verification uses installed
-  Microsoft Edge and Node's native WebSocket implementation.
-
-- Node.js / Express 5
-- EJS templates (with `express-ejs-layouts`)
-- MySQL via Sequelize 6
-- `express-session` + `bcryptjs` authentication
-- Bootstrap 5, Material Icons
-- `tesseract.js` + `pdfjs-dist` for OCR / PDF extraction
-- Optional AI hybrid extraction via **Groq** (free): `qwen/qwen3.8-27b` (VLM) + `openai/gpt-oss-20b` (LLM), with `@napi-rs/canvas` for PDF page rasterisation
+- Node.js 24, the runtime used for local verification. Node 18 is not sufficient
+  for the currently installed PDF dependency set.
+- npm and MySQL 8.0+, running before setup.
+- A modern browser. The optional browser harness uses installed Microsoft Edge.
+- OCR runs through `tesseract.js`; a separate Tesseract CLI is not required.
+  Image processing and scanned-PDF rendering use `sharp`, `pdfjs-dist`, and
+  `@napi-rs/canvas`. English OCR language data may download on first use.
+- Groq access is optional. Local-only extraction does not require an AI API key.
 
 ## Setup
 
-Run commands from the repository root. On Windows PowerShell:
+Run from the repository root in Windows PowerShell:
 
-```powershell
+~~~powershell
 npm.cmd install
 Copy-Item config/.env.example config/.env
-# Edit config/.env with your local database credentials and session secret.
+# Configure the database and a strong SESSION_SECRET before continuing.
 npm.cmd run setup
 npm.cmd start
-```
+~~~
 
-**Quick Start**
-```powershell
+Do not overwrite an existing `config/.env`. On macOS/Linux use `npm` and
+`cp config/.env.example config/.env` for a new configuration.
 
-  npm install
-  npm run setup
-  npm start
-```
+`setup` creates the database if missing, applies migrations, and runs the
+initialization scripts. The database user needs the corresponding permissions.
+For an existing installation, back up the database and apply pending migrations
+with `npm.cmd run migrate`; do not run a demo reset to upgrade it.
 
-**npm run demo** <- Run this for demo data
+The default URL is **http://localhost:3000**. The application uses `APP_PORT`,
+not `PORT`. To use a different free port:
 
-Do not overwrite an existing `config/.env`. On macOS/Linux, use `npm` instead of
-`npm.cmd` and `cp config/.env.example config/.env` for a new configuration file.
-
-`setup` creates the database if missing, applies Sequelize migrations, then runs
-the initialization scripts, including the default **Master of Computer Applications** department (MCA).
-Its database user needs the corresponding creation, DDL and initialization permissions. For an already initialized installation, use
-`npm.cmd run migrate` to apply pending migrations; do not reset its academic data.
-
-The default URL is **http://localhost:3000**. The application reads **APP_PORT**,
-not PORT. To start a development instance on another free port:
-
-```powershell
+~~~powershell
 $env:APP_PORT = '3005'
 npm.cmd start
-```
+~~~
 
-### Configuration
+Fresh initialization creates the MCA department, initial settings, and the
+development administrator `admin / admin123`. Change the password in
+**Settings > Account Security** before storing real data. Initialization does
+not reset an existing administrator's password. See [Initialization](init/README.md).
 
-Database and session configuration load `config/.env`. `app.js` also loads a root
-`.env` if present; pre-existing process environment values take precedence under
-the current dotenv calls. Avoid conflicting configuration in both files.
+## Configuration
 
-| Variable | Purpose |
+Database/session configuration loads `config/.env`; the application also loads
+a root `.env` if present. Existing process environment values take precedence.
+Avoid conflicting values across these locations.
+
+| Variable | Purpose / Default |
 | --- | --- |
-| `DB_HOST` | MySQL host; normally `localhost` for development |
-| `DB_PORT` | MySQL port; normally `3306` |
-| `DB_USER` | MySQL account |
-| `DB_PASSWORD` | MySQL password |
-| `DB_NAME` | Database name; example uses `academic_result_analytics_db` |
-| `SESSION_SECRET` | Set a strong, private random value; never rely on the fallback |
-| `APP_PORT` | HTTP listen port; defaults to `3000` |
-| `NODE_ENV` | Demo commands require explicit `development` or `test`; production enables secure session cookies |
-| `DEBUG_MODE` | Enables debug output in the OCR provider when set to `true` |
+| `DB_HOST`, `DB_PORT` | Local MySQL host and port; normally `localhost`, `3306` |
+| `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Database credentials and database name |
+| `SESSION_SECRET` | Strong private session-signing secret; do not use the fallback |
+| `APP_PORT` | HTTP port; `3000` |
+| `NODE_ENV` | Deployment environment; production enables secure session cookies |
+| `GROQ_API_KEY` | Optional key enabling the hybrid extraction path |
+| `GROQ_VLM_MODEL` | Configured vision model; default `qwen/qwen3.8-27b` |
+| `GROQ_LLM_MODEL` | Reconciliation model; default `openai/gpt-oss-20b` |
+| `GROQ_BASE_URL` | Default `https://api.groq.com/openai/v1` |
+| `GROQ_TIMEOUT_MS` | Per-request timeout; `60000` |
+| `EXTRACTION_MODE` | `auto` by default; `tesseract` disables external AI extraction |
+| `VLM_MAX_PAGES` | Rasterized PDF page limit; `3` |
+| `VLM_RENDER_SCALE` | PDF rasterization scale; `2` |
 
-`UPLOAD_PATH`, `MAX_UPLOAD_SIZE` and `OCR_PROVIDER` appear in the example file,
-but are not wired as configurable upload limits/paths/provider selection in the
-current flows. Both original and revaluation upload routes accept **PDF only,
-up to 15 MB**. Files are staged in `uploads/temp`, then handled under the relevant
-result/revaluation directories. Do not assume `MAX_UPLOAD_SIZE=20MB` changes this.
+`vlm` currently follows the same configured-AI branch as `auto`: it does not
+force every document through AI or disable fallback. Complete embedded PDF
+tables can be accepted before AI in either mode.
 
-### Authentication and Access
+Legacy example variables `UPLOAD_PATH`, `MAX_UPLOAD_SIZE`, `OCR_PROVIDER`,
+and `DEBUG_MODE` do not control the current extraction/upload implementation.
+Actual limits come from `config/uploadLimits.js`.
 
-Fresh initialization creates a development administrator:
+**Privacy:** hybrid extraction sends document images and OCR/transcription text
+to the configured external provider. Use `EXTRACTION_MODE=tesseract` when records
+must stay local. Provider availability, model support, pricing, and rate limits
+are external constraints; the application does not guarantee free or unlimited use.
 
-| Username | Email | Initial Password |
-| --- | --- | --- |
-| `admin` | `admin@example.com` | `admin123` |
+See [Configuration](config/README.md) for details.
 
-Change this password through `/account-security` before using real data. Existing
-initialized accounts are not reset by the initialization script.
+## Main Modules
 
-Reports, their APIs, CSV and print endpoints require authentication and an
-`admin` or `faculty` role. Analytics and Students also enforce admin/faculty
-authorization. Faculty management and required-course roster confirmation are
-administrator-only; entity routes have their own write restrictions.
-
-**Current schema limitation:** the initial migration defines
-`admin_users.role` as `ENUM('admin')`. Although parts of the application authorize
-faculty sessions, that schema cannot store a faculty login without a separately
-approved schema change. Teaching Faculty records and SubjectFaculty assignments
-are separate from login accounts. There is **no implemented student login portal**.
-Sidebar visibility is not a substitute for server-side authorization.
-
-## Reports
-
-| Report | Page | Scope / Output |
-| --- | --- | --- |
-| Student Result | `/reports/student` | One student; supports completed semesters/sessions and explicit attempts |
-| Class Result | `/reports/class` | Student/result attempts for a selected semester sitting |
-| Subject Result | `/reports/subject` | Student subject outcomes for the selected subject and sitting |
-| Consolidated Result | `/reports/consolidated` | One row per exact result attempt; dynamic subject EX / IA / T groups, TOTAL, %, stored SGPA |
-| Toppers | `/reports/toppers` | Ranked qualifying results with stored GPA, marks total and marks-based percentage |
-| All Students Progress | `/reports/student-progress` | One row per batch student; dynamic semester history, cumulative CGPA and grouped year completion |
-| Result Analysis | `/reports/result-analysis` | Subject Regular/Repeaters/Total APP, PASS and pass %, assigned staff, chart and result-level summary |
-| Revaluation | `/reports/revaluation` | Canonical before/after values and revaluation ledger events |
-
-For each report type `<type>`, the protected endpoints are:
-
-```text
-result-automation-analytics/
-├── app.js                       # Express entry point
-├── config/                      # .env, db, session, sidebar
-├── controllers/                 # Route handlers (auth, dashboard, results, revaluation, …)
-├── database/models/             # Sequelize models
-├── docs/                        # Database ER diagram, project structure
-├── init/                        # 01-default-settings, 02-default-admin
-├── middlewares/                 # auth, layout, menu, theme, user
-├── migrations/                  # Sequelize CLI migrations
-├── public/                      # css, js, images, charts
-├── routes/                      # Express route modules
-├── scripts/                     # bootstrap-db.js, runInit.js
-├── seed/                        # Manual test-data seeder (see seed/README.md)
-├── services/                    # OCR, document/revaluation extractors, AI (VLM+LLM)
-│   ├── aiProviders.js           #   Groq clients (vision + text) — free models
-│   ├── pageRenderer.js          #   PDF→image rasterisation for the VLM
-│   ├── vlmExtractor.js          #   Hybrid OCR + VLM + LLM extractor
-│   ├── documentExtractor.js     #   Classic Tesseract path + AI dispatch
-│   ├── ocrProvider.js           #   OCR provider abstraction
-│   ├── tesseractProvider.js     #   Tesseract implementation
-│   ├── revaluationExtractor.js  #   Revaluation adapter
-│   └── …
-├── uploads/                     # Uploaded revaluation files
-└── views/                       # EJS templates
-GET /reports/<type>
-GET /reports/api/<type>
-GET /reports/<type>/export.csv
-GET /reports/<type>/print
-```
-
-Dependent dropdown APIs validate batch, semester, session and subject ownership.
-Student-level previews use server-side pagination; CSV and print use the full
-filtered result set. The subject-level Result Analysis table is not paginated.
-PDF output uses the browser's Save as PDF action, not a server PDF generator.
-Wide reports use landscape print layouts; Progress has a named A3 landscape
-layout. The current Reports implementation exports CSV, not native XLSX.
-
-### Original and Effective Results
-
-- **Original** uses canonical persisted SubjectResult totals, grades and status.
-- **Effective** applies only approved events marked effective, using the
-  deduplicated highest-numbered qualifying event for each SubjectResult.
-- Pending/rejected events never change effective academic outcomes. OCR/import
-  candidates are staging data, not authoritative report data.
-- `IA = internal_marks`, `EX = external_marks`, `T = marks` in Original mode.
-  Effective T may use revised marks; IA/EX remain stored original components.
-  Missing historical components display `-`; effective EX is never inferred.
-- Totals sum canonical displayed subject totals. Percentage uses their actual
-  applicable subject maximums, never SGPA or CGPA multiplied by ten.
-- Revaluation does not overwrite original SubjectResults or recalculate stored
-  Result SGPA, CGPA, overall status or failed-subject count. Reports derive safe
-  effective statuses where needed and identify stored GPA as original-basis data.
-
-## Academic History and Progress
-
-AcademicCourse identity is **Batch + academic Semester + normalized exact subject
-code**. Subjects are session offerings of those courses. Cross-session clearance
-requires this stable mapping, not matching marks, approximate names or an assumed
-equivalence between unrelated codes.
-
-`attempt_no` is scoped to `(student_id, session_id)`, not the student's lifetime
-semester history. BACKLOG, SUPPLEMENTARY and REPEAT are retakes. A Semester 1
-retake remains in a Semester 1 session even when written during a later month.
-Full REGULAR imports require the verified required roster; partial retakes contain
-only the subjects actually attempted.
-
-For verified full REGULAR results, SGPA is credit-weighted grade points divided by
-credits, including failed credits. Retake SGPA is NULL. Cumulative CGPA uses the
-existing verified course-history service, snapshots and grading provenance; it is
-not an average of SGPAs. Missing/unverified/legacy evidence remains unavailable.
-Only a newly imported header receives its cumulative snapshot; later retakes do
-not rewrite older GPA headers. Official source-document GPA extraction is not
-implemented, and programme-final GPA is not asserted.
-
-### Grouped Academic-Year Completion
-
-Progress retains semester Marks Obt., SGPA, CGPA, First Attempt and Pass in
-Supplementary. Its completion columns are now grouped under **Successfully
-Completed With Back Log** and **Successfully Completed Without Back Log**.
-
-Years use consecutive semester pairs: **1-2 First Year**, **3-4 Second Year**, and
-subsequent pairs only where the batch's configured/recorded structure warrants
-them. There is no fixed programme-duration setting; no final-year label is guessed.
-Both required semesters must have sufficient verified academic evidence.
-
-| Year-Level Evidence | With Back Log | Without Back Log |
-| --- | --- | --- |
-| Both semesters passed their verified first regular sittings | N | Y |
-| Both cleared with required, verified later retake clearance | Y | N |
-| Known year remains uncleared | N | N |
-| Future, missing, ambiguous or unverified evidence | - | - |
-
-The academic outcome service performs these calculations, not the template.
-Original/Effective selection also applies to completion. GPA remains on its
-original academic basis. CSV uses explicit year-level completion headings, and
-print/PDF preserves the two-row grouped header.
-
-See [Academic Result Semantics](docs/academic-result-semantics.md) for detailed
-clearance, accepted-attempt, roster-review and GPA rules.
-
-## Demo Dataset
-
-**Use only a disposable local development/test database.** The reset replaces ALL
-academic results, revaluation events, staging, offerings, rosters and other student
-identities in the selected database, not just previously seeded rows.
-
-### Insert Demo Data into MySQL
-
-Run these steps from the repository root. MySQL must be running. The seed inserts
-actual database rows; it is not a browser-only preview or an SQL file generator.
-
-1. Install dependencies and configure `config/.env` using the Setup section above.
-   Set `DB_NAME` to your local demo database and enter its connection credentials.
-2. For a new database, run `npm.cmd run setup` once to create it, apply migrations
-   and initialize it. For an existing initialized database, run
-   `npm.cmd run migrate` to apply pending migrations instead.
-3. Stop imports/revaluation reviews and any other application writes. Insert the
-   complete dataset with this single command:
-
-   ```powershell
-   npm run demo
-   ```
-
-   In Windows PowerShell, use `npm.cmd run demo` if execution policy blocks `npm`.
-   This shortcut requires `DB_NAME=academic_result_analytics_db` and a local MySQL
-   host in `config/.env`. It defaults NODE_ENV to development only when absent;
-   an explicit production, blank or unsupported environment is still refused.
-   **This command backs up and replaces existing academic data before inserting
-   the complete demo dataset. It is not an append-only operation.** Existing
-   required student identities, accounts and configuration are retained according
-   to the safeguards below. Do not run it against real academic data.
-4. Wait for successful completion and `DEMO ACADEMIC DATA READY`. The command prints
-   the inserted counts, backup path and logical dataset digest. A failed command
-   must be investigated; do not treat populated pages alone as proof of success.
-5. Optionally verify the inserted data without changing database records:
-
-   ```powershell
-   npm run demo:verify
-   ```
-
-6. Start the application with `npm.cmd start`, open `http://localhost:3000`
-   (or your configured `APP_PORT`), and sign in with
-   `demo_admin / DemoAdmin2026!`. Select **MCA 2025** in Reports for the main scenarios.
-
-To return to the initial demo scenarios after manual changes, repeat step 3. It
-resets/recreates the same logical dataset without accumulating duplicate rows.
-`npm start`, `npm run setup` and `npm run demo:verify` do **not** insert this
-demo dataset; `npm run demo` explicitly resets and inserts it.
-
-The same `npm run demo` command works on macOS/Linux. For a differently named
-local development database, retain the advanced, explicitly confirmed workflow:
-
-```bash
-NODE_ENV=development npm run seed:demo -- --reset --confirm-db academic_result_analytics_db
-NODE_ENV=development npm run seed:demo:verify -- --confirm-db academic_result_analytics_db
-```
-
-### Reset Safety and Dataset Contents
-
-The confirmed database name must match `DB_NAME` exactly. The advanced seed CLI
-refuses unset environments; only the named local demo shortcuts provide a
-development default when NODE_ENV is absent. Production environments,
-production-like names and remote hosts are refused. A JSON academic-table backup
-is written to the OS temporary directory before deletion; its path is printed.
-It contains student PII and must be protected. Reset/inserts/integrity assertions
-are transactional; report smoke checks run after commit. Do not run alongside
-imports or review writes. There is no automatic backup-restore command.
-
-The dataset contains **36 students**, **48 courses**, **12 sessions**, **72 subject
-offerings**, **563 SubjectResults**, and **102 Results** (92 REGULAR, 6 BACKLOG,
-2 SUPPLEMENTARY, 2 REPEAT). Nine RV events cover approved, pending, rejected and
-historical/effective selection. Batches are MCA 2025, MCA 2026 and isolated
-TEST UNVERIFIED MCA; existing empty batches are retained.
-
-The three intentional identities retain their exact names, USNs and emails:
-Ravi (`1MV25MC061`), Praful (`1MV25MC052`) and Sindhu (`1MV25MC074`). Existing
-identity IDs/UUIDs are preserved. Their generated academic history is demo data;
-other students are explicitly fictional. Scenarios cover first passes, cross-session
-clearance, unresolved/multiple retakes, cumulative GPA, unknown history, historical
-NULL components, topper ties and unavailable future semesters.
-
-Development demo login: `demo_admin / DemoAdmin2026!`. A faculty login is seeded
-only where the existing role column supports it; the current admin-only schema
-does not. Existing passwords are not overwritten.
-
-`seed_all.js` is a guarded alias requiring the same explicit arguments. Legacy
-standalone `seed_clean.js` is retired and refuses writes.
-`npm run seed` invokes Sequelize's `seeders/` workflow, not this demo dataset.
-Nothing seeds automatically on `npm start`.
-
-See [Demo Commands and Scenario Manifest](seed/README.md) for exact identities,
-manual-test cases, expected outcomes, safeguards and limitations. Demo verification
-does not claim that live OCR uploads were performed.
-
-## Tests
-
-Run the existing unit/service tests without enabling live database checks:
-
-```powershell
-node --test tests/*.test.js test/*.test.js
-```
-
-Some modules initialize database configuration even when DB-specific tests are
-skipped; keep a valid local `config/.env`. To include read-only MySQL fixtures and
-persisted-demo scenario checks after seeding:
-
-```powershell
-$env:REPORTS_DB_TEST = '1'
-$env:DEMO_SEED_DB_TEST = '1'
-node --test tests/*.test.js test/*.test.js
-node tests/reports-browser.js
-```
-
-Demo checks expect the documented seed to remain unchanged; they do not reset it.
-The browser harness uses a loopback test app and installed Edge, exercises all
-eight Reports, CSV, print/PDF, grouped headers, themes and responsive layouts,
-and writes screenshots/PDFs to a printed temporary-directory path. It does not
-perform live import/approval writes. `REPORTS_BROWSER` can specify another Edge
-executable path. Latest verification of the grouped-year change: **80 tests
-passed**, with database checks enabled and no skipped tests, plus browser checks.
-
-## Project Layout
-
-```text
-app.js                 Express entry point
-config/                Environment, database, sessions and sidebar
-controllers/           HTTP handlers
-database/models/       Sequelize models
-database/schema.sql    Schema reference; migrations manage installed databases
-migrations/            Sequelize migration history
-init/                  Initial settings and development administrator
-repositories/          Parameterized SQL and database query layers
-services/              Extraction, academic policy/outcomes, Analytics and Reports
-routes/                Page, API and workflow routes
-middlewares/           Authentication, authorization, uploads and UI context
-views/                 EJS layouts, pages, report/print partials
-public/                CSS, browser JavaScript and assets
-seed/                  Guarded demo CLI, scenarios and integrity verification
-scripts/               Database bootstrap and initialization runner
-tests/ and test/       Automated tests and optional browser harness
-uploads/               Original/revaluation uploads and temporary staging
-docs/                  Architecture, database and academic semantics references
-```
-
-## Useful Entry Points
-
-| Path | Purpose |
+| Module | Current experience |
 | --- | --- |
-| `/login` | Administrator authentication |
-| `/dashboard` | Dashboard |
-| `/batches`, `/sessions`, `/subjects`, `/faculty` | Academic configuration |
-| `/subjects/courses` | Administrator required-course roster review |
-| `/results/upload` | Original-result upload workflow |
-| `/revaluation/start` | Session/student/attempt selection for revaluation |
-| `/analytics/overview` | Interactive Analytics entry point |
-| `/reports` | Redirects to Student Result Report |
-| `/account-security` | Change the signed-in account password |
-| `/api/health` | Public HTTP health response; not a database-readiness check |
+| Dashboard | Interactive pass/fail pie, subject and grade analysis, attention list, contextual report links |
+| Academic Management | Batches, sessions, examination subjects, Semester Roster, faculty and multi-faculty assignments |
+| Student Repository | One searchable/paginated Students page, add/edit, soft delete, restore and spreadsheet import |
+| Result Management | Original-card upload, review, Validate, preview, import and logs |
+| Revaluation | Session/student/attempt selection, upload, extracted review, Validate and approval |
+| Analytics | Overview, Students, Toppers, Failed Students, Subjects, Semesters, Progress / Backlog Trends, Revaluation |
+| Reports | Report center and eight report types with CSV and browser Print / Save as PDF |
+| Settings | Account, security, browser appearance, institution/report branding, read-only academic policy and system information |
 
-## Troubleshooting and Deployment Cautions
+Latest-batch defaults are used in the relevant academic forms, student forms,
+result upload and report filters. Session semester options derive from batch
+duration. Calendar-derived session labels do not certify academic completion.
+See [Academic Forms](docs/academic-form-defaults.md).
 
-- **Database connection/setup fails:** check MySQL availability, configuration,
-  database permissions and pending migrations. Back up existing data before DDL.
-- **Port occupied:** change `APP_PORT`, not PORT. Existing Node processes do not
-  reload edited services automatically; restart your development instance.
-- **Unknown Progress/GPA values:** inspect roster verification, course mappings,
-  missing required subject outcomes, examination chronology and GPA snapshots.
-  Do not replace dashes with zero or certify unclear history merely to fill cells.
-- **Seed refused:** use an explicit development/test environment, a local database
-  and exact confirmation. Do not bypass safeguards for real academic data.
-- **Duplicate subject-code errors:** inspect installed constraints and migration
-  status. Offering uniqueness is session-scoped; do not blindly drop indexes.
-- **Extraction problems:** confirm PDF type/size/readability and review extracted
-  values. Scanned-document fallback is not a guarantee of accurate OCR.
-- **Production use:** replace default credentials, configure a strong secret and
-  HTTPS, review secure-cookie/proxy deployment behavior, restrict DB privileges,
-  and establish backups. Uploads are currently mounted under `/uploads` as static
-  files; review document access controls before storing sensitive real records.
+Student USNs and names are saved uppercase; email is saved lowercase.
+Current student email validation permits Gmail addresses only and is shared
+between browser/server paths. Student deletion preserves academic history via
+soft deletion; supported re-add/import paths restore the same deleted student
+in the original batch rather than duplicating its identity.
+See [Students Search and Lookup](docs/students-search-lookup.md).
 
-## Further Documentation
+## Result and Revaluation Uploads
 
-- [Academic Result Semantics](docs/academic-result-semantics.md)
-- [Demo Seed and Scenario Manifest](seed/README.md)
-- [Database Structure](docs/database-structure.md)
-- [Entity Relationship Diagram](docs/er-diagram.md)
+Both workflows accept **PDF, PNG, JPG and JPEG**, up to **15 MB** per document.
+Image content must decode correctly, match its declared type, be single-frame,
+and remain within the 40-megapixel decode limit. Unsupported formats are rejected
+even if an internal renderer supports additional image types.
+
+### Original Results
+
+1. Select the batch/session and upload a marks card.
+2. Review the extracted USN, student name, attempt and marks against the original.
+3. Click **Validate**. Registration, name, duplicate-attempt, prior-result and
+   academic/marks checks must pass.
+4. Inspect the validated preview, then explicitly import.
+5. Success feedback/celebration appears only after persistence succeeds.
+
+Imports require an existing non-deleted student in the selected batch. Student
+names must match after Unicode, case and whitespace normalization; partial or
+fuzzy names are not accepted. Duplicate-result alerts are deferred to Validate,
+not presented as a blocking alert immediately after extraction.
+
+Semester 2 requires an original Semester 1 result; Semester 3 requires original
+results for Semesters 1 and 2, and so on. Retakes/later attempts also require a
+prior original result in their own semester. Failed original cards count as
+uploaded history; drafts and empty result headers do not. Examination chronology
+is checked. Preview/direct-save requests repeat the guards, including under the
+final transaction. Missing history is not repaired by inventing marks or GPA.
+
+Full REGULAR results require a verified required-course roster. Partial retakes
+contain only the attempted subjects. Subject creation shows the roster-review
+notice below **Create Subject**, with the existing timed dismissal.
+
+### Revaluation
+
+Start at `/revaluation/start`: select session, student and saved result attempt,
+then upload. Successful extraction opens the editable review directly. Validate
+must succeed before approval; extraction alone never writes academic results.
+The selected result/student/subject scope is resolved by the server. Identity
+warnings/confirmation, duplicate checks and final locked approval guards remain
+part of this workflow. Existing pending/extraction/approval links are retained
+where needed for recovery or compatibility.
+
+The card's internal mark, old mark/result, RV mark/result, and final mark/result
+are independent evidence. The printed final external mark is not silently
+replaced with internal-plus-external total. Approval creates canonical ledger
+events without overwriting original results or their stored GPA.
+
+### Extraction Reliability
+
+Complete embedded PDF text is preferred when it passes completeness checks.
+Other documents use local OCR or the configured OCR + VLM + LLM hybrid pipeline.
+Sparse coordinate OCR and bounded focused-row OCR retry when there is no usable
+matched row. Existing usable rows are not automatically overwritten.
+
+Malformed mark strings are rejected, omitted vision rows are retained when the
+LLM loses them, and conflicting AI readings are flagged for review. Stored
+hybrid stage diagnostics distinguish OCR, vision, reconciliation and recovery.
+A recovery notice is informational, not proof that every value is correct.
+
+Extraction is not guaranteed for every layout or image. Review uncertain rows;
+use **Replace document** or a fresh upload to regenerate an older stored
+extraction. A page refresh alone does not rerun it. Rasterized PDF paths honor
+the configured page limit, so check longer cards for omitted pages.
+
+See [Extraction and Upload Workflows](docs/result-extraction.md).
+
+## Reports and Academic Meaning
+
+`GET /reports` renders the report center; it does not redirect to a single report.
+
+| Report | Page |
+| --- | --- |
+| Student Result | `/reports/student` |
+| Class Result | `/reports/class` |
+| Subject Result | `/reports/subject` |
+| Consolidated Result | `/reports/consolidated` |
+| Toppers | `/reports/toppers` |
+| All Students Progress | `/reports/student-progress` |
+| Result Analysis | `/reports/result-analysis` |
+| Revaluation | `/reports/revaluation` |
+
+For each report type, protected routes provide the page, JSON API
+(`/reports/api/<type>`), CSV (`/reports/<type>/export.csv`) and print
+(`/reports/<type>/print`). PDF output uses the browser's Print / Save as PDF;
+native XLSX export is not implemented. Shared compact print headers apply across
+reports; consolidated student names are left-aligned. Disable the browser's own
+headers/footers in its print dialog when they are unwanted.
+
+**Original** uses saved academic values. **Effective** overlays only approved
+effective revaluation events, with the original as fallback. Pending/rejected
+events never change outcomes. IA/EX remain original stored components; revised
+totals are not reverse-engineered into external marks. Revaluation does not
+recalculate stored Result SGPA/CGPA.
+
+Stable course identity is batch + academic semester + exact normalized course
+code. Course clearance uses verified cross-session history, not the highest
+marks or approximate names. Unknown/missing evidence stays unavailable.
+SGPA is credit-weighted, including failed credits; cumulative CGPA requires
+verified course/grading history from Semester 1, not an average of SGPAs.
+See [Academic Semantics](docs/academic-result-semantics.md) and
+[Analytics and Reports](docs/analytics-reports-ux.md).
+
+## Upload Folders and Git
+
+GitHub retains these folders through tracked placeholders:
+
+~~~text
+uploads/
+  branding/.gitkeep
+  results/.gitkeep
+  revaluation/.gitkeep
+  temp/.gitkeep
+~~~
+
+`.gitignore` excludes their runtime contents, including uploaded PDFs/images and
+nested files. Keep the placeholders when committing. The previously tracked
+branding upload was removed from current tracking, not deleted locally; old
+commits may still contain it. Do not commit student documents or database backups.
+
+GitHub does not store uploaded content for deployment. Back up both the database
+and upload storage separately. A cloned environment needs its own branding file
+if database settings reference a local uploaded logo.
+
+## Demo Data
+
+**Only use a disposable local development/test database.** `npm run demo` is a
+destructive reset, not an append-only import. It backs up then replaces academic
+history, staging, course offerings/rosters and non-protected student rows.
+
+~~~powershell
+npm.cmd run demo
+npm.cmd run demo:verify
+~~~
+
+The shortcut requires local `academic_result_analytics_db` and defaults
+`NODE_ENV` to development only when absent. Advanced commands require explicit
+environment and exact database confirmation. The three protected real student
+profiles are retained, but the reset removes their existing result history and
+does not generate demo results for them.
+
+The current in-memory plan has 36 students, 92 results and eight revaluation
+events. Earlier documentation's 102-result/nine-event plan is obsolete.
+`seed/seed_all.js` is absent; do not use that old alias.
+See [Demo Data and Safety](seed/README.md) before executing any reset.
+
+## Verification
+
+Run the complete test suite:
+
+~~~powershell
+node --test tests/*.test.js test/*.test.js
+~~~
+
+Optional database checks are opt-in using `REPORTS_DB_TEST=1` and
+`DEMO_SEED_DB_TEST=1`. The Edge harness is `node tests/reports-browser.js`;
+it writes screenshots/PDFs to an OS temporary directory. Some test modules load
+database configuration even when integration checks are skipped.
+
+Known baseline issues remain in `tests/demo-seed.test.js`: the missing legacy
+entry point, old result/event counts, and an attempt to generate marks for a
+protected real student. Do not interpret a focused suite pass as a green full
+suite, or run a seed to make test expectations pass against real records.
+
+Current verification notes are maintained in
+[Implementation Status](docs/implementation-status.md).
+
+## Access and Deployment Limits
+
+- Reports, Analytics and the Students router enforce admin/faculty access.
+  Required-course confirmation and Faculty management are administrator-only.
+- The initial login-role schema is admin-only. Faculty records/assignments are
+  separate from login accounts; there is no implemented student self-service.
+- Settings changes use current-account checks, field allowlists and CSRF.
+  These protections should not be assumed to cover every older write endpoint.
+- Use a strong session secret, change development credentials, configure HTTPS,
+  review proxy/cookie behavior, restrict database privileges, and establish backups.
+- `/uploads` is currently mounted as static storage before authentication.
+  Ignoring files in Git does not make the HTTP endpoint private. Review document
+  access controls before deploying sensitive records.
+- `/api/health` confirms HTTP health, not complete database/dependency readiness.
+  Restart the application after backend code/environment changes.
+- Current ignore rules protect `.env` but not every environment-file variant;
+  manually check staged files for credentials. The npm lockfile is currently
+  ignored; dependency reproducibility remains a repository-policy limitation.
+
+## Documentation
+
+- [Configuration](config/README.md)
+- [Initialization](init/README.md)
 - [Project Structure](docs/project-structure.md)
+- [Database Structure](docs/database-structure.md)
+- [Entity Relationships](docs/er-diagram.md)
+- [Views](views/README.md)
+- [Extraction and Upload Workflows](docs/result-extraction.md)
+- [Academic Forms](docs/academic-form-defaults.md)
+- [Academic Result Semantics](docs/academic-result-semantics.md)
+- [Students Search and Lookup](docs/students-search-lookup.md)
+- [Analytics and Reports](docs/analytics-reports-ux.md)
+- [Settings](docs/settings-first-release.md)
+- [Demo Dataset](seed/README.md)
+- [Implementation Status](docs/implementation-status.md)
 
-Source models, migrations and route/service implementations are authoritative if
-older supporting documentation differs. `package.json` declares the ISC license;
-there is currently no standalone license file in the repository.
+Source code and applied migrations are authoritative. `package.json` declares ISC;
+the repository currently has no standalone license file.

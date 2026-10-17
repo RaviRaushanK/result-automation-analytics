@@ -1,5 +1,7 @@
 # Academic Result Semantics
 
+Reviewed on 17 October 2026. Source services and applied migrations remain authoritative.
+
 ## Stable Identity And Rollout
 
 `AcademicCourse` identity is batch + numeric academic semester + trimmed uppercase
@@ -13,17 +15,46 @@ events are preserved. Historical grading provenance remains unknown. MySQL DDL
 implicitly commits; mapping writes are transactional. Re-running is guarded;
 rollback intentionally refuses to drop academic history.
 
-Administrators explicitly review required courses at `/subjects/courses`.
+Administrators review required courses in `/subjects?tab=roster`.
+The old `/subjects/courses` GET redirects there; `/subjects/roster/edit` opens editing.
 Confirmation records reviewer and timestamp. Select the actual full-semester
 roster, not a retake subset. Unmapped offerings must be reconciled first. Do not
-confirm ambiguity without institutional evidence. MCA 2025 Semester 1 contains
-distinct MMC101-series and MMC201-series regular rosters; neither automatically
-replaces or clears the other.
+confirm ambiguity without institutional evidence. Distinct code families in a
+legacy semester do not automatically replace or clear one another. Verified
+rosters are read-only until explicit Edit Required Courses; accidental selections
+can be corrected without replacing stable course identities.
 
 For later retakes, create another session for the SAME academic semester/batch
 and actual examination period. Add offerings with exact course codes/definitions;
 they resolve to existing courses. Import only subjects actually attempted. A
 configured session cannot change academic semester.
+
+## Registration and Previous Cards
+
+Original-result imports require an existing non-deleted Student in the selected
+batch. Validate compares both USN and registered name; name comparison normalizes
+Unicode, case and whitespace, not partial/fuzzy text. The admin corrects the
+extracted name or USN, rather than OCR renaming the Student record.
+
+Registration/name and exact-attempt duplicate alerts appear after Validate.
+Preview and final import repeat the relevant checks. Result upload does not
+create missing students or silently restore deleted identities.
+
+For a first regular Semester N result, saved original REGULAR cards with subject
+rows are required for every semester from 1 through N-1. Retakes and later
+attempts also need a prior original in the same academic semester. A failed
+original counts as uploaded history; an empty header or extraction draft does not.
+Examination dates and same-session attempt ordering constrain eligible history.
+
+These guards apply to every configured later semester, not only Semester 2.
+They ensure history exists, not that every old course/grade snapshot is verified.
+Cumulative GPA may still be unavailable when roster, credits or grading evidence
+is incomplete. No fabricated marks/GPA are inserted to bridge that gap.
+
+Revaluation operates on a selected saved Result and retains its own server-side
+identity-confirmation and duplicate-approval workflow. It does not provision a
+new original result or backfill missing previous cards. See
+[Extraction and Uploads](result-extraction.md).
 
 ## Participation And Clearance
 
@@ -90,6 +121,10 @@ does not prove backlog completion. No stored academic values are changed.
 
 ## File Manifest
 
+Historical implementation manifest below; see [Project Structure](project-structure.md)
+for the current inventory and [Implementation Status](implementation-status.md)
+for current verification and remaining gaps.
+
 Created:
 
 - `database/models/AcademicCourse.js`
@@ -116,19 +151,20 @@ Modified:
 - `seed/seed_data.js`, `seed/backfill_cgpa.js`: centralized legacy scale, no new legacy cumulative GPA or historical backfill writes. Seeds were NOT executed.
 - `tests/reports.test.js`, `tests/result-persistence.test.js`, `tests/reports-browser.js`, `test/analytics-toppers.test.js`, `test/analytics-revaluation.test.js`: fixture/provenance coverage and browser checks.
 
-`app.js`, `package.json`, sidebar configuration, result extraction, revaluation
-approval/persistence, prior migrations and historical academic values are unchanged.
+This manifest records the original academic-semantics implementation, not a
+claim that extraction, navigation or approval code has remained unchanged since.
+Later workflow changes are documented in [Extraction](result-extraction.md).
 
 ## Verification Commands
 
-Apply `npx sequelize-cli db:migrate`, then run in PowerShell:
+For deployment, back up the database and apply pending migrations separately.
+Default focused checks run without enabling database integration:
 
 ```powershell
-$env:REPORTS_DB_TEST='1'
-node --test tests/academic-outcomes.test.js tests/result-persistence.test.js tests/reports.test.js tests/student-category.test.js test/*.test.js
-node tests/reports-browser.js
+node --test tests/academic-outcomes.test.js tests/result-history.test.js tests/result-student-registration.test.js tests/result-persistence.test.js tests/reports.test.js
 ```
 
-MySQL fixtures are read-only CTEs, not seed/production writes. Browser checks use a
+Enable `REPORTS_DB_TEST=1` only for the optional MySQL fixtures, which use read-only
+academic CTEs rather than seed/production writes. `tests/reports-browser.js` uses a
 loopback test-session harness without academic writes. Back up the database before
 production deployment; never use legacy seeds to repair historical evidence.

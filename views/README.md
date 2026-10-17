@@ -1,162 +1,96 @@
-# Views Directory Documentation
+# Views
 
-## Purpose
+Reviewed on 17 October 2026. Templates use EJS and `express-ejs-layouts`.
 
-The `views/` directory contains all **EJS (Embedded JavaScript)** templates responsible for rendering the application's user interface. It follows a feature-based structure that separates pages into logical modules while reusing common layouts and partials. This organization improves maintainability, scalability, and code reusability.
+## Current Pages
 
----
+| Directory | Templates / Purpose |
+| --- | --- |
+| `analytics/` | overview, students, toppers, failed, subjects, semesters, progress, revaluation |
+| `auth/` | login, compatibility account-security page, shared password partial |
+| `batches/` | batch list and create/edit dialogs; shared year-input partial |
+| `dashboard/` | dashboard filters, metrics, pie/subject/grade charts and attention rows |
+| `errors/` | 404 and 500 |
+| `faculty/` | faculty management and per-subject multi-faculty assignment |
+| `landing/` | public landing page |
+| `reports/` | overview plus eight reports, standalone print view and shared table/branding partials |
+| `results/` | upload, review, validated preview, success and logs |
+| `revaluation/` | session/student/attempt selection, upload, recovery/pending, review and outcome |
+| `sessions/` | session management |
+| `settings/` | account, security, appearance, institution, policy and system sections |
+| `students/` | student directory and reusable row partial |
+| `subjects/` | examination-subject list/dialogs, roster/edit view and shared tabs |
 
-# Directory Structure
+There are no Chat Assistant, standalone department, separate Student Search, or
+standalone batch-sessions pages. Settings uses the existing password partial;
+there is no `layouts/auth.ejs` or separate change-password template.
 
-```text
-views/
-├── README.md                 # Views directory documentation
-├── analytics/                # Analytics and reporting pages
-├── auth/                     # Authentication pages
-├── batches/                  # Batch management pages
-├── chat/                     # Chat assistant pages
-├── dashboard/                # Dashboard pages
-├── departments/              # Department management pages
-├── errors/                   # Error pages (404, 500)
-├── faculty/                  # Faculty management pages
-├── landing/                  # Public landing page
-├── layouts/                  # Base layouts
-├── partials/                 # Reusable UI components
-├── reports/                  # Report pages
-├── results/                  # Result management pages
-├── revaluation/              # Revaluation pages
-├── sessions/                 # Academic session pages
-├── subjects/                 # Subject management pages
-```
+## Layouts and Shared Partials
 
----
+- `layouts/main.ejs`: authenticated workspace with navbar/sidebar, breadcrumbs,
+  alerts, footer and shared scripts.
+- `layouts/landing.ejs`: public/login presentation without the workspace sidebar.
+- `reports/print.ejs`: standalone print rendering with `layout: false`.
+- `partials/head.ejs`: Bootstrap/fonts/icons, shared tokens and supplied page CSS.
+- `partials/navbar.ejs`, `sidebar.ejs`, `breadcrumbs.ejs`, `alerts.ejs`,
+  `footer.ejs`, `scripts.ejs`: reusable workspace chrome.
+- `results/partials/success-header.ejs`: shared persisted-success presentation for
+  original import and eligible revaluation outcomes.
 
-# Directory Overview
+Routes/controllers select layouts and supply locals. Error rendering uses the
+layout chosen by its handler, not a universally enforced error-only layout.
 
-| Directory      | Description                                        |
-| -------------- | -------------------------------------------------- |
-| `analytics/`   | Views related to analytics and reports.            |
-| `auth/`        | Login, account security, and authentication pages. |
-| `batches/`     | Batch management interfaces.                       |
-| `chat/`        | Chat assistant pages.                              |
-| `dashboard/`   | Main dashboard displayed after successful login.   |
-| `departments/` | Department management pages.                       |
-| `errors/`      | Custom error pages such as 404 and 500.            |
-| `faculty/`     | Faculty management pages.                          |
-| `landing/`     | Public-facing landing page.                        |
-| `layouts/`     | Base layouts shared across multiple pages.         |
-| `partials/`    | Reusable UI components included in layouts.        |
-| `reports/`     | Report generation and display pages.               |
-| `results/`     | Result management pages.                           |
-| `revaluation/` | Revaluation workflow pages.                        |
-| `sessions/`    | Academic session management pages.                 |
-| `subjects/`    | Subject management pages.                          |
+## Important Workflow Views
 
----
+**Subjects:** `subjects/index.ejs` contains the examination configuration dialogs.
+`subjects/courses.ejs` renders the integrated Semester Roster/read-only or edit
+state. Verified rows remain read-only until explicit Edit Required Courses.
+The subject-created roster reminder is anchored below Create Subject; other
+subject notifications retain their existing fixed container and timing.
 
-# Layouts
+**Original results:** Review & Edit presents the original PDF/image alongside
+editable identity and subject marks. Validate leads to a distinct preview before
+an explicit transactional import. Zero component limits remain zero. Responsive
+layouts keep forms/actions reachable and wide tables horizontally scrollable.
 
-Layouts define the common structure shared by multiple pages.
+**Revaluation:** successful upload/extraction opens review directly. Identity
+evidence, extracted rows, decisions and Validate share that review. Pending is
+retained for failed extraction/retry; old extraction/approval URLs resume the
+canonical flow rather than requiring unnecessary extra screens.
 
-| Layout        | Purpose                                                                                                                                 |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `main.ejs`    | Primary layout for authenticated pages. Includes the navbar, sidebar, breadcrumbs, alerts, page content, footer, and common JavaScript. |
-| `auth.ejs`    | Layout used for authentication-related pages such as Login and Change Password.                                                         |
-| `landing.ejs` | Layout for public pages without authentication or application navigation.                                                               |
+**Reports:** overview is the report center. Shared partials provide branding,
+tables and compact print headers across all report types. Student names in
+consolidated output are left-aligned. Browser print headers/footers are separate
+from application-owned report headings.
 
----
+**Settings:** success messages appear below the navbar, then dismiss. Validation
+errors remain inline. The account menu has Profile and Logout; password fields
+show an eye toggle only when nonempty.
 
-# Partials
+## Rendering and Client Responsibilities
 
-Reusable UI components shared across layouts.
+~~~text
+Router -> Controller -> EJS page -> Selected layout/shared partials
+                       |
+                       +-> Feature JavaScript -> authenticated APIs
+~~~
 
-| Partial           | Purpose                                                                          |
-| ----------------- | -------------------------------------------------------------------------------- |
-| `head.ejs`        | HTML head section including metadata, fonts, icons, and CSS files.               |
-| `navbar.ejs`      | Top navigation bar with branding, sidebar toggle, theme switcher, and user menu. |
-| `sidebar.ejs`     | Main navigation sidebar with collapsible menu items.                             |
-| `breadcrumbs.ejs` | Breadcrumb navigation displayed on application pages.                            |
-| `alerts.ejs`      | Flash messages and alert notifications.                                          |
-| `footer.ejs`      | Common footer displayed across pages.                                            |
-| `scripts.ejs`     | Shared JavaScript imports and initialization scripts.                            |
+Pass display data and supported filter state from controllers/services. Keep
+course clearance, GPA, identity ownership and effective-result selection out of
+templates. Use escaped EJS output for user data. Only trusted template/partial
+HTML should use unescaped insertion.
 
----
+Use existing theme tokens, feature CSS and `workspace-responsive.css`. Reuse the
+current Material Icons/Bootstrap controls and accessible labels. Conditional
+navigation is not a substitute for server-side authorization.
 
-# Rendering Flow
+## Verification
 
-Every page is rendered using the following flow:
+~~~powershell
+node --test tests/workspace-layout.test.js tests/result-management-layout.test.js tests/subjects-roster.test.js tests/reports-print-layout.test.js
+~~~
 
-```text
-Route
-   │
-   ▼
-Controller
-   │
-   ▼
-View (.ejs)
-   │
-   ▼
-Layout
-   │
-   ├── head.ejs
-   ├── navbar.ejs
-   ├── sidebar.ejs
-   ├── breadcrumbs.ejs
-   ├── alerts.ejs
-   ├── Page Content
-   ├── footer.ejs
-   └── scripts.ejs
-```
-
----
-
-# EJS Conventions
-
-- Organize pages by feature.
-- Keep business logic inside controllers.
-- Use layouts to avoid duplicated page structure.
-- Use partials for reusable UI components.
-- Keep templates focused on presentation.
-- Pass only the required data from controllers.
-- Use semantic HTML wherever possible.
-- Follow consistent naming conventions for files and folders.
-
----
-
-# Current Implemented Views
-
-| View                        | Description                  | Layout        |
-| --------------------------- | ---------------------------- | ------------- |
-| `auth/login.ejs`            | User login page              | `auth.ejs`    |
-| `auth/account-security.ejs` | Account security page        | `main.ejs`    |
-| `auth/changePassword.ejs`   | Change password page         | `auth.ejs`    |
-| `dashboard/index.ejs`       | Dashboard home page          | `main.ejs`    |
-| `batches/index.ejs`         | Batches management           | `main.ejs`    |
-| `sessions/index.ejs`        | Session management dashboard | `main.ejs`    |
-| `landing/index.ejs`         | Public landing page          | `landing.ejs` |
-| `errors/404.ejs`            | Page Not Found               | `landing.ejs` |
-| `errors/500.ejs`            | Internal Server Error        | `landing.ejs` |
-
-> Update this table whenever new views are added.
-
----
-
-# Adding a New View
-
-1. Create the EJS file inside the appropriate feature directory.
-2. Create or update the corresponding controller.
-3. Register the route.
-4. Choose the appropriate layout (`main`, `auth`, or `landing`).
-5. Pass the required data from the controller.
-6. Reuse existing partials whenever possible.
-
----
-
-# Best Practices
-
-- Keep feature-specific pages inside their respective folders.
-- Reuse layouts and partials instead of duplicating HTML.
-- Avoid placing business logic inside EJS templates.
-- Keep templates clean, readable, and modular.
-- Maintain consistent file naming conventions.
-- Update this documentation whenever the `views/` directory structure changes.
+The optional `tests/reports-browser.js` harness covers browser rendering and
+responsive/theme interactions with isolated fixtures and read-only report data.
+Screenshots/PDFs go to a temporary directory, not the repository. Unit rendering
+checks alone are not visual verification of every browser/viewport.

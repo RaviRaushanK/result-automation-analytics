@@ -1,5 +1,8 @@
 # Academic Form Defaults
 
+Reviewed on 17 October 2026. Verification totals in older change reports are
+historical; see [Implementation Status](implementation-status.md) for the latest run.
+
 ## Batch and department selection
 
 - Create Batch retains its editable Department dropdown and defaults to the active MCA department.
@@ -7,6 +10,13 @@
 - Add Faculty defaults its editable Department dropdown to MCA.
 - Edit Batch now uses Course Name and Batch Year, composing the same stored batch name as Create Batch. A trailing four-digit year is split automatically; older descriptive names are preserved in Course Name with the start year as the suggested Batch Year.
 - Edit Batch Start Year and End Year also offer the existing accessible year picker and manual input.
+
+Create/Edit Batch compose the stored name from Course Name and Batch Year.
+Batch Year, Start Year and End Year retain year-picker and manual-entry support.
+Add Student and Student Import select the latest cohort; import status defaults
+to Active. Successful import refreshes category options without a page reload.
+Reports also select the latest batch on initialization/reset while preserving
+valid explicit URL choices.
 
 ## Faculty assignments
 
@@ -18,7 +28,7 @@
 
 ## Upload Results
 
-The Batch selector defaults to the same latest-cohort ordering as the other academic forms, including a latest batch with no configured sessions. Session selection remains explicit and offers only that batch's sessions. Changing or clearing batch clears the session/preview; late preview responses cannot overwrite a later selection. Upload submission verifies batch/session agreement before extraction or import writes. Existing clients omitting batch_id remain compatible.
+The Batch selector defaults to the same latest-cohort ordering as the other academic forms, including a latest batch with no configured sessions. Supported marks cards are PDF, PNG, JPG and JPEG up to 15 MB. Session selection remains explicit and offers only that batch's sessions. Changing or clearing batch clears the session/preview; late preview responses cannot overwrite a later selection. Upload submission verifies batch/session agreement before extraction or import writes. Existing clients omitting batch_id remain compatible.
 
 ## Sessions
 
@@ -34,6 +44,11 @@ The Batch selector defaults to the same latest-cohort ordering as the other acad
 
 Updates retain the stable academic course ID instead of creating or resolving a replacement course. Explicit definition edits apply transactionally to that course and its linked examination offerings, with a scope notice in confirmation. Subject code/name corrections and unchanged saves are allowed with existing results. Credits, type and marking-limit changes require no existing course results; these changes also clear roster review. Duplicate course/offering codes and cross-batch/semester links remain protected. Existing marks, grades and result snapshots are not rewritten. Zero-credit/zero-internal and project subjects retain their values in the edit form.
 
+Subject creation retains the roster-review reminder and its 4.5-second dismissal.
+The reminder now appears below Create Subject; other fixed subject alerts keep
+their existing position. Both original and revaluation review use configured
+component maxima, including a valid external maximum of zero.
+
 ## Faculty email
 
 Email has been removed from Add Faculty and its confirmation summary. Existing faculty email values are retained. The optional email API remains backward-compatible and validates email when an older client supplies it; the current form does not collect or send email.
@@ -44,4 +59,4 @@ The legacy email validator uses the bundled IANA top-level-domain snapshot in `p
 
 - Unit/controller coverage: `tests/academic-form-defaults.test.js`, `tests/academic-form-edits.test.js`, `tests/faculty-assignment-count.test.js`, `tests/batch-create-form.test.js`, and `tests/academic-outcomes.test.js`.
 - Browser checks in `tests/reports-browser.js` cover defaults, four/eight semester options, live status, required semester validation, department selection, invalid domain rejection, edit confirmations and mobile/light/dark modal layouts. Save-flow checks use isolated in-memory fixtures, not academic database writes.
-- Full suite: 188 tests, 182 passed, two skipped and four existing demo-seed failures. These failures concern the missing legacy seed entry point and protected seed/result/ledger expectations; they are unrelated to the form changes.
+- Current complete-suite outcomes and baseline/environment failures are recorded in [Implementation Status](implementation-status.md). No full-suite-green claim is made by this feature guide.

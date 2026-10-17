@@ -1,51 +1,89 @@
-# ER Diagram Explanation (Textual)
+# Entity Relationships
 
-**Entities**
+Reviewed on 17 October 2026. This logical diagram follows current domain models;
+installed foreign-key actions and migration status must be checked separately.
 
-| Table                | Primary Key                | Unique Columns                     |
-|----------------------|----------------------------|------------------------------------|
-| departments          | department_id (BIGINT)     | department_uuid, department_code   |
-| admin_users          | admin_id (BIGINT)          | admin_uuid, username, email        |
-| activity_logs        | log_id (BIGINT)            | –                                  |
-| batches              | batch_id (BIGINT)          | batch_uuid                         |
-| faculty              | faculty_id (BIGINT)        | faculty_uuid, faculty_code         |
-| result_sessions      | session_id (BIGINT)        | session_uuid                       |
-| subjects             | subject_id (BIGINT)        | subject_uuid, subject_code         |
-| subject_faculty      | id (BIGINT)                | (subject_id, faculty_id) unique    |
-| students             | student_id (BIGINT)        | student_uuid, usn                  |
-| results              | result_id (BIGINT)         | result_uuid                        |
-| subject_results      | subject_result_id (BIGINT) | (result_id, subject_id) unique     |
-| revaluation_results  | revaluation_id (BIGINT)    | –                                  |
-| import_logs          | import_id (BIGINT)         | –                                  |
-| ocr_extractions      | extraction_id (BIGINT)     | –                                  |
-| system_settings      | setting_id (BIGINT)        | setting_key (unique)               |
+~~~mermaid
+erDiagram
+    DEPARTMENTS ||--o{ BATCHES : contains
+    DEPARTMENTS ||--o{ FACULTY : contains
+    BATCHES ||--o{ RESULT_SESSIONS : schedules
+    BATCHES ||--o{ ACADEMIC_COURSES : defines
+    BATCHES ||--o{ STUDENTS : registers
+    RESULT_SESSIONS ||--o{ SUBJECTS : offers
+    ACADEMIC_COURSES o|--o{ SUBJECTS : maps
+    SUBJECTS ||--o{ SUBJECT_FACULTY : assigns
+    FACULTY ||--o{ SUBJECT_FACULTY : teaches
+    STUDENTS ||--o{ RESULTS : has
+    RESULT_SESSIONS ||--o{ RESULTS : records
+    RESULTS ||--o{ SUBJECT_RESULTS : contains
+    SUBJECTS ||--o{ SUBJECT_RESULTS : evaluates
+    SUBJECT_RESULTS ||--o{ REVALUATION_RESULTS : has_events
+    RESULT_SESSIONS ||--o{ IMPORT_LOGS : scopes
+    ADMIN_USERS ||--o{ IMPORT_LOGS : uploads
+    IMPORT_LOGS ||--o{ OCR_EXTRACTIONS : stages
+    ADMIN_USERS ||--o{ REVALUATION_RESULTS : uploads
+~~~
 
-**Relationships**
+A Subject may lack a mapped AcademicCourse in unresolved legacy data. Such
+ambiguity is not silently accepted as a verified course equivalence.
 
-* **Department 1‑M Batch** – `batches.department_id → departments.department_id`
-* **Department 1‑M Faculty** – `faculty.department_id → departments.department_id`
-* **Batch 1‑M ResultSession** – `result_sessions.batch_id → batches.batch_id`
-* **ResultSession 1‑M Subject** – `subjects.session_id → result_sessions.session_id`
-* **Subject M‑N Faculty** – via `subject_faculty` junction table.
-* **Batch 1‑M Student** – `students.batch_id → batches.batch_id`
-* **Student 1‑M Result** – `results.student_id → students.student_id`
-* **ResultSession 1‑M Result** – `results.session_id → result_sessions.session_id`
-* **Result 1‑M SubjectResult** – `subject_results.result_id → results.result_id`
-* **Subject 1‑M SubjectResult** – `subject_results.subject_id → subjects.subject_id`
-* **SubjectResult 1‑1 RevaluationResult** – `revaluation_results.subject_result_id → subject_results.subject_result_id`
-* **ResultSession 1‑M ImportLog** – `import_logs.session_id → result_sessions.session_id`
-* **AdminUser 1‑M ImportLog** – `import_logs.uploaded_by → admin_users.admin_id`
-* **ImportLog 1‑M OcrExtraction** – `ocr_extractions.import_id → import_logs.import_id`
+## Identity and Keys
 
-**Cascade / Restrict Rules**
+| Entity/table | Primary key | Important identity |
+| --- | --- | --- |
+| Department / `departments` | department_id | UUID and department code |
+| Account / `admin_users` | admin_id | UUID, username, email |
+| Batch / `batches` | batch_id | UUID |
+| Faculty / `faculty` | faculty_id | UUID, faculty code; optional email |
+| Session / `result_sessions` | session_id | UUID; batch/semester/exam month/year |
+| AcademicCourse / `academic_courses` | course_id | batch/semester/subject code |
+| Subject / `subjects` | subject_id | UUID; session/subject code |
+| SubjectFaculty / `subject_faculty` | id | subject/faculty pair |
+| Student / `students` | student_id | UUID, USN, email; keys survive soft deletion |
+| Result / `results` | result_id | UUID; student/session/attempt number |
+| SubjectResult / `subject_results` | subject_result_id | result/subject pair |
+| RevaluationResult / `revaluation_results` | revaluation_id | subject-result/event number |
+| ImportLog / `import_logs` | import_id | original/revaluation upload context |
+| OcrExtraction / `ocr_extractions` | extraction_id | extraction/validation staging for import |
+| SystemSetting / `system_settings` | setting_id | unique setting key |
+| SettingAudit / `setting_audits` | audit_id | key, actor ID and chronological change record |
 
-* Deleting a **Department**, **Batch**, **ResultSession**, **Student**, **Result**, **Subject**, **AdminUser**, or **ImportLog** is **RESTRICTED** to protect academic data.
-* Deleting a **Subject** cascades to **SubjectFaculty** and **SubjectResult**.
-* Deleting a **Result** cascades to **SubjectResult** (and thus to **RevaluationResult**).
-* Deleting an **ImportLog** cascades to **OcrExtraction**.
+`SettingAudit.changed_by` records the acting account ID, but the audit migration
+does not add a foreign-key association for it. Course/revaluation review and
+snapshot identifiers also carry provenance; not every such identifier is exposed
+as a Sequelize association. Consult models and migrations for those distinctions.
 
-**View**
+## Important Cardinalities
 
-`effective_student_results` combines `results`, `subject_results`, and `revaluation_results` so that if a revaluation exists, the revised marks/grade are shown; otherwise the original marks/grade are used.
+- A teaching offering can have any number of distinct assigned faculty through
+  SubjectFaculty. Faculty is not a login account.
+- Student and Result identity are authoritative database records, not OCR names.
+  A student can have several attempts per session with distinct attempt numbers.
+- Each SubjectResult can accumulate multiple historical revaluation events.
+  At most one is intended to feed Effective outcomes; zero is normal when no
+  approved effective revision exists. The scoped EffectiveRevaluation accessor
+  is not a replacement for the historical has-many relationship.
+- An import has extraction/review staging. Extraction or a validated proposal
+  alone does not create a Result or approved revaluation.
+- Stable AcademicCourse identity permits cross-session history without treating
+  similarly named or unrelated codes as equivalent.
 
-This textual diagram captures all entities, keys, and relationships required for a production‑ready academic result management system.
+## Deletion and Effective Results
+
+Student UI deletion uses soft deletion, retaining result history and unique
+identity keys. Re-adding/importing a supported deleted identity restores its
+existing record in its original batch.
+
+Database foreign-key actions are relationship-specific. Application deletion
+guards and transaction boundaries also matter; there is no universal "all
+deletes cascade" or "all deletes are restricted" rule.
+
+Reports/Analytics overlay only approved effective revaluation events, with
+deterministic deduplication and original fallback. The SQL view and domain
+repository queries must not be treated as interchangeable without inspecting
+their actual filters.
+
+The initial `activity_logs` table, session-store table and migration metadata
+are omitted from this domain diagram. See
+[Database Structure](database-structure.md) for scope and provenance details.

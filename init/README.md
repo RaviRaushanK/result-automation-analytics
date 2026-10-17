@@ -1,30 +1,43 @@
-# Database Initialization Scripts
+# Database Initialization
 
-This folder contains **required system data** that must exist for the application to start correctly.  
-Unlike seeders, these scripts are **idempotent** and are executed in every environment (development, staging, production) after the database schema has been created.
+Reviewed on 17 October 2026.
 
-## Execution Order
-Files are prefixed with a numeric order (`01-`, `02-`, …) to guarantee deterministic execution.
+Initialization inserts baseline configuration and development access after the
+schema exists. It is separate from demo seeding and does not run automatically
+on every application start.
 
-## Running the Init Scripts
-```bash
-npm run init-db
-```
-The command runs `scripts/runInit.js`, which loads each file in this folder sequentially.
+## Execution
 
-## Adding New Init Scripts
-1. Create a new file with the next numeric prefix, e.g., `03-add-new-feature.js`.  
-2. Export an async function that receives `{ sequelize, DataTypes }`.  
-3. Use `findOrCreate` or `upsert` to ensure the operation is safe to run multiple times.
+~~~powershell
+npm.cmd run init-db
+~~~
 
-```js
-module.exports = async ({ sequelize, DataTypes }) => {
-  const Model = require('../database/models/YourModel')(sequelize, DataTypes);
-  await Model.findOrCreate({
-    where: { uniqueColumn: 'value' },
-    defaults: { /* other columns */ }
-  });
-};
-```
+The root `npm run setup` also invokes this after database bootstrap/migrations.
+`scripts/runInit.js` loads JavaScript files in lexical order and passes
+`{ sequelize, DataTypes }` to each exported async function.
 
-After adding the file, it will be automatically executed the next time `npm run init-db` is run.
+| Order | Script | Behavior |
+| --- | --- | --- |
+| 1 | `01-default-settings.js` | Finds/creates the initial OCR confidence, pass-rule and AI-model setting keys |
+| 2 | `02-default-admin.js` | Creates the development administrator only when its email is absent |
+| 3 | `03-default-department.js` | Finds/creates Master of Computer Applications with department code MCA |
+
+Fresh development credentials are `admin / admin123`. Change the password using
+Settings > Account Security before use with real data. Existing matching
+administrator records are not reset by initialization. Never treat the default
+credentials as production provisioning.
+
+The legacy initialization setting keys are not the source of the current
+academic grading policy or Groq model selection. Academic rules come from
+`services/academicPolicy.js`; external model configuration is environment-based.
+
+## Adding a Script
+
+1. Add the next numerically prefixed JavaScript file.
+2. Export an async function receiving `{ sequelize, DataTypes }`.
+3. Use guarded/idempotent writes, preserving existing accounts/configuration.
+4. Document its purpose and required privileges.
+5. Run only after the relevant schema migration exists.
+
+Initialization is not a backup/restore, migration substitute or academic-data
+reset. Back up existing installations before schema/deployment operations.

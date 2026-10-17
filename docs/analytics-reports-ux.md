@@ -1,5 +1,9 @@
 # Analytics and Reports UX Update
 
+Reviewed on 17 October 2026. Sections describe implemented behavior; browser-run
+observations are historical unless explicitly dated. Current suite status is in
+[Implementation Status](implementation-status.md).
+
 ## Routes and Navigation
 
 `GET /reports` now renders the report center instead of redirecting to Student
@@ -116,17 +120,11 @@ propagated database failures, authorized routes, report-card coverage, existing
 page renders and sidebar active states. Read-only MySQL CTE fixtures verify
 approved-effective revaluation and pending/rejected exclusion without data writes.
 
-With `REPORTS_DB_TEST=1`, the full suite currently reports 124 tests: 118 passed,
-4 failed and 2 skipped. All four failures are in unchanged `tests/demo-seed.test.js`:
-missing `seed/seed_all.js`; an outdated 102-result expectation versus 92;
-an attempt to generate demo percentages for a protected real student; and an
-outdated nine-ledger-event expectation versus eight. The seed implementation and
-these tests were not changed. The same four failures were reproduced in an
-isolated temporary archive of committed HEAD, confirming they predate this work.
-Excluding that file, 115 tests pass, no tests fail,
-and one optional persisted-demo test is skipped. Thus the full-suite green
-acceptance criterion remains outstanding despite passing Analytics/Reports
-regressions. No seeds or migrations were run.
+Run the default regression suite from the root with
+`node --test tests/*.test.js test/*.test.js`. Optional read-only academic database
+fixtures require `REPORTS_DB_TEST=1`; persisted demo checks require their own
+explicit opt-in and matching disposable dataset. Known seed/environment failures
+are tracked centrally rather than repeated as obsolete feature-specific totals.
 
 The read-only Edge harness verifies the report center, Analytics Overview and
 Progress at 1440, 1280, 768 and 390 pixels in both themes, checks nonblank chart
@@ -169,10 +167,6 @@ cell with the API in both modes and delays an Original response while switching
 to Effective to verify stale-response protection. Existing Analytics and all
 report browser regressions pass.
 
-After this follow-up, the full suite reports 132 tests: 126 passed, the same four
-pre-existing demo-seed failures, and two skipped. Excluding the unchanged
-demo-seed test file, 123 pass, none fail, and one is skipped.
-
 ## Chart Interaction and Navigation Polish
 
 Overview bars now use category-based, non-intersecting hover interaction, with
@@ -211,8 +205,8 @@ academic-result rows in the selected scope, not students without recorded result
 Tests cover the bound query, literal wildcard escaping, retained scope/attempt
 filters, real read-only MySQL partial/case/name searches, and unchanged exact-USN
 behavior on other pages. Browser regression verifies live typing, clearing, empty
-results and ignored-cancellation races. Full suite: 156 tests, 150 passes, four
-pre-existing demo-seed failures and two skips.
+results and ignored-cancellation races. See the current status reference for
+complete-suite outcomes.
 
 ## Student Result Live Search
 
@@ -227,12 +221,38 @@ selection, aborts pending filter/report requests, and resets dependent periods.
 The existing cascade version check rejects late responses even when abort is
 ignored. One matching student is automatically selected and their recorded
 semester/session options load; multiple matches remain an explicit choice.
-Clearing search restores all students in that batch. Reset clears and disables
-search until a batch is selected. Generate Report remains a separate command.
+Clearing search restores all students in that batch. Reset clears search and
+restores the latest batch, then reloads dependent options; search remains disabled
+while there is no usable batch scope. Generate Report remains a separate command.
 
 Search text is not submitted as an academic report filter. Report calculations,
 result basis, exports and print remain unchanged. API tests cover text bounds,
 escaping, batch scope, authorization and real read-only MySQL partial/name/case
 matching. Browser checks cover live options, ambiguity, clearing, empty matches,
-single-match period loading and ignored-cancellation races. Full regression:
-159 tests, 153 passed, four pre-existing demo-seed failures and two skipped.
+single-match period loading and ignored-cancellation races. Current complete-suite
+results are recorded in [Implementation Status](implementation-status.md).
+
+## Current Defaults, Dashboard and Print Layout
+
+Every report initially selects the latest batch using cohort years and ID,
+unless a valid explicit URL selection supplies another scope. Reset restores
+that latest batch. Batch/semester/session ownership remains server-validated.
+
+The Dashboard uses a Pass vs Fail pie rather than duplicate pass/fail charts.
+Subject performance and grade distribution remain useful for a single selected
+semester, with an attention list and contextual Analytics/Class Report links.
+Metrics retain their actual student/attempt scope; chart labels do not redefine
+academic outcomes.
+
+Progress/Backlog uses compact responsive icon KPIs. Effective-basis classification
+takes approved effective revaluation into account: a verified cleared student is
+not left uncleared merely because an original attempt failed. Missing evidence
+still produces Unknown, not a fabricated pass.
+
+Shared print styles reduce institutional headings, report metadata and summary
+spacing across all reports, not only Student Result. Consolidated student names
+remain left-aligned. PDF is browser-generated; browser-owned URL/date headers and
+footers can be disabled in its print dialog. Wide report tables retain their
+appropriate landscape/grouped-column layouts.
+
+This documentation update does not recalculate historical academic values.

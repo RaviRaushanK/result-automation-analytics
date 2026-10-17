@@ -1,6 +1,6 @@
 # Settings First Release
 
-Implemented on 13 October 2026. Academic policy and academic data are unchanged.
+Implemented on 13 October 2026; documentation reviewed on 17 October 2026. Academic policy and academic data are unchanged.
 No database reset or seed was executed.
 
 Settings success feedback appears at the top right below the navbar and dismisses
@@ -95,7 +95,9 @@ Logos accept PNG/JPEG/WebP up to 2 MB. Extension, declared MIME and decoded form
 must agree. SVG, invalid images, animation and oversized input are rejected.
 Decoded input is limited to four million pixels and re-encoded as PNG, stripped
 of original metadata, resized within 512 x 512, and saved under a generated UUID
-in `uploads/branding`. Only an application-relative reference is stored. Arbitrary
+in `uploads/branding`. Only an application-relative reference is stored.
+Git tracks that folder's `.gitkeep`, not uploaded logos; deployment must supply
+any logo file referenced by its own database configuration. Arbitrary
 destinations and submitted paths are never accepted. Old successful logos remain
 available for audit references; failed saves remove their newly created file.
 Absent or unreadable logos display the MCA fallback.
@@ -113,8 +115,10 @@ There is no policy-writing endpoint.
 System Information shows application description/version, Node version, a safe
 environment label, Connected/Unavailable database health, and supported imports.
 Shared upload constants are consumed by the actual middleware and the information
-page: result PDF 15 MB, revaluation PDF 15 MB, student CSV/XLS/XLSX 10 MB. These
-limits are read-only. Credentials, connection strings, session secrets, private
+page: result/revaluation documents 15 MB, student CSV/XLS/XLSX 10 MB. Actual
+result/revaluation upload routes accept PDF, PNG, JPG and JPEG. The current
+System Information template still labels those document entries as PDF; this
+legacy display wording is not the upload allowlist. These limits are read-only. Credentials, connection strings, session secrets, private
 paths and arbitrary environment values are not rendered. Session duration remains
 deployment configuration and is not exposed as an editable setting.
 
@@ -159,11 +163,10 @@ checks also verify branding on all eight report APIs, CSV and print outputs,
 compare rows and metrics with the unchanged service, and retain existing report
 preview/PDF and all Analytics regressions.
 
-The full suite reports 141 tests: 135 passed, four failed and two skipped. The
-four failures remain the previously reproduced demo-seed baseline failures:
-missing seed_all.js, outdated result/event counts, and an attempted demo marks
-generation for a protected real student. No Settings, Reports or Analytics tests
-fail. Therefore the full-suite-green acceptance condition remains outstanding.
+Verification counts above describe the original feature checkpoint, not a new
+browser/integration run. See [Implementation Status](implementation-status.md)
+for current default-suite outcomes, known seed-test failures and the local
+missing-dependency issue. No full-suite-green claim is made here.
 
 User Administration, synchronized report preferences, notifications and backup/
 restore are not implemented. Before User Administration, extend current-role/

@@ -1,6 +1,6 @@
 # Students Search and Lookup
 
-Implemented on 14 October 2026. The existing `/students` page remains the only
+Implemented on 14 October 2026; documentation reviewed on 17 October 2026. The existing `/students` page remains the only
 administrative student directory. No new lookup or results page was created.
 No database migration, seed, reset, or academic-record update was performed.
 
@@ -53,6 +53,23 @@ repository query for initial HTML and AJAX updates.
 Normal records are non-soft-deleted. Both active and inactive students remain
 available unless a status filter is selected, preserving management behavior.
 Cross-batch rows retain USN, name, email, batch, category, and status.
+
+## Identity, Defaults and Restoration
+
+Manual add/edit and import paths normalize USNs/names to uppercase and email to
+lowercase. The shared student email validator currently permits Gmail addresses
+only, including supported +tag aliases; syntax validation does not prove mailbox
+existence or ownership.
+
+Add Student and Student Import default to the latest cohort; import status is
+Active. Category options reload after successful import instead of requiring a
+page refresh.
+
+Delete remains soft deletion. Re-add/import supports restoration of the same
+deleted USN in its original batch, preserving its identity/history. Email
+collisions with other records and attempts to restore into a different batch are
+still rejected. Result-card import requires existing registration and does not
+create missing students.
 
 ## Pagination and Counts
 
@@ -140,21 +157,19 @@ measured query plans/workload, not an unproven migration.
 
 ## Verification
 
-35 focused Students tests pass with `REPORTS_DB_TEST=1`. Coverage includes search
-fields/case/partial matching, scopes, combined filters, soft deletes, stable
-pagination beyond 500, counts/limits/offsets, page clamping, bounded inputs,
-literal wildcard handling, real read-only MySQL queries, role restrictions,
-admin/faculty mocked CRUD/import authorization, report links, and browser-client
-cancellation/history/error/empty-state behavior. Existing CSV/XLS/XLSX import and
-student validation tests pass.
+Focused coverage includes partial/case/name/email matching, scopes, combined
+filters, soft deletion/restoration, stable pagination beyond 500, counts/limits,
+bounded input, literal wildcard handling, role restrictions, report links and
+client cancellation/history/error/empty behavior. Optional MySQL checks require
+`REPORTS_DB_TEST=1`; spreadsheet validation needs the declared `xlsx` dependency.
 
-Full suite with `REPORTS_DB_TEST=1`: 154 tests; 148 passed, 4 failed, 2 skipped.
-The four failures are pre-existing `tests/demo-seed.test.js` problems reproduced
-before implementation: missing `seed/seed_all.js`, stale 102-versus-92 results,
-refusal to generate demo percentages for a protected real student, and stale
-9-versus-8 ledger expectations. They were not changed or bypassed. Consequently,
-the full-suite-green acceptance condition is not achieved, despite no Students
-or report/Analytics regression failures.
+~~~powershell
+node --test tests/student-directory.test.js tests/student-directory-client.test.js tests/student-category.test.js tests/student-validation.test.js
+~~~
+
+Current default-suite outcomes and known seed/environment failures are recorded
+in [Implementation Status](implementation-status.md). Earlier numerical totals
+in implementation reports are not the current full-suite status.
 
 The report-router fixture now injects default branding and restores it afterward;
 this fixes dependence on live saved institution settings without changing them.
