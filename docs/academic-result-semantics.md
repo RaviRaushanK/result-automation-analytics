@@ -113,7 +113,7 @@ Modified:
 - `services/reportsService.js`, `controllers/reportsController.js`, `public/js/reports/common.js`, `public/css/reports.css`: course-level progression, safe GPA, supplementary labels, semester completion flags and export structure.
 - `views/results/upload.ejs`, `views/results/review.ejs`, `views/results/preview.ejs`, `views/results/success.ejs`: participation notes, partial-retake inputs, missing-history review and GPA labels.
 - `views/dashboard/index.ejs`, `views/analytics/toppers.ejs`, `views/revaluation/outcome.ejs`: explicit stored/attempt GPA labels only.
-- `seed/seed_data.js`, `seed/seed_history.js`, `seed/backfill_cgpa.js`: centralized legacy scale, no new legacy cumulative GPA or historical backfill writes. Seeds were NOT executed.
+- `seed/seed_data.js`, `seed/backfill_cgpa.js`: centralized legacy scale, no new legacy cumulative GPA or historical backfill writes. Seeds were NOT executed.
 - `tests/reports.test.js`, `tests/result-persistence.test.js`, `tests/reports-browser.js`, `test/analytics-toppers.test.js`, `test/analytics-revaluation.test.js`: fixture/provenance coverage and browser checks.
 
 `app.js`, `package.json`, sidebar configuration, result extraction, revaluation

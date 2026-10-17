@@ -44,8 +44,8 @@ commit and fail loudly if unsuccessful. Do not run concurrently with the app's
 write workflows. No DROP DATABASE, TRUNCATE or foreign-key disabling is used.
 
 `node seed/seed_all.js` and `npm.cmd --prefix seed run all` are guarded aliases
-and require the same arguments. Legacy standalone cleanup and history generation
-are retired; they fail without writes. `seed_summary.js` remains read-only.
+and require the same arguments. Legacy standalone cleanup is retired and fails
+without writes. `seed_summary.js` remains read-only.
 `npm start`, migrations and the existing Sequelize `seed` command are unchanged.
 
 ## Dataset

@@ -19,9 +19,29 @@ const documentExtractor = {
   supportedImageTypes: ['.jpg', '.jpeg', '.png'],
   supportedPdfTypes: ['.pdf'],
 
-  async extract(filePath, resultType = 'original') {
+  async extract(filePath, resultType = 'original', options = {}) {
     try {
       if (!fs.existsSync(filePath)) throw new Error('File not found');
+      const fileExt = path.extname(filePath).toLowerCase();
+      let pdfResult = null;
+      if (this.supportedPdfTypes.includes(fileExt)) {
+        try {
+          pdfResult = await this.extractPdfTextWithCoordinates(filePath);
+          const parsed = this.parseProductionData(pdfResult.text || '', pdfResult.words || [], resultType);
+          // Embedded table text is stronger evidence than OCR when every row is complete.
+          if (this.hasCompleteTextRows(parsed, options.expectedSubjectCodes) &&
+              this.hasUsableSubjectRows(parsed, resultType, options.candidateSubjectCodes)) {
+            return {
+              success: true,
+              message: 'Result document extracted from embedded PDF text',
+              file: path.basename(filePath),
+              extraction: { documentType: 'pdf', extractionMethod: 'pdfjs-text', rawText: pdfResult.text, ...parsed }
+            };
+          }
+        } catch (textError) {
+          console.warn('[documentExtractor] Embedded PDF text unavailable:', textError.message);
+        }
+      }
 
       // ---------------------------------------------------------
       // AI hybrid path (advanced OCR + VLM + LLM), used when enabled.
@@ -34,14 +54,15 @@ const documentExtractor = {
         try {
           const vlmExtractor = require('./vlmExtractor');
           console.log('[documentExtractor] Using hybrid OCR + VLM + LLM path');
-          return await vlmExtractor.extract(filePath, resultType);
+          const output = await vlmExtractor.extract(filePath, resultType);
+          output.extraction = await this.recoverMissingRows(filePath, resultType, output.extraction, options);
+          return output;
         } catch (aiErr) {
           console.warn('[documentExtractor] AI path failed, falling back to Tesseract:', aiErr.message);
           // fall through to the classic path
         }
       }
 
-      const fileExt = path.extname(filePath).toLowerCase();
       let textItems = []; // Contains spatial text objects: { text, x, y, width, height }
       let rawText = '';
       let extractionMethod = '';
@@ -52,17 +73,18 @@ const documentExtractor = {
         textItems = ocrResult.words;
         extractionMethod = 'tesseract-ocr';
       } else if (this.supportedPdfTypes.includes(fileExt)) {
-        const pdfResult = await this.extractPdfTextWithCoordinates(filePath);
+        pdfResult = pdfResult || await this.extractPdfTextWithCoordinates(filePath);
         if (pdfResult.text && pdfResult.text.length > 50) {
           rawText = pdfResult.text;
           textItems = pdfResult.words;
           extractionMethod = 'pdfjs-text';
         } else {
-          // Scanned PDF fallback: render/OCR page
-          const ocrResult = await this.ocrImage(filePath);
-          rawText = ocrResult.text;
-          textItems = ocrResult.words;
-          extractionMethod = 'tesseract-ocr-pdf';
+          // Scans must be rasterized before image OCR; sharp cannot read PDF input.
+          return {
+            success: true, file: path.basename(filePath),
+            message: 'Scanned result document extracted using table OCR',
+            extraction: await this.extractSparseRows(filePath, resultType, options)
+          };
         }
       } else {
         throw new Error(`Unsupported file type: ${fileExt}`);
@@ -74,17 +96,112 @@ const documentExtractor = {
         success: true,
         message: 'Result document uploaded and extracted successfully',
         file: path.basename(filePath),
-        extraction: {
+        extraction: await this.recoverMissingRows(filePath, resultType, {
           documentType: fileExt.replace('.', ''),
           extractionMethod,
           rawText,
           ...structuredData
-        }
+        }, options)
       };
     } catch (error) {
       console.error('Document extraction error:', error);
       throw new Error(`Extraction failed: ${error.message}`);
     }
+  },
+
+
+
+  hasUsableSubjectRows(data, resultType, candidateSubjectCodes = []) {
+    const mark = value => Number.isInteger(value) && value >= 0 && value <= 100;
+    const codes = new Set(candidateSubjectCodes.map(code => String(code).trim().toUpperCase()));
+    return (Array.isArray(data?.subjects) ? data.subjects : []).some(row => {
+      if (!row?.subjectCode || (codes.size && !codes.has(String(row.subjectCode).trim().toUpperCase()))) return false;
+      return resultType === 'revaluation'
+        ? [row.internalMarks, row.oldMarks, row.rvMarks, row.finalMarks].every(mark)
+          && !!row.oldResult && !!row.rvResult && !!row.finalResult
+        : mark(row.internalMarks) && mark(row.externalMarks) && !!row.result;
+    });
+  },
+
+  async recoverMissingRows(filePath, resultType, primary, options = {}) {
+    if (this.hasUsableSubjectRows(primary, resultType, options.candidateSubjectCodes)) return primary;
+    try {
+      const recovered = await this.extractSparseRows(filePath, resultType, options);
+      if (!this.hasUsableSubjectRows(recovered, resultType, options.candidateSubjectCodes)) return primary;
+      const primaryUsn = primary?.student?.usn;
+      const recoveredUsn = recovered.student?.usn;
+      if (primaryUsn && recoveredUsn && this._normalizeUsn(primaryUsn) !== this._normalizeUsn(recoveredUsn)) {
+        console.warn('[documentExtractor] Additional OCR identity conflicts with the first extraction.');
+        return primary;
+      }
+      return {
+        ...recovered,
+        stages: { ...(primary?.stages || {}), recovery: { status: 'ok', method: recovered.extractionMethod } },
+        student: { ...recovered.student, ...primary?.student },
+        semester: primary?.semester ?? recovered.semester,
+        warnings: [...(recovered.warnings || []),
+          'Please verify the recovered subject marks against the original card before validating.']
+      };
+    } catch (error) {
+      console.warn('[documentExtractor] Additional table OCR unavailable:', error.message);
+      return primary;
+    }
+  },
+
+  async extractSparseRows(filePath, resultType, options = {}) {
+    const extension = path.extname(filePath).toLowerCase();
+    const pages = this.supportedPdfTypes.includes(extension)
+      ? await require('./pageRenderer').renderPdfToImages(filePath)
+      : [{ pageNumber: 1, buffer: filePath }];
+    const texts = [];
+    const words = [];
+    const pageWords = [];
+    for (const page of pages) {
+      const output = await this.ocrImage(page.buffer, { sparse: true, wordCoordinates: true });
+      pageWords.push({ page, words: output.words || [] });
+      texts.push('[page ' + page.pageNumber + ']\n' + output.text);
+      words.push(...(output.words || []).map(word => ({ ...word, page: page.pageNumber })));
+    }
+    let rawText = texts.join('\n');
+    let parsed = this.parseProductionData(rawText, words, resultType);
+    if (!this.hasUsableSubjectRows(parsed, resultType, options.candidateSubjectCodes)) {
+      const focusedRows = [];
+      for (const item of pageWords) focusedRows.push(...await this.ocrTableRows(item.page.buffer, item.words));
+      const focused = this.parseProductionData(focusedRows.join('\n'), [], resultType);
+      if (this.hasUsableSubjectRows(focused, resultType, options.candidateSubjectCodes)) {
+        rawText += '\n[focused table rows]\n' + focusedRows.join('\n');
+        parsed = { ...parsed, subjects: focused.subjects,
+          warnings: this.validateData(parsed.student, focused.subjects) };
+      }
+    }
+    return { documentType: extension.slice(1), extractionMethod: 'tesseract-sparse-ocr', rawText, ...parsed };
+  },
+
+  hasCompleteTextRows(data, expectedSubjectCodes = []) {
+    if (!data.student?.usn || !data.student?.name || !Number.isInteger(data.semester) || data.semester < 1) return false;
+    if (!Array.isArray(data.subjects) || data.subjects.length === 0) return false;
+    const codePattern = /\b([A-Z]{2,4}\d{2,4}[A-Z]?|\d{2}[A-Z]{2,3}\d{2,3})\b/gi;
+    const sourceRows = (data.lines || []).flatMap(text => {
+      const matches = [...text.matchAll(codePattern)];
+      return matches.map(match => ({ code: match[1].toUpperCase(), text }));
+    });
+    if (sourceRows.length !== data.subjects.length) return false;
+    const codes = new Set(sourceRows.map(row => row.code));
+    if (codes.size !== sourceRows.length) return false;
+    if (expectedSubjectCodes.some(code => !codes.has(String(code).trim().toUpperCase()))) return false;
+    const mark = value => Number.isInteger(value) && value >= 0 && value <= 100;
+    return data.subjects.every(row => {
+      if (!codes.has(row.subjectCode) || row.marksConfidence !== 'high' || !row.marksValidated) return false;
+      if (data.resultType === 'revaluation') {
+        return [row.internalMarks, row.oldMarks, row.rvMarks, row.finalMarks].every(mark)
+          && !!row.oldResult && !!row.rvResult && !!row.finalResult;
+      }
+      const source = sourceRows.find(item => item.code === row.subjectCode).text
+        .replace(/\b20\d{2}[-/]?\d{2}[-/]?\d{2}\b/g, ' ');
+      const numbers = source.match(/\b\d{1,3}\b/g) || [];
+      return numbers.length === 3 && mark(row.internalMarks) && mark(row.externalMarks)
+        && mark(row.totalMarks) && row.internalMarks + row.externalMarks === row.totalMarks && !!row.result;
+    });
   },
 
   // =====================================================
@@ -109,6 +226,7 @@ const documentExtractor = {
         fullText += item.str + ' ';
         words.push({
           text: item.str.trim(),
+          page: i,
           x: item.transform[4],
           // Invert PDF Y-coordinates to align with standard image top-down rendering
           y: 1000 - item.transform[5],
@@ -125,33 +243,70 @@ const documentExtractor = {
   // =====================================================
   // 2. IMAGE OCR PREPROCESSING
   // =====================================================
-  async ocrImage(filePath) {
-    const processedPath = path.join(path.dirname(filePath), `ocr_${Date.now()}.png`);
+
+  async preprocessOcrImage(input) {
+    return sharp(input).rotate()
+      .resize({ width: 2400, withoutEnlargement: false })
+      .grayscale().normalize().sharpen().png().toBuffer();
+  },
+
+  async ocrTableRows(input, words) {
+    const code = /^[A-Z]{2,4}\d{2,4}[A-Z]?$|^\d{2}[A-Z]{2,3}\d{2,3}$/i;
+    const anchors = words.filter(word => code.test(word.text) &&
+      words.filter(other => Math.abs(other.y - word.y) <= Math.max(15, word.height) &&
+        /^\d{1,3}$/.test(other.text)).length >= 3).slice(0, 6);
+    if (!anchors.length) return [];
+    const processed = await this.preprocessOcrImage(input);
+    const metadata = await sharp(processed).metadata();
+    const worker = await Tesseract.createWorker('eng', 1, {});
+    const rows = [];
     try {
-      await sharp(filePath)
-        .rotate()
-        .resize({ width: 2400, withoutEnlargement: false })
-        .grayscale()
-        .normalize()
-        .sharpen()
-        .png()
-        .toFile(processedPath);
-
-      const result = await Tesseract.recognize(processedPath, 'eng', {
-        config: { tessedit_pageseg_mode: '6' }
+      await worker.setParameters({
+        tessedit_pageseg_mode: '13', preserve_interword_spaces: '1',
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 |'
       });
-
-      const words = (result.data.words || []).map(w => ({
-        text: w.text.trim(),
-        x: w.bbox.x0,
-        y: w.bbox.y0,
-        width: w.bbox.x1 - w.bbox.x0,
-        height: w.bbox.y1 - w.bbox.y0
-      }));
-
-      return { text: result.data.text || '', words };
+      for (const anchor of anchors) {
+        const left = Math.max(0, Math.floor(anchor.x - 10));
+        const top = Math.max(0, Math.floor(anchor.y - 4));
+        const width = metadata.width - left - 10;
+        const height = Math.min(metadata.height - top, Math.ceil(anchor.height + 8));
+        if (width <= 0 || height <= 0) continue;
+        const crop = await sharp(processed).extract({ left, top, width, height }).threshold(150)
+          .extend({ top: 25, bottom: 25, left: 25, right: 25, background: '#fff' }).png().toBuffer();
+        const { data } = await worker.recognize(crop, {}, { text: true });
+        if (data.text?.trim()) rows.push(data.text.trim());
+      }
+      return rows;
     } finally {
-      if (fs.existsSync(processedPath)) fs.unlinkSync(processedPath);
+      await worker.terminate();
+    }
+  },
+
+  async ocrImage(input, options = {}) {
+    const processed = await this.preprocessOcrImage(input);
+    const worker = await Tesseract.createWorker('eng', 1, {});
+    try {
+      await worker.setParameters({
+        tessedit_pageseg_mode: options.sparse ? '11' : '3',
+        preserve_interword_spaces: options.sparse ? '1' : '0'
+      });
+      const { data } = await worker.recognize(processed, {}, {
+        text: true,
+        blocks: !!options.wordCoordinates
+      });
+      const detectedWords = data.words || (data.blocks || []).flatMap(block =>
+        (block.paragraphs || []).flatMap(paragraph =>
+          (paragraph.lines || []).flatMap(line => line.words || [])));
+      const words = detectedWords.filter(word => word.text && word.bbox).map(word => ({
+        text: word.text.trim(),
+        x: word.bbox.x0,
+        y: word.bbox.y0,
+        width: word.bbox.x1 - word.bbox.x0,
+        height: word.bbox.y1 - word.bbox.y0
+      }));
+      return { text: data.text || '', words };
+    } finally {
+      await worker.terminate();
     }
   },
 
@@ -482,13 +637,14 @@ const documentExtractor = {
     }
 
     // Sort items top-to-bottom, then left-to-right
-    const sorted = [...textItems].sort((a, b) => a.y - b.y || a.x - b.x);
+    const sorted = [...textItems].sort((a, b) => (a.page || 0) - (b.page || 0) || a.y - b.y || a.x - b.x);
     const lines = [];
     let currentLine = [];
     let currentY = sorted[0]?.y || 0;
+    let currentPage = sorted[0]?.page || 0;
 
     for (const item of sorted) {
-      if (Math.abs(item.y - currentY) <= 15) {
+      if ((item.page || 0) === currentPage && Math.abs(item.y - currentY) <= 15) {
         currentLine.push(item);
       } else {
         if (currentLine.length > 0) {
@@ -497,6 +653,7 @@ const documentExtractor = {
         }
         currentLine = [item];
         currentY = item.y;
+        currentPage = item.page || 0;
       }
     }
     if (currentLine.length > 0) {

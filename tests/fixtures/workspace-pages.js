@@ -19,7 +19,6 @@ const pages = {
   dashboard: ['dashboard/index', { batches: [batch, { ...batch, batch_id: 9002, batch_name: 'MCA 2024' }], semesters: ['1', '2', '3', '4'], batchSemesters: [...['1', '2', '3', '4'].map(semester => ({ batch_id: 9001, semester })), { batch_id: 9002, semester: '2' }], pageStyles: ['/css/dashboard.css'] }],
   batches: ['batches/index', {}],
   sessions: ['sessions/index', { pageStyles: [...base.pageStyles, '/css/sessions.css'] }],
-  'batch-sessions': ['batches/sessions/index', { pageStyles: [...base.pageStyles, '/css/sessions.css'] }],
   subjects: ['subjects/index', { pageStyles: [...base.pageStyles, '/css/subjects.css'] }],
   roster: ['subjects/courses', { ...roster, editingRoster: true, courses: [{ ...course, roster_verified: false }] }],
   'roster-verified': ['subjects/courses', { ...roster, editingRoster: false, courses: [{ ...course, roster_verified: true }] }],

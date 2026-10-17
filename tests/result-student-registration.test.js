@@ -22,6 +22,87 @@ test('registration-blocked Review prevents keyboard or scripted submission in th
   assert.equal(prevented, true); assert.equal(alerted, true);
 });
 
+test('incorrect extracted name is reported only on Validate and remains editable', async () => {
+  const student = { student_id: 1, batch_id: 1, student_name: 'AMRUTHA S' };
+  await fixture(student, async ({ invoke, updates, ocr }) => {
+    const initial = await invoke('showReviewPage');
+    assert.equal(initial.locals.formError, null);
+    assert.equal(initial.locals.errors['student.name'], undefined);
+    const failed = await invoke('validateReview');
+    assert.equal(failed.statusCode, 422);
+    assert.equal(failed.view, 'results/review');
+    assert.equal(failed.locals.student.usn, '1MV25MC004');
+    assert.equal(failed.locals.student.name, 'AMRUTHA SLOP');
+    assert.match(failed.locals.formError, /name does not match USN 1MV25MC004/);
+    assert.match(failed.locals.formError, /Registered name: AMRUTHA S\./);
+    assert.equal(failed.locals.registrationBlocked, false);
+    assert.equal(failed.locals.extractionWarning, null);
+    assert.equal(updates.at(-1).validation_status, 'pending');
+    const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), failed.locals);
+    assert.match(html, /<strong>Validation Failed<\/strong>/);
+    assert.match(html, /data-server-invalid="true" aria-invalid="true"/);
+    assert.match(html, /data-server-rendered="true"/);
+    assert.doesNotMatch(html, /id="validateButton"[^>]*\sdisabled(?:\s|>)/);
+    const corrected = await invoke('validateReview', { body: { usn: '1mv25mc004', name: 'AMRUTHA S', internal_1: 42, external_1: 34 } });
+    assert.equal(corrected.url, '/results/upload/9/preview');
+    assert.equal(ocr.validation_status, 'validated');
+    assert.equal(ocr.extracted_json.student.name, 'AMRUTHA S');
+    assert.equal((await invoke('showPreviewPage')).view, 'results/preview');
+    assert.equal(student.student_name, 'AMRUTHA S');
+  }, { usn: '1MV25MC004', name: 'AMRUTHA SLOP' });
+});
+
+test('direct preview and final import cannot bypass a mismatched name in validated staging', async () => {
+  await fixture({ student_id: 1, batch_id: 1, student_name: 'AMRUTHA S' }, async ({ invoke, ocr, isRolledBack }) => {
+    ocr.validation_status = 'validated';
+    for (const method of ['showPreviewPage', 'confirmImport']) {
+      const response = await invoke(method);
+      assert.match(decodeURIComponent(response.url), /name does not match USN 1MV25MC004/);
+    }
+    assert.equal(isRolledBack(), true);
+    const review = await invoke('showReviewPage', { query: { error: 'Student identity mismatch.' } });
+    assert.match(review.locals.errors['student.name'], /Registered name: AMRUTHA S/);
+    assert.equal(review.locals.registrationBlocked, false);
+  }, { usn: '1MV25MC004', name: 'AMRUTHA SLOP' });
+});
+
+for (const name of ['amrutha s', '  AMRUTHA   S  ', 'Amrutha\tS']) {
+  test('name comparison accepts harmless case/whitespace differences: ' + JSON.stringify(name), async () => {
+    await fixture({ student_id: 1, batch_id: 1, student_name: 'AMRUTHA S' }, async ({ invoke }) => {
+      assert.equal((await invoke('validateReview')).url, '/results/upload/9/preview');
+    }, { usn: '1mv25mc004', name });
+  });
+}
+
+for (const name of ['AMRUTHA SLOP', 'AMRUTHAS', 'AMRUTHA', 'ANOTHER STUDENT']) {
+  test('name comparison does not accept partial or fuzzy identity matches: ' + name, async () => {
+    await fixture({ student_id: 1, batch_id: 1, student_name: 'AMRUTHA S' }, async ({ invoke, updates }) => {
+      assert.equal((await invoke('validateReview')).statusCode, 422);
+      assert.equal(updates.at(-1).validation_status, 'pending');
+    }, { usn: '1MV25MC004', name });
+  });
+}
+
+test('a registered-name change after validation is rechecked before preview and save', async () => {
+  const student = { student_id: 1, batch_id: 1, student_name: 'AMRUTHA S' };
+  await fixture(student, async ({ invoke, isRolledBack }) => {
+    assert.equal((await invoke('validateReview')).url, '/results/upload/9/preview');
+    student.student_name = 'CORRECTED OFFICIAL NAME';
+    assert.match(decodeURIComponent((await invoke('showPreviewPage')).url), /Registered name: CORRECTED OFFICIAL NAME/);
+    assert.match(decodeURIComponent((await invoke('confirmImport')).url), /Registered name: CORRECTED OFFICIAL NAME/);
+    assert.equal(isRolledBack(), true);
+  }, { usn: '1MV25MC004', name: 'AMRUTHA S' });
+});
+
+test('missing registered name fails closed instead of skipping identity verification', async () => {
+  await fixture({ student_id: 1, batch_id: 1, student_name: '' }, async ({ invoke, updates }) => {
+    const response = await invoke('validateReview');
+    assert.equal(response.statusCode, 422);
+    assert.match(response.locals.formError, /registered name.*unavailable/);
+    assert.equal(updates.at(-1).validation_status, 'pending');
+  });
+});
+
 test('correcting a rejected USN enables another server validation attempt', () => {
   let submit, editUsn;
   const form = { dataset: { registrationBlocked: 'true' }, addEventListener(name, handler) { if (name === 'submit') submit = handler; } };
@@ -43,7 +124,7 @@ test('correcting a rejected USN enables another server validation attempt', () =
   submit({ preventDefault() { assert.fail('Corrected USN must reach authoritative server validation'); } });
 });
 
-async function fixture(student, run) {
+async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test Student' }) {
   const restores = [], updates = [];
   let rolledBack = false;
   const replace = (object, name, value) => { const previous = object[name]; object[name] = value; restores.push(() => { object[name] = previous; }); };
@@ -51,22 +132,25 @@ async function fixture(student, run) {
   const definition = { subject_id: 1, course_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 100, max_marks: 150 };
   const course = { ...definition, semester: '1', status: 'active', is_required: true, roster_verified: true };
   replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', file_type: 'pdf', ResultSession: session }));
-  replace(db.OcrExtraction, 'findOne', async () => ({ extracted_json: { student: { usn: 'TEST001', name: 'Test Student' }, attempt: { attempt_no: 1, exam_type: 'REGULAR' }, subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] }, update: async data => updates.push(data) }));
+  const ocr = { extracted_json: { student: { ...identity }, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
+    subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] },
+    update: async data => { updates.push(data); Object.assign(ocr, data); } };
+  replace(db.OcrExtraction, 'findOne', async () => ocr);
   replace(db.Subject, 'findAll', async () => [definition]);
   replace(db.AcademicCourse, 'findAll', async () => [course]);
   replace(db.Student, 'findOne', async options => { assert.notEqual(options.paranoid, false); return student; });
   replace(db.Result, 'findOne', async () => null);
   replace(outcomes, 'load', async () => ({ courses: [course], results: [], subjects: [] }));
-  for (const [object, method] of [[db.Student, 'create'], [db.Result, 'create'], [db.SubjectResult, 'bulkCreate']]) {
+  for (const [object, method] of [[db.Student, 'create'], [db.Student, 'update'], [db.Result, 'create'], [db.SubjectResult, 'bulkCreate']]) {
     replace(object, method, () => { assert.fail('No student or academic result may be written'); });
   }
   replace(db.sequelize, 'transaction', async () => ({ rollback: async () => { rolledBack = true; }, commit: async () => assert.fail('Must not commit a blocked import') }));
   const invoke = async (method, options = {}) => {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, render(view, locals) { this.view = view; this.locals = locals; }, redirect(url) { this.url = url; } };
-    await controller[method]({ params: { importId: '9' }, query: {}, body: { usn: 'test001', name: 'Test Student', internal_1: 42, external_1: 34 }, ...options }, response);
+    await controller[method]({ params: { importId: '9' }, query: {}, body: { usn: identity.usn.toLowerCase(), name: identity.name, internal_1: 42, external_1: 34 }, ...options }, response);
     return response;
   };
-  try { await run({ invoke, updates, isRolledBack: () => rolledBack }); }
+  try { await run({ invoke, updates, ocr, isRolledBack: () => rolledBack }); }
   finally { restores.reverse().forEach(restore => restore()); }
 }
 
@@ -127,7 +211,7 @@ test('Validate displays the requested registration alert for the submitted OCR U
 });
 
 test('registered student in the selected batch can validate and preview with calculated CGPA', async () => {
-  await fixture({ student_id: 1, batch_id: 1 }, async ({ invoke, updates }) => {
+  await fixture({ student_id: 1, batch_id: 1, student_name: 'TEST STUDENT' }, async ({ invoke, updates }) => {
     const validation = await invoke('validateReview');
     assert.equal(validation.url, '/results/upload/9/preview');
     assert.equal(updates[0].validation_status, 'validated');

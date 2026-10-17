@@ -117,6 +117,11 @@ async function main() {
     const page = fixture.pages[req.params.page];
     if (!page) return res.sendStatus(404);
     const locals = { ...fixture.base, ...page[1] };
+    if (req.query.identity === 'mismatch') {
+      const message = 'Student name does not match USN 1MV25MC004. Registered name: AMRUTHA S. Correct the Student Name or USN, then click Validate again.';
+      locals.student = {usn:'1MV25MC004',name:'AMRUTHA SLOP'};
+      locals.errors = {'student.name':message}; locals.formError=message;
+    }
     if (req.query.image === '1') {
       locals.fileUrl = '/verification/marks-card.png'; locals.fileType = 'png';
       locals.meta = { ...locals.meta, docType:'png',docUrl:'/verification/marks-card.png' };
@@ -540,6 +545,33 @@ async function main() {
     }
 
 
+
+    if (process.env.RESULT_IDENTITY_ONLY === '1') {
+      let checked=0;
+      for (const width of [1440,390]) for (const theme of ['light','dark']) {
+        await command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+        await command('Page.navigate',{url:base+'/verification/result-management/review?identity=mismatch'});
+        await until('document.readyState==="complete" && !!document.getElementById("resultValidationAlert")');
+        await evaluate('document.documentElement.setAttribute("data-theme",'+JSON.stringify(theme)+')');
+        assert.equal(await evaluate('document.getElementById("studentNameInput").value'),'AMRUTHA SLOP');
+        assert.equal(await evaluate('document.getElementById("studentNameInput").classList.contains("is-invalid")'),true);
+        assert.equal(await evaluate('document.getElementById("studentNameInput").getAttribute("aria-invalid")'),'true');
+        assert.equal(await evaluate('document.getElementById("validateButton").disabled'),false);
+        assert.ok(await evaluate('document.getElementById("resultValidationAlert").textContent.includes("Registered name: AMRUTHA S")'));
+        assert.ok(await evaluate('document.documentElement.scrollWidth')<=width+2);
+        await fs.writeFile(path.join(output,'result-name-mismatch-'+width+'-'+theme+'.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        await evaluate(`document.getElementById("reviewForm").addEventListener("submit",e=>{window.blockedByClient=e.defaultPrevented;window.submittedName=document.getElementById("studentNameInput").value;e.preventDefault()});
+          document.getElementById("studentNameInput").value="AMRUTHA S";
+          document.getElementById("studentNameInput").dispatchEvent(new Event("input",{bubbles:true}));
+          document.getElementById("validateButton").click();`);
+        assert.equal(await evaluate('window.blockedByClient'),false);
+        assert.equal(await evaluate('window.submittedName'),'AMRUTHA S');
+        checked++;
+      }
+      assert.deepEqual(exceptions,[]);
+      console.log('Verified '+checked+' name-mismatch desktop/mobile/theme cases: visible persisted error, editable name and correction/resubmission. No results submitted. Screenshots: '+output);
+      return;
+    }
     if (process.env.MARKS_CARD_IMAGES_ONLY === '1') {
       const capture=async name=>fs.writeFile(path.join(output,name+'.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
       let checked=0;

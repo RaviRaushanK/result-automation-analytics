@@ -1,6 +1,6 @@
 <div class="container-fluid batches-page subjects-page workspace-page" data-subjects-page>
   <div class="alert-container position-fixed top-0 end-0 p-3" id="subjectsToastContainer" aria-live="polite" aria-atomic="true"></div>
-  <div class="dashboard-header subjects-header"><div><h4>Subjects Management</h4></div><button type="button" class="btn btn-primary" id="createSubjectBtn" disabled><span class="material-icons btn-icon">add</span>Create Subject</button></div>
+  <div class="dashboard-header subjects-header position-relative"><div><h4>Subjects Management</h4></div><button type="button" class="btn btn-primary" id="createSubjectBtn" disabled><span class="material-icons btn-icon">add</span>Create Subject</button><div class="alert-container" id="subjectCreatedToastContainer" aria-live="polite" aria-atomic="true"></div></div>
   <%- include('partials/tabs', { activeTab: 'examinations', canManageRoster: typeof canManageRoster !== 'undefined' ? canManageRoster : (typeof user !== 'undefined' && user?.role === 'admin') }) %>
   <p class="subjects-description" id="examination-subjects-description">Subjects offered and configured for a specific examination session.</p>
   <section aria-labelledby="examination-subjects-tab" aria-describedby="examination-subjects-description">

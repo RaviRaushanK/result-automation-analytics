@@ -135,7 +135,9 @@ test('hybrid extraction matches the legacy documentExtractor contract', async ()
 
     // --- Shared contract keys --------------------------------------------
     assert.ok(Array.isArray(ex.warnings));
-    assert.equal(ex.warnings.length, 0); // identity + subjects all present
+    assert.ok(!ex.warnings.some(warning => /could not be identified|No subjects/.test(warning)));
+    assert.equal(ex.stages.vision.status, 'ok');
+    assert.equal(ex.stages.llm.status, 'ok');
     assert.ok(Array.isArray(ex.lines));
     assert.ok(ex.metadata && ex.metadata.semester === 3);
 

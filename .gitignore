@@ -17,8 +17,16 @@ config/.env
 eng.traineddata
 *.traineddata
 
-# Runtime uploads (user-uploaded PDFs/images)
-uploads/
+# Keep upload folders in Git, but exclude their runtime contents.
+/uploads/**
+!/uploads/branding/
+!/uploads/branding/.gitkeep
+!/uploads/results/
+!/uploads/results/.gitkeep
+!/uploads/revaluation/
+!/uploads/revaluation/.gitkeep
+!/uploads/temp/
+!/uploads/temp/.gitkeep
 
 # OS files
 Thumbs.db

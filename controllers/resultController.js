@@ -134,6 +134,17 @@ function studentRegistrationError(student, session, usn) {
   return `Student ${usn} is not registered in ${batch}. Add or restore the student in this batch, or correct the USN and selected result session before continuing.`;
 }
 
+function studentNameError(student, name, usn) {
+  const normalize = value => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase();
+  if (!normalize(name)) return null; // Required-field validation handles an empty entry.
+  if (!normalize(student.student_name)) {
+    return 'The registered name for USN ' + usn + ' is unavailable. Correct the student record before continuing.';
+  }
+  if (normalize(name) === normalize(student.student_name)) return null;
+  return 'Student name does not match USN ' + usn + '. Registered name: ' + student.student_name +
+    '. Correct the Student Name or USN, then click Validate again.';
+}
+
 async function duplicateResultError(student, session, attempt, transaction) {
   const existing = await Result.findOne({ where: {
     student_id: student.student_id, session_id: session.session_id, attempt_no: attempt.attempt_no
@@ -406,18 +417,21 @@ const resultController = {
         skipped_records: 0
       });
 
-      // OCR / text extraction (the slow step)
-      const extraction = await documentExtractor.extract(storedFilePath, resultType);
-      const ex = extraction.extraction;
-
-      // Map extracted marks onto DATABASE subjects of this session.
-      // Subject code/name ALWAYS come from the database; OCR only fills marks.
       const sessionSubjects = await Subject.findAll({
         where: { session_id: sessionId },
         order: [['subject_code', 'ASC']],
         raw: true
       });
 
+      // A regular card must cover the configured subjects before native text can bypass OCR.
+      const expectedSubjectCodes = academicPolicy.isRetakeAttempt(attempt.exam_type)
+        ? [] : sessionSubjects.map(subject => subject.subject_code);
+      const extraction = await documentExtractor.extract(storedFilePath, resultType, {
+        expectedSubjectCodes, candidateSubjectCodes: sessionSubjects.map(subject => subject.subject_code)
+      });
+      const ex = extraction.extraction;
+
+      // Subject identities always come from the database; extraction only proposes marks.
       const mappedSubjects = sessionSubjects.map(dbSub => {
         const ocrSub = (ex.subjects || []).find(o =>
           o.subjectCode && String(o.subjectCode).toUpperCase() === dbSub.subject_code.toUpperCase()
@@ -553,11 +567,15 @@ const resultController = {
         : { attempt_no: 1, exam_type: 'REGULAR' };
       let duplicateStudent = false;
       let registrationError = null;
+      let nameError = null;
       const reviewError = typeof req.query?.error === 'string' ? req.query.error : null;
       if (usn) {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
         // Initial extraction remains editable; only failed workflow redirects block Review.
-        if (reviewError) registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
+        if (reviewError) {
+          registrationError = studentRegistrationError(existingStudent, ctx.session, usn.trim().toUpperCase());
+          if (!registrationError) nameError = studentNameError(existingStudent, ctx.saved.student?.name, usn.trim().toUpperCase());
+        }
       }
 
       res.render('results/review', {
@@ -574,9 +592,9 @@ const resultController = {
         subjects,
         warnings,
         extractionWarning,
-        formError: reviewError,
+        formError: nameError || reviewError,
         registrationBlocked: !!registrationError,
-        errors: {},
+        errors: nameError ? { 'student.name': nameError } : {},
         duplicateStudent,
         fileUrl: ctx.fileUrl,
         fileType: (ctx.log.file_type || '').toLowerCase(),
@@ -608,12 +626,20 @@ const resultController = {
         { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
       let registrationError = null;
+      let nameError = null;
       let registeredStudent = null;
       if (payload.student.usn) {
         const student = await Student.findOne({ where: { usn: payload.student.usn } });
         registeredStudent = student;
         registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
         if (registrationError) errors.form = [errors.form, registrationError].filter(Boolean).join(' ');
+        else {
+          nameError = studentNameError(student, payload.student.name, payload.student.usn);
+          if (nameError) {
+            errors['student.name'] = nameError;
+            errors.form = [errors.form, nameError].filter(Boolean).join(' ');
+          }
+        }
       }
 
       // Persist the admin's edited values into the stored extraction payload
@@ -671,7 +697,7 @@ const resultController = {
         }
       }
 
-      if (!registrationError && registeredStudent) {
+      if (!registrationError && !nameError && registeredStudent) {
         const duplicateError = await duplicateResultError(registeredStudent, ctx.session, { attempt_no: attemptNo, exam_type: examType });
         if (duplicateError) errors.form = [errors.form, duplicateError].filter(Boolean).join(' ');
         const historyError = await resultHistory.validationError(ctx.session, registeredStudent, { attempt_no: attemptNo, exam_type: examType });
@@ -725,7 +751,7 @@ const resultController = {
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects,
           warnings: historyWarnings,
-          extractionWarning: Object.keys(errors).some(key => key !== 'form')
+          extractionWarning: Object.keys(errors).some(key => key !== 'form' && !(nameError && key === 'student.name'))
             ? 'Some required fields are missing or invalid. Please correct the highlighted fields below.' : null,
           errors,
           formError: errors.form || null,
@@ -775,6 +801,8 @@ const resultController = {
       const student = await Student.findOne({ where: { usn: payload.student.usn } });
       const registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
       if (registrationError) return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
+      const nameError = studentNameError(student, payload.student.name, payload.student.usn);
+      if (nameError) return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(nameError));
       const previewAttempt = sanitizeAttempt(ctx.saved.attempt?.attempt_no, ctx.saved.attempt?.exam_type);
       if (previewAttempt.ok) {
         const duplicateError = await duplicateResultError(student, ctx.session, previewAttempt);
@@ -854,6 +882,12 @@ const resultController = {
       if (registrationError) {
         await t.rollback();
         return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(registrationError));
+      }
+
+      const nameError = studentNameError(student, payload.student.name, payload.student.usn);
+      if (nameError) {
+        await t.rollback();
+        return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent(nameError));
       }
 
       // Attempt authority comes ONLY from the persisted OCR payload, which was

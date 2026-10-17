@@ -45,11 +45,12 @@ function normalizeCode(raw) {
 }
 
 /** Run the shared engine and hand back just the pieces this adapter needs. */
-async function runEngine(filePath) {
-  const result = await documentExtractor.extract(filePath, 'revaluation');
+async function runEngine(filePath, options = {}) {
+  const result = await documentExtractor.extract(filePath, 'revaluation', options);
   const ex = (result && result.extraction) || {};
   return {
     extraction_method: ex.extractionMethod || null,
+    stages: ex.stages || null,
     raw_text: ex.rawText || '',
     // Raw OCR USN (preserved as-OCR, e.g. "IMV25MCO074")
     usn: (ex.student && ex.student.usn) || null,
@@ -391,6 +392,7 @@ function buildCandidates(engineOut, serverCtx) {
   // Build the OCR output structure
   const ocr = {
     extraction_method: engineOut.extraction_method,
+    stages: engineOut.stages || null,
     extracted_at: new Date().toISOString(),
     raw_text: engineOut.raw_text,
     student_candidates: {
@@ -447,7 +449,8 @@ function buildCandidates(engineOut, serverCtx) {
 
 /** One-call adapter used by the controller's runExtraction handler. */
 async function extractAndBuild(filePath, serverCtx) {
-  const engineOut = await runEngine(filePath);
+  const candidateSubjectCodes = (serverCtx.allSubjectResults || []).map(subject => subject.subject_code);
+  const engineOut = await runEngine(filePath, { candidateSubjectCodes });
   return buildCandidates(engineOut, serverCtx);
 }
 

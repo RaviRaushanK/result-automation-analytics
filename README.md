@@ -370,7 +370,7 @@ only where the existing role column supports it; the current admin-only schema
 does not. Existing passwords are not overwritten.
 
 `seed_all.js` is a guarded alias requiring the same explicit arguments. Legacy
-standalone `seed_clean.js` and `seed_history.js` are retired and refuse writes.
+standalone `seed_clean.js` is retired and refuses writes.
 `npm run seed` invokes Sequelize's `seeders/` workflow, not this demo dataset.
 Nothing seeds automatically on `npm start`.
 

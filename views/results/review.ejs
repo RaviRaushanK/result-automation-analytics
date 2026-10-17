@@ -91,6 +91,7 @@
                         <input type="text"
                                class="form-control <%= (typeof errors !== 'undefined' && errors['student.name']) ? 'is-invalid' : '' %>"
                                id="studentNameInput"
+                               <%- (typeof errors !== 'undefined' && errors['student.name']) ? 'data-server-invalid="true" aria-invalid="true"' : '' %>
                                name="name"
                                value="<%= student.name %>"
                                maxlength="100"
@@ -98,7 +99,7 @@
                                placeholder="Full name as on marks card"
                                autocomplete="off">
                         <% if (typeof errors !== 'undefined' && errors['student.name']) { %>
-                          <div class="field-error-message text-danger small mt-1"><%= errors['student.name'] %></div>
+                          <div class="field-error-message text-danger small mt-1" data-server-rendered="true"><%= errors['student.name'] %></div>
                         <% } %>
                       </div>
                     </div>

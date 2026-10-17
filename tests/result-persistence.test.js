@@ -65,7 +65,7 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   replace(db.Subject, 'findAll', async () => definitions);
   replace(db.AcademicCourse, 'findAll', async () => definitions.map(subject => ({ ...subject, is_required: true, roster_verified: true })));
   replace(require('../services/academicOutcomeService'), 'calculateCumulative', async () => null);
-  replace(db.Student, 'findOne', async () => ({ student_id: 101, batch_id: 1 }));
+  replace(db.Student, 'findOne', async () => ({ student_id: 101, batch_id: 1, student_name: 'TEST STUDENT' }));
   replace(db.Result, 'findOne', async () => duplicate ? { result_id: 99 } : null);
   replace(db.Result, 'findAll', async () => [{ result_id: 6, session_id: 1, attempt_no: 1,
     ResultSession: { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 },

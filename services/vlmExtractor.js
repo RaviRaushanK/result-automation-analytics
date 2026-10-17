@@ -32,19 +32,24 @@ const VLM_SYSTEM_PROMPT = [
     'Return a JSON object only — no prose, no markdown fences.'
 ].join(' ');
 
-function buildVlmUserPrompt() {
+function buildVlmUserPrompt(resultType) {
     return [
         'Transcribe this result marks card into JSON with this schema:',
         '{ "usn": string|null, "name": string|null, "semester": number|null,',
         '  "subjects": [ { "subjectCode": string, "subjectName": string|null,',
         '    "internalMarks": number|null, "externalMarks": number|null,',
-        '    "oldMarks": number|null, "rvMarks": number|null, "finalMarks": number|null,',
+        '    "totalMarks": number|null, "oldMarks": number|null,',
+        '    "oldResult": "P"|"F"|"A"|"W"|"NE"|null, "rvMarks": number|null,',
+        '    "rvResult": "P"|"F"|"A"|"W"|"NE"|null, "finalMarks": number|null,',
+        '    "finalResult": "P"|"F"|"A"|"W"|"NE"|null,',
         '    "result": "P"|"F"|"A"|"W"|"NE"|null,',
         '    "confidence": "high"|"medium"|"low" } ] }',
         'Rules:',
         '- Read characters precisely; keep subject codes verbatim.',
         '- Normal result card: use internalMarks + externalMarks.',
-        '- Revaluation card: use oldMarks / rvMarks / finalMarks.',
+        '- Revaluation card: read internalMarks and each independent oldMarks/oldResult, rvMarks/rvResult, finalMarks/finalResult cell.',
+        '- finalMarks on a revaluation card is the printed final external mark, NOT internalMarks + rvMarks.',
+        'Document type: ' + resultType,
         '- Use null for anything not printed. Do not guess marks.',
         '- confidence reflects how clearly each row was readable.'
     ].join('\n');
@@ -88,7 +93,7 @@ function buildOutputSchemaHint(resultType) {
         '    "confidence": "high"|"medium"|"low" } ] }'
     ].join('\n');
     return resultType === 'revaluation'
-        ? base + '\n(Revaluation card: prioritise oldMarks/rvMarks/finalMarks + their result letters.)'
+        ? base + '\n(Revaluation card: preserve internalMarks and each printed old/RV/final mark and result letter independently. finalMarks is NOT an internal-plus-external total.)'
         : base + '\n(Normal card: prioritise internalMarks + externalMarks and totalMarks.)';
 }
 
@@ -106,7 +111,8 @@ async function runTesseractOcr(imageBuffer) {
 
     const worker = await Tesseract.createWorker('eng', 1, {});
     try {
-        const result = await worker.recognize(processed, {}, { tessedit_pageseg_mode: '6' });
+        await worker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+        const result = await worker.recognize(processed, {}, { text: true });
         return (result && result.data && result.data.text) ? result.data.text.trim() : '';
     } finally {
         try { await worker.terminate(); } catch (_) { /* ignore */ }
@@ -119,8 +125,10 @@ async function runTesseractOcr(imageBuffer) {
 // ------------------------------------------------------------
 function toMark(v) {
     if (v === null || v === undefined || v === '') return null;
-    const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
-    if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+    const text = String(v).trim();
+    if (!/^\d{1,3}$/.test(text)) return null;
+    const n = Number(text);
+    if (!Number.isInteger(n) || n < 0 || n > 100) return null;
     return n;
 }
 
@@ -147,6 +155,65 @@ function normalizeUsn(usn) {
 function cleanConfidence(c) {
     const v = String(c || '').toLowerCase();
     return ['high', 'medium', 'low'].includes(v) ? v : 'medium';
+}
+
+function isDocument(value) {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Array.isArray(value.subjects));
+}
+
+function isCompleteRow(row, resultType) {
+    if (!row || !row.subjectCode) return false;
+    const marks = resultType === 'revaluation'
+        ? [row.internalMarks, row.oldMarks, row.rvMarks, row.finalMarks]
+        : [row.internalMarks, row.externalMarks];
+    const statuses = resultType === 'revaluation'
+        ? [row.oldResult, row.rvResult, row.finalResult] : [row.result];
+    return marks.every(value => toMark(value) !== null) &&
+        statuses.every(value => normalizeResultToken(value) !== null);
+}
+
+function reconcileReadings(vision, reconciled, resultType, warnings) {
+    if (!isDocument(reconciled)) return vision;
+    if (vision.usn && reconciled.usn && normalizeUsn(vision.usn) !== normalizeUsn(reconciled.usn)) {
+        warnings.push('The AI readings disagree on the student USN. Check the identity against the original card.');
+        return vision;
+    }
+    const codeOf = row => String(row?.subjectCode || '').trim().toUpperCase();
+    const visionRows = new Map(vision.subjects.map(row => [codeOf(row), row]).filter(([code]) => code));
+    const seen = new Set();
+    const subjects = [];
+    const fields = resultType === 'revaluation'
+        ? ['internalMarks', 'oldMarks', 'oldResult', 'rvMarks', 'rvResult', 'finalMarks', 'finalResult']
+        : ['internalMarks', 'externalMarks', 'result'];
+    const valueOf = (row, field) => /result$/i.test(field) ? normalizeResultToken(row[field]) : toMark(row[field]);
+    for (const row of reconciled.subjects) {
+        const code = codeOf(row);
+        if (!code || seen.has(code)) continue;
+        seen.add(code);
+        const observed = visionRows.get(code);
+        if (observed && isCompleteRow(observed, resultType) && !isCompleteRow(row, resultType)) {
+            subjects.push(observed);
+            warnings.push('An incomplete AI reconciliation for ' + code + ' was replaced with its vision reading. Verify the marks.');
+        } else if (observed && isCompleteRow(observed, resultType) && isCompleteRow(row, resultType) &&
+            fields.some(field => valueOf(row, field) !== valueOf(observed, field))) {
+            subjects.push({ ...row, confidence: 'low' });
+            warnings.push('AI readings disagree on marks or status for ' + code + '. Verify this row against the original card.');
+        } else {
+            subjects.push(row);
+        }
+    }
+    for (const [code, row] of visionRows) {
+        if (seen.has(code)) continue;
+        subjects.push(row);
+        warnings.push('Subject ' + code + ' was retained from vision because reconciliation omitted it. Verify the row.');
+    }
+    return {
+        ...vision, ...reconciled,
+        usn: reconciled.usn || vision.usn,
+        name: reconciled.name || vision.name,
+        semester: reconciled.semester ?? vision.semester,
+        subjects
+    };
 }
 
 // ------------------------------------------------------------
@@ -184,7 +251,7 @@ function buildExtraction({ filePath, resultType, merged, rawText, extractionMeth
                 finalResult: normalizeResultToken(row.finalResult),
                 finalResultRaw: row.finalResult || null,
                 marksConfidence: confidence,
-                marksValidated: confidence === 'high',
+                marksValidated: confidence === 'high' && isCompleteRow(row, resultType),
                 parsingMethod: extractionMethod,
                 rawLine: row.rawLine || ''
             });
@@ -203,7 +270,7 @@ function buildExtraction({ filePath, resultType, merged, rawText, extractionMeth
                 totalMarks,
                 result: normalizeResultToken(row.result),
                 marksConfidence: confidence,
-                marksValidated: confidence === 'high'
+                marksValidated: confidence === 'high' && isCompleteRow(row, resultType)
             });
         }
     }
@@ -256,10 +323,16 @@ const vlmExtractor = {
         // 2. Run advanced OCR + Vision in parallel across pages.
         const ocrTexts = [];
         const visionPerPage = [];
+        const stages = { ocr: { pages: [] }, vision: { pages: [] }, llm: { status: 'pending' } };
+        const stageWarnings = [];
         for (const img of pageImages) {
             const base64 = img.buffer.toString('base64');
             const [ocrText, visionText] = await Promise.all([
-                runTesseractOcr(img.buffer).catch(err => {
+                runTesseractOcr(img.buffer).then(text => {
+                    stages.ocr.pages.push({ page: img.pageNumber, status: text ? 'ok' : 'empty' });
+                    return text;
+                }).catch(err => {
+                    stages.ocr.pages.push({ page: img.pageNumber, status: 'failed' });
                     console.warn('[vlmExtractor] OCR failed for page', img.pageNumber, err.message);
                     return '';
                 }),
@@ -267,15 +340,33 @@ const vlmExtractor = {
                     imageBase64: base64,
                     mime: img.mime || 'image/png',
                     systemPrompt: VLM_SYSTEM_PROMPT,
-                    userText: buildVlmUserPrompt(),
+                    userText: buildVlmUserPrompt(resultType),
                     jsonMode: true
+                }).then(text => {
+                    const parsed = ai.safeJsonParse(text, null);
+                    if (!isDocument(parsed)) throw new Error('Vision returned an invalid document schema');
+                    const status = parsed.subjects.length
+                        ? (parsed.subjects.every(row => isCompleteRow(row, resultType)) ? 'ok' : 'partial') : 'empty';
+                    stages.vision.pages.push({ page: img.pageNumber, status });
+                    return parsed;
                 }).catch(err => {
+                    stages.vision.pages.push({ page: img.pageNumber, status: 'failed' });
                     console.warn('[vlmExtractor] Vision failed for page', img.pageNumber, err.message);
-                    return '{}';
+                    return { subjects: [] };
                 })
             ]);
             ocrTexts.push(`[page ${img.pageNumber}]\n${ocrText}`);
-            visionPerPage.push(ai.safeJsonParse(visionText, {}));
+            visionPerPage.push(visionText);
+        }
+
+        for (const stage of ['ocr', 'vision']) {
+            const pages = stages[stage].pages;
+            stages[stage].status = pages.every(page => page.status === 'ok') ? 'ok'
+                : pages.some(page => ['ok', 'partial'].includes(page.status)) ? 'partial' : 'failed';
+            if (stages[stage].status !== 'ok') {
+                stageWarnings.push((stage === 'ocr' ? 'Text OCR' : 'Vision reading') +
+                    ' was incomplete or unavailable on some pages. Verify the extracted rows against the card.');
+            }
         }
 
         // Merge vision output across pages (subjects concatenated).
@@ -302,15 +393,19 @@ const vlmExtractor = {
                 jsonMode: true
             });
             merged = ai.safeJsonParse(llmOut, null);
+            if (!isDocument(merged)) throw new Error('Reconciliation returned an invalid document schema');
+            stages.llm.status = merged.subjects.length
+                ? (merged.subjects.every(row => isCompleteRow(row, resultType)) ? 'ok' : 'partial') : 'empty';
         } catch (err) {
             console.warn('[vlmExtractor] LLM reconcile failed, using vision-only merge:', err.message);
             merged = null;
+            stages.llm.status = 'failed';
+            stageWarnings.push('AI reconciliation was unavailable. Verify the remaining extraction against the original card.');
         }
 
-        // Fallback: if the LLM failed, use the vision merge directly.
-        if (!merged || typeof merged !== 'object') {
-            merged = mergedVision;
-        }
+        const warningCount = stageWarnings.length;
+        merged = reconcileReadings(mergedVision, merged, resultType, stageWarnings);
+        if (stageWarnings.length > warningCount && stages.llm.status === 'ok') stages.llm.status = 'partial';
 
         const extractionMethod = 'vlm-hybrid';
         const extraction = buildExtraction({
@@ -319,6 +414,8 @@ const vlmExtractor = {
             extractionMethod,
             pageCount: pageImages.length
         });
+        extraction.stages = stages;
+        extraction.warnings.push(...stageWarnings);
 
         return {
             success: true,

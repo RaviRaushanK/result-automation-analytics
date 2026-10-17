@@ -65,7 +65,7 @@ test('preview controller renders calculated CGPA without starting transactions o
   replace(db.OcrExtraction, 'findOne', async () => ({ extracted_json: { student: { usn: 'TEST001', name: 'Test Student' }, attempt, subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] } }));
   replace(db.Subject, 'findAll', async () => [definition]);
   replace(db.AcademicCourse, 'findAll', async () => [course]);
-  replace(db.Student, 'findOne', async () => ({ student_id: 1, batch_id: 1 }));
+  replace(db.Student, 'findOne', async () => ({ student_id: 1, batch_id: 1, student_name: 'TEST STUDENT' }));
   replace(outcomes, 'load', async (batch, ids, mode) => { assert.equal(mode, 'original'); return { courses: [course], results: [], subjects: [] }; });
   replace(db.sequelize, 'transaction', () => { throw new Error('Preview must not write'); });
   try {
