@@ -11,6 +11,17 @@ router.get('/login', authController.showLoginPage);
 router.post('/login', authController.login);
 
 // ========================
+// Forgot Password Routes
+// ========================
+router.get('/forgot-password', authController.showForgotPassword);
+router.post('/forgot-password', authController.forgotPassword);
+router.get('/verify-otp', authController.showVerifyOtp);
+router.post('/verify-reset-otp', authController.verifyResetOtp);
+router.get('/reset-password', authController.showResetPassword);
+router.post('/reset-password', authController.resetPassword);
+router.post('/resend-otp', authController.resendOtp);
+
+// ========================
 // Protected Auth Routes
 // ========================
 router.get('/logout', authController.logout);

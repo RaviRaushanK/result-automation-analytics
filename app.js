@@ -66,6 +66,7 @@ const userMiddleware = require("./middlewares/userMiddleware");
 const themeMiddleware = require("./middlewares/themeMiddleware");
 const menuMiddleware = require("./middlewares/menuMiddleware");
 const authMiddleware = require("./middlewares/authMiddleware");
+const otpService = require("./services/otpService");
 
 app.use(userMiddleware);
 app.use(themeMiddleware);
@@ -75,6 +76,8 @@ app.use(menuMiddleware);
 app.use((req, res, next) => {
   res.locals.flash = res.locals.flash || [];
   res.locals.breadcrumbItems = res.locals.breadcrumbItems || [];
+  res.locals.maskEmail = otpService.maskEmail;
+  res.locals.maskMobile = otpService.maskMobile;
   next();
 });
 

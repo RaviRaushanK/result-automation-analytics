@@ -1,12 +1,17 @@
 'use strict';
+const { Op } = require('sequelize');
+const { AdminUser, AdminOtp } = require('../database/models');
 const repository = require('../repositories/settingsRepository');
 const policy = require('./academicPolicy');
+const otpService = require('./otpService');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const crypto = require('node:crypto');
 const sharp = require('sharp');
 const limits = require('../config/uploadLimits');
 const metadata = require('../package.json');
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const FIELDS = Object.freeze([
   { key: 'institution_name', label: 'Institution Name', required: true, limit: 120 },
@@ -18,7 +23,6 @@ const FIELDS = Object.freeze([
 ]);
 const DEFAULTS = Object.freeze({ institution_name: 'SRAAS', institution_short_name: 'SRAAS', institution_address: '', institution_phone: '', institution_email: '', report_footer: '', institution_logo: '' });
 const KEYS = Object.freeze(Object.keys(DEFAULTS));
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const safeLogo = value => typeof value === 'string' && /^\/uploads\/branding\/[a-f0-9-]{36}\.png$/.test(value);
 const validation = errors => Object.assign(new Error('Please correct the highlighted fields.'), { status: 422, errors });
 function allowFields(body, allowed) {
@@ -62,6 +66,82 @@ async function updateEmail(body, actor) {
     throw err;
   }
 }
+const mobilePattern = /^\+?[0-9]{10,15}$/;
+
+async function mobileTaken(mobile, id) {
+  return Boolean(await AdminUser.findOne({ where: { mobile, admin_id: { [Op.ne]: id } }, attributes: ['admin_id'], paranoid: false }));
+}
+
+async function requestChangeEmail(body, adminId) {
+  allowFields(body, ['new_email', '_csrf']);
+  const newEmail = typeof body.new_email === 'string' ? body.new_email.trim().toLowerCase() : '';
+  if (!emailPattern.test(newEmail) || newEmail.length > 100) {
+    throw validation({ new_email: 'Enter a valid email address of at most 100 characters.' });
+  }
+  const admin = await AdminUser.findByPk(adminId);
+  if (!admin) throw Object.assign(new Error('Account not found.'), { status: 404 });
+  if (admin.email === newEmail) throw validation({ new_email: 'This is already your registered email address.' });
+  if (await repository.emailTaken(newEmail, adminId)) {
+    throw validation({ new_email: 'This email address is already used by another account.' });
+  }
+  const result = await otpService.createAndSendOtp({ adminId, type: 'email_change', targetValue: newEmail });
+  return { notice: 'A verification code has been sent to your registered mobile number.', ...result };
+}
+
+async function verifyChangeEmail(body, adminId) {
+  allowFields(body, ['otp', '_csrf']);
+  const code = typeof body.otp === 'string' ? body.otp.trim() : '';
+  if (!code || !/^\d{6}$/.test(code)) throw validation({ otp: 'Enter the 6-digit verification code.' });
+
+  const otp = await AdminOtp.findOne({
+    where: { admin_id: adminId, type: 'email_change', is_used: 0 },
+    order: [['created_at', 'DESC']]
+  });
+  if (!otp) throw Object.assign(new Error('Invalid or expired verification code.'), { status: 400 });
+  const targetEmail = otp.target_value;
+
+  await otpService.verifyOtp({ adminId, type: 'email_change', code });
+
+  const [updated] = await repository.updateEmail(adminId, targetEmail);
+  if (!updated) throw Object.assign(new Error('Failed to update email address.'), { status: 500 });
+  return { notice: 'Your email address has been updated successfully.' };
+}
+
+async function requestChangeMobile(body, adminId) {
+  allowFields(body, ['new_mobile', '_csrf']);
+  const newMobile = typeof body.new_mobile === 'string' ? body.new_mobile.trim() : '';
+  if (!mobilePattern.test(newMobile)) {
+    throw validation({ new_mobile: 'Enter a valid mobile number (10-15 digits, optional leading +).' });
+  }
+  const admin = await AdminUser.findByPk(adminId);
+  if (!admin) throw Object.assign(new Error('Account not found.'), { status: 404 });
+  if (admin.mobile === newMobile) throw validation({ new_mobile: 'This is already your registered mobile number.' });
+  if (await mobileTaken(newMobile, adminId)) {
+    throw validation({ new_mobile: 'This mobile number is already used by another account.' });
+  }
+  const result = await otpService.createAndSendOtp({ adminId, type: 'mobile_change', targetValue: newMobile });
+  return { notice: 'A verification code has been sent to your registered email address.', ...result };
+}
+
+async function verifyChangeMobile(body, adminId) {
+  allowFields(body, ['otp', '_csrf']);
+  const code = typeof body.otp === 'string' ? body.otp.trim() : '';
+  if (!code || !/^\d{6}$/.test(code)) throw validation({ otp: 'Enter the 6-digit verification code.' });
+
+  const otp = await AdminOtp.findOne({
+    where: { admin_id: adminId, type: 'mobile_change', is_used: 0 },
+    order: [['created_at', 'DESC']]
+  });
+  if (!otp) throw Object.assign(new Error('Invalid or expired verification code.'), { status: 400 });
+  const targetMobile = otp.target_value;
+
+  await otpService.verifyOtp({ adminId, type: 'mobile_change', code });
+
+  const [updated] = await AdminUser.update({ mobile: targetMobile, updated_at: new Date() }, { where: { admin_id: adminId, deleted_at: null, status: 'active' } });
+  if (!updated) throw Object.assign(new Error('Failed to update mobile number.'), { status: 500 });
+  return { notice: 'Your mobile number has been updated successfully.' };
+}
+
 async function logoImage(file) {
   const ext = path.extname(file?.originalname || '').toLowerCase();
   const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
@@ -104,4 +184,4 @@ function brandingMetadata(branding) {
   return [['Institution', 'institution_name'], ['Institution Short Name', 'institution_short_name'], ['Institution Address', 'institution_address'], ['Institution Phone', 'institution_phone'], ['Institution Email', 'institution_email'], ['Report Footer', 'report_footer']]
     .filter(([, key]) => branding[key] && branding[key] !== DEFAULTS[key]).map(([label, key]) => [label, branding[key]]);
 }
-module.exports = { FIELDS, DEFAULTS, KEYS, safeLogo, allowFields, validateInstitution, getBranding, saveInstitution, updateEmail, logoImage, saveLogo, academicPolicy, systemInformation, brandingMetadata };
+module.exports = { FIELDS, DEFAULTS, KEYS, safeLogo, allowFields, validateInstitution, getBranding, saveInstitution, updateEmail, requestChangeEmail, verifyChangeEmail, requestChangeMobile, verifyChangeMobile, logoImage, saveLogo, academicPolicy, systemInformation, brandingMetadata };

@@ -43,14 +43,62 @@ function save(section, operation, notice) {
     } catch (err) {
       if (!err.status) return next(err);
       const entered = {};
-      for (const key of section === 'account' ? ['email'] : service.FIELDS.map(field => field.key)) {
+      for (const key of section === 'account' ? ['email', 'new_email', 'new_mobile'] : service.FIELDS.map(field => field.key)) {
         if (typeof req.body?.[key] === 'string') entered[key] = req.body[key].slice(0, 1000);
       }
       try { await render(req, res, section, err.errors || {}, entered, err.status, err.message); } catch (error) { next(error); }
     }
   };
 }
+async function changeEmailRequest(req, res, next) {
+  try {
+    const result = await service.requestChangeEmail(req.body, req.account.admin_id);
+    req.session.settingsNotice = result.notice;
+    req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
+  } catch (err) {
+    if (!err.status) return next(err);
+    const entered = {};
+    if (typeof req.body.new_email === 'string') entered.new_email = req.body.new_email.slice(0, 1000);
+    try { await render(req, res, 'account', err.errors || {}, entered, err.status, err.message); } catch (error) { next(error); }
+  }
+}
+async function changeEmailVerify(req, res, next) {
+  try {
+    const result = await service.verifyChangeEmail(req.body, req.account.admin_id);
+    req.session.settingsNotice = result.notice;
+    req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
+  } catch (err) {
+    if (!err.status) return next(err);
+    try { await render(req, res, 'account', err.errors || {}, {}, err.status, err.message); } catch (error) { next(error); }
+  }
+}
+async function changeMobileRequest(req, res, next) {
+  try {
+    const result = await service.requestChangeMobile(req.body, req.account.admin_id);
+    req.session.settingsNotice = result.notice;
+    req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
+  } catch (err) {
+    if (!err.status) return next(err);
+    const entered = {};
+    if (typeof req.body.new_mobile === 'string') entered.new_mobile = req.body.new_mobile.slice(0, 1000);
+    try { await render(req, res, 'account', err.errors || {}, entered, err.status, err.message); } catch (error) { next(error); }
+  }
+}
+async function changeMobileVerify(req, res, next) {
+  try {
+    const result = await service.verifyChangeMobile(req.body, req.account.admin_id);
+    req.session.settingsNotice = result.notice;
+    req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
+  } catch (err) {
+    if (!err.status) return next(err);
+    try { await render(req, res, 'account', err.errors || {}, {}, err.status, err.message); } catch (error) { next(error); }
+  }
+}
 module.exports = { currentAccount, administrator, page,
   account: save('account', req => service.updateEmail(req.body, req.account.admin_id), 'Your email address has been updated.'),
+  changeEmailRequest,
+  changeEmailVerify,
+  changeMobileRequest,
+  changeMobileVerify,
   institution: save('institution', req => service.saveInstitution(req.body, req.account.admin_id), 'Institution branding has been saved.'),
   logo: save('institution', req => service.saveLogo(req.body, req.file, req.account.admin_id), 'Institution logo has been updated.') };

@@ -26,6 +26,7 @@ CREATE TABLE admin_users (
   admin_uuid CHAR(36) NOT NULL UNIQUE,
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(100) NOT NULL UNIQUE,
+  mobile VARCHAR(20) NULL,
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('admin') DEFAULT 'admin',
   status ENUM('active', 'inactive') DEFAULT 'active',
@@ -34,6 +35,26 @@ CREATE TABLE admin_users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL
 ) ENGINE=InnoDB;
+
+-- -------------------------------------------------
+-- 16. admin_otps (one-time passwords for auth flows)
+-- -------------------------------------------------
+CREATE TABLE admin_otps (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  admin_id BIGINT NOT NULL,
+  otp_hash VARCHAR(255) NOT NULL,
+  type ENUM('password_reset','email_change','mobile_change') NOT NULL,
+  target_value VARCHAR(255) NULL,
+  expires_at DATETIME NOT NULL,
+  attempts INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 5,
+  is_used TINYINT(1) NOT NULL DEFAULT 0,
+  resend_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (admin_id) REFERENCES admin_users(admin_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE INDEX idx_admin_otps_admin_type ON admin_otps(admin_id, type);
+CREATE INDEX idx_admin_otps_expires ON admin_otps(expires_at);
 
 -- -------------------------------------------------
 -- 3. activity_logs

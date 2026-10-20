@@ -289,6 +289,60 @@
     font-size: 0.7rem;
 }
 
+/* ---------- Forgot Password Link ---------- */
+.login-container .forgot-link {
+    color: #9CA3AF;
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: color 0.2s ease;
+}
+.login-container .forgot-link:hover {
+    color: #3B82F6;
+    text-decoration: underline;
+}
+
+/* ---------- OTP Input ---------- */
+.login-form .otp-input {
+    text-align: center;
+    font-size: 1.25rem;
+    letter-spacing: 0.4rem;
+    font-feature-settings: 'tnum';
+}
+.login-form .otp-input::-webkit-outer-spin-button,
+.login-form .otp-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.login-form .otp-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* ---------- Resend Box ---------- */
+.login-form .resend-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+}
+.login-form .resend-timer {
+    font-size: 0.8rem;
+    color: #9CA3AF;
+}
+.login-form .resend-link {
+    background: none;
+    border: none;
+    color: #3B82F6;
+    cursor: pointer;
+    font-size: 0.875rem;
+    text-decoration: underline;
+    padding: 0.25rem 0.5rem;
+}
+.login-form .resend-link:disabled {
+    color: #6B7280;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
 /* ---------- Footer ---------- */
 .login-footer {
     margin-top: 1.25rem;

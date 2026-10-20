@@ -12,9 +12,52 @@
         <dl class="settings-details">
           <% [['Username',account.username],['Role',account.role],['Account Status',account.status],['Last Login',account.last_login ? new Date(account.last_login).toLocaleString() : 'Not recorded']].forEach(([label,value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
         </dl>
-        <form method="POST" action="/settings/account" class="settings-form">
+
+        <div class="settings-form">
+          <h3 class="h6 mt-4 mb-3">Email Address</h3>
+          <p class="settings-muted mb-3">Current: <strong><%= account.email %></strong></p>
+
+          <% if (entered.new_email && !errors.new_email) { %>
+            <!-- OTP verification step for email change -->
+            <form method="POST" action="/settings/account/change-email/verify" class="settings-form mt-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div class="mb-3"><label class="form-label" for="change-email-otp">Verification Code</label><p class="settings-muted">A verification code has been sent to your registered mobile number (<%= maskMobile(account.mobile) || '******' %>).</p><input id="change-email-otp" name="otp" type="text" maxlength="6" class="form-control text-center otp-input" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required inputmode="numeric" pattern="[0-9]*"><div id="change-email-otp-error" class="invalid-feedback"></div></div>
+              <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">verify</span>Verify &amp; Update Email</button>
+              <button type="button" class="btn btn-outline-secondary mt-2" onclick="location.href='/settings?section=account'">Cancel</button>
+            </form>
+          <% } else { %>
+            <form method="POST" action="/settings/account/change-email/request" class="settings-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div class="mb-3"><label class="form-label" for="new-email">New Email Address</label><input id="new-email" name="new_email" type="email" maxlength="100" autocomplete="email" value="<%= entered.new_email || '' %>" class="form-control<%= errors.new_email ? ' is-invalid' : '' %>" aria-describedby="new-email-error" required><div id="new-email-error" class="invalid-feedback"><%= errors.new_email || '' %></div></div>
+              <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">send</span>Send Code to Mobile</button>
+            </form>
+          <% } %>
+        </div>
+
+        <div class="settings-form mt-5">
+          <h3 class="h6 mb-3">Mobile Number</h3>
+          <p class="settings-muted mb-3">Current: <strong><%= account.mobile ? maskMobile(account.mobile) : 'Not registered' %></strong></p>
+
+          <% if (entered.new_mobile && !errors.new_mobile) { %>
+            <!-- OTP verification step for mobile change -->
+            <form method="POST" action="/settings/account/change-mobile/verify" class="settings-form mt-3">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div class="mb-3"><label class="form-label" for="change-mobile-otp">Verification Code</label><p class="settings-muted">A verification code has been sent to your registered email address (<%= maskEmail(account.email) %>).</p><input id="change-mobile-otp" name="otp" type="text" maxlength="6" class="form-control text-center otp-input" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required inputmode="numeric" pattern="[0-9]*"><div id="change-mobile-otp-error" class="invalid-feedback"></div></div>
+              <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">verify</span>Verify &amp; Update Mobile</button>
+              <button type="button" class="btn btn-outline-secondary mt-2" onclick="location.href='/settings?section=account'">Cancel</button>
+            </form>
+          <% } else { %>
+            <form method="POST" action="/settings/account/change-mobile/request" class="settings-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div class="mb-3"><label class="form-label" for="new-mobile">New Mobile Number</label><input id="new-mobile" name="new_mobile" type="tel" maxlength="20" value="<%= entered.new_mobile || '' %>" class="form-control<%= errors.new_mobile ? ' is-invalid' : '' %>" aria-describedby="new-mobile-error" placeholder="+1234567890" required><div id="new-mobile-error" class="invalid-feedback"><%= errors.new_mobile || '' %></div></div>
+              <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">send</span>Send Code to Email</button>
+            </form>
+          <% } %>
+        </div>
+
+        <form method="POST" action="/settings/account" class="settings-form mt-5">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="mb-3"><label class="form-label" for="account-email">Email</label><input id="account-email" name="email" type="email" maxlength="100" autocomplete="email" value="<%= entered.email ?? account.email %>" class="form-control<%= errors.email ? ' is-invalid' : '' %>" aria-describedby="account-email-error" <%- errors.email ? 'aria-invalid="true"' : '' %> required><div id="account-email-error" class="invalid-feedback"><%= errors.email || '' %></div></div>
+          <div class="mb-3"><label class="form-label" for="account-email">Email (direct update)</label><input id="account-email" name="email" type="email" maxlength="100" autocomplete="email" value="<%= entered.email ?? account.email %>" class="form-control<%= errors.email ? ' is-invalid' : '' %>" aria-describedby="account-email-error" <%- errors.email ? 'aria-invalid="true"' : '' %> required><div id="account-email-error" class="invalid-feedback"><%= errors.email || '' %></div></div>
           <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">save</span>Save Email</button>
         </form>
       <% } else if (section === 'security') { %>

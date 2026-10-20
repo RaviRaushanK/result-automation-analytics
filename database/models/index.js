@@ -38,6 +38,7 @@ const ImportLog = require('./ImportLog')(sequelize, DataTypes);
 const OcrExtraction = require('./OcrExtraction')(sequelize, DataTypes);
 const SystemSetting = require('./SystemSetting')(sequelize, DataTypes);
 const SettingAudit = require('./SettingAudit')(sequelize, DataTypes);
+const AdminOtp = require('./AdminOtp')(sequelize, DataTypes);
 
 // ============================================
 // Associations
@@ -154,5 +155,6 @@ module.exports = {
   ImportLog,
   OcrExtraction,
   SystemSetting,
-  SettingAudit
+  SettingAudit,
+  AdminOtp
 };

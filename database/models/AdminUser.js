@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       unique: true
     },
+    mobile: {
+      type: DataTypes.STRING(20),
+      allowNull: true
+    },
     password_hash: {
       type: DataTypes.STRING(255),
       allowNull: false
