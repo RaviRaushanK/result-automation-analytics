@@ -6,7 +6,7 @@ const emailService = require('./emailService');
 const smsService = require('./smsService');
 
 const OTP_LENGTH = 6;
-const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_TTL_MS = 2 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_RESENDS = 3;
 
@@ -61,18 +61,18 @@ async function createAndSendOtp({ adminId, type, targetValue }) {
 
   if (type === 'password_reset') {
     const subject = 'SRAAS — Password Reset Verification Code';
-    const text = `Your password reset verification code is ${otp}. It expires in 10 minutes. Do not share this code with anyone.`;
+    const text = `Your password reset verification code is ${otp}. It expires in 2 minutes. Do not share this code with anyone.`;
     const html = `<div style="font-family:sans-serif;line-height:1.5"><h2>SRAAS — Password Reset</h2><p>Your verification code is <strong style="font-size:1.3rem;letter-spacing:2px">${otp}</strong></p><p>It expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p><p>If you did not request this, please ignore this email.</p></div>`;
     await emailService.sendOtpEmail(admin.email, subject, text, html);
     sent = true;
   } else if (type === 'email_change') {
     if (!admin.mobile) throw Object.assign(new Error('No registered mobile number found. Please contact support.'), { status: 400 });
-    const message = `SRAAS: Your email change verification code is ${otp}. It expires in 10 minutes.`;
+    const message = `SRAAS: Your email change verification code is ${otp}. It expires in 2 minutes.`;
     await smsService.sendOtpSms(admin.mobile, message);
     sent = true;
   } else if (type === 'mobile_change') {
     const subject = 'SRAAS — Mobile Number Change Verification Code';
-    const text = `Your mobile number change verification code is ${otp}. It expires in 10 minutes. Do not share this code with anyone.`;
+    const text = `Your mobile number change verification code is ${otp}. It expires in 2 minutes. Do not share this code with anyone.`;
     const html = `<div style="font-family:sans-serif;line-height:1.5"><h2>SRAAS — Mobile Number Change</h2><p>Your verification code is <strong style="font-size:1.3rem;letter-spacing:2px">${otp}</strong></p><p>It expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p><p>If you did not request this, please ignore this email.</p></div>`;
     await emailService.sendOtpEmail(admin.email, subject, text, html);
     sent = true;
@@ -149,11 +149,11 @@ async function resendOtp({ adminId, type }) {
     const subject = type === 'password_reset'
       ? 'SRAAS — Password Reset Verification Code (Resent)'
       : 'SRAAS — Mobile Number Change Verification Code (Resent)';
-    const text = `Your new verification code is ${newOtp}. It expires in 10 minutes.`;
+    const text = `Your new verification code is ${newOtp}. It expires in 2 minutes.`;
     const html = `<div style="font-family:sans-serif;line-height:1.5"><h2>SRAAS — Verification Code Resent</h2><p>Your new verification code is <strong style="font-size:1.3rem;letter-spacing:2px">${newOtp}</strong></p><p>It expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p></div>`;
     await emailService.sendOtpEmail(admin.email, subject, text, html);
   } else if (type === 'email_change') {
-    const message = `SRAAS: Your new email change verification code is ${newOtp}. It expires in 10 minutes.`;
+    const message = `SRAAS: Your new email change verification code is ${newOtp}. It expires in 2 minutes.`;
     await smsService.sendOtpSms(admin.mobile, message);
   }
 
