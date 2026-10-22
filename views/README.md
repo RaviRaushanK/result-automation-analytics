@@ -1,13 +1,14 @@
 # Views
 
-Reviewed on 17 October 2026. Templates use EJS and `express-ejs-layouts`.
+Public/authentication views updated on 22 October 2026. Other feature views last
+reviewed on 17 October 2026. Templates use EJS and `express-ejs-layouts`.
 
 ## Current Pages
 
 | Directory | Templates / Purpose |
 | --- | --- |
 | `analytics/` | overview, students, toppers, failed, subjects, semesters, progress, revaluation |
-| `auth/` | login, compatibility account-security page, shared password partial |
+| `auth/` | login, invited registration, invitations, inline-OTP forgot-password, reset-password, compatibility account-security page, shared password and welcome-panel partials |
 | `batches/` | batch list and create/edit dialogs; shared year-input partial |
 | `dashboard/` | dashboard filters, metrics, pie/subject/grade charts and attention rows |
 | `errors/` | 404 and 500 |
@@ -41,6 +42,19 @@ Routes/controllers select layouts and supply locals. Error rendering uses the
 layout chosen by its handler, not a universally enforced error-only layout.
 
 ## Important Workflow Views
+
+**Public/authentication:** `landing/index.ejs` uses `home.css`,
+`home-navigation.css` and `homeNavigation.js`. Login, Forgot Password and Reset
+Password share `auth/partials/welcome-panel.ejs` and `auth-pages.css` alongside
+the shared login/registration styles. Registration uses `registration.css`.
+`passwordRecovery.js` handles inline recovery resends; `passwordVisibility.js`
+handles reset-password visibility controls. The old standalone OTP template
+and `landing.css` have been removed. `/verify-otp` is a redirect, not a view.
+
+**Invitations:** the page emails a private registration link and shows the
+recipient after SMTP acceptance. Failures retain a copyable link. The form
+collapses under **Invite another user** after success; localhost links are
+explicitly marked as local tests.
 
 **Subjects:** `subjects/index.ejs` contains the examination configuration dialogs.
 `subjects/courses.ejs` renders the integrated Semester Roster/read-only or edit

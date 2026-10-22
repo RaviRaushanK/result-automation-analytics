@@ -11,7 +11,7 @@ Reviewed on 17 October 2026. Paths below describe the current repository.
 +-- config/                 Database/session/environment/menu/report configuration
 +-- controllers/            HTTP handlers and workflow orchestration
 +-- database/
-|   +-- models/             16 exported Sequelize domain models
+|   +-- models/             Sequelize domain, OTP and invitation models
 |   +-- schema.sql          Schema reference; not a replacement for migrations
 +-- migrations/             Ordered database evolution
 +-- init/                   Default settings, administrator and MCA department
@@ -54,12 +54,23 @@ in the current Git tree.
 | Students directory | `studentController.js`, `studentDirectoryService.js`, `studentDirectoryRepository.js` |
 | Reports | `reportsController.js`, `reportsService.js`, `reportsRepository.js` |
 | Settings | `settingsController.js`, `settingsService.js`, `settingsRepository.js` |
+| Registration/invitations | `registrationController.js`, `registrationService.js`, `invitationEmailService.js` |
+| Recovery/contact verification | `authController.js`, `otpService.js`, `emailService.js`, `twilioVerifyService.js` |
 
 Names in the table are basenames within their established controller/service/
 repository folders. HTTP controllers should not replace shared academic policy
 with template or browser calculations.
 
 ## Current Navigation and Removed Files
+
+Public-page/account updates on 22 October 2026:
+
+- `/forgot-password` contains both email entry and OTP verification states;
+  `/verify-otp` redirects there. Reset Password remains a separate step.
+- Removed `views/auth/verify-otp.ejs`, `public/css/landing.css`, and
+  `scripts/apply-schema.js`. Database setup uses migrations, including
+  `20261022120000-admin-contact-otp-schema.js`, instead of that manual script.
+- The standalone `test-smtp.js` diagnostic and its npm command were removed.
 
 - Reports has a center plus eight formal reports. Analytics has eight analysis pages.
 - Semester Roster is a tab under Subjects. `/subjects/courses` is a compatibility

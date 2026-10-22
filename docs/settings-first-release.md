@@ -34,13 +34,20 @@ updates also recheck administrator status inside their database transaction.
 
 ## Account and Security
 
-My Account displays username, role, status, last login and email from supported
-AdminUser fields. Missing last login displays "Not recorded". No password hash
-is selected for this page. Email is trimmed, normalized to lowercase, validated
-and bounded to 100 characters. Uniqueness checks include other accounts occupying
-the database unique key, with database collision errors handled safely. Only
-email and the CSRF field are accepted. Student and faculty records are not linked
-or changed.
+Updated on 22 October 2026: My Account displays username, role, status, last
+login, email and masked mobile from supported AdminUser fields. Missing last
+login displays "Not recorded". No password hash is selected for this page.
+Direct email updates are disabled. A new email is normalized, validated and
+checked for duplication before an OTP is sent to that address; it is saved
+only after verification. Browser format errors appear below the field. DNS
+checks reject confirmed invalid domains but temporary lookup failures defer
+to delivery and OTP verification. No provider-specific email allowlist is used.
+
+New Mobile Number has a searchable country-code field. The backend validates
+the selection and combines it with the national number. An OTP goes to the
+new number, and the existing number stays unchanged until verification.
+Resend and cancel actions use the current account and CSRF protection.
+Student and faculty records are not linked or changed by these account edits.
 
 Account Security reuses one partial and the existing authController verification,
 bcrypt hashing, six-character minimum, confirmation and session-destruction

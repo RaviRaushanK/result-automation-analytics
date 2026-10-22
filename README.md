@@ -1,6 +1,7 @@
 # Student Result Automation and Analytics System (SRAAS)
 
-Reviewed against the repository on 17 October 2026.
+Public pages and account workflows updated on 22 October 2026. Academic feature
+documentation was last reviewed on 17 October 2026.
 
 An Express, EJS, Sequelize and MySQL application for managing MCA students and
 academic sessions, importing result/revaluation cards, exploring academic
@@ -60,33 +61,40 @@ remote recipients cannot open it. The page reports email-delivery failures and
 retains the generated link for private manual sharing. Mail-server acceptance
 does not guarantee inbox placement; recipients should check spam as well.
 
-The local installation now uses `SMS_PROVIDER=twilio-verify` and
+For mobile OTPs compatible with a Twilio Verify trial, configure `SMS_PROVIDER=twilio-verify` and
 `TWILIO_VERIFY_SERVICE_SID` with the existing Twilio Account SID and Auth Token.
 Verify generates and checks mobile OTPs through its API; this mode does not use
 `TWILIO_FROM`, a Messaging Service, or custom SMS bodies. Trial recipients must
 be verified in Twilio. Email OTPs continue to use SMTP. No account upgrade is
 required while eligible trial units remain.
 
-An active administrator creates a seven-day invitation from **Settings > My
-Account > Invite a user**, then shares the generated link privately with the
-approved recipient. Invitations grant the application's current administrator
+An active administrator creates and emails a seven-day invitation from **Settings > My
+Account > Invite a user**. After mail-server acceptance the form collapses under
+**Invite another user**. Invitations grant the application's current administrator
 role and access to this installation's shared institution data; this is not a
 separate-institution signup flow. Creating another invitation for the same email
 revokes the old invitation.
 
-The recipient chooses a username, an international mobile number (for example
-`+919876543210`), and a password of at least 12 characters (maximum 72 UTF-8 bytes).
+The recipient chooses a username, searches/selects a country calling code,
+enters the national mobile number, and chooses a password of at least 12
+characters (maximum 72 UTF-8 bytes). The server combines the calling code and
+number into international format. Password fields have visibility controls.
 The invited email is fixed. Separate OTPs go to that email and mobile number.
-An active account is created atomically only after both codes are verified;
-passwords and codes are stored as bcrypt hashes. Verification timestamps are
+An active account is created atomically only after both codes are verified.
+Passwords and locally generated codes are stored as bcrypt hashes. With Twilio
+Verify, mobile codes are generated and checked by Twilio and the app stores the
+verification identifier instead of a mobile-code hash. Verification timestamps are
 recorded on the account. Existing accounts are preserved without being marked
 verified retroactively. Contact changes in Settings also require an OTP sent
 to the new contact; the former direct email-update bypass is disabled.
 
-Configure real `SMTP_*` delivery and `SMS_PROVIDER=twilio` with
+Configure real `SMTP_*` delivery for email. The alternative `SMS_PROVIDER=twilio` uses
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either `TWILIO_FROM` or
 `TWILIO_MESSAGING_SERVICE_SID` in `config/.env`. See Twilio's
 [Messages API](https://www.twilio.com/docs/messaging/api/message-resource).
+This alternative sends custom SMS bodies and is not compatible with the current
+Messaging trial's predefined-content restriction. For Verify mode, configure
+`TWILIO_VERIFY_SERVICE_SID` instead of a sender number or Messaging Service.
 Missing configuration or delivery errors block verification. Codes are never
 printed as an SMS fallback. Credentials are not included in the example config.
 
@@ -100,8 +108,9 @@ invalidates the generated OTP and leaves the user on the forgot-password form.
 
 Registration is bound to its browser session and expires after 30 minutes.
 Codes expire after five minutes, with a 60-second resend cooldown, four sends
-and five guesses per contact for the whole registration. A resend replaces the
-previous code without resetting the guess budget. An expired or locked
+and five guesses per contact for the whole registration. Resending does not
+reset the guess budget. Locally generated codes are replaced on resend; Twilio
+Verify manages its own mobile-code lifecycle. An expired or locked
 registration requires a fresh invitation. Administrators may create up to 20
 invitations per hour. Invitations are single-use and their tokens are stored as
 SHA-256 hashes. After activation, temporary registration details are cleared.
@@ -114,6 +123,28 @@ $env:REGISTRATION_DB_TEST = '1'
 node --test tests/registration.test.js
 Remove-Item Env:REGISTRATION_DB_TEST
 ~~~
+
+## Public pages and password recovery
+
+The landing page uses an unboxed navigation header with right-aligned links,
+a collapsible mobile menu, and a workspace preview. Login, registration,
+Forgot Password and Reset Password use coordinated responsive layouts. Landing
+and workspace footers show **MCA Department, SMVIT** with an automatic year.
+
+Forgot Password starts at `/forgot-password`. After successful email delivery,
+the same page displays the six-digit OTP field and a resend cooldown. Invalid
+codes stay on that page. OTP verification is bound to the requesting session.
+After a valid code, the user sets a new password on Reset Password and receives
+the login form with a password-updated message. The password-reset minimum is
+currently six characters; registration requires twelve. The old `/verify-otp`
+URL redirects to `/forgot-password`.
+
+Email format checks run in the browser and server without provider/address
+allowlists. Server DNS checks reject confirmed nonexistent or non-mail domains;
+temporary DNS failures defer to email delivery and mandatory OTP verification.
+Format and DNS checks alone do not establish mailbox ownership. My Account
+keeps existing contacts until their replacements pass verification and supports
+the same country-code selection for mobile changes.
 
 ## Configuration
 
