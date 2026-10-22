@@ -1,0 +1,23 @@
+<div class="container py-4">
+  <h1>Invite a user</h1>
+  <p>Invited users will receive administrator access to this institution's shared data. Both email and mobile verification are required before their account is created.</p>
+  <% if (error) { %><div class="alert alert-danger" role="alert"><%= error %></div><% } %>
+  <% if (invitePath) { %><div class="alert alert-<%= typeof emailSent !== 'undefined' && emailSent ? 'success' : 'info' %>" role="status">Invitation created. <% if (typeof emailSent !== 'undefined' && emailSent) { %>The invitation email was accepted by the mail server<% if (typeof emailRecipient !== 'undefined') { %> for <strong><%= emailRecipient %></strong><% } %>. Ask the recipient to check their inbox and spam folder for “You are invited to join SRAAS”.<% } %> It expires in seven days. Creating a new invitation for the same email revokes the previous one.</div>
+    <% if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])([:/]|$)/.test(invitePath)) { %><div class="alert alert-warning" role="status">This link is for local testing and only works on the computer running SRAAS. Configure the application's reachable URL before inviting users on other devices.</div><% } %>
+    <label for="invitation-link">Invitation link</label><input id="invitation-link" class="form-control mb-4" readonly value="<%= invitePath %>">
+    <script>document.getElementById('invitation-link').value = new URL(document.getElementById('invitation-link').value, location.origin).href;</script>
+  <% } %>
+  <% const invitationWasEmailed = typeof emailSent !== 'undefined' && emailSent; %>
+  <% if (invitationWasEmailed) { %><details class="mt-3 mb-3"><summary class="fw-semibold text-primary">Invite another user</summary><div class="mt-3"><% } %>
+  <form method="post" action="/invitations">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label for="invite-email">Email address of the user to invite</label><input class="form-control" id="invite-email" name="email" type="email" autocomplete="email" data-account-email maxlength="100" aria-describedby="invite-email-help" required>
+    <p id="invite-email-help" class="form-text mt-2 mb-3">Enter the email of the person your institution has approved to join. They must verify this same address during registration.</p>
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <button class="btn btn-primary rounded-3 px-4 py-2" type="submit">Create &amp; email invitation</button>
+    </div>
+  </form>
+  <% if (invitationWasEmailed) { %></div></details><% } %>
+  <a class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 rounded-3 px-4 py-2 text-decoration-none mt-3" href="/settings?section=account"><span class="material-icons" aria-hidden="true">arrow_back</span>Back to settings</a>
+</div>
+<script src="/js/accountEmailValidation.js" defer></script>

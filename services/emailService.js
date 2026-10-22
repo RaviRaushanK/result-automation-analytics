@@ -5,105 +5,49 @@ require('dotenv').config({ path: path.resolve(__dirname, '../config/.env') });
 
 let transporter = null;
 
-function validateConfig() {
-  const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
-  const missing = required.filter((k) => !process.env[k]);
-  if (missing.length) {
-    console.error('[emailService] SMTP configuration is incomplete. Missing:', missing.join(', '));
-    return false;
-  }
-  return true;
+function deliveryError(error) {
+  const authFailed = error.code === 'EAUTH' || error.responseCode === 535;
+  const message = authFailed
+    ? 'Verification email could not be sent because the email service is not authenticated. Please contact your administrator.'
+    : 'Verification email is temporarily unavailable. Please try again later or contact your administrator.';
+  return Object.assign(new Error(message), {
+    status: 503, code: authFailed ? 'EMAIL_AUTH_FAILED' : 'EMAIL_DELIVERY_FAILED', publicMessage: message
+  });
 }
 
 function getTransporter() {
   if (transporter) return transporter;
-
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  // Safe diagnostic logging (never the password).
-  console.log('[emailService] SMTP_HOST:', host);
-  console.log('[emailService] SMTP_PORT:', port);
-  console.log('[emailService] SMTP_USER configured:', !!user);
-  console.log('[emailService] SMTP_PASS configured:', !!pass);
-  console.log('[emailService] SMTP_FROM:', process.env.SMTP_FROM);
-
-  if (!validateConfig()) {
-    console.warn('[emailService] SMTP not configured — OTPs will be logged to console instead of being sent.');
-    return {
-      sendMail: async (mailOptions) => {
-        console.log('========================================');
-        console.log('DEV EMAIL (SMTP not configured):');
-        console.log('To:', mailOptions.to);
-        console.log('Subject:', mailOptions.subject);
-        console.log('Body:', mailOptions.text);
-        console.log('========================================');
-        return { messageId: 'dev-' + Math.random().toString(36).slice(2) };
-      }
-    };
+  const required = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
+  const missing = required.filter(key => !process.env[key]?.trim());
+  const port = Number(process.env.SMTP_PORT);
+  if (missing.length || !Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error('[emailService] Configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM in config/.env.');
+    throw deliveryError({});
   }
-
+  const host = process.env.SMTP_HOST.trim();
+  // Google displays app passwords in groups separated by spaces.
+  const pass = /^smtp\.gmail\.com$/i.test(host) ? process.env.SMTP_PASS.replace(/\s/g, '') : process.env.SMTP_PASS;
   transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: false,
-    requireTLS: true,
-    auth: { user, pass }
+    host, port, secure: port === 465, requireTLS: true,
+    connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 15000,
+    auth: { user: process.env.SMTP_USER.trim(), pass }
   });
-
-  // Safe backend SMTP verification.
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('SMTP verification failed:', {
-        message: error.message,
-        code: error.code,
-        command: error.command,
-        response: error.response,
-        responseCode: error.responseCode
-      });
-    } else {
-      console.log('SMTP server is ready');
-    }
-  });
-
   return transporter;
 }
 
 async function sendOtpEmail(to, subject, text, html) {
-  if (!validateConfig()) {
-    throw new Error('SMTP configuration is incomplete.');
-  }
-  const t = getTransporter();
-  const mailOptions = {
-    from: process.env.SMTP_FROM,
-    to,
-    subject,
-    text,
-    html
-  };
   try {
-    const info = await t.sendMail(mailOptions);
-    console.log('OTP email sent:', {
-      to: to.replace(/(.{2}).*(@.*)/, '$1***$2'),
-      accepted: info.accepted,
-      rejected: info.rejected,
-      envelopeTo: info.envelope && info.envelope.to,
-      messageId: info.messageId,
-      response: info.response
-    });
+    const info = await getTransporter().sendMail({ from: process.env.SMTP_FROM, to, subject, text, html });
+    if (!info.accepted || info.accepted.length === 0) throw new Error('SMTP server did not accept email');
     return info;
   } catch (error) {
-    console.error('OTP email sending failed:', {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-      responseCode: error.responseCode
-    });
-    throw error;
+    // Never log OTPs, credentials, recipient addresses or raw provider responses.
+    console.error('[emailService] Delivery failed:', { code: error.code, responseCode: error.responseCode });
+    if (error.code === 'EAUTH' || error.responseCode === 535) {
+      console.error('[emailService] SMTP authentication rejected. For Gmail, set SMTP_USER to the sending account and SMTP_PASS to a current App Password for that same account, then restart. See https://support.google.com/accounts/answer/185833');
+    }
+    throw error.publicMessage ? error : deliveryError(error);
   }
 }
 
-module.exports = { sendOtpEmail, getTransporter };
+module.exports = { sendOtpEmail, getTransporter, deliveryError };

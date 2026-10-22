@@ -35,6 +35,18 @@ async function invalidatePreviousOtps(adminId, type) {
   );
 }
 
+async function deliverOtp(admin, type, targetValue, code) {
+  const text = `SRAAS: Your verification code is ${code}. It expires in 2 minutes. Do not share it.`;
+  if (type === 'mobile_change') {
+    if (!targetValue) throw Object.assign(new Error('A new mobile number is required.'), { status: 400 });
+    return smsService.sendOtpSms(targetValue, text);
+  } else if (type === 'email_change' || type === 'password_reset') {
+    const to = type === 'email_change' ? targetValue : admin.email;
+    if (!to) throw Object.assign(new Error('An email address is required.'), { status: 400 });
+    await emailService.sendOtpEmail(to, 'SRAAS verification code', text, undefined);
+  } else throw Object.assign(new Error('Unsupported verification type.'), { status: 400 });
+}
+
 async function createAndSendOtp({ adminId, type, targetValue }) {
   await invalidatePreviousOtps(adminId, type);
 
@@ -45,7 +57,7 @@ async function createAndSendOtp({ adminId, type, targetValue }) {
   const otpHash = await bcrypt.hash(otp, 10);
   const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
-  await AdminOtp.create({
+  const challenge = await AdminOtp.create({
     admin_id: adminId,
     otp_hash: otpHash,
     type,
@@ -57,31 +69,15 @@ async function createAndSendOtp({ adminId, type, targetValue }) {
     resend_at: new Date()
   });
 
-  let sent = false;
-
-  if (type === 'password_reset') {
-    const subject = 'SRAAS — Password Reset Verification Code';
-    const text = `Your password reset verification code is ${otp}. It expires in 2 minutes. Do not share this code with anyone.`;
-    const html = `<div style="font-family:sans-serif;line-height:1.5"><h2>SRAAS — Password Reset</h2><p>Your verification code is <strong style="font-size:1.3rem;letter-spacing:2px">${otp}</strong></p><p>It expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p><p>If you did not request this, please ignore this email.</p></div>`;
-    await emailService.sendOtpEmail(admin.email, subject, text, html);
-    sent = true;
-  } else if (type === 'email_change') {
-    if (!admin.mobile) throw Object.assign(new Error('No registered mobile number found. Please contact support.'), { status: 400 });
-    const message = `SRAAS: Your email change verification code is ${otp}. It expires in 2 minutes.`;
-    await smsService.sendOtpSms(admin.mobile, message);
-    sent = true;
-  } else if (type === 'mobile_change') {
-    const subject = 'SRAAS — Mobile Number Change Verification Code';
-    const text = `Your mobile number change verification code is ${otp}. It expires in 2 minutes. Do not share this code with anyone.`;
-    const html = `<div style="font-family:sans-serif;line-height:1.5"><h2>SRAAS — Mobile Number Change</h2><p>Your verification code is <strong style="font-size:1.3rem;letter-spacing:2px">${otp}</strong></p><p>It expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p><p>If you did not request this, please ignore this email.</p></div>`;
-    await emailService.sendOtpEmail(admin.email, subject, text, html);
-    sent = true;
+  try {
+    const delivery = await deliverOtp(admin, type, targetValue, otp);
+    if (delivery?.verificationSid) await AdminOtp.update({ otp_hash: 'twilio-verify:' + delivery.verificationSid }, { where: { id: challenge.id } });
+  } catch (error) {
+    await AdminOtp.update({ is_used: 1 }, { where: { id: challenge.id } });
+    throw error;
   }
-
-  if (!sent) throw Object.assign(new Error('Unable to send verification code.'), { status: 500 });
-
-  const destination = type === 'email_change' ? admin.mobile : admin.email;
-  const label = type === 'email_change' ? 'mobile' : 'email';
+  const destination = type === 'password_reset' ? admin.email : targetValue;
+  const label = type === 'mobile_change' ? 'mobile' : 'email';
 
   return {
     ok: true,
@@ -130,7 +126,7 @@ async function resendOtp({ adminId, type }) {
   const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
   await AdminOtp.update({ is_used: 1 }, { where: { id: otp.id } });
-  await AdminOtp.create({
+  const challenge = await AdminOtp.create({
     admin_id: adminId,
     otp_hash: otpHash,
     type,
@@ -142,20 +138,15 @@ async function resendOtp({ adminId, type }) {
     resend_at: new Date()
   });
 
-  const destination = type === 'mobile_change' ? admin.email : admin.mobile;
-  const label = type === 'mobile_change' ? 'email' : 'mobile';
-
-  if (type === 'password_reset' || type === 'mobile_change') {
-    const subject = type === 'password_reset'
-      ? 'SRAAS — Password Reset Verification Code (Resent)'
-      : 'SRAAS — Mobile Number Change Verification Code (Resent)';
-    const text = `Your new verification code is ${newOtp}. It expires in 2 minutes.`;
-    const html = `<div style="font-family:sans-serif;line-height:1.5"><h2>SRAAS — Verification Code Resent</h2><p>Your new verification code is <strong style="font-size:1.3rem;letter-spacing:2px">${newOtp}</strong></p><p>It expires in <strong>10 minutes</strong>. Do not share this code with anyone.</p></div>`;
-    await emailService.sendOtpEmail(admin.email, subject, text, html);
-  } else if (type === 'email_change') {
-    const message = `SRAAS: Your new email change verification code is ${newOtp}. It expires in 2 minutes.`;
-    await smsService.sendOtpSms(admin.mobile, message);
+  try {
+    const delivery = await deliverOtp(admin, type, otp.target_value, newOtp);
+    if (delivery?.verificationSid) await AdminOtp.update({ otp_hash: 'twilio-verify:' + delivery.verificationSid }, { where: { id: challenge.id } });
+  } catch (error) {
+    await AdminOtp.update({ is_used: 1 }, { where: { id: challenge.id } });
+    throw error;
   }
+  const destination = type === 'password_reset' ? admin.email : otp.target_value;
+  const label = type === 'mobile_change' ? 'mobile' : 'email';
 
   return {
     ok: true,
@@ -186,7 +177,9 @@ async function verifyOtp({ adminId, type, code }) {
     throw Object.assign(new Error('Too many verification attempts. Please request a new code.'), { status: 429 });
   }
 
-  const isMatch = await bcrypt.compare(code, otp.otp_hash);
+  const isMatch = type === 'mobile_change' && otp.otp_hash.startsWith('twilio-verify:')
+    ? await require('./twilioVerifyService').check(otp.otp_hash.slice('twilio-verify:'.length), code)
+    : await bcrypt.compare(code, otp.otp_hash);
   if (!isMatch) {
     await AdminOtp.increment('attempts', { where: { id: otp.id } });
     const remaining = otp.max_attempts - (otp.attempts + 1);
@@ -198,7 +191,7 @@ async function verifyOtp({ adminId, type, code }) {
   const admin = await AdminUser.findByPk(adminId);
   if (!admin) throw Object.assign(new Error('Account not found.'), { status: 404 });
 
-  return { ok: true, admin };
+  return { ok: true, admin, targetValue: otp.target_value };
 }
 
 async function cleanupExpiredOtps() {

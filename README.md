@@ -50,6 +50,71 @@ development administrator `admin / admin123`. Change the password in
 **Settings > Account Security** before storing real data. Initialization does
 not reset an existing administrator's password. See [Initialization](init/README.md).
 
+## Invitation-only registration
+
+Invitations are emailed through the configured SMTP service when the
+administrator selects **Create & email invitation**. Set `APP_BASE_URL` to the
+application's reachable origin (for example `https://results.your-institution.edu`).
+The default localhost URL is suitable only for testing on the server computer;
+remote recipients cannot open it. The page reports email-delivery failures and
+retains the generated link for private manual sharing. Mail-server acceptance
+does not guarantee inbox placement; recipients should check spam as well.
+
+The local installation now uses `SMS_PROVIDER=twilio-verify` and
+`TWILIO_VERIFY_SERVICE_SID` with the existing Twilio Account SID and Auth Token.
+Verify generates and checks mobile OTPs through its API; this mode does not use
+`TWILIO_FROM`, a Messaging Service, or custom SMS bodies. Trial recipients must
+be verified in Twilio. Email OTPs continue to use SMTP. No account upgrade is
+required while eligible trial units remain.
+
+An active administrator creates a seven-day invitation from **Settings > My
+Account > Invite a user**, then shares the generated link privately with the
+approved recipient. Invitations grant the application's current administrator
+role and access to this installation's shared institution data; this is not a
+separate-institution signup flow. Creating another invitation for the same email
+revokes the old invitation.
+
+The recipient chooses a username, an international mobile number (for example
+`+919876543210`), and a password of at least 12 characters (maximum 72 UTF-8 bytes).
+The invited email is fixed. Separate OTPs go to that email and mobile number.
+An active account is created atomically only after both codes are verified;
+passwords and codes are stored as bcrypt hashes. Verification timestamps are
+recorded on the account. Existing accounts are preserved without being marked
+verified retroactively. Contact changes in Settings also require an OTP sent
+to the new contact; the former direct email-update bypass is disabled.
+
+Configure real `SMTP_*` delivery and `SMS_PROVIDER=twilio` with
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either `TWILIO_FROM` or
+`TWILIO_MESSAGING_SERVICE_SID` in `config/.env`. See Twilio's
+[Messages API](https://www.twilio.com/docs/messaging/api/message-resource).
+Missing configuration or delivery errors block verification. Codes are never
+printed as an SMS fallback. Credentials are not included in the example config.
+
+For Gmail SMTP, `SMTP_USER` must be the sending Gmail account and `SMTP_PASS`
+must be a current App Password created by that same account, with 2-Step
+Verification enabled. A normal Google sign-in password does not work for this
+configuration. See [Google's App Password instructions](https://support.google.com/accounts/answer/185833).
+Update `config/.env` locally and restart the app. Gmail error
+`535 / EAUTH` means the configured credentials were rejected. Failed delivery
+invalidates the generated OTP and leaves the user on the forgot-password form.
+
+Registration is bound to its browser session and expires after 30 minutes.
+Codes expire after five minutes, with a 60-second resend cooldown, four sends
+and five guesses per contact for the whole registration. A resend replaces the
+previous code without resetting the guess budget. An expired or locked
+registration requires a fresh invitation. Administrators may create up to 20
+invitations per hour. Invitations are single-use and their tokens are stored as
+SHA-256 hashes. After activation, temporary registration details are cleared.
+
+Run `node --test tests/registration.test.js` for isolated checks. The rollback-only
+database verification is opt-in:
+
+~~~powershell
+$env:REGISTRATION_DB_TEST = '1'
+node --test tests/registration.test.js
+Remove-Item Env:REGISTRATION_DB_TEST
+~~~
+
 ## Configuration
 
 Database/session configuration loads `config/.env`; the application also loads

@@ -55,18 +55,9 @@ async function getBranding() {
 async function saveInstitution(body, actor) { return repository.save(validateInstitution(body), actor); }
 async function updateEmail(body, actor) {
   allowFields(body, ['email', '_csrf']);
-  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  if (!emailPattern.test(email) || email.length > 100) throw validation({ email: 'Enter a valid email address of at most 100 characters.' });
-  if (await repository.emailTaken(email, actor)) throw validation({ email: 'This email address is already used by another account.' });
-  try {
-    const [updated] = await repository.updateEmail(actor, email);
-    if (!updated) throw Object.assign(new Error('Your active account was not found.'), { status: 403 });
-  } catch (err) {
-    if (err.name === 'SequelizeUniqueConstraintError') throw validation({ email: 'This email address is already used by another account.' });
-    throw err;
-  }
+  throw Object.assign(new Error('Email changes require a verification code. Use the email verification form.'), { status: 400 });
 }
-const mobilePattern = /^\+?[0-9]{10,15}$/;
+const mobilePattern = /^\+[1-9][0-9]{7,14}$/;
 
 async function mobileTaken(mobile, id) {
   return Boolean(await AdminUser.findOne({ where: { mobile, admin_id: { [Op.ne]: id } }, attributes: ['admin_id'], paranoid: false }));
@@ -74,22 +65,29 @@ async function mobileTaken(mobile, id) {
 
 async function requestChangeEmail(body, adminId) {
   allowFields(body, ['new_email', '_csrf']);
-  const newEmail = typeof body.new_email === 'string' ? body.new_email.trim().toLowerCase() : '';
-  if (!emailPattern.test(newEmail) || newEmail.length > 100) {
-    throw validation({ new_email: 'Enter a valid email address of at most 100 characters.' });
+  const checked = require('../public/js/accountEmailValidation').validate(body.new_email);
+  if (!checked.valid) {
+    throw validation({ new_email: checked.message });
   }
+  const newEmail = checked.value;
   const admin = await AdminUser.findByPk(adminId);
   if (!admin) throw Object.assign(new Error('Account not found.'), { status: 404 });
   if (admin.email === newEmail) throw validation({ new_email: 'This is already your registered email address.' });
   if (await repository.emailTaken(newEmail, adminId)) {
     throw validation({ new_email: 'This email address is already used by another account.' });
   }
+  try { await require('./emailValidationService').validateDeliverable(newEmail); }
+  catch (error) {
+    if (error.status === 422) throw validation({ new_email: error.message });
+    error.errors = { new_email: error.message };
+    throw error;
+  }
   const result = await otpService.createAndSendOtp({ adminId, type: 'email_change', targetValue: newEmail });
-  return { notice: 'A verification code has been sent to your registered mobile number.', ...result };
+  return { notice: 'A verification code has been sent to your new email address.', ...result };
 }
 
 async function verifyChangeEmail(body, adminId) {
-  allowFields(body, ['otp', '_csrf']);
+  allowFields(body, ['otp', '_csrf', 'kind']);
   const code = typeof body.otp === 'string' ? body.otp.trim() : '';
   if (!code || !/^\d{6}$/.test(code)) throw validation({ otp: 'Enter the 6-digit verification code.' });
 
@@ -98,20 +96,26 @@ async function verifyChangeEmail(body, adminId) {
     order: [['created_at', 'DESC']]
   });
   if (!otp) throw Object.assign(new Error('Invalid or expired verification code.'), { status: 400 });
-  const targetEmail = otp.target_value;
+  const result = await otpService.verifyOtp({ adminId, type: 'email_change', code });
+  const checked = require('../public/js/accountEmailValidation').validate(result.targetValue);
+  if (!checked.valid) throw validation({ new_email: checked.message });
+  const targetEmail = checked.value;
 
-  await otpService.verifyOtp({ adminId, type: 'email_change', code });
-
-  const [updated] = await repository.updateEmail(adminId, targetEmail);
+  const [updated] = await AdminUser.update({ email: targetEmail, email_verified_at: new Date(), updated_at: new Date() }, { where: { admin_id: adminId, deleted_at: null, status: 'active' } });
   if (!updated) throw Object.assign(new Error('Failed to update email address.'), { status: 500 });
   return { notice: 'Your email address has been updated successfully.' };
 }
 
 async function requestChangeMobile(body, adminId) {
-  allowFields(body, ['new_mobile', '_csrf']);
-  const newMobile = typeof body.new_mobile === 'string' ? body.new_mobile.trim() : '';
+  allowFields(body, ['new_mobile', 'countryCode', '_csrf']);
+  let newMobile = typeof body.new_mobile === 'string' ? body.new_mobile.trim() : '';
+  if (body.countryCode !== undefined) {
+    const country = require('../public/js/countryCodes').find(item => item.label === body.countryCode);
+    if (!country || !/^\d{4,14}$/.test(newMobile)) throw validation({ new_mobile: 'Select a country and enter your mobile number using digits only, without the country code.' });
+    newMobile = country.dial + newMobile;
+  }
   if (!mobilePattern.test(newMobile)) {
-    throw validation({ new_mobile: 'Enter a valid mobile number (10-15 digits, optional leading +).' });
+    throw validation({ new_mobile: 'Enter a mobile number with its country code, for example +919876543210.' });
   }
   const admin = await AdminUser.findByPk(adminId);
   if (!admin) throw Object.assign(new Error('Account not found.'), { status: 404 });
@@ -120,11 +124,11 @@ async function requestChangeMobile(body, adminId) {
     throw validation({ new_mobile: 'This mobile number is already used by another account.' });
   }
   const result = await otpService.createAndSendOtp({ adminId, type: 'mobile_change', targetValue: newMobile });
-  return { notice: 'A verification code has been sent to your registered email address.', ...result };
+  return { notice: 'A verification code has been sent to your new mobile number.', ...result };
 }
 
 async function verifyChangeMobile(body, adminId) {
-  allowFields(body, ['otp', '_csrf']);
+  allowFields(body, ['otp', '_csrf', 'kind']);
   const code = typeof body.otp === 'string' ? body.otp.trim() : '';
   if (!code || !/^\d{6}$/.test(code)) throw validation({ otp: 'Enter the 6-digit verification code.' });
 
@@ -133,11 +137,10 @@ async function verifyChangeMobile(body, adminId) {
     order: [['created_at', 'DESC']]
   });
   if (!otp) throw Object.assign(new Error('Invalid or expired verification code.'), { status: 400 });
-  const targetMobile = otp.target_value;
+  const result = await otpService.verifyOtp({ adminId, type: 'mobile_change', code });
+  const targetMobile = result.targetValue;
 
-  await otpService.verifyOtp({ adminId, type: 'mobile_change', code });
-
-  const [updated] = await AdminUser.update({ mobile: targetMobile, updated_at: new Date() }, { where: { admin_id: adminId, deleted_at: null, status: 'active' } });
+  const [updated] = await AdminUser.update({ mobile: targetMobile, mobile_verified_at: new Date(), updated_at: new Date() }, { where: { admin_id: adminId, deleted_at: null, status: 'active' } });
   if (!updated) throw Object.assign(new Error('Failed to update mobile number.'), { status: 500 });
   return { notice: 'Your mobile number has been updated successfully.' };
 }

@@ -2,6 +2,8 @@
 const service = require('../services/settingsService');
 const repository = require('../repositories/settingsRepository');
 const menu = require('../middlewares/menuMiddleware');
+const otpService = require('../services/otpService');
+const { AdminOtp } = require('../database/models');
 const SECTIONS = [ ['account', 'My Account', 'person'], ['security', 'Account Security', 'security'], ['appearance', 'Appearance', 'palette'], ['institution', 'Institution & Reports', 'business'], ['academic-policy', 'Academic Policy', 'school'], ['system', 'System Information', 'info'] ];
 async function currentAccount(req, res, next) {
   try {
@@ -18,6 +20,7 @@ function administrator(req, res, next) {
   next();
 }
 async function render(req, res, section, errors = {}, entered = {}, status = 200, message = '') {
+  if (section === 'account') entered = { new_email: req.session.settingsPendingEmail || '', new_mobile: req.session.settingsPendingMobile || '', ...entered };
   const admin = req.account.role === 'admin';
   const allowed = SECTIONS.filter(([key]) => !['institution', 'system'].includes(key) || admin).filter(([key]) => key !== 'academic-policy' || ['admin', 'faculty'].includes(req.account.role));
   if (!allowed.some(([key]) => key === section)) return res.status(403).send('This settings section is not available for your account.');
@@ -53,6 +56,7 @@ function save(section, operation, notice) {
 async function changeEmailRequest(req, res, next) {
   try {
     const result = await service.requestChangeEmail(req.body, req.account.admin_id);
+    req.session.settingsPendingEmail = req.body.new_email.trim().toLowerCase();
     req.session.settingsNotice = result.notice;
     req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
   } catch (err) {
@@ -65,6 +69,7 @@ async function changeEmailRequest(req, res, next) {
 async function changeEmailVerify(req, res, next) {
   try {
     const result = await service.verifyChangeEmail(req.body, req.account.admin_id);
+    delete req.session.settingsPendingEmail;
     req.session.settingsNotice = result.notice;
     req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
   } catch (err) {
@@ -75,23 +80,45 @@ async function changeEmailVerify(req, res, next) {
 async function changeMobileRequest(req, res, next) {
   try {
     const result = await service.requestChangeMobile(req.body, req.account.admin_id);
+    req.session.settingsPendingMobile = req.body.new_mobile.trim();
     req.session.settingsNotice = result.notice;
     req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
   } catch (err) {
     if (!err.status) return next(err);
     const entered = {};
     if (typeof req.body.new_mobile === 'string') entered.new_mobile = req.body.new_mobile.slice(0, 1000);
+    if (typeof req.body.countryCode === 'string') entered.countryCode = req.body.countryCode.slice(0, 100);
     try { await render(req, res, 'account', err.errors || {}, entered, err.status, err.message); } catch (error) { next(error); }
   }
 }
 async function changeMobileVerify(req, res, next) {
   try {
     const result = await service.verifyChangeMobile(req.body, req.account.admin_id);
+    delete req.session.settingsPendingMobile;
     req.session.settingsNotice = result.notice;
     req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
   } catch (err) {
     if (!err.status) return next(err);
     try { await render(req, res, 'account', err.errors || {}, {}, err.status, err.message); } catch (error) { next(error); }
+  }
+}
+async function contactVerification(req, res, next) {
+  const kind = req.body.kind;
+  if (!['email', 'mobile'].includes(kind) || !['cancel', 'resend'].includes(req.body.action)) return res.status(400).send('Unsupported verification action.');
+  try {
+    const type = kind === 'email' ? 'email_change' : 'mobile_change';
+    if (req.body.action === 'cancel') {
+      await AdminOtp.update({ is_used: 1 }, { where: { admin_id: req.account.admin_id, type, is_used: 0 } });
+      delete req.session[kind === 'email' ? 'settingsPendingEmail' : 'settingsPendingMobile'];
+      req.session.settingsNotice = 'Contact change cancelled.';
+    } else {
+      await otpService.resendOtp({ adminId: req.account.admin_id, type });
+      req.session.settingsNotice = 'A new code has been sent to your new contact.';
+    }
+    req.session.save(err => err ? next(err) : res.redirect(303, '/settings?section=account'));
+  } catch (err) {
+    if (!err.status) return next(err);
+    try { await render(req, res, 'account', {}, {}, err.status, err.message); } catch (error) { next(error); }
   }
 }
 module.exports = { currentAccount, administrator, page,
@@ -100,5 +127,6 @@ module.exports = { currentAccount, administrator, page,
   changeEmailVerify,
   changeMobileRequest,
   changeMobileVerify,
+    contactVerification,
   institution: save('institution', req => service.saveInstitution(req.body, req.account.admin_id), 'Institution branding has been saved.'),
   logo: save('institution', req => service.saveLogo(req.body, req.file, req.account.admin_id), 'Institution logo has been updated.') };

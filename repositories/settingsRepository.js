@@ -1,7 +1,7 @@
 'use strict';
 const { Op } = require('sequelize');
 const { sequelize, SystemSetting, SettingAudit, AdminUser } = require('../database/models');
-const ACCOUNT_FIELDS = ['admin_id', 'username', 'email', 'role', 'status', 'last_login'];
+const ACCOUNT_FIELDS = ['admin_id', 'username', 'email', 'mobile', 'role', 'status', 'last_login'];
 async function account(id) {
   return AdminUser.findOne({ where: { admin_id: id, deleted_at: null, status: 'active' }, attributes: ACCOUNT_FIELDS, raw: true });
 }

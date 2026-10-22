@@ -21,7 +21,7 @@ const authController = {
   forgotPassword: async (req, res) => {
     try {
       const { email } = req.body;
-      if (!email || !email.trim()) {
+      if (typeof email !== 'string' || !email.trim() || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
         return res.render('auth/forgot-password', {
           layout: 'layouts/landing',
           title: 'Forgot Password - SRAAS',
@@ -68,10 +68,10 @@ const authController = {
       });
     } catch (err) {
       console.error('Forgot password error:', err);
-      return res.render('auth/forgot-password', {
+      return res.status(err.status || 500).render('auth/forgot-password', {
         layout: 'layouts/landing',
         title: 'Forgot Password - SRAAS',
-        error: err.status >= 400 && err.status < 500 ? err.message : 'An unexpected error occurred. Please try again.',
+        error: err.publicMessage || (err.status >= 400 && err.status < 500 ? err.message : 'An unexpected error occurred. Please try again.'),
         pageStyles: LOGIN_PAGE_STYLES
       });
     }
@@ -226,6 +226,9 @@ const authController = {
   resendOtp: async (req, res) => {
     try {
       const { adminId, type } = req.body;
+      if (type !== 'password_reset' && (!['email_change', 'mobile_change'].includes(type) || !req.session.adminId || String(req.session.adminId) !== String(adminId))) {
+        return res.status(403).json({ ok: false, error: 'Your account session is required.' });
+      }
       if (!adminId || !type) {
         return res.status(400).json({ error: 'Missing required fields.' });
       }

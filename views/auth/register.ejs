@@ -1,0 +1,53 @@
+<section class="registration-page"><div class="registration-shell">
+  <aside class="registration-intro">
+    <a class="registration-brand" href="/"><span class="material-icons" aria-hidden="true">school</span><span>SRAAS<small>Academic management</small></span></a>
+    <div class="registration-welcome"><span class="registration-eyebrow">YOUR INSTITUTION. CONNECTED.</span><h2>A smarter start to your academic workspace.</h2><p>Join your institution to manage results and explore academic insights, together.</p></div>
+    <ol class="registration-steps" aria-label="Account setup progress">
+      <li class="<%= stage === 'details' ? 'is-current' : (stage === 'verify' || stage === 'complete' ? 'is-done' : '') %>" <%- stage === 'details' ? 'aria-current="step"' : '' %>><span>1</span><div>Account details<small>Set up your sign-in information</small></div></li>
+      <li class="<%= stage === 'verify' ? 'is-current' : (stage === 'complete' ? 'is-done' : '') %>" <%- stage === 'verify' ? 'aria-current="step"' : '' %>><span>2</span><div>Verify your contacts<small>Confirm your email and mobile</small></div></li>
+      <li class="<%= stage === 'complete' ? 'is-current' : '' %>" <%- stage === 'complete' ? 'aria-current="step"' : '' %>><span>3</span><div>Ready to begin<small>Sign in to your workspace</small></div></li>
+    </ol>
+    <p class="registration-assurance"><span class="material-icons" aria-hidden="true">verified_user</span>Institution-approved access</p>
+  </aside>
+  <div class="registration-card">
+  <span class="registration-eyebrow">WELCOME TO SRAAS</span>
+  <h1><%= stage === 'verify' ? 'Verify your contacts' : stage === 'complete' ? 'You’re all set' : stage === 'unavailable' ? 'Invitation required' : 'Create your account' %></h1>
+  <% if (error) { %><div class="alert alert-danger" role="alert"><%= error %></div><% } %>
+  <% if (notice) { %><div class="alert alert-success" role="status"><%= notice %></div><% } %>
+  <% if (stage === 'details') { %>
+    <p>You have been invited to join SRAAS. Verify your email and mobile number to activate your account.</p>
+    <form method="post" action="/register" class="registration-details">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="mb-3"><label for="register-email">Invited email address</label><input id="register-email" class="form-control" type="email" value="<%= email %>" maxlength="100" autocomplete="email" readonly required data-account-email><p class="small">Your institution approved this address. Verify it with the email code to create your account.</p></div>
+      <div class="mb-3"><label for="register-username">Username</label><input class="form-control" id="register-username" name="username" autocomplete="username" minlength="3" maxlength="50" pattern="[A-Za-z0-9_.\-]+" required></div>
+      <div class="mb-3 registration-phone"><div><label for="register-country">Country code</label><input class="form-control" id="register-country" name="countryCode" list="registration-countries" value="India (+91)" placeholder="Search country or code" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="registration-countries" required><datalist id="registration-countries"><option value="India (+91)"></option></datalist></div><div><label for="register-mobile">Mobile number</label><input class="form-control" id="register-mobile" name="mobile" type="tel" inputmode="numeric" pattern="[0-9]{4,14}" autocomplete="tel-national" placeholder="Mobile number" maxlength="14" required></div></div>
+      <div class="mb-3"><label for="register-password">Password (at least 12 characters)</label><div class="registration-password"><input class="form-control" id="register-password" name="password" type="password" minlength="12" maxlength="72" autocomplete="new-password" required><button type="button" data-password-toggle="register-password" aria-label="Show password" aria-pressed="false"><span class="material-icons" aria-hidden="true">visibility</span></button></div></div>
+      <div class="mb-3"><label for="register-confirm">Confirm password</label><div class="registration-password"><input class="form-control" id="register-confirm" name="confirmPassword" type="password" minlength="12" maxlength="72" autocomplete="new-password" required><button type="button" data-password-toggle="register-confirm" aria-label="Show confirm password" aria-pressed="false"><span class="material-icons" aria-hidden="true">visibility</span></button></div></div>
+      <button class="login-btn" type="submit">Continue to verification</button>
+    </form>
+  <% } else if (stage === 'verify') { %>
+    <p>One final step. Confirm both contacts to activate your institution account.</p>
+    <div class="registration-verification-grid">
+    <% [['email', 'Email', email, emailVerified], ['sms', 'Mobile', mobile, mobileVerified]].forEach(([channel, label, destination, verified]) => { %>
+      <section class="registration-contact <%= verified ? 'is-verified' : '' %>" aria-labelledby="<%= channel %>-heading"><span class="registration-contact-icon material-icons" aria-hidden="true"><%= channel === 'email' ? 'mail_outline' : 'smartphone' %></span><h2 id="<%= channel %>-heading"><%= label %> verification</h2><p class="registration-destination"><%= destination %></p>
+      <% if (verified) { %><p class="registration-verified" role="status"><span class="material-icons" aria-hidden="true">check_circle</span>Verified</p><% } else { %>
+        <form method="post" action="/register/send" class="mb-3">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="channel" value="<%= channel %>">
+          <button class="registration-send" type="submit">Send / resend <%= label.toLowerCase() %> code</button>
+        </form>
+        <form method="post" action="/register/verify">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="channel" value="<%= channel %>">
+          <label for="<%= channel %>-code">Enter the 6-digit code</label><input class="form-control registration-code mb-2" id="<%= channel %>-code" name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required>
+          <button class="login-btn" type="submit">Verify <%= label.toLowerCase() %></button>
+        </form>
+      <% } %></section>
+    <% }); %>
+    </div>
+    <p class="registration-help"><span class="material-icons" aria-hidden="true">info_outline</span><span>Complete verification within 30 minutes. Codes expire in 5 minutes. Wait 60 seconds between sends; up to four sends and five guesses per contact.</span></p>
+  <% } else if (stage === 'complete') { %><p role="status">Both contacts are verified. Your account is ready.</p>
+  <% } else { %><p>Registration requires a valid invitation from your institution administrator.</p><% } %>
+  <footer class="registration-footer">Already have an account? <a href="/login">Sign in</a></footer>
+</div></div></section>
+<script src="/js/accountEmailValidation.js" defer></script>
+<script src="/js/countryCodes.js" defer></script>
+<script src="/js/registration.js" defer></script>

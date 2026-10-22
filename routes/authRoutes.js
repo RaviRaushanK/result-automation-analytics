@@ -3,6 +3,19 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const csrf = require('../middlewares/csrfMiddleware');
+const registration = require('../controllers/registrationController');
+const accounts = require('../controllers/settingsController');
+
+router.use(['/register', '/invitations'], (req, res, next) => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+  next();
+});
+router.get('/register', csrf, registration.page);
+router.post('/register', csrf, registration.start);
+router.post('/register/send', csrf, registration.send);
+router.post('/register/verify', csrf, registration.verify);
+router.get('/invitations', authMiddleware, accounts.currentAccount, accounts.administrator, csrf, registration.invitations);
+router.post('/invitations', authMiddleware, accounts.currentAccount, accounts.administrator, csrf, registration.invite);
 
 // ========================
 // Public Auth Routes

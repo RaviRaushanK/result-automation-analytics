@@ -25,6 +25,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     password_hash: {
+      // Passwords are stored only as bcrypt hashes.
       type: DataTypes.STRING(255),
       allowNull: false
     },
@@ -39,6 +40,8 @@ module.exports = (sequelize, DataTypes) => {
     last_login: {
       type: DataTypes.DATE
     },
+    email_verified_at: { type: DataTypes.DATE, allowNull: true },
+    mobile_verified_at: { type: DataTypes.DATE, allowNull: true },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

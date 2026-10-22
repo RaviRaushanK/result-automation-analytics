@@ -128,8 +128,9 @@ test('Settings routes enforce account ownership, CSRF, admin authority, PRG and 
     assert.equal((await get('2', 'institution')).response.status, 403); assert.equal((await get('2', 'system')).response.status, 403);
     assert.equal((await fetch(base + '/profile', { headers: { Cookie: admin.cookie }, redirect: 'manual' })).headers.get('location'), '/settings?section=account');
     assert.equal((await post('/settings/account', { email: 'new@example.com' }, admin)).status, 403);
-    assert.equal((await post('/settings/account', { _csrf: admin.token, email: '  NEW@example.com  ' }, admin)).status, 303); assert.equal(users.get('1').email, 'new@example.com');
-    for (const email of ['invalid', 'faculty@example.com']) { const r = await post('/settings/account', { _csrf: admin.token, email }, admin); assert.equal(r.status, 422); const html = await r.text(); assert.match(html, /account-email-error/); assert.ok(!html.includes('Your email address has been updated.')); }
+    assert.equal((await post('/settings/account', { _csrf: admin.token, email: '  NEW@example.com  ' }, admin)).status, 400); assert.equal(users.get('1').email, 'admin@example.com');
+    assert.doesNotMatch(admin.html, /Email \(direct update\)/);
+    for (const email of ['invalid', 'faculty@example.com']) { const r = await post('/settings/account', { _csrf: admin.token, email }, admin); assert.equal(r.status, 400); const html = await r.text(); assert.match(html, /Email changes require a verification code/); assert.ok(!html.includes('Your email address has been updated.')); }
     assert.equal((await post('/settings/account', { _csrf: admin.token, email: 'safe@example.com', role: 'admin' }, admin)).status, 400);
     const fields = Object.fromEntries(service.FIELDS.map(f => [f.key, service.DEFAULTS[f.key]]));
     assert.equal((await post('/settings/institution', { ...fields, _csrf: faculty.token }, faculty)).status, 403);
