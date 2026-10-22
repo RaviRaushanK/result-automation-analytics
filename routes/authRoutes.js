@@ -27,7 +27,7 @@ router.post('/login', authController.login);
 // Forgot Password Routes
 // ========================
 router.get('/forgot-password', authController.showForgotPassword);
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/forgot-password', (req, res) => req.body.recoveryAction === 'verify' ? authController.verifyResetOtp(req, res) : authController.forgotPassword(req, res));
 router.get('/verify-otp', authController.showVerifyOtp);
 router.post('/verify-reset-otp', authController.verifyResetOtp);
 router.get('/reset-password', authController.showResetPassword);

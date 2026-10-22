@@ -7,8 +7,9 @@ const router = express.Router();
  */
 router.get('/', (req, res) => {
   res.render('landing/index', {
+    title: 'SRAAS - Academic Results & Analytics',
     layout: 'layouts/landing',
-    pageStyles: ['/css/landing.css']
+    pageStyles: ['/css/home.css', '/css/home-navigation.css']
   });
 });
 

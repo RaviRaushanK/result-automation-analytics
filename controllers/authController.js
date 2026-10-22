@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const { AdminUser, AdminOtp } = require('../database/models');
 const otpService = require('../services/otpService');
 
-const LOGIN_PAGE_STYLES = ['/css/login.css'];
+const LOGIN_PAGE_STYLES = ['/css/login.css', '/css/registration.css', '/css/auth-pages.css'];
 const authController = {
   showLoginPage: (req, res) => {
     if (req.session && req.session.adminId) return res.redirect('/dashboard');
@@ -14,6 +14,8 @@ const authController = {
       layout: 'layouts/landing',
       title: 'Forgot Password - SRAAS',
       error: null,
+      otpStep: Boolean(req.session.resetOtpAccount),
+      adminId: req.session.resetOtpAccount || null,
       pageStyles: LOGIN_PAGE_STYLES
     });
   },
@@ -54,8 +56,10 @@ const authController = {
       }
 
       const result = await otpService.createAndSendOtp({ adminId: admin.admin_id, type: 'password_reset' });
+      req.session.resetOtpAccount = admin.admin_id;
 
-      return res.render('auth/verify-otp', {
+      return res.render('auth/forgot-password', {
+        otpStep: true,
         layout: 'layouts/landing',
         title: 'Verify Code - SRAAS',
         error: null,
@@ -77,27 +81,17 @@ const authController = {
     }
   },
   showVerifyOtp: (req, res) => {
-    const { adminId, type } = req.query;
-    if (!adminId || !type) return res.redirect('/login');
-    res.render('auth/verify-otp', {
-      layout: 'layouts/landing',
-      title: 'Verify Code - SRAAS',
-      error: null,
-      adminId,
-      type,
-      maskedDestination: null,
-      ttlSeconds: 600,
-      resendInSeconds: 60,
-      pageStyles: LOGIN_PAGE_STYLES
-    });
+    return res.redirect('/forgot-password');
   },
 
   verifyResetOtp: async (req, res) => {
     try {
       const { adminId, otp } = req.body;
+      if (!req.session.resetOtpAccount || String(req.session.resetOtpAccount) !== String(adminId)) return res.redirect('/forgot-password');
       const type = 'password_reset';
       if (!adminId || !otp || !/^\d{6}$/.test(otp)) {
-        return res.render('auth/verify-otp', {
+        return res.render('auth/forgot-password', {
+          otpStep: true,
           layout: 'layouts/landing',
           title: 'Verify Code - SRAAS',
           error: 'Please enter the 6-digit verification code.',
@@ -111,6 +105,7 @@ const authController = {
 
       // Mark OTP verification as complete for password reset in the session
       req.session.pendingPasswordReset = result.admin.admin_id;
+      delete req.session.resetOtpAccount;
 
       return res.render('auth/reset-password', {
         layout: 'layouts/landing',
@@ -124,7 +119,8 @@ const authController = {
       const adminId = req.body.adminId;
       const type = 'password_reset';
       const status = err.status || 500;
-      return res.render('auth/verify-otp', {
+      return res.render('auth/forgot-password', {
+        otpStep: true,
         layout: 'layouts/landing',
         title: 'Verify Code - SRAAS',
         error: status >= 400 && status < 500 ? err.message : 'An unexpected error occurred. Please try again.',

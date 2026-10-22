@@ -1,79 +1,37 @@
-<section class="landing-bg">
-
-    <div class="hero-container">
-
-        <!-- Logo -->
-        <div class="hero-logo">
-            <i class="material-icons">school</i>
-        </div>
-
-        <!-- Department -->
-        <span class="hero-department">
-            MCA Department
-        </span>
-
-        <!-- Heading -->
-        <h1 class="hero-title">
-            Student Result Automation<br>Analytics System
-        </h1>
-
-        <div class="hero-divider"></div>
-
-        <!-- Subtitle -->
-        <p class="hero-description">
-            Manage student results, academic analytics, revaluation records,
-            reports and insights from one centralized platform.
-        </p>
-
-        <!-- Features -->
-        <div class="hero-features">
-
-            <div class="feature">
-                <i class="material-icons">assessment</i>
-                <span>Results</span>
-            </div>
-
-            <div class="feature">
-                <i class="material-icons">insights</i>
-                <span>Analytics</span>
-            </div>
-
-            <div class="feature">
-                <i class="material-icons">autorenew</i>
-                <span>Revaluation</span>
-            </div>
-
-            <div class="feature">
-                <i class="material-icons">description</i>
-                <span>Reports</span>
-            </div>
-
-        </div>
-
-        <!-- CTA -->
-
-        <a href="/login" class="hero-btn">
-
-            <i class="material-icons">
-                login
-            </i>
-
-            Login to System
-
-        </a>
-
-        <!-- Footer -->
-
-        <div class="hero-footer">
-
-            <i class="material-icons">
-                verified_user
-            </i>
-
-            SRAAS v1.0
-
-        </div>
-
+<div class="home-page">
+  <header class="home-header home-width home-navigation" data-home-navigation>
+    <a class="home-brand" href="/" aria-label="SRAAS home"><span class="material-icons" aria-hidden="true">school</span><span>SRAAS<small>THE ACADEMIC WORKSPACE</small></span></a>
+    <nav class="home-navigation-links" id="home-navigation-links" aria-label="Main navigation"><a class="home-nav-link is-current" href="#home-title" aria-current="location">Overview</a><a class="home-nav-link" href="#capabilities">Capabilities</a><a class="home-nav-link" href="#home-start-title">Get started</a></nav>
+    <span class="home-navigation-actions"><a class="home-signin" href="/login">Sign in<span class="material-icons" aria-hidden="true">arrow_forward</span></a><button class="home-menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="home-navigation-links" hidden><span class="material-icons" aria-hidden="true">menu</span></button></span>
+  </header>
+  <section class="home-hero home-width" aria-labelledby="home-title">
+    <div class="home-copy">
+      <span class="home-eyebrow"><span></span>BUILT FOR THE MCA DEPARTMENT</span>
+      <h1 id="home-title">Academic results.<br>Clearer insights.<br><em>One workspace.</em></h1>
+      <p class="home-description">Bring student results, revaluation records, and academic reports together. Spend less time managing records and more time understanding outcomes.</p>
+      <div class="home-actions"><a href="/login" class="home-primary">Open your workspace<span class="material-icons" aria-hidden="true">arrow_forward</span></a><a href="#capabilities" class="home-secondary">Explore capabilities</a></div>
+      <p class="home-access"><span class="material-icons" aria-hidden="true">verified_user</span>Institution-approved access. New here? Ask your administrator for an invitation.</p>
     </div>
-
-</section>
+    <div class="home-preview" aria-label="Overview of the academic workflow">
+      <div class="home-preview-chrome" aria-hidden="true"><span></span><span></span><span></span><small>SRAAS / Academic workspace</small><i class="material-icons">lock_outline</i></div>
+      <div class="home-preview-header"><span class="home-preview-mark material-icons" aria-hidden="true">space_dashboard</span><span>Academic workspace<small>Your records, connected</small></span><span class="home-preview-badge">SRAAS</span></div>
+      <div class="home-preview-body"><div class="home-preview-label">FROM RECORDS TO UNDERSTANDING</div><h2>A clearer view of every result.</h2>
+        <div class="home-record"><span class="home-record-icon material-icons" aria-hidden="true">upload_file</span><div><strong>Import result cards</strong><small>Bring academic records into one place</small></div><span class="material-icons home-record-check" aria-hidden="true">check_circle</span></div>
+        <div class="home-record"><span class="home-record-icon material-icons" aria-hidden="true">fact_check</span><div><strong>Review &amp; organize</strong><small>Keep student and subject records aligned</small></div><span class="material-icons home-record-check" aria-hidden="true">check_circle</span></div>
+        <div class="home-insight"><div><span class="material-icons" aria-hidden="true">insights</span><strong>Turn outcomes into insights</strong></div><p>Explore academic progress, review revaluations, and prepare reports from your institution’s records.</p><div class="home-insight-tags"><span>Results</span><span>Analytics</span><span>Reports</span></div></div>
+      </div>
+      <div class="home-preview-footer"><span class="material-icons" aria-hidden="true">hub</span>One connected academic workflow</div>
+    </div>
+  </section>
+  <section id="capabilities" class="home-capabilities home-width" aria-labelledby="capabilities-title">
+    <div class="home-section-heading"><span class="home-eyebrow">EVERYDAY ACADEMIC WORK, SIMPLIFIED</span><h2 id="capabilities-title">The tools your institution needs.</h2></div>
+    <div class="home-features">
+      <% [['assessment','Result management','Import and organize student results across batches, subjects, and academic sessions.'],['insights','Academic analytics','Understand academic progress and explore student and batch outcomes.'],['autorenew','Revaluation tracking','Keep original and revised results connected with a clear academic history.'],['description','Reports & insights','Prepare academic reports and bring the information you need into focus.']].forEach(([icon,title,description]) => { %>
+        <article class="home-feature"><span class="material-icons" aria-hidden="true"><%= icon %></span><h3><%= title %></h3><p><%= description %></p></article>
+      <% }); %>
+    </div>
+  </section>
+  <section class="home-start home-width" aria-labelledby="home-start-title"><div><span class="home-eyebrow">READY WHEN YOU ARE</span><h2 id="home-start-title">Your next insight starts here.</h2><p>Sign in to bring your institution’s academic records into focus.</p></div><a class="home-primary" href="/login">Sign in to SRAAS<span class="material-icons" aria-hidden="true">arrow_forward</span></a></section>
+  <footer class="home-footer home-width"><div><span>SRAAS · Student Result Automation &amp; Analytics System</span><small class="d-block mt-1">&copy; <%= new Date().getFullYear() %> MCA Department, SMVIT</small></div><a href="/login">Sign in to your institution<span class="material-icons" aria-hidden="true">arrow_forward</span></a></footer>
+</div>
+<script src="/js/homeNavigation.js" defer></script>

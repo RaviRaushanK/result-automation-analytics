@@ -1,15 +1,15 @@
-<section class="login-bg">
-    <div class="login-container">
+<section class="registration-page auth-page">
+    <div class="registration-shell auth-shell">
+        <%- include('partials/welcome-panel', { recovery: false }) %>
+        <div class="registration-card auth-card">
         <!-- Login Form -->
-        <form method="POST" action="/login" class="login-form" id="loginForm">
+        <form method="POST" action="/login" class="auth-form" id="loginForm">
             <!-- Logo -->
-            <div class="login-logo">
-                <i class="material-icons">school</i>
-            </div>
+            <span class="registration-eyebrow">WELCOME TO SRAAS</span>
 
             <!-- System Title -->
-            <h1 class="login-title">SRAAS</h1>
-            <p class="login-subtitle">Student Result Automation &amp; Analytics System</p>
+            <h1>Welcome back</h1>
+            <p class="auth-description">Sign in to your institution account to continue.</p>
 
             <!-- Session Expired Message -->
             <% if (typeof passwordChanged !== 'undefined' && passwordChanged) { %><div class="alert alert-success" role="status">Your password has been updated. Sign in with your new password.</div><% } %>
@@ -28,12 +28,14 @@
             </div>
             <% } %>
             <div class="mb-3">
+                <label for="login-username">Username</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="material-icons">person</i></span>
-                    <input type="text" name="username" class="form-control" placeholder="Username" required autofocus>
+                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter your username" autocomplete="username" required autofocus>
                 </div>
             </div>
             <div class="mb-3">
+                <label for="passwordInput">Password</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="material-icons">lock</i></span>
                     <input type="password" name="password" class="form-control" placeholder="Password" required id="passwordInput" autocomplete="current-password">
@@ -44,19 +46,17 @@
             </div>
             <div class="mb-3 form-check d-flex align-items-center">
                 <input type="checkbox" name="remember" class="form-check-input me-2" id="rememberMe">
-                <label class="form-check-label text-light small" for="rememberMe">Remember me</label>
+                <label class="form-check-label small" for="rememberMe">Remember me</label>
             </div>
             <button type="submit" class="login-btn" id="signInBtn">
                 <i class="material-icons me-1">login</i> Sign In
             </button>
             <p class="mt-3"><a href="/forgot-password" class="forgot-link">Forgot Password?</a></p>
-            <p class="small">New here? Ask your institution administrator for a registration invitation.</p>
+            <p class="auth-invitation">New to SRAAS? Ask your institution administrator for a registration invitation.</p>
         </form>
 
         <!-- Footer -->
-        <div class="login-footer">
-            <i class="material-icons">verified_user</i>
-            SRAAS v1.0
+        <footer class="registration-footer">Student Result Automation &amp; Analytics System</footer>
         </div>
     </div>
 </section>

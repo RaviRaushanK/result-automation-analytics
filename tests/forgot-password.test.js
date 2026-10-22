@@ -66,7 +66,7 @@ test('forgot password shows delivery failure and the normal verification/reset f
     await controller.forgotPassword(req, res);
     assert.equal(status, 503); assert.equal(view, 'auth/forgot-password'); assert.match(data.error, /not authenticated/);
     otp.createAndSendOtp = async () => ({ maskedDestination: 'a******@example.com', ttlSeconds: 120, resendInSeconds: 60 });
-    await controller.forgotPassword(req, res); assert.equal(view, 'auth/verify-otp'); assert.equal(data.adminId, 42);
+    await controller.forgotPassword(req, res); assert.equal(view, 'auth/forgot-password'); assert.equal(data.otpStep, true); assert.equal(data.adminId, 42);
     otp.verifyOtp = async args => { assert.equal(args.code, '123456'); return { admin }; };
     req.body = { adminId: '42', otp: '123456' };
     await controller.verifyResetOtp(req, res); assert.equal(view, 'auth/reset-password'); assert.equal(req.session.pendingPasswordReset, 42);
