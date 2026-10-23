@@ -6,14 +6,15 @@
   <form id="progress-filters" class="analytics-filters" autocomplete="off">
     <div class="row g-3 align-items-end">
       <div class="col-12 col-sm-6 col-lg-3"><label for="progress-batch" class="form-label">Batch</label><select id="progress-batch" name="batch_id" class="form-select" required></select></div>
-      <div class="col-12 col-sm-6 col-lg-4"><label for="progress-period" class="form-label">Academic Period</label><select id="progress-period" class="form-select"></select></div>
+      <div class="col-12 col-sm-6 col-lg-4"><label for="progress-scope" class="form-label">Analysis Scope</label><select id="progress-scope" name="analysis_scope" class="form-select"></select></div>
       <div class="col-12 col-sm-6 col-lg-2"><label for="progress-mode" class="form-label">Result Basis</label><select id="progress-mode" name="mode" class="form-select"><option value="original">Original</option><option value="effective" selected>Effective</option></select></div>
       <div class="col-12 col-sm-6 col-lg-3 d-flex gap-2"><button type="reset" class="btn btn-outline-secondary">Reset</button><button type="submit" class="btn btn-primary">Apply Filters</button></div>
     </div>
   </form>
+  <p id="progress-scope-description" class="analytics-note"></p>
   <p id="progress-state" role="status" aria-live="polite">Loading academic progress...</p>
   <section aria-labelledby="progress-summary-heading">
-    <h2 id="progress-summary-heading" class="h5 mb-3">Academic Period Completion</h2>
+    <h2 id="progress-summary-heading" class="h5 mb-3">Analysis Scope Completion</h2>
     <div class="progress-summary-grid mb-3">
       <% const metrics = [['total','Total Students','blue','group'],['withoutBacklog','Cleared Without Backlog','green','check_circle'],['withBacklog','Cleared With Backlog','teal','history'],['uncleared','Currently Uncleared','red','error_outline'],['clearanceRate','Backlog Clearance Rate','amber','percent'],['unknown','Unknown / Insufficient Evidence','purple','help_outline']]; %>
       <% metrics.forEach(([key, label, color, icon]) => { %>
@@ -29,7 +30,7 @@
         </div>
       <% }); %>
     </div>
-    <p class="analytics-note">Backlog clearance rate: students with verified first-sitting failures who completed the selected period through retake clearance / students with verified first-sitting failures and known completion status. Unknown history and students without backlog are excluded. A dash means no eligible backlog history.</p>
+    <p class="analytics-note">Backlog clearance rate: students with verified first-sitting failures who completed the selected scope through retake clearance / students with verified first-sitting failures and known completion status. Unknown history and students without backlog are excluded. A dash means no eligible backlog history.</p>
     <p class="analytics-note">Original uses recorded outcomes. Effective includes approved effective revaluation only. GPA is not recalculated.</p>
   </section>
   <div class="analytics-chart-grid mb-4">
@@ -48,7 +49,7 @@
   <section aria-labelledby="progress-attention-heading">
     <h2 id="progress-attention-heading" class="h5">Students Requiring Attention</h2>
     <p id="progress-attention-note" class="analytics-note"></p>
-    <div class="table-responsive"><table class="table analytics-table"><thead><tr><th scope="col">USN</th><th scope="col">Student Name</th><th scope="col">Academic Period</th><th scope="col">Uncleared Courses</th><th scope="col">Latest Relevant Attempt</th><th scope="col" id="progress-clearance-heading">Clearance Status (Effective)</th><th scope="col">Action</th></tr></thead><tbody id="progress-attention-body"></tbody></table></div>
+    <div class="table-responsive"><table class="table analytics-table"><thead><tr><th scope="col">USN</th><th scope="col">Student Name</th><th scope="col">Analysis Scope</th><th scope="col">Uncleared Courses</th><th scope="col">Latest Relevant Attempt</th><th scope="col" id="progress-clearance-heading">Clearance Status (Effective)</th><th scope="col">Action</th></tr></thead><tbody id="progress-attention-body"></tbody></table></div>
   </section>
 </div>
 <script src="/js/reports/chart.umd.min.js"></script>

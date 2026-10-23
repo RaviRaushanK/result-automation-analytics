@@ -95,7 +95,7 @@ test('service forwards batch and Original/Effective mode using batched history, 
     outcomes.load = async (batch, ids, mode) => { calls.push({ batch, ids, mode }); return ids.length ? fixture(mode === 'effective' ? 'pass' : 'fail') : { courses: fixture().courses, results: [], subjects: [] }; };
     assert.equal((await service.getProgress({ batch_id: '9', mode: 'original' })).summary.uncleared, 1);
     assert.equal((await service.getProgress({ batch_id: '9' })).summary.withoutBacklog, 1);
-    assert.equal(calls.length, 4); assert.ok(calls.every(c => c.batch === 9));
+    assert.equal(calls.length, 2); assert.ok(calls.every(c => c.batch === 9));
     outcomes.load = async () => { throw new Error('Database unavailable'); };
     await assert.rejects(service.getProgress({ batch_id: 9 }), /Database unavailable/);
   } finally {
@@ -139,6 +139,7 @@ test('read-only MySQL overlay: only approved effective revaluation clears progre
     assert.deepEqual(defaultResponse.attention.map(s => s.usn), ['U2', 'U3'], 'The default view excludes students cleared by approved revaluation');
     assert.deepEqual(response.courses.map(c => [c.backlog, c.cleared, c.uncleared, c.clearanceRate]), [[3, 1, 2, 33.33]]);
     const year = await service.getProgress({ batch_id: '1', academic_year: '1', mode: 'effective' });
-    assert.equal(year.summary.unknown, 4, 'A missing second semester still prevents year-level certification');
+    assert.equal(year.summary.unknown, 2, 'Missing Sem 2 prevents clearance of students with no known unresolved work');
+    assert.equal(year.summary.uncleared, 2, 'Verified unresolved Sem 1 failures remain actionable despite missing Sem 2');
   } finally { db.sequelize.query = realQuery; }
 });

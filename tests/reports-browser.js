@@ -854,7 +854,7 @@ async function main() {
       const original = await progress.getProgress({ batch_id: batchId, semester: effective.filters.semester, mode: 'original' });
       const route = `${base}/analytics/progress?batch_id=${batchId}&semester=${effective.filters.semester}`;
       await command('Page.navigate', { url: route });
-      await until("document.readyState==='complete' && document.getElementById('progress-filters')?.getAttribute('aria-busy')==='false' && !!document.getElementById('progress-period').value");
+      await until("document.readyState==='complete' && document.getElementById('progress-filters')?.getAttribute('aria-busy')==='false' && !!document.getElementById('progress-scope').value");
       assert.equal(await evaluate("document.getElementById('progress-mode').value"), 'effective');
       assert.equal(await evaluate("document.getElementById('progress-clearance-heading').textContent"), 'Clearance Status (Effective)');
       assert.equal(await evaluate("document.getElementById('progress-uncleared').textContent"), String(effective.summary.uncleared));
@@ -1455,7 +1455,7 @@ async function main() {
         assert.deepEqual(await evaluate("[...document.querySelectorAll('#progress-attention-body .analytics-report-action')].map(a=>({usn:a.closest('tr').cells[0].textContent,studentId:Number(new URL(a.href).searchParams.get('student_id')),mode:new URL(a.href).searchParams.get('mode')}))"), effective.attention.map(s => ({ usn: s.usn, studentId: Number(s.studentId), mode: 'effective' })));
         const reportLink = new URL(await evaluate("document.getElementById('progress-report-link').href"));
         assert.equal(reportLink.searchParams.get('mode'), 'effective');
-        await evaluate("document.getElementById('progress-period').value='academic_year:1';document.getElementById('progress-filters').requestSubmit()");
+        await evaluate("document.getElementById('progress-scope').value='year:1';document.getElementById('progress-filters').requestSubmit()");
         await until("document.getElementById('progress-summary-heading').textContent === 'First Year Completion'");
         const year = await progressService.getProgress({ batch_id: scope.query.batch_id, academic_year: 1, mode: 'effective' });
         for (const key of ['withoutBacklog', 'withBacklog', 'uncleared', 'unknown']) assert.equal(Number(await evaluate(`document.getElementById('progress-${key}').textContent`)), year.summary[key]);
