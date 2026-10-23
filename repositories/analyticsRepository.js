@@ -556,6 +556,10 @@ async function getSemesterAnalytics(filters) {
       rs.exam_year         AS examYear,
       rs.semester          AS semester,
       rs.exam_session      AS examSession,
+      rs.exam_start_month  AS examStartMonth,
+      rs.exam_start_year   AS examStartYear,
+      rs.exam_end_month    AS examEndMonth,
+      rs.exam_end_year     AS examEndYear,
       rs.batch_id          AS batchId,
       b.batch_name         AS batchName,
       COUNT(DISTINCT r.result_id)  AS resultCount,
@@ -568,9 +572,10 @@ async function getSemesterAnalytics(filters) {
       SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) AS subjectFailed,
       AVG(${base.marksExpr}) AS avgMarks
     ${base.whereSql}
-    GROUP BY rs.session_id, rs.exam_year, rs.semester, rs.exam_session, rs.batch_id,
+    GROUP BY rs.session_id, rs.exam_year, rs.semester, rs.exam_session, rs.exam_start_month,
+             rs.exam_start_year, rs.exam_end_month, rs.exam_end_year, rs.batch_id,
              b.batch_name
-    ORDER BY rs.exam_year ASC, rs.semester ASC, rs.exam_session ASC
+    ORDER BY rs.exam_start_year ASC, rs.exam_start_month ASC, rs.semester ASC
   `, params);
 }
 
@@ -898,13 +903,15 @@ async function getFilterOptions(scope, parentFilters) {
       return select(`
         SELECT rs.session_id AS sessionId, rs.exam_year AS examYear,
                rs.semester AS semester, rs.exam_session AS examSession,
+               rs.exam_start_month AS examStartMonth, rs.exam_start_year AS examStartYear,
+               rs.exam_end_month AS examEndMonth, rs.exam_end_year AS examEndYear,
                rs.batch_id AS batchId, b.batch_name AS batchName,
                d.department_id AS departmentId, d.department_code AS departmentCode
         FROM result_sessions rs
         INNER JOIN batches b     ON b.batch_id      = rs.batch_id
         INNER JOIN departments d ON d.department_id = b.department_id
         ${whereSessions}
-        ORDER BY rs.exam_year DESC, rs.semester ASC, rs.exam_session ASC
+        ORDER BY rs.exam_start_year DESC, rs.exam_start_month DESC, rs.semester ASC
       `, params);
 
     case 'subjects':

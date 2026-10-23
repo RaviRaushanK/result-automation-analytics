@@ -21,7 +21,7 @@ database write is required merely to update this documentation.
 | `departments`, `batches` | Department affiliation and course/cohort years |
 | `admin_users` | Login accounts; distinct from teaching faculty and student identities |
 | `faculty`, `subject_faculty` | Teaching faculty and many-to-many offering assignments |
-| `result_sessions` | Batch + academic semester + examination month/year |
+| `result_sessions` | Batch + academic semester + structured examination start/end month and year |
 | `academic_courses` | Stable batch/semester/course identity, definition and roster review |
 | `subjects` | Session-specific course offerings |
 | `students` | Student identity, batch, category, status and soft-delete timestamp |
@@ -39,7 +39,9 @@ not additional student/result workflow models.
 ## Important Keys and Invariants
 
 - `subjects`: unique offering code within a session, not globally unique.
-- `result_sessions`: unique batch/semester/exam-session/exam-year combination.
+- `result_sessions`: unique batch/semester/start-month/start-year/end-month/end-year
+  combination. `exam_session` and `exam_year` are retained compatibility values
+  derived from the start period; the structured fields are authoritative.
 - `academic_courses`: unique batch/semester/exact normalized subject code.
 - `subject_faculty`: unique subject/faculty pair; more than two faculty supported.
 - `students`: unique USN/email/UUID; soft deletion does not release those keys.

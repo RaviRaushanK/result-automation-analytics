@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var sessionRequest = 0, subjectRequest = 0;
   function esc(v) { var e = document.createElement('div'); e.textContent = v == null ? '' : String(v); return e.innerHTML; }
   function batchLabel(b) { return b.batch_name + ' (' + b.start_year + '–' + b.end_year + ')'; }
-  function sessionLabel(s) { return 'Semester ' + s.semester + ' - ' + s.exam_session + ' ' + s.exam_year; }
+  function sessionLabel(s) { return 'Semester ' + s.semester + ' - ' + ExamPeriod.format(s); }
   function modal(id, show) { var el = $(id); if (el) bootstrap.Modal.getOrCreateInstance(el)[show ? 'show' : 'hide'](); }
   function error(id, msg) { var el = $(id); el.textContent = msg || ''; el.classList.toggle('d-none', !msg); }
   function toast(type, msg, rosterLink) { var c = $(rosterLink ? 'subjectCreatedToastContainer' : 'subjectsToastContainer'), el = document.createElement('div'); el.className = 'alert alert-' + type + ' alert-dismissible fade show'; el.innerHTML = esc(msg) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>'; if (rosterLink) { var link = document.createElement('a'); link.className = 'd-block mt-2 alert-link'; link.href = rosterLink; link.textContent = 'Verify Semester Roster'; el.appendChild(link); } c.appendChild(el); setTimeout(() => bootstrap.Alert.getOrCreateInstance(el).close(), 4500); }

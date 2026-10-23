@@ -21,6 +21,7 @@
  */
 
 const analyticsRepository = require('../repositories/analyticsRepository');
+const examPeriod = require('../public/js/exam-period');
 
 const MODES = ['original', 'effective'];
 const ATTEMPTS = ['all', 'latest'];
@@ -307,6 +308,8 @@ async function getSemesterAnalytics(filters) {
 
   const data = (rows || []).map((row) => {
     const r = normalizeRow(row, NUMERIC_FIELDS);
+    r.examPeriod = examPeriod.format({ exam_start_month: r.examStartMonth, exam_start_year: r.examStartYear,
+      exam_end_month: r.examEndMonth, exam_end_year: r.examEndYear, exam_session: r.examSession, exam_year: r.examYear });
     r.subjectPassPercentage = calculatePercentage(r.subjectPassed, r.subjectAttempts);
     r.resultPassPercentage = calculatePercentage(r.resultPassCount, r.resultCount);
     return r;
@@ -457,7 +460,10 @@ async function getRevaluationDetail(filters) {
 async function getFilterOptions(scope, parentFilters) {
   const normalized = normalizeFilters(parentFilters);
   const rows = await analyticsRepository.getFilterOptions(scope, normalized);
-  return { scope, filters: normalized, data: rows || [] };
+  const data = (rows || []).map(row => scope === 'sessions' ? { ...row,
+    examSession: examPeriod.format({ exam_start_month: row.examStartMonth, exam_start_year: row.examStartYear,
+      exam_end_month: row.examEndMonth, exam_end_year: row.examEndYear, exam_session: row.examSession, exam_year: row.examYear }) } : row);
+  return { scope, filters: normalized, data };
 }
 
 // ---------------------------------------------------------------------------

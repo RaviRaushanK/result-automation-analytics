@@ -15,7 +15,7 @@ async function validationError(session, student, attempt, transaction, attempted
     where: { student_id: student.student_id },
     attributes: ['result_id', 'session_id', 'attempt_no', 'exam_type'],
     include: [
-      { model: ResultSession, required: true, where: { batch_id: session.batch_id }, attributes: ['session_id', 'semester', 'exam_session', 'exam_year'] },
+      { model: ResultSession, required: true, where: { batch_id: session.batch_id }, attributes: ['session_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
       { model: SubjectResult, required: false, attributes: ['subject_result_id','course_id_snapshot','result_status'], include: [
         { model: Subject, attributes: ['course_id'] },
         { model: RevaluationResult, as: 'Revaluations', required: false, where: { revaluation_status: 'approved', is_effective: true } }
@@ -23,9 +23,9 @@ async function validationError(session, student, attempt, transaction, attempted
     ], transaction, ...(transaction ? { lock: true } : {})
   });
   const semesterResults = results.filter(result => Number(result.ResultSession?.semester) === semester);
-  if (attempt.exam_type === 'BACKLOG' && semesterResults.some(result => policy.period(result.ResultSession) === cutoff)) {
+  if (attempt.exam_type === 'BACKLOG' && semesterResults.some(result => policy.periodKey(result.ResultSession) === policy.periodKey(session))) {
     return 'BACKLOG must use a new examination period. An attempt for this student and Semester ' + semester +
-      ' already uses ' + session.exam_session + ' ' + session.exam_year + '. Select or create the session in which the backlog was actually written.';
+      ' already uses ' + policy.formatExamPeriod(session) + '. Select or create the session in which the backlog was actually written.';
   }
   // Draft extractions and empty headers do not establish an uploaded card.
   const present = new Set();

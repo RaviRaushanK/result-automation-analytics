@@ -53,9 +53,10 @@ function sessionFixture() {
 }
 
 test('session API enforces duration-specific semester choices without changing result calculations', async () => {
-  const f = sessionFixture(), body = { batch_id: 1, semester: '4', exam_session: 'July', exam_year: 2026 };
+  const f = sessionFixture(), body = { batch_id: 1, semester: '4', exam_start_month: 7, exam_start_year: 2026 };
   assert.equal((await f.create(body)).statusCode, 201);
   assert.equal(f.writes[0].exam_session, 'Jul');
+  assert.equal(f.writes[0].exam_end_month, 7);
   assert.equal((await f.create({ ...body, semester: '5' })).statusCode, 400);
   assert.equal(f.writes.length, 1);
   f.setBatch({ batch_id: 1, start_year: 2025, end_year: 2029 });

@@ -47,6 +47,7 @@ function topperServiceResponse() {
   vm.runInNewContext(fs.readFileSync(path.join(root, 'services/analyticsService.js'), 'utf8'), {
     module, exports: module.exports,
     require(name) {
+      if (name === '../public/js/exam-period') return require('../public/js/exam-period');
       assert.equal(name, '../repositories/analyticsRepository');
       return repository;
     }

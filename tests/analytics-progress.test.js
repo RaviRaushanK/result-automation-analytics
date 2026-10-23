@@ -109,7 +109,7 @@ test('read-only MySQL overlay: only approved effective revaluation clears progre
   const fixtureSql = `WITH academic_courses AS (SELECT 1 course_id,1 batch_id,'1' semester,'C1' subject_code,'Course' subject_name,'active' status,1 is_required,1 roster_verified),
     batches AS (SELECT 1 batch_id,'Test' batch_name,2025 start_year,2027 end_year,NULL deleted_at),
     students AS (SELECT 1 student_id,1 batch_id,'U1' usn,'Student 1' student_name,NULL category,NULL deleted_at UNION ALL SELECT 2,1,'U2','Student 2',NULL,NULL UNION ALL SELECT 3,1,'U3','Student 3',NULL,NULL UNION ALL SELECT 4,1,'U4','Student 4',NULL,NULL),
-    result_sessions AS (SELECT 1 session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year UNION ALL SELECT 2,1,'1','Jun',2026),
+    result_sessions AS (SELECT 1 session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year,12 exam_start_month,2025 exam_start_year,12 exam_end_month,2025 exam_end_year UNION ALL SELECT 2,1,'1','Jun',2026,6,2026,6,2026),
     results AS (SELECT 1 result_id,1 student_id,1 session_id,1 attempt_no,'REGULAR' exam_type UNION ALL SELECT 2,2,1,1,'REGULAR' UNION ALL SELECT 3,3,1,1,'REGULAR' UNION ALL SELECT 4,4,1,1,'REGULAR' UNION ALL SELECT 5,4,2,1,'BACKLOG'),
     subjects AS (SELECT 1 subject_id,1 session_id,1 course_id,'C1' subject_code,4 credits,100 max_marks UNION ALL SELECT 2,2,1,'C1',4,100),
     subject_results AS (SELECT 1 subject_result_id,1 result_id,1 subject_id,30 marks,'fail' result_status,'F' grade,1 course_id_snapshot UNION ALL SELECT 2,2,1,30,'fail','F',1 UNION ALL SELECT 3,3,1,30,'fail','F',1 UNION ALL SELECT 4,4,1,30,'fail','F',1 UNION ALL SELECT 5,5,2,30,'fail','F',1),

@@ -1,12 +1,17 @@
 'use strict';
 const integrity = require('./academicIntegrity');
 const target = result => ({ usn: result.Student?.usn, semester: result.ResultSession?.semester,
+  exam_start_month: result.ResultSession?.exam_start_month, exam_start_year: result.ResultSession?.exam_start_year,
+  exam_end_month: result.ResultSession?.exam_end_month, exam_end_year: result.ResultSession?.exam_end_year,
   exam_session: result.ResultSession?.exam_session, exam_year: result.ResultSession?.exam_year,
   attempt_no: result.attempt_no, exam_type: result.exam_type });
 function checks(saved, result) { return integrity.contextChecks(saved.ocr || {}, target(result)); }
 function snapshot(result) {
   return { student_id: result.student_id, usn: result.Student?.usn, session_id: result.session_id,
-    semester: result.ResultSession?.semester, exam_session: result.ResultSession?.exam_session, exam_year: result.ResultSession?.exam_year,
+    semester: result.ResultSession?.semester,
+    exam_start_month: result.ResultSession?.exam_start_month, exam_start_year: result.ResultSession?.exam_start_year,
+    exam_end_month: result.ResultSession?.exam_end_month, exam_end_year: result.ResultSession?.exam_end_year,
+    exam_session: result.ResultSession?.exam_session, exam_year: result.ResultSession?.exam_year,
     attempt_no: result.attempt_no, exam_type: result.exam_type,
     subjects: (result.SubjectResults || []).map(sr => ({ id: sr.subject_result_id, subject_id: sr.subject_id, marks: sr.marks,
       internal: sr.internal_marks, external: sr.external_marks,

@@ -104,12 +104,12 @@ test('session controller allows different periods of one semester and rejects id
   const controller=require('../controllers/sessionController');
   const originals=[db.Batch.findByPk,db.ResultSession.findOne,db.ResultSession.create];
   db.Batch.findByPk=async()=>({batch_id:1,start_year:2025,end_year:2027});
-  db.ResultSession.findOne=async({where})=>where.exam_session==='Dec'&&where.exam_year===2025?{session_id:1}:null;
+  db.ResultSession.findOne=async({where})=>where.exam_start_month===12&&where.exam_start_year===2025&&where.exam_end_month===12&&where.exam_end_year===2025?{session_id:1}:null;
   db.ResultSession.create=async data=>data;
   const invoke=async body=>{let status,data;await controller.create({body},{status:n=>{status=n;return{json:value=>{data=value;}};}});return{status,data};};
   try{
-    assert.equal((await invoke({batch_id:1,semester:'1',exam_session:'Jun',exam_year:2026})).status,201);
-    assert.equal((await invoke({batch_id:1,semester:'1',exam_session:'Dec',exam_year:2025})).status,409);
+    assert.equal((await invoke({batch_id:1,semester:'1',exam_start_month:6,exam_start_year:2026})).status,201);
+    assert.equal((await invoke({batch_id:1,semester:'1',exam_start_month:12,exam_start_year:2025})).status,409);
   }finally{[db.Batch.findByPk,db.ResultSession.findOne,db.ResultSession.create]=originals;}
 });
 
@@ -227,11 +227,11 @@ test('session academic semester cannot change after configuring stable course of
   const controller=require('../controllers/sessionController');
   const saved=[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update,db.Result.count,db.sequelize.transaction];let wrote=false,status;
   db.Result.count=async()=>0;db.sequelize.transaction=async run=>run({});
-  db.ResultSession.findByPk=async()=>({session_id:1,batch_id:1,semester:'1'});
+  db.ResultSession.findByPk=async()=>({session_id:1,batch_id:1,semester:'1',exam_start_month:12,exam_start_year:2025,exam_end_month:12,exam_end_year:2025});
   db.ResultSession.findOne=async()=>null;db.Subject.count=async()=>1;
   db.ResultSession.update=async()=>{wrote=true;};
   try{
-    await controller.update({params:{id:1},body:{semester:'2',exam_session:'Jun',exam_year:2026}},{status:n=>{status=n;return{json(){}};}});
+    await controller.update({params:{id:1},body:{semester:'2',exam_start_month:6,exam_start_year:2026}},{status:n=>{status=n;return{json(){}};}});
     assert.equal(status,409);assert.equal(wrote,false);
   }finally{[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update,db.Result.count,db.sequelize.transaction]=saved;}
 });
@@ -288,7 +288,7 @@ test('read-only MySQL course history deduplicates effective events and preserves
     SELECT 1 course_id,1 batch_id,'1' semester,'MMC101' subject_code,4 credits,'active' status,1 is_required,1 roster_verified
     UNION ALL SELECT 2,1,'1','MMC102',4,'active',1,1),
     students AS (SELECT 1 student_id,1 batch_id,'TEST' usn,NULL deleted_at),
-    result_sessions AS (SELECT 1 session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year UNION ALL SELECT 2,1,'1','Jun',2026),
+    result_sessions AS (SELECT 1 session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year,12 exam_start_month,2025 exam_start_year,12 exam_end_month,2025 exam_end_year UNION ALL SELECT 2,1,'1','Jun',2026,6,2026,6,2026),
     results AS (SELECT 1 result_id,1 student_id,1 session_id,7 attempt_no,'REGULAR' exam_type UNION ALL SELECT 2,1,2,1,'BACKLOG'),
     subjects AS (SELECT 1 subject_id,1 session_id,1 course_id,'MMC101' subject_code,4 credits,100 max_marks
       UNION ALL SELECT 2,1,2,'MMC102',4,100 UNION ALL SELECT 3,2,1,'MMC101',4,100),

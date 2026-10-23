@@ -1389,8 +1389,10 @@ async function verifyReports(db) {
           primary.batch_id,
 
         semester: '1',
-        exam_session: 'Dec',
-        exam_year: 2025
+        exam_start_month: 12,
+        exam_start_year: 2025,
+        exam_end_month: 12,
+        exam_end_year: 2025
       }
     });
 

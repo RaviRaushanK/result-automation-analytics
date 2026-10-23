@@ -344,6 +344,18 @@ async function persist(db, transaction) {
         exam_year:
           session.exam_year,
 
+        exam_start_month:
+          require('../../public/js/exam-period').month(session.exam_session),
+
+        exam_start_year:
+          session.exam_year,
+
+        exam_end_month:
+          require('../../public/js/exam-period').month(session.exam_session),
+
+        exam_end_year:
+          session.exam_year,
+
         created_at:
           data.STAMP,
 

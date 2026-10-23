@@ -7,13 +7,13 @@ async function load(batchId, studentIds, mode = 'original', transaction) {
   const replacements = { batch_id: batchId, student_ids: studentIds };
   const courses = await select('SELECT * FROM academic_courses WHERE batch_id=:batch_id ORDER BY CAST(semester AS UNSIGNED),subject_code,course_id', replacements, transaction);
   if (!studentIds.length) return { courses, results: [], subjects: [] };
-  const results = await select(`SELECT r.*,rs.semester,rs.exam_session,rs.exam_year FROM results r
+  const results = await select(`SELECT r.*,rs.semester,rs.exam_session,rs.exam_year,rs.exam_start_month,rs.exam_start_year,rs.exam_end_month,rs.exam_end_year FROM results r
     JOIN students st ON st.student_id=r.student_id AND st.deleted_at IS NULL
     JOIN result_sessions rs ON rs.session_id=r.session_id AND rs.batch_id=st.batch_id
     WHERE rs.batch_id=:batch_id AND r.student_id IN (:student_ids)`, replacements, transaction);
   const effective = mode === 'effective';
   const subjects = await select(`SELECT sr.*,s.course_id,s.subject_code,s.credits,s.max_marks,
-    s.session_id AS subject_session_id,r.student_id,r.session_id,r.attempt_no,r.exam_type,rs.semester,rs.exam_session,rs.exam_year,
+    s.session_id AS subject_session_id,r.student_id,r.session_id,r.attempt_no,r.exam_type,rs.semester,rs.exam_session,rs.exam_year,rs.exam_start_month,rs.exam_start_year,rs.exam_end_month,rs.exam_end_year,
     ${effective ? 'COALESCE(eff.revised_marks,sr.marks)' : 'sr.marks'} AS outcome_marks,
     ${effective ? 'COALESCE(eff.revised_status,sr.result_status)' : 'sr.result_status'} AS outcome_status,
     ${effective ? 'COALESCE(eff.revised_grade,sr.grade)' : 'sr.grade'} AS outcome_grade
@@ -27,7 +27,7 @@ async function load(batchId, studentIds, mode = 'original', transaction) {
 }
 async function priorCourses(batchId, usn, transaction) {
   return select(`SELECT DISTINCT COALESCE(sr.course_id_snapshot,s.course_id) AS course_id,
-      rs.exam_session,rs.exam_year,r.session_id,r.attempt_no
+      rs.exam_session,rs.exam_year,rs.exam_start_month,rs.exam_start_year,rs.exam_end_month,rs.exam_end_year,r.session_id,r.attempt_no
     FROM subject_results sr JOIN subjects s ON s.subject_id=sr.subject_id
     JOIN results r ON r.result_id=sr.result_id AND r.session_id=s.session_id
     JOIN result_sessions rs ON rs.session_id=r.session_id

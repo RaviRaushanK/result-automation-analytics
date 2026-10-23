@@ -4,6 +4,20 @@ Reviewed on 23 October 2026. Source services and applied migrations remain autho
 
 ## Stable Identity And Rollout
 
+`ResultSession` examination identity is batch + academic semester + structured
+start month/year + end month/year. A one-month examination stores the same start
+and end; ranges may cross calendar years. `exam_session` and `exam_year` remain
+as compatibility columns derived from the start period, but they are not the
+authoritative identity. Period comparison, duplicate prevention, backlog history,
+revaluation matching, reports and Analytics use the complete structured period.
+
+Migration `20261023120000-structured-examination-periods` preserves every legacy
+session as a one-month period. It does not infer dates from marks cards or rename
+historical periods. Result-bearing sessions remain locked against ordinary period,
+semester, or batch changes. If institutional evidence later proves a historical
+period is wrong, use a separately reviewed correction procedure; the ordinary
+session editor intentionally provides no override.
+
 `AcademicCourse` identity is batch + numeric academic semester + trimmed uppercase
 exact subject code. `Subject` remains a session offering. Different codes, batches,
 or semesters never imply equivalence. Credits, name, type, and maxima must match.
@@ -213,7 +227,7 @@ Modified:
 
 - `database/models/index.js`, `database/models/Subject.js`, `database/models/Result.js`, `database/models/SubjectResult.js`, `database/schema.sql`: additive identity/provenance.
 - `controllers/resultController.js`: partial retakes, full regular validation, new GPA persistence and history review.
-- `controllers/sessionController.js`, `public/js/sessions.js`: full four-field session uniqueness; stable academic semester.
+- `controllers/sessionController.js`, `public/js/sessions.js`: full structured-period uniqueness; stable academic semester.
 - `controllers/subjectController.js`, `routes/subjectRoutes.js`, `public/js/subjects.js`, `views/subjects/index.ejs`: course-linked offerings and admin roster review.
 - `repositories/reportsRepository.js`, `repositories/analyticsRepository.js`: shared effective overlay and exam-type constants, unchanged ranking rules.
 - `services/reportsService.js`, `controllers/reportsController.js`, `public/js/reports/common.js`, `public/css/reports.css`: course-level progression, safe GPA, supplementary labels, semester completion flags and export structure.

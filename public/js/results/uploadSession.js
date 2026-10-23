@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data.success) {
                     setText('displayAcademicYear', data.session.academic_year);
                     setText('displaySemester', data.session.semester);
-                    setText('displayExamSession', data.session.exam_session + ' ' + data.session.exam_year);
+                    setText('displayExamSession', ExamPeriod.format(data.session));
                     setText('displaySubjectCount', data.session.subjects_count);
 
                     if (subjectPreviewList) {

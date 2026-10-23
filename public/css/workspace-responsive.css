@@ -1,7 +1,7 @@
 /* Shared layout constraints for the dashboard and academic/student workspaces. */
 .workspace-page { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 /* The page footer must stay behind subject dialogs and their backdrop. */
-body.modal-open:has(.subjects-page) > .footer { z-index: 0; }
+body.modal-open > .footer { z-index: 0; }
 .main-content:has(.workspace-page), .main-content:has(.workspace-page) .page-content { min-width: 0; }
 .workspace-page :is(.row > *, .card, .card-body, .card-header > *, .dashboard-header > *, .input-group, .d-flex > *) { min-width: 0; }
 .workspace-page :is(.form-control, .form-select) { min-width: 0; max-width: 100%; }

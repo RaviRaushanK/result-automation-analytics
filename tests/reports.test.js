@@ -94,13 +94,13 @@ test('page, API and export roles are enforced server-side', async () => {
 const fixture = `WITH
  batches AS (SELECT 1 batch_id, 'Batch A' batch_name, 2024 start_year, 2026 end_year, NULL deleted_at
    UNION ALL SELECT 2, 'Batch B', 2025, 2027, NULL),
- result_sessions AS (SELECT 1 session_id, 1 batch_id, '1' semester, 'JAN' exam_session, 2026 exam_year
-   UNION ALL SELECT 2, 2, '1', 'JUN', 2026
-   UNION ALL SELECT 3, 1, '2', 'JUN', 2026
-   UNION ALL SELECT 4, 1, '10', 'DEC', 2027
-   UNION ALL SELECT 5, 1, '4', 'DEC', 2026
-   UNION ALL SELECT 6, 1, '3', 'DEC', 2026
-   UNION ALL SELECT 7, 1, '1', 'AUG', 2026),
+ result_sessions AS (SELECT 1 session_id, 1 batch_id, '1' semester, 'JAN' exam_session, 2026 exam_year, 1 exam_start_month, 2026 exam_start_year, 1 exam_end_month, 2026 exam_end_year
+   UNION ALL SELECT 2, 2, '1', 'JUN', 2026, 6, 2026, 6, 2026
+   UNION ALL SELECT 3, 1, '2', 'JUN', 2026, 6, 2026, 6, 2026
+   UNION ALL SELECT 4, 1, '10', 'DEC', 2027, 12, 2027, 12, 2027
+   UNION ALL SELECT 5, 1, '4', 'DEC', 2026, 12, 2026, 12, 2026
+   UNION ALL SELECT 6, 1, '3', 'DEC', 2026, 12, 2026, 12, 2026
+   UNION ALL SELECT 7, 1, '1', 'AUG', 2026, 8, 2026, 8, 2026),
  students AS (SELECT 1 student_id, 1 batch_id, 'USN1' usn, 'Student One' student_name, NULL deleted_at, 'PGCET' category
    UNION ALL SELECT 2, 1, 'USN2', 'Student Two', NULL, NULL
    UNION ALL SELECT 3, 1, 'USN3', 'Deleted', '2026-01-01', 'MGT'
@@ -636,21 +636,21 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         const consolidated = new URLSearchParams({ batch_id: '1', student_id: '1', semester: 'all', session_id: 'all' });
         const csv = await fetch(`${url}/reports/student/export.csv?${consolidated}`);
         const text = await csv.text();
-        assert.match(text, /Semester,Exam Session,Exam Year,Attempt No\.,Exam Type,Subject Code,Subject Name,Credits,IA,External,Total/);
-        assert.match(text, /1,JAN,2026,1,REGULAR,MCA101,Subject One,4,,,60,100,B\+,PASS,Effective Result/);
-        assert.match(text, /2,JUN,2026,2,BACKLOG,MCA201,Semester Two,4,0,80,80/);
+        assert.match(text, /Semester,Examination Period,Attempt No\.,Exam Type,Subject Code,Subject Name,Credits,IA,External,Total/);
+        assert.match(text, /1,Jan 2026,1,REGULAR,MCA101,Subject One,4,,,60,100,B\+,PASS,Effective Result/);
+        assert.match(text, /2,Jun 2026,2,BACKLOG,MCA201,Semester Two,4,0,80,80/);
         assert.match(text, /^STUDENT RESULT REPORT\r\nProgram,MCA\r\nBatch,Batch A\r\nUSN,USN1\r\nStudent Name,Student One\r\nResult View,Effective Result/);
-        assert.match(text, /SEMESTER 1\r\n\r\nExam Session,JAN 2026\r\nAttempt,1\r\nExam Type,REGULAR/);
-        assert.match(text, /Exam Session,JAN 2026\r\nAttempt,2\r\nExam Type,BACKLOG/);
-        assert.match(text, /\r\n1,1,JAN,2026,2,BACKLOG,MCA101/);
-        assert.match(text, /\r\n1,2,JUN,2026,2,BACKLOG,MCA201/);
-        assert.equal((text.match(/Sl\. No\.,Semester,Exam Session/g) || []).length, 7);
+        assert.match(text, /SEMESTER 1\r\n\r\nExamination Period,Jan 2026\r\nAttempt,1\r\nExam Type,REGULAR/);
+        assert.match(text, /Examination Period,Jan 2026\r\nAttempt,2\r\nExam Type,BACKLOG/);
+        assert.match(text, /\r\n1,1,Jan 2026,2,BACKLOG,MCA101/);
+        assert.match(text, /\r\n1,2,Jun 2026,2,BACKLOG,MCA201/);
+        assert.equal((text.match(/Sl\. No\.,Semester,Examination Period/g) || []).length, 7);
         assert.ok(text.indexOf('SEMESTER 2\r\n') < text.indexOf('SEMESTER 4\r\n'));
         assert.ok(text.indexOf('SEMESTER 4\r\n') < text.indexOf('SEMESTER 10\r\n'));
         const originalCsv = await fetch(`${url}/reports/student/export.csv?${consolidated}&mode=original`);
         const originalText = await originalCsv.text();
         assert.match(originalText, /Result View,Original Result/);
-        assert.match(originalText, /\r\n1,1,JAN,2026,1,REGULAR,MCA101,Subject One,4,,,30,100,F,FAIL,Original Result/);
+        assert.match(originalText, /\r\n1,1,Jan 2026,1,REGULAR,MCA101,Subject One,4,,,30,100,F,FAIL,Original Result/);
         assert.doesNotMatch(originalText, /Revaluated|Marks Basis/);
         const print = await fetch(`${url}/reports/student/print?${consolidated}`);
         const html = await print.text();

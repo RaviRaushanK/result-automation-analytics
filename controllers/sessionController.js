@@ -2,13 +2,27 @@
 // Reuses the existing ResultSession model and /sessions API.
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { ResultSession, Batch, Department, Subject, Result, sequelize } = require('../database/models');
+const { ResultSession, Batch, Department, Subject, Result, ImportLog, sequelize } = require('../database/models');
 const { semesterCount } = require('../public/js/academic-form-options');
+const examPeriod = require('../public/js/exam-period');
 
 const SESSION_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'];
 
 // Deterministic ordering for session lists (exam period then semester sequence)
-const SESSION_ORDER = [['exam_year', 'ASC'], ['exam_session', 'ASC'], ['semester', 'ASC']];
+const SESSION_ORDER = [['exam_start_year', 'ASC'], ['exam_start_month', 'ASC'], ['exam_end_year', 'ASC'], ['exam_end_month', 'ASC'], ['semester', 'ASC']];
+
+async function attachDeletionEligibility(sessions) {
+  await Promise.all(sessions.map(async session => {
+    const where = { session_id: session.session_id };
+    const [subjects, results, imports] = await Promise.all([
+      Subject.count({ where }), Result.count({ where }), ImportLog.count({ where })
+    ]);
+    const deletion = { allowed: subjects === 0 && results === 0 && imports === 0, subjects, results, imports };
+    if (typeof session.setDataValue === 'function') session.setDataValue('deletion', deletion);
+    else session.deletion = deletion;
+  }));
+  return sessions;
+}
 
 // exam_session stores a 3-letter month abbreviation, matching the existing seed/data convention
 const MONTHS = [
@@ -44,9 +58,6 @@ function normalizeMonth(value) {
 function validateSessionFields(body) {
   const errors = [];
   const sem = String(body.semester == null ? '' : body.semester).trim();
-  const rawMonth = String(body.exam_session == null ? '' : body.exam_session).trim();
-  const month = normalizeMonth(rawMonth);
-  const year = Number(body.exam_year);
 
   if (!sem) {
     errors.push('Semester is required.');
@@ -54,19 +65,22 @@ function validateSessionFields(body) {
     errors.push('Select a valid semester.');
   }
 
-  if (!rawMonth) {
-    errors.push('Month is required.');
-  } else if (!month) {
-    errors.push('Month is invalid.');
-  }
-
-  if (body.exam_year === undefined || body.exam_year === null || body.exam_year === '') {
-    errors.push('Exam year is required.');
-  } else if (!Number.isInteger(year) || year < 1900 || year > 2200) {
-    errors.push('Exam year must be a valid year.');
-  }
-
-  return { errors, semester: /^\d+$/.test(sem) ? String(Number(sem)) : sem, exam_session: month, exam_year: year };
+  const startMonth = examPeriod.month(body.exam_start_month), startYear = examPeriod.year(body.exam_start_year);
+  const multi = body.spans_multiple_months === true || body.spans_multiple_months === '1' || body.spans_multiple_months === 'true';
+  const endMonth = multi ? examPeriod.month(body.exam_end_month) : startMonth;
+  const endYear = multi ? examPeriod.year(body.exam_end_year) : startYear;
+  if (!startMonth) errors.push('Select a valid examination start month.');
+  if (!startYear) errors.push('Examination start year must be a four-digit year between 1900 and 2200.');
+  if (multi && !endMonth) errors.push('Select a valid examination end month.');
+  if (multi && !endYear) errors.push('Examination end year must be a four-digit year between 1900 and 2200.');
+  const normalized = examPeriod.normalize({ exam_start_month: startMonth, exam_start_year: startYear,
+    exam_end_month: endMonth, exam_end_year: endYear });
+  if (startMonth && startYear && endMonth && endYear && !normalized) errors.push('Examination end period cannot be before its start period.');
+  const period = normalized || { exam_start_month: startMonth, exam_start_year: startYear,
+    exam_end_month: endMonth, exam_end_year: endYear };
+  return { errors, semester: /^\d+$/.test(sem) ? String(Number(sem)) : sem, ...period,
+    // Compatibility columns are derived from the authoritative start period.
+    exam_session: startMonth ? examPeriod.MONTHS[startMonth - 1] : null, exam_year: startYear };
 }
 
 const sessionController = {
@@ -99,6 +113,7 @@ const sessionController = {
           include: [includeBatch],
           order: SESSION_ORDER
         });
+        await attachDeletionEligibility(data);
         return res.status(200).json({ success: true, data });
       }
 
@@ -109,6 +124,7 @@ const sessionController = {
           order: [['start_year', 'DESC'], ['end_year', 'DESC'], ['batch_id', 'DESC']]
         })
       ]);
+      await attachDeletionEligibility(sessions);
 
       return res.render('sessions/index', {
         layout: 'layouts/main',
@@ -194,7 +210,9 @@ const sessionController = {
 
       // Academic semester is independent of the examination sitting.
       const duplicateSemester = await ResultSession.findOne({
-        where: { batch_id: batch.batch_id, semester: String(Number(check.semester)), exam_session: check.exam_session, exam_year: check.exam_year }
+        where: { batch_id: batch.batch_id, semester: String(Number(check.semester)),
+          exam_start_month: check.exam_start_month, exam_start_year: check.exam_start_year,
+          exam_end_month: check.exam_end_month, exam_end_year: check.exam_end_year }
       });
       if (duplicateSemester) {
         return res.status(409).json({
@@ -208,7 +226,11 @@ const sessionController = {
         batch_id: batch.batch_id,
         semester: check.semester,
         exam_session: check.exam_session,
-        exam_year: check.exam_year
+        exam_year: check.exam_year,
+        exam_start_month: check.exam_start_month,
+        exam_start_year: check.exam_start_year,
+        exam_end_month: check.exam_end_month,
+        exam_end_year: check.exam_end_year
       });
 
       res.status(201).json({
@@ -252,10 +274,9 @@ const sessionController = {
         if (req.body.batch_id !== undefined && String(req.body.batch_id) !== String(session.batch_id)) {
           return reject(409, 'A session cannot change batch. Create a new examination session instead.');
         }
-        const identityChanged = String(Number(session.semester)) !== check.semester ||
-          normalizeMonth(session.exam_session) !== check.exam_session || Number(session.exam_year) !== check.exam_year;
+        const identityChanged = String(Number(session.semester)) !== check.semester || examPeriod.key(session) !== examPeriod.key(check);
         if (identityChanged && await Result.count({ where: { session_id: session.session_id }, transaction })) {
-          return reject(409, 'Session identity cannot change after results exist. Create a new examination session instead.');
+          return reject(409, 'This examination period cannot be changed because saved results already use it. For a different examination sitting, create a new examination session. If the saved historical period is incorrect, use the controlled historical-correction process so the attached results remain auditable.');
         }
 
         // Duplicate semester within the same batch (excluding this session)
@@ -263,8 +284,10 @@ const sessionController = {
           where: {
             batch_id: session.batch_id,
             semester: check.semester,
-            exam_session: check.exam_session,
-            exam_year: check.exam_year,
+            exam_start_month: check.exam_start_month,
+            exam_start_year: check.exam_start_year,
+            exam_end_month: check.exam_end_month,
+            exam_end_year: check.exam_end_year,
             session_id: { [Op.ne]: session.session_id }
           }, transaction
         });
@@ -284,7 +307,11 @@ const sessionController = {
         await ResultSession.update({
           semester: check.semester,
           exam_session: check.exam_session,
-          exam_year: check.exam_year
+          exam_year: check.exam_year,
+          exam_start_month: check.exam_start_month,
+          exam_start_year: check.exam_start_year,
+          exam_end_month: check.exam_end_month,
+          exam_end_year: check.exam_end_year
         }, { where: { session_id: session.session_id }, transaction });
 
         const data = await ResultSession.findByPk(session.session_id, { transaction });
@@ -317,24 +344,34 @@ const sessionController = {
   // =========================
   delete: async (req, res) => {
     try {
-      const deleted = await ResultSession.destroy({
-        where: { session_id: req.params.id }
+      const outcome = await sequelize.transaction(async transaction => {
+        const session = await ResultSession.findByPk(req.params.id, { transaction, lock: true });
+        if (!session) return { status: 404, body: { success: false, message: 'Session not found.' } };
+        const where = { session_id: session.session_id };
+        const [subjects, results, imports] = await Promise.all([
+          Subject.count({ where, transaction }),
+          Result.count({ where, transaction }),
+          ImportLog.count({ where, transaction })
+        ]);
+        if (subjects || results || imports) {
+          const dependencies = [
+            subjects ? `${subjects} configured subject${subjects === 1 ? '' : 's'}` : '',
+            results ? `${results} saved result${results === 1 ? '' : 's'}` : '',
+            imports ? `${imports} upload/import record${imports === 1 ? '' : 's'}` : ''
+          ].filter(Boolean).join(', ');
+          return { status: 409, body: { success: false,
+            message: `This examination session cannot be deleted because it has ${dependencies}. Preserve it for academic history. Only a completely unused session can be deleted.` } };
+        }
+        await ResultSession.destroy({ where, transaction });
+        return { status: 200, body: { success: true, message: 'Unused examination session deleted successfully.' } };
       });
-
-      if (!deleted) {
-        return res.status(404).json({
-          success: false,
-          message: 'Session not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Session deleted successfully'
-      });
+      return res.status(outcome.status).json(outcome.body);
 
     } catch (error) {
       console.error('Session delete error:', error);
+      if (error && (error.name === 'SequelizeForeignKeyConstraintError' || error.parent?.code === 'ER_ROW_IS_REFERENCED_2')) {
+        return res.status(409).json({ success: false, message: 'This examination session gained dependent academic records and cannot be deleted. Refresh the page and review the session.' });
+      }
       res.status(500).json({
         success: false,
         message: 'Something went wrong on the server. Please try again.'
@@ -344,3 +381,4 @@ const sessionController = {
 };
 
 module.exports = sessionController;
+module.exports._test = { validateSessionFields, normalizeMonth };

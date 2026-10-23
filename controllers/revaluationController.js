@@ -110,8 +110,7 @@ async function withRetryableTransaction(label, fn) {
 
 function sessionDisplay(rs) {
   if (!rs) return '';
-  return [rs.semester, rs.exam_session, rs.exam_year]
-    .filter(Boolean).join(' | ');
+  return `Sem ${rs.semester} | ${require('../services/academicPolicy').formatExamPeriod(rs)}`;
 }
 
 // Eager-load a Result with everything needed for the revaluation flow.
@@ -119,7 +118,7 @@ function loadResultContext(resultId) {
   return Result.findByPk(resultId, {
     include: [
       { model: Student, attributes: ['student_name', 'usn'] },
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] },
+      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
       {
         model: SubjectResult,
         attributes: ['subject_result_id', 'result_id', 'subject_id', 'marks', 'grade', 'result_status', 'created_at'],
@@ -133,10 +132,10 @@ exports.showSessionPicker = async (req, res) => {
   let sessions = [];
   try {
     sessions = await ResultSession.findAll({
-      attributes: ['session_id', 'semester', 'exam_session', 'exam_year'],
+      attributes: ['session_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'],
       include: [{ model: Result, attributes: ['result_id'] }],
       where: { '$Results.result_id$': { [Op.ne]: null } },
-      order: [['exam_year', 'DESC'], ['exam_session', 'ASC']],
+      order: [['exam_start_year', 'DESC'], ['exam_start_month', 'DESC'], ['semester', 'ASC']],
       distinct: true
     });
   } catch (err) {
@@ -148,7 +147,7 @@ exports.showSessionPicker = async (req, res) => {
     semester: s.semester,
     exam_session: s.exam_session,
     exam_year: s.exam_year,
-    display: [s.semester, s.exam_session, s.exam_year].filter(Boolean).join(' | ')
+    display: sessionDisplay(s)
   }));
   return res.render('revaluation/result-session-picker', {
     title: 'Revaluation — Step 1: Select Result Session',
@@ -196,7 +195,7 @@ exports.showSessionStudents = async (req, res) => {
       { label: 'Step 1: Session', href: '/revaluation/start' },
       { label: 'Select Student', active: true }
     ],
-    session: { id: sessionId, display: [session.semester, session.exam_session, session.exam_year].filter(Boolean).join(' | ') },
+    session: { id: sessionId, display: sessionDisplay(session) },
     query: q,
     students: students.map(st => ({ student_id: st.student_id, usn: st.usn, student_name: st.student_name })),
     error: req.query.error || null
@@ -248,7 +247,7 @@ exports.resolveShowAttempts = async (req, res) => {
     ],
     sessionId,
     studentId,
-    sessionDisplay: [session.semester, session.exam_session, session.exam_year].filter(Boolean).join(' | '),
+    sessionDisplay: sessionDisplay(session),
     studentName: student.student_name + ' (' + student.usn + ')',
     attempts: results.map(r => {
       const st = revalStates[r.result_id] || { state: 'AVAILABLE', importId: null };
@@ -610,7 +609,11 @@ exports.processUpload = async (req, res) => {
           session_id: Number(result.session_id),
           semester: result.ResultSession ? result.ResultSession.semester : null,
           exam_session: result.ResultSession ? result.ResultSession.exam_session : null,
-          exam_year: result.ResultSession ? result.ResultSession.exam_year : null
+          exam_year: result.ResultSession ? result.ResultSession.exam_year : null,
+          exam_start_month: result.ResultSession ? result.ResultSession.exam_start_month : null,
+          exam_start_year: result.ResultSession ? result.ResultSession.exam_start_year : null,
+          exam_end_month: result.ResultSession ? result.ResultSession.exam_end_month : null,
+          exam_end_year: result.ResultSession ? result.ResultSession.exam_end_year : null
         },
         // The full student SubjectResults set is persisted. The review
         // page uses this to offer "Add Subject" candidates (admin manual
@@ -666,7 +669,7 @@ exports.showPending = async (req, res) => {
   try {
     log = await ImportLog.findByPk(importId, {
       include: [
-        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] },
+        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
         { model: OcrExtraction }
       ]
     });
@@ -928,7 +931,7 @@ exports.showExtraction = (req, res) => {
 async function loadRevalImport(importId) {
   return ImportLog.findByPk(importId, {
     include: [
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] },
+      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
       { model: OcrExtraction }
     ]
   });
@@ -1390,7 +1393,7 @@ function loadResultContextFull(resultId, t, lock) {
   const opts = {
     include: [
       { model: Student, attributes: ['student_name', 'usn', 'batch_id'] },
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'batch_id'] },
+      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year', 'batch_id'] },
       {
         model: SubjectResult,
         attributes: ['subject_result_id', 'result_id', 'subject_id', 'internal_marks', 'external_marks', 'marks', 'grade', 'result_status'],

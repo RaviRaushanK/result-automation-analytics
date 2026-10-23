@@ -91,7 +91,7 @@
     await load('semester', `api/student-semesters?${query}`, 'semester', row => `Semester ${row.semester}`, signal, expectedVersion);
     if (el('semester').value && expectedVersion === version) {
       query.set('semester', el('semester').value);
-      await load('session_id', `api/student-sessions?${query}`, 'session_id', row => `${row.exam_session} ${row.exam_year} - Semester ${row.semester}`, signal, expectedVersion);
+      await load('session_id', `api/student-sessions?${query}`, 'session_id', row => `${ExamPeriod.format(row)} - Semester ${row.semester}`, signal, expectedVersion);
     }
   }
 
@@ -125,7 +125,7 @@
       } else if (name === 'semester' && el('semester').value) {
         query.set('semester', el('semester').value);
         if (type === 'student') query.set('student_id', el('student_id').value);
-        await load('session_id', `${type === 'student' ? 'api/student-sessions' : 'api/sessions'}?${query}`, 'session_id', row => `${row.exam_session} ${row.exam_year} - Semester ${row.semester}`, signal, expectedVersion);
+        await load('session_id', `${type === 'student' ? 'api/student-sessions' : 'api/sessions'}?${query}`, 'session_id', row => `${ExamPeriod.format(row)} - Semester ${row.semester}`, signal, expectedVersion);
       } else if (name === 'session_id' && el('session_id').value && el('session_id').value !== 'all') {
         query.set('session_id', el('session_id').value);
         if (type === 'student') {
@@ -205,7 +205,7 @@
       section.append(node('h3', `Semester ${term.semester}`));
       for (const sitting of term.sessions) {
         const session = node('section', undefined, 'reports-student-session');
-        session.append(node('h4', `${sitting.session.exam_session} ${sitting.session.exam_year}`));
+        session.append(node('h4', ExamPeriod.format(sitting.session)));
         for (const attempt of sitting.attempts) {
           const block = node('section', undefined, 'reports-student-attempt');
           block.append(node('h5', `Attempt ${attempt.result.attempt_no} - ${attempt.result.exam_type}`));
@@ -281,10 +281,10 @@
         if (type === 'student-progress' && typeof column.group === 'number') {
           if (column.group % 2) td.classList.add('reports-semester-alt');
           const result = row.semesters[report.semesters[column.group].semester].displayed_result;
-          if (result && /_(marks|sgpa|cgpa)$/.test(column.key)) td.title = `${result.exam_session} ${result.exam_year}; attempt ${result.attempt_no}; ${result.exam_type}`;
+          if (result && /_(marks|sgpa|cgpa)$/.test(column.key)) td.title = `${ExamPeriod.format(result)}; attempt ${result.attempt_no}; ${result.exam_type}`;
         }
         if (type === 'student-progress' && column.key === 'latest_cgpa' && row.latest_cgpa_source) {
-          const result = row.latest_cgpa_source; td.title = `Semester ${result.semester}; ${result.exam_session} ${result.exam_year}; attempt ${result.attempt_no}; ${result.exam_type}`;
+          const result = row.latest_cgpa_source; td.title = `Semester ${result.semester}; ${ExamPeriod.format(result)}; attempt ${result.attempt_no}; ${result.exam_type}`;
         }
         const text = display(column.key, row[column.key]);
         if (type === 'student-progress' && /^year_\d+_/.test(column.key)) td.classList.add('reports-year-completion');

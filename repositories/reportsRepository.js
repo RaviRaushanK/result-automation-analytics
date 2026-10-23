@@ -27,7 +27,7 @@ async function batch(batchId) {
 }
 
 async function session(sessionId, batchId, semester) {
-  return (await select(`SELECT session_id, batch_id, semester, exam_session, exam_year
+  return (await select(`SELECT session_id, batch_id, semester, exam_session, exam_year, exam_start_month, exam_start_year, exam_end_month, exam_end_year
     FROM result_sessions WHERE session_id = :sessionId AND batch_id = :batchId
     ${semester === undefined ? '' : 'AND semester = :semester'}`, { sessionId, batchId, semester }))[0];
 }
@@ -51,20 +51,19 @@ async function options(scope, f) {
       ORDER BY usn, student_id`, f);
     case 'semesters': return select(`SELECT DISTINCT semester FROM result_sessions
       WHERE batch_id = :batch_id ORDER BY semester`, f);
-    case 'sessions': return select(`SELECT session_id, semester, exam_session, exam_year FROM result_sessions
-      WHERE batch_id = :batch_id AND semester = :semester ORDER BY exam_year DESC, exam_session, session_id`, f);
+    case 'sessions': return select(`SELECT session_id, semester, exam_session, exam_year, exam_start_month, exam_start_year, exam_end_month, exam_end_year FROM result_sessions
+      WHERE batch_id = :batch_id AND semester = :semester ORDER BY exam_start_year DESC, exam_start_month DESC, session_id`, f);
     case 'student-semesters': return select(`SELECT DISTINCT rs.semester FROM result_sessions rs
       INNER JOIN results r ON r.session_id = rs.session_id
       INNER JOIN students st ON st.student_id = r.student_id AND st.batch_id = rs.batch_id AND st.deleted_at IS NULL
       WHERE rs.batch_id = :batch_id AND st.student_id = :student_id
       ORDER BY CAST(rs.semester AS UNSIGNED), rs.semester`, f);
-    case 'student-sessions': return select(`SELECT DISTINCT rs.session_id, rs.semester, rs.exam_session, rs.exam_year
+    case 'student-sessions': return select(`SELECT DISTINCT rs.session_id, rs.semester, rs.exam_session, rs.exam_year, rs.exam_start_month, rs.exam_start_year, rs.exam_end_month, rs.exam_end_year
       FROM result_sessions rs INNER JOIN results r ON r.session_id = rs.session_id
       INNER JOIN students st ON st.student_id = r.student_id AND st.batch_id = rs.batch_id AND st.deleted_at IS NULL
       WHERE rs.batch_id = :batch_id AND st.student_id = :student_id
       ${f.semester === undefined ? '' : 'AND rs.semester = :semester'}
-      ORDER BY CAST(rs.semester AS UNSIGNED), rs.semester, rs.exam_year,
-      FIELD(LOWER(rs.exam_session), 'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'), rs.exam_session, rs.session_id`, f);
+      ORDER BY CAST(rs.semester AS UNSIGNED), rs.semester, rs.exam_start_year, rs.exam_start_month, rs.session_id`, f);
     case 'subjects': return select(`SELECT subject_id, subject_code, subject_name FROM subjects
       WHERE session_id = :session_id ORDER BY subject_code, subject_id`, f);
     case 'student-results': return select(`SELECT r.result_id, r.attempt_no, r.exam_type FROM results r
@@ -78,7 +77,7 @@ async function options(scope, f) {
 function subjectRows(f) {
   const effective = f.mode === 'effective';
   return `SELECT sr.subject_result_id, r.result_id, r.student_id, st.usn, st.student_name,
-    rs.session_id, rs.semester, rs.exam_session, rs.exam_year, sr.internal_marks, sr.external_marks,
+    rs.session_id, rs.semester, rs.exam_session, rs.exam_year, rs.exam_start_month, rs.exam_start_year, rs.exam_end_month, rs.exam_end_year, sr.internal_marks, sr.external_marks,
     r.attempt_no, r.exam_type, sub.subject_id, sub.subject_code, sub.subject_name, sub.credits, sub.max_marks,
     ${effective ? 'COALESCE(eff.revised_marks, sr.marks)' : 'sr.marks'} AS marks,
     ${effective ? 'COALESCE(eff.revised_grade, sr.grade)' : 'sr.grade'} AS grade,
@@ -180,7 +179,7 @@ async function rows(type, f, limit, offset) {
 
 async function studentResults(f) {
   return select(`SELECT r.result_id, r.attempt_no, r.exam_type, r.sgpa, r.cgpa,
-    r.result_status, r.failed_subject_count, rs.session_id, rs.semester, rs.exam_session, rs.exam_year
+    r.result_status, r.failed_subject_count, rs.session_id, rs.semester, rs.exam_session, rs.exam_year, rs.exam_start_month, rs.exam_start_year, rs.exam_end_month, rs.exam_end_year
     FROM results r
     INNER JOIN students st ON st.student_id = r.student_id AND st.deleted_at IS NULL
     INNER JOIN result_sessions rs ON rs.session_id = r.session_id AND rs.batch_id = st.batch_id
@@ -188,8 +187,8 @@ async function studentResults(f) {
     ${f.session_id ? 'AND rs.session_id = :session_id' : ''}
     ${f.semester !== undefined ? 'AND rs.semester = :semester' : ''}
     ${f.attempt_no ? 'AND r.attempt_no = :attempt_no' : ''}
-    ORDER BY CAST(rs.semester AS UNSIGNED), rs.semester, rs.exam_year,
-    FIELD(LOWER(rs.exam_session), 'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'), rs.exam_session, rs.session_id, r.attempt_no, r.result_id`, f);
+    ORDER BY CAST(rs.semester AS UNSIGNED), rs.semester, rs.exam_start_year,
+    rs.exam_start_month, rs.session_id, r.attempt_no, r.result_id`, f);
 }
 
 async function studentSubjects(f) {
@@ -245,7 +244,7 @@ async function progressResults(f, studentIds) {
   if (!studentIds.length) return [];
   const scoped = { ...f, student_ids: studentIds };
   return select(`SELECT r.result_id, r.student_id, r.attempt_no, r.exam_type, r.sgpa, r.cgpa,
-    rs.session_id, rs.semester, rs.exam_session, rs.exam_year, a.total_marks,
+    rs.session_id, rs.semester, rs.exam_session, rs.exam_year, rs.exam_start_month, rs.exam_start_year, rs.exam_end_month, rs.exam_end_year, a.total_marks,
     ${f.mode === 'original' ? 'r.result_status' : `CASE WHEN a.failed > 0 THEN 'fail'
       WHEN a.subjects > 0 AND a.passed = a.subjects THEN 'pass' ELSE NULL END`} AS result_status
     FROM results r INNER JOIN students st ON st.student_id = r.student_id AND st.deleted_at IS NULL

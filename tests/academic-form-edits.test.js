@@ -75,12 +75,12 @@ test('subject no-op, legacy link and duplicate code updates do not invent anothe
 
 test('month/year session corrections remain allowed with configured courses when semester is unchanged', async () => {
   const writes = [];
-  const session = { session_id: 1, batch_id: 1, semester: '1' };
+  const session = { session_id: 1, batch_id: 1, semester: '1', exam_start_month: 12, exam_start_year: 2025, exam_end_month: 12, exam_end_year: 2025 };
   const models = { sequelize: { transaction: async run => run({}) }, Result: { count: async () => 0 }, ResultSession: { findByPk: async () => session, findOne: async () => null, update: async data => writes.push(data) }, Subject: { count: async () => { throw new Error('Unchanged semester must not be rejected'); } } };
   const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/sessionController'), 'utf8'), context);
   const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; } };
-  await context.module.exports.update({ params: { id: 1 }, body: { semester: '01', exam_session: 'November', exam_year: 2026 } }, res);
+  await context.module.exports.update({ params: { id: 1 }, body: { semester: '01', exam_start_month: 11, exam_start_year: 2026 } }, res);
   assert.equal(res.statusCode, 200); assert.equal(writes[0].exam_session, 'Nov');
 });
 

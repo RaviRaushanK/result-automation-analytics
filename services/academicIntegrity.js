@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const policy = require('./academicPolicy');
+const examPeriod = require('../public/js/exam-period');
 const digest = value => crypto.createHash('sha256').update(Buffer.isBuffer(value) || typeof value === 'string' ? value : JSON.stringify(value) ?? 'null').digest('hex');
 const present = value => value !== null && value !== undefined && value !== '';
 function mark(value) {
@@ -15,13 +16,12 @@ function claims(ex = {}) {
   const text = ex.raw_text || ex.rawText || '';
   const unique = values => [...new Set(values.filter(present).map(value => String(value).trim().toUpperCase()))];
   const labeled = (expression, group = 1) => [...text.matchAll(expression)].map(match => match[group]);
-  const periods = [...text.matchAll(/\bEXAM(?:INATION)?(?:\s+(?:SESSION|PERIOD))?\s*[:=-]\s*([A-Za-z]+)[\s,/-]+(\d{4})\b/gi)];
+  const printedPeriod = examPeriod.parseText(text);
   return {
     usns: unique([...(ex.usns || []), ex.student?.usnRaw || ex.student?.usn, ex.student_candidates?.usn_raw || ex.student_candidates?.usn,
       ...labeled(/\bUSN\s*[:=-]\s*([A-Z0-9/-]+)/gi)]),
     semesters: unique([...(ex.semesters || []), ex.semester_candidate ?? ex.semester, ...labeled(/\bSEMESTER\s*[:=-]\s*(\d+)\b/gi)]),
-    periods: [...(ex.periods || []), ...(present(ex.exam_session) && present(ex.exam_year) ? [{ exam_session: ex.exam_session, exam_year: ex.exam_year }] : []),
-      ...periods.map(match => ({ exam_session: match[1], exam_year: Number(match[2]) }))],
+    periods: [...(ex.periods || []), ...(examPeriod.normalize(ex) ? [examPeriod.normalize(ex)] : []), ...(printedPeriod ? [printedPeriod] : [])],
     attempts: unique([...(ex.attempts || []), ex.attempt_no, ...labeled(/\bATTEMPT(?:\s+NO\.?)?\s*[:=-]\s*(\d+)\b/gi)]),
     types: unique([...(ex.types || []), ex.exam_type, ...labeled(/\bEXAM\s+TYPE\s*[:=-]\s*(REGULAR|BACKLOG|SUPPLEMENTARY|REPEAT)\b/gi)])
   };
@@ -35,7 +35,7 @@ function contextChecks(ex, target) {
   }
   check('USN', evidence.usns, target.usn, usn);
   check('Semester', evidence.semesters, target.semester, value => String(Number(value)));
-  check('Examination period', evidence.periods.map(policy.period), policy.period(target));
+  check('Examination period', evidence.periods.map(policy.periodKey), policy.periodKey(target));
   check('Attempt', evidence.attempts, target.attempt_no, value => String(Number(value)));
   check('Exam type', evidence.types, target.exam_type);
   return checks;
@@ -51,7 +51,10 @@ function duplicateRows(rows = []) {
 }
 function originalDocumentErrors(saved, session, student, attempt, verified, mixedVerified) {
   const checks = contextChecks(saved.document_evidence || {}, { batch_id: session.batch_id, semester: session.semester,
-    exam_session: session.exam_session, exam_year: session.exam_year, usn: student.usn, attempt_no: attempt.attempt_no, exam_type: attempt.exam_type });
+    exam_start_month: session.exam_start_month, exam_start_year: session.exam_start_year,
+    exam_end_month: session.exam_end_month, exam_end_year: session.exam_end_year,
+    exam_session: session.exam_session, exam_year: session.exam_year,
+    usn: student.usn, attempt_no: attempt.attempt_no, exam_type: attempt.exam_type });
   const mixed = saved.excluded_subjects?.length && mixedVerified;
   const mismatches = checks.filter(check => check.status === 'MISMATCH' && !(mixed && ['Semester','Attempt','Exam type'].includes(check.field)));
   const errors = mismatches.map(check => `Document ${check.field} ${check.document} does not match selected ${check.expected}. Select the correct student/examination session or replace the document.`);

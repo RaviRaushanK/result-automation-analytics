@@ -111,12 +111,20 @@ CREATE TABLE result_sessions (
   session_uuid CHAR(36) NOT NULL UNIQUE,
   batch_id BIGINT NOT NULL,
   semester VARCHAR(20) NOT NULL,
+  exam_start_month TINYINT UNSIGNED NOT NULL,
+  exam_start_year SMALLINT UNSIGNED NOT NULL,
+  exam_end_month TINYINT UNSIGNED NOT NULL,
+  exam_end_year SMALLINT UNSIGNED NOT NULL,
+  -- Compatibility projection for older integrations; structured fields above are authoritative.
   exam_session VARCHAR(20) NOT NULL,
   exam_year INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE RESTRICT ON UPDATE CASCADE,
-  UNIQUE(batch_id, semester, exam_session, exam_year)
+  UNIQUE(batch_id, semester, exam_start_month, exam_start_year, exam_end_month, exam_end_year),
+  CHECK (exam_start_month BETWEEN 1 AND 12),
+  CHECK (exam_end_month BETWEEN 1 AND 12),
+  CHECK ((exam_end_year * 12 + exam_end_month) >= (exam_start_year * 12 + exam_start_month))
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------

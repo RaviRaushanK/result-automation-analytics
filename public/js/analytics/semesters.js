@@ -10,13 +10,13 @@
       // Same axis label for both charts: Batch / Result Session / Semester.
       function label(r) {
         return [(r.batchName != null ? r.batchName : r.batchId),
-          [r.examSession, r.examYear].filter(function (v) { return v != null && v !== ''; }).join(' '),
+          r.examPeriod || [r.examSession, r.examYear].filter(function (v) { return v != null && v !== ''; }).join(' '),
           r.semester].filter(function (v) { return v != null && v !== ''; }).join(' / ');
       }
       rows.forEach(function (r) {
         ui.row([
           (r.batchName != null ? r.batchName : r.batchId),
-          [r.examSession, r.examYear].filter(function (v) { return v != null && v !== ''; }).join(' '),
+          r.examPeriod || [r.examSession, r.examYear].filter(function (v) { return v != null && v !== ''; }).join(' '),
           r.semester,
           ui.number(r.resultCount, 0), ui.number(r.subjectAttempts, 0),
           ui.number(r.subjectPassed, 0), ui.number(r.subjectFailed, 0),

@@ -3,6 +3,7 @@ const router = express.Router();
 
 // Controller import
 const sessionController = require('../controllers/sessionController');
+const adminMiddleware = require('../middlewares/adminMiddleware');
 
 /**
  * Session Routes
@@ -22,6 +23,6 @@ router.route('/')
 router.route('/:id')
   .get(sessionController.get)          // GET /sessions/:id → fetch session by ID
   .put(sessionController.update)       // PUT /sessions/:id → update session
-  .delete(sessionController.delete);  // DELETE /sessions/:id → delete session
+  .delete(adminMiddleware, sessionController.delete);  // DELETE /sessions/:id → delete an unused session
 
 module.exports = router;

@@ -132,7 +132,7 @@ async function loadImportContext(importId) {
     session: log.ResultSession,
     saved,
     fileUrl: '/uploads/results/' + log.file_name,
-    sessionDisplay: `${log.ResultSession.Batch.batch_name} | ${log.ResultSession.semester} | ${log.ResultSession.exam_session} ${log.ResultSession.exam_year}`
+    sessionDisplay: `${log.ResultSession.Batch.batch_name} | Sem ${log.ResultSession.semester} | ${academicPolicy.formatExamPeriod(log.ResultSession)}`
   };
 }
 
@@ -321,7 +321,7 @@ const resultController = {
       const batches = sortBatches(await Batch.findAll({ attributes: ['batch_id', 'batch_name', 'start_year', 'end_year'], raw: true }));
       const sessions = await ResultSession.findAll({
         include: [{ model: Batch, attributes: ['batch_name'] }],
-        order: [['exam_year', 'DESC'], ['semester', 'ASC']]
+        order: [['exam_start_year', 'DESC'], ['exam_start_month', 'DESC'], ['semester', 'ASC']]
       });
 
       res.render('results/upload', {
@@ -334,10 +334,14 @@ const resultController = {
         sessions: sessions.map(s => ({
           session_id: s.session_id,
           batch_id: s.batch_id,
-          display_name: `${s.Batch.batch_name} | ${s.semester} | ${s.exam_session} ${s.exam_year}`,
+          display_name: `${s.Batch.batch_name} | Sem ${s.semester} | ${academicPolicy.formatExamPeriod(s)}`,
           semester: s.semester,
           exam_session: s.exam_session,
           exam_year: s.exam_year,
+          exam_start_month: s.exam_start_month,
+          exam_start_year: s.exam_start_year,
+          exam_end_month: s.exam_end_month,
+          exam_end_year: s.exam_end_year,
           batch_name: s.Batch.batch_name
         })),
         batches,
@@ -375,6 +379,10 @@ const resultController = {
           semester: session.semester,
           exam_session: session.exam_session,
           exam_year: session.exam_year,
+          exam_start_month: session.exam_start_month,
+          exam_start_year: session.exam_start_year,
+          exam_end_month: session.exam_end_month,
+          exam_end_year: session.exam_end_year,
           batch_name: session.Batch.batch_name,
           academic_year: `${session.Batch.start_year}-${session.Batch.end_year}`,
           subjects_count: session.Subjects.length,
@@ -909,7 +917,8 @@ const resultController = {
 
       // Coordinate with Session Management so its identity cannot change during import.
       const lockedSession = await ResultSession.findByPk(ctx.session.session_id, { transaction: t, lock: true });
-      if (!lockedSession || ['batch_id', 'semester', 'exam_session', 'exam_year'].some(field => String(lockedSession[field]) !== String(ctx.session[field]))) {
+      if (!lockedSession || ['batch_id', 'semester'].some(field => String(lockedSession[field]) !== String(ctx.session[field]))
+        || academicPolicy.periodKey(lockedSession) !== academicPolicy.periodKey(ctx.session)) {
         await t.rollback();
         return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent('The examination session changed. Review its semester and examination period before importing.'));
       }
@@ -1128,7 +1137,7 @@ const resultController = {
       const logs = await ImportLog.findAll({
         include: [{
           model: ResultSession,
-          attributes: ['semester', 'exam_session', 'exam_year'],
+          attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'],
           include: [{ model: Batch, attributes: ['batch_name'] }]
         }],
         order: [['created_at', 'DESC']],
@@ -1147,7 +1156,7 @@ const resultController = {
           date: log.created_at ? new Date(log.created_at).toLocaleString() : '',
           file_name: log.file_name,
           session_display: log.ResultSession ?
-            `${log.ResultSession.Batch.batch_name} | ${log.ResultSession.semester} | ${log.ResultSession.exam_session} ${log.ResultSession.exam_year}` : 'N/A',
+            `${log.ResultSession.Batch.batch_name} | Sem ${log.ResultSession.semester} | ${academicPolicy.formatExamPeriod(log.ResultSession)}` : 'N/A',
           status: log.status,
           import_type: log.import_type,
           imported_records: log.imported_records,

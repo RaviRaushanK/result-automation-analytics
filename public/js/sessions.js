@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", function () {
     batches = safeParse(page.dataset.batches, []) || [];
   var pendingCreate = null,
     pendingUpdate = null,
+    pendingDelete = null,
     createConfirmed = false,
     updateConfirmed = false,
     reopenCreate = false,
@@ -32,6 +33,7 @@ document.addEventListener("DOMContentLoaded", function () {
     editModal = document.getElementById("editSessionModal"),
     confirmCreateModal = document.getElementById("confirmCreateSessionModal"),
     confirmEditModal = document.getElementById("confirmEditSessionModal"),
+    deleteModal = document.getElementById("deleteSessionModal"),
     detailsModal = document.getElementById("sessionDetailsModal");
   function safeParse(v, f) {
     try {
@@ -131,11 +133,13 @@ document.addEventListener("DOMContentLoaded", function () {
     return e.message || "The request could not be completed.";
   }
   function monthLabel(v) {
+    var numeric = ExamPeriod.month(v);
     var m = MONTHS.filter(function (x) {
-      return x[0].toLowerCase() === String(v || "").toLowerCase();
+      return ExamPeriod.month(x[0]) === numeric;
     })[0];
     return m ? m[1] : v || "—";
   }
+  function periodLabel(session) { return ExamPeriod.format(session) || '—'; }
   function semLabel(v) {
     return "Semester " + (v == null ? "—" : v);
   }
@@ -152,8 +156,23 @@ document.addEventListener("DOMContentLoaded", function () {
     control.disabled = !count && !selected;
   }
   function updateStatus(prefix) {
-    var value = statusOf({ exam_session: document.getElementById(prefix + 'Month').value, exam_year: document.getElementById(prefix + 'Year').value });
+    var value = statusOf(periodInput(prefix));
     document.getElementById(prefix + 'Status').value = value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
+  }
+  function toggleEnd(prefix) {
+    var multi = document.getElementById(prefix + 'Multiple').checked;
+    document.querySelectorAll('[data-period-end="' + prefix + '"]').forEach(function (node) { node.classList.toggle('d-none', !multi); });
+    ['EndMonth', 'EndYear'].forEach(function (name) { document.getElementById(prefix + name).required = multi; });
+    updateStatus(prefix);
+  }
+  function periodInput(prefix) {
+    var multi = document.getElementById(prefix + 'Multiple').checked;
+    var startMonth = ExamPeriod.month(document.getElementById(prefix + 'StartMonth').value);
+    var startYear = Number(document.getElementById(prefix + 'StartYear').value);
+    return { exam_start_month: startMonth, exam_start_year: startYear,
+      exam_end_month: multi ? ExamPeriod.month(document.getElementById(prefix + 'EndMonth').value) : startMonth,
+      exam_end_year: multi ? Number(document.getElementById(prefix + 'EndYear').value) : startYear,
+      spans_multiple_months: multi };
   }
   function badge(st) {
     return st === "completed"
@@ -215,11 +234,11 @@ document.addEventListener("DOMContentLoaded", function () {
     text("currentSessionName", active ? semLabel(active.semester) : "No sessions");
     var currentName = document.getElementById('currentSessionName');
     text('currentSessionLabel', !active || statusOf(active) === 'active' ? 'Current Session' : statusOf(active) === 'completed' ? 'Latest Session' : 'Next Session');
-    currentName.title = active ? [batchOf(active).batch_name, monthLabel(active.exam_session), active.exam_year].filter(Boolean).join(' - ') : '';
+    currentName.title = active ? [batchOf(active).batch_name, periodLabel(active)].filter(Boolean).join(' - ') : '';
     text('currentSessionBatch', active ? batchOf(active).batch_name : '');
     var context = document.getElementById('currentSessionContext');
     if (context) context.hidden = !active;
-    text('currentSessionPeriod', active ? monthLabel(active.exam_session) + ' ' + active.exam_year : '');
+    text('currentSessionPeriod', active ? periodLabel(active) : '');
     var currentStatus = document.getElementById('currentSessionStatus');
     if (currentStatus) {
       var status = active ? statusOf(active) : '';
@@ -231,7 +250,10 @@ document.addEventListener("DOMContentLoaded", function () {
   function row(s) {
     var st = statusOf(s),
       b = batchOf(s),
-      title = monthLabel(s.exam_session) + " " + s.exam_year;
+      title = periodLabel(s);
+    var deleteButton = s.deletion && s.deletion.allowed
+      ? ' <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" data-id="' + s.session_id + '" title="Delete unused session"><span class="material-icons action-icon">delete</span></button>'
+      : '';
     return (
       '<tr><td><span class="session-name">' +
       escapeHtml(title) +
@@ -248,9 +270,7 @@ document.addEventListener("DOMContentLoaded", function () {
       "</td><td>" +
       escapeHtml(semLabel(s.semester)) +
       "</td><td>" +
-      escapeHtml(monthLabel(s.exam_session)) +
-      "</td><td>" +
-      escapeHtml(s.exam_year) +
+      escapeHtml(periodLabel(s)) +
       '</td><td><span class="badge ' +
       badge(st) +
       '">' +
@@ -261,7 +281,7 @@ document.addEventListener("DOMContentLoaded", function () {
       s.session_id +
       '" title="View session"><span class="material-icons action-icon">visibility</span></button> <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="' +
       s.session_id +
-      '" title="Edit session"><span class="material-icons action-icon">edit</span></button></td></tr>'
+      '" title="Edit session"><span class="material-icons action-icon">edit</span></button>' + deleteButton + '</td></tr>'
     );
   }
   function visibleSessions() {
@@ -276,8 +296,7 @@ document.addEventListener("DOMContentLoaded", function () {
           semLabel(s.semester),
           b.batch_name || "",
           deptOf(s),
-          s.exam_session,
-          s.exam_year,
+          periodLabel(s),
         ]
           .join(" ")
           .toLowerCase();
@@ -291,7 +310,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderTable() {
     var rows = visibleSessions().sort(function (a, b) {
       return (
-        Number(b.exam_year) - Number(a.exam_year) ||
+        Number(b.exam_start_year) - Number(a.exam_start_year) || Number(b.exam_start_month) - Number(a.exam_start_month) ||
         Number(a.semester) - Number(b.semester)
       );
     });
@@ -315,14 +334,14 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   async function loadSessions() {
     body.innerHTML =
-      '<tr><td colspan="9" class="text-center table-loading"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading sessions...</td></tr>';
+      '<tr><td colspan="8" class="text-center table-loading"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading sessions...</td></tr>';
     try {
       var j = await fetchJSON("/sessions?format=json");
       sessions = Array.isArray(j.data) ? j.data : [];
       render();
     } catch (e) {
       body.innerHTML =
-        '<tr><td colspan="9" class="text-center text-danger">' +
+        '<tr><td colspan="8" class="text-center text-danger">' +
         escapeHtml(friendlyError(e)) +
         ' <button class="btn btn-sm btn-outline-secondary ms-2" data-action="retry">Retry</button></td></tr>';
     }
@@ -338,7 +357,9 @@ document.addEventListener("DOMContentLoaded", function () {
     var latest = AcademicFormOptions.sortBatches(batches)[0];
     document.getElementById('createSessionBatch').value = latest ? String(latest.batch_id) : '';
     semesterOptions('createSessionSemester', latest);
-    document.getElementById('createSessionYear').value = new Date().getFullYear();
+    document.getElementById('createSessionStartYear').value = new Date().getFullYear();
+    document.getElementById('createSessionMultiple').checked = false;
+    toggleEnd('createSession');
     updateStatus('createSession');
     showModal(createModal);
   }
@@ -390,16 +411,21 @@ document.addEventListener("DOMContentLoaded", function () {
       if (String(document.getElementById('editSessionId').value) !== String(s.session_id)) return;
       var subjects = Array.isArray(response) ? response : response.data || [];
       document.getElementById('editSessionSemester').disabled = subjects.length > 0;
-      document.getElementById('editSessionSemesterNote').textContent = subjects.length ? 'Semester is locked because subjects are configured. Month and exam year can still be updated.' : '';
+      document.getElementById('editSessionSemesterNote').textContent = subjects.length ? 'Semester is locked because subjects are configured. The examination period remains editable only while no results exist.' : '';
       document.getElementById('editSessionSubmitBtn').disabled = false;
     }).catch(function () {
       if (String(document.getElementById('editSessionId').value) !== String(s.session_id)) return;
-      document.getElementById('editSessionSemesterNote').textContent = 'Semester is locked while subject availability cannot be checked. Month and exam year can still be updated.';
+      document.getElementById('editSessionSemesterNote').textContent = 'Semester is locked while subject availability cannot be checked.';
       document.getElementById('editSessionSubmitBtn').disabled = false;
     });
-    var existingMonth = MONTHS.find(function (month) { return month[0].toLowerCase() === String(s.exam_session).slice(0, 3).toLowerCase(); });
-    document.getElementById("editSessionMonth").value = existingMonth ? existingMonth[0] : '';
-    document.getElementById("editSessionYear").value = s.exam_year;
+    var storedPeriod = ExamPeriod.normalize(s);
+    document.getElementById("editSessionStartMonth").value = storedPeriod ? ExamPeriod.MONTHS[storedPeriod.exam_start_month - 1] : '';
+    document.getElementById("editSessionStartYear").value = storedPeriod ? storedPeriod.exam_start_year : '';
+    var multi = !!storedPeriod && (storedPeriod.exam_start_month !== storedPeriod.exam_end_month || storedPeriod.exam_start_year !== storedPeriod.exam_end_year);
+    document.getElementById('editSessionMultiple').checked = multi;
+    document.getElementById('editSessionEndMonth').value = storedPeriod ? ExamPeriod.MONTHS[storedPeriod.exam_end_month - 1] : '';
+    document.getElementById('editSessionEndYear').value = storedPeriod ? storedPeriod.exam_end_year : '';
+    toggleEnd('editSession');
     updateStatus('editSession');
     showError("editSessionError", "");
     showModal(editModal);
@@ -408,23 +434,19 @@ document.addEventListener("DOMContentLoaded", function () {
     e.preventDefault();
     showError("editSessionError", "");
     var sm = document.getElementById("editSessionSemester"),
-      mo = document.getElementById("editSessionMonth"),
-      yr = document.getElementById("editSessionYear"),
       sn = Number(sm.value),
-      yn = Number(yr.value),
       valid = true;
     var existing = findSession(document.getElementById('editSessionId').value);
     var maximum = AcademicFormOptions.semesterCount(batchOf(existing || {}));
     if (invalid(sm, !sm.value || !Number.isInteger(sn) || sn < 1 || (sn > maximum && String(sn) !== String(existing?.semester)) ? 'Select a semester for this batch.' : '')) valid = false;
-    if (invalid(mo, !mo.value ? 'Select a month.' : '')) valid = false;
-    if (invalid(yr, !yr.value || !Number.isInteger(yn) || yn < 1900 || yn > 2200 ? 'Enter a valid exam year.' : '')) valid = false;
+    var period = validatePeriod('editSession');
+    if (!period) valid = false;
     if (!valid) return;
     var s = findSession(document.getElementById("editSessionId").value);
     if (!s) return showError("editSessionError", "Session not found.");
     pendingUpdate = Object.assign({}, s, {
       semester: String(sn),
-      exam_session: mo.value,
-      exam_year: yn,
+      ...period,
     });
     document.getElementById("confirmEditSessionSummary").innerHTML =
       summaryHtml(pendingUpdate);
@@ -443,8 +465,9 @@ document.addEventListener("DOMContentLoaded", function () {
         method: "PUT",
         body: JSON.stringify({
           semester: pendingUpdate.semester,
-          exam_session: pendingUpdate.exam_session,
-          exam_year: pendingUpdate.exam_year,
+          exam_start_month: pendingUpdate.exam_start_month, exam_start_year: pendingUpdate.exam_start_year,
+          exam_end_month: pendingUpdate.exam_end_month, exam_end_year: pendingUpdate.exam_end_year,
+          spans_multiple_months: pendingUpdate.spans_multiple_months,
         }),
       });
       updateConfirmed = true;
@@ -456,6 +479,32 @@ document.addEventListener("DOMContentLoaded", function () {
       showError("confirmEditSessionError", friendlyError(e));
     } finally {
       setLoading(b, false, "Saving...");
+    }
+  }
+  function requestDeleteSession(id) {
+    var session = findSession(id);
+    if (!session || !session.deletion || !session.deletion.allowed) {
+      return showToast('danger', 'Only a completely unused examination session can be deleted. Refresh the page and review its dependencies.');
+    }
+    pendingDelete = session;
+    showError('deleteSessionError', '');
+    document.getElementById('deleteSessionSummary').innerHTML = summaryHtml(session);
+    showModal(deleteModal);
+  }
+  async function confirmDeleteSession() {
+    if (!pendingDelete) return;
+    var button = document.getElementById('confirmDeleteSessionBtn');
+    setLoading(button, true, 'Deleting...');
+    try {
+      await fetchJSON('/sessions/' + encodeURIComponent(pendingDelete.session_id), { method: 'DELETE' });
+      pendingDelete = null;
+      hideModal(deleteModal);
+      showToast('success', 'Unused examination session deleted successfully.');
+      await loadSessions();
+    } catch (error) {
+      showError('deleteSessionError', friendlyError(error));
+    } finally {
+      setLoading(button, false, 'Deleting...');
     }
   }
   async function viewSession(id) {
@@ -474,8 +523,7 @@ document.addEventListener("DOMContentLoaded", function () {
           ["Batch", b.batch_name],
           ["Department", deptOf(s)],
           ["Semester", semLabel(s.semester)],
-          ["Month", monthLabel(s.exam_session)],
-          ["Exam Year", s.exam_year],
+          ["Examination Period", periodLabel(s)],
           ["Status", st.charAt(0).toUpperCase() + st.slice(1)],
           ["Created At", fmtDateTime(s.created_at)],
           ["Updated At", fmtDateTime(s.updated_at)],
@@ -506,8 +554,7 @@ document.addEventListener("DOMContentLoaded", function () {
       ["Batch", b.batch_name || "—"],
       ["Department", deptOf(d)],
       ["Semester", semLabel(d.semester)],
-      ["Month", monthLabel(d.exam_session)],
-      ["Exam Year", d.exam_year],
+      ["Examination Period", periodLabel(d)],
       ["Status", st.charAt(0).toUpperCase() + st.slice(1)],
     ]
       .map(function (x) {
@@ -531,20 +578,31 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     return !!msg;
   }
+  function validatePeriod(prefix) {
+    var values = periodInput(prefix), multi = values.spans_multiple_months;
+    var startMonth = document.getElementById(prefix + 'StartMonth'), startYear = document.getElementById(prefix + 'StartYear');
+    var endMonth = document.getElementById(prefix + 'EndMonth'), endYear = document.getElementById(prefix + 'EndYear');
+    var valid = true;
+    if (invalid(startMonth, !values.exam_start_month ? 'Select a start month.' : '')) valid = false;
+    if (invalid(startYear, !ExamPeriod.year(startYear.value) ? 'Enter a valid start year.' : '')) valid = false;
+    if (multi && invalid(endMonth, !values.exam_end_month ? 'Select an end month.' : '')) valid = false;
+    if (multi && invalid(endYear, !ExamPeriod.year(endYear.value) ? 'Enter a valid end year.' : '')) valid = false;
+    if (!valid) return null;
+    var normalized = ExamPeriod.normalize(values);
+    if (!normalized) { invalid(endMonth, 'End period cannot be before start period.'); return null; }
+    return Object.assign(normalized, { spans_multiple_months: multi });
+  }
   function validate(prefix) {
     var b = document.getElementById(prefix + "Batch"),
       sm = document.getElementById(prefix + "Semester"),
-      mo = document.getElementById(prefix + "Month"),
-      yr = document.getElementById(prefix + "Year"),
       valid = true;
     if (invalid(b, !b.value ? "Select a batch." : '')) valid = false;
     var sn = Number(sm.value);
     var selectedBatch = batches.find(function (value) { return String(value.batch_id) === b.value; });
     var semesterLimit = AcademicFormOptions.semesterCount(selectedBatch);
     if (invalid(sm, !sm.value || !Number.isInteger(sn) || sn < 1 || sn > semesterLimit ? 'Select a semester for this batch.' : '')) valid = false;
-    if (invalid(mo, !mo.value ? "Select a month." : '')) valid = false;
-    var yn = Number(yr.value);
-    if (invalid(yr, !yr.value || !Number.isInteger(yn) || yn < 1900 || yn > 2200 ? 'Enter a valid exam year.' : '')) valid = false;
+    var period = validatePeriod(prefix);
+    if (!period) valid = false;
     if (!valid) return null;
     if (
       prefix === "createSession" &&
@@ -552,8 +610,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return (
           String(s.batch_id) === b.value &&
           Number(s.semester) === sn &&
-          String(s.exam_session).toLowerCase() === String(mo.value).toLowerCase() &&
-          Number(s.exam_year) === yn
+          ExamPeriod.key(s) === ExamPeriod.key(period)
         );
       })
     ) {
@@ -567,17 +624,19 @@ document.addEventListener("DOMContentLoaded", function () {
     return {
       batch_id: b.value,
       semester: String(sn),
-      exam_session: mo.value,
-      exam_year: yn,
+      ...period,
     };
   }
-  months(document.getElementById("createSessionMonth"));
-  months(document.getElementById("editSessionMonth"));
+  ['createSession', 'editSession'].forEach(function (prefix) {
+    months(document.getElementById(prefix + 'StartMonth'));
+    months(document.getElementById(prefix + 'EndMonth'));
+    document.getElementById(prefix + 'Multiple').addEventListener('change', function () { toggleEnd(prefix); });
+  });
   document.getElementById('createSessionBatch').addEventListener('change', function () {
     semesterOptions('createSessionSemester', batches.find(function (value) { return String(value.batch_id) === this.value; }, this));
   });
   ['createSession', 'editSession'].forEach(function (prefix) {
-    ['Month', 'Year'].forEach(function (name) {
+    ['StartMonth', 'StartYear', 'EndMonth', 'EndYear'].forEach(function (name) {
       ['input', 'change'].forEach(function (event) { document.getElementById(prefix + name).addEventListener(event, function () { updateStatus(prefix); }); });
     });
   });
@@ -599,6 +658,8 @@ document.addEventListener("DOMContentLoaded", function () {
   document
     .getElementById("confirmEditSessionBtn")
     .addEventListener("click", confirmUpdate);
+  document.getElementById('confirmDeleteSessionBtn').addEventListener('click', confirmDeleteSession);
+  deleteModal.addEventListener('hidden.bs.modal', function () { pendingDelete = null; showError('deleteSessionError', ''); });
   document
     .getElementById("confirmCreateSessionCancelBtn")
     .addEventListener("click", function () {
@@ -636,6 +697,7 @@ document.addEventListener("DOMContentLoaded", function () {
       id = b.dataset.id;
     if (a === "view") viewSession(id);
     else if (a === "edit") editSession(id);
+    else if (a === "delete") requestDeleteSession(id);
     else if (a === "retry") loadSessions();
   });
   ["sessionSearch", "sessionStatusFilter", "sessionBatchFilter"].forEach(
@@ -650,11 +712,15 @@ document.addEventListener("DOMContentLoaded", function () {
   );
   [
     "createSessionSemester",
-    "createSessionMonth",
-    "createSessionYear",
+    "createSessionStartMonth",
+    "createSessionStartYear",
+    "createSessionEndMonth",
+    "createSessionEndYear",
     "editSessionSemester",
-    "editSessionMonth",
-    "editSessionYear",
+    "editSessionStartMonth",
+    "editSessionStartYear",
+    "editSessionEndMonth",
+    "editSessionEndYear",
   ].forEach(function (id) {
     document.getElementById(id).addEventListener("change", function () {
       this.classList.remove("is-invalid");

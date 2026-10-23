@@ -97,6 +97,8 @@ function previewCumulative(data, studentId, session, attempt, subjects) {
     && String(result.session_id) === String(session.session_id) && Number(result.attempt_no) === Number(attempt.attempt_no))) return null;
   const pending = { result_id: 'preview-result', student_id: studentId, session_id: session.session_id,
     semester: String(session.semester), exam_session: session.exam_session, exam_year: session.exam_year,
+    exam_start_month: session.exam_start_month, exam_start_year: session.exam_start_year,
+    exam_end_month: session.exam_end_month, exam_end_year: session.exam_end_year,
     attempt_no: Number(attempt.attempt_no), exam_type: attempt.exam_type };
   const pendingSubjects = subjects.map(subject => ({ ...pending,
     subject_id: subject.subject_id, course_id_snapshot: subject.course_id, credits_snapshot: subject.credits,

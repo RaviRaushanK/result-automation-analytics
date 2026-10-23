@@ -153,12 +153,11 @@ async function studentReport(filters) {
   for (const row of subjects) {
     const key = String(row.result_id);
     if (!byResult.has(key)) byResult.set(key, []);
-    byResult.get(key).push({ ...row, result_view: filters.mode === 'effective' ? 'Effective Result' : 'Original Result' });
+    byResult.get(key).push({ ...row, exam_period: academicPolicy.formatExamPeriod(row),
+      result_view: filters.mode === 'effective' ? 'Effective Result' : 'Original Result' });
   }
-  // ResultSession stores three-letter calendar months (sessionController).
-  const month = value => ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(String(value).toLowerCase());
   results.sort((a, b) => String(a.semester).localeCompare(String(b.semester), 'en', { numeric: true })
-    || Number(a.exam_year) - Number(b.exam_year) || month(a.exam_session) - month(b.exam_session) || String(a.exam_session).localeCompare(String(b.exam_session))
+    || (academicPolicy.period(a) ?? Infinity) - (academicPolicy.period(b) ?? Infinity)
     || Number(a.session_id) - Number(b.session_id) || Number(a.attempt_no) - Number(b.attempt_no));
   const semesters = [];
   for (const result of results) {
@@ -166,7 +165,11 @@ async function studentReport(filters) {
     if (!term) { term = { semester: result.semester, sessions: [] }; semesters.push(term); }
     let sitting = term.sessions.find(sitting => String(sitting.session.session_id) === String(result.session_id));
     if (!sitting) {
-      sitting = { session: { session_id: result.session_id, semester: result.semester, exam_session: result.exam_session, exam_year: result.exam_year }, attempts: [] };
+      sitting = { session: { session_id: result.session_id, semester: result.semester,
+        exam_session: result.exam_session, exam_year: result.exam_year,
+        exam_start_month: result.exam_start_month, exam_start_year: result.exam_start_year,
+        exam_end_month: result.exam_end_month, exam_end_year: result.exam_end_year,
+        exam_period: academicPolicy.formatExamPeriod(result) }, attempts: [] };
       term.sessions.push(sitting);
     }
     const rows = byResult.get(String(result.result_id)) || [];
@@ -246,10 +249,8 @@ async function* fullRows(report) {
 }
 
 function resultOrder(a, b) {
-  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  return String(a.semester).localeCompare(String(b.semester), 'en', { numeric: true }) || Number(a.exam_year) - Number(b.exam_year)
-    || months.indexOf(String(a.exam_session).toLowerCase()) - months.indexOf(String(b.exam_session).toLowerCase())
-    || String(a.exam_session).localeCompare(String(b.exam_session)) || Number(a.session_id) - Number(b.session_id)
+  return String(a.semester).localeCompare(String(b.semester), 'en', { numeric: true })
+    || (academicPolicy.period(a) ?? Infinity) - (academicPolicy.period(b) ?? Infinity) || Number(a.session_id) - Number(b.session_id)
     || Number(a.attempt_no) - Number(b.attempt_no) || Number(a.result_id) - Number(b.result_id);
 }
 const PROGRESS_FIELDS = [['marks', 'Marks Obt.'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['first_attempt', 'First Attempt'], ['supplementary_pass', 'Pass in Backlog']];
@@ -359,7 +360,7 @@ async function resultAnalysisReport(filters) {
   overall.passPercentage = passPercentage(overall.passed, overall.appeared);
   const groups = ['regular', 'repeaters', 'total'].flatMap(group => [['appeared', 'APP'], ['passed', 'PASS'], ['pass_percentage', '% PASS']].map(([key, label]) => ({ key: `${group}_${key}`, label: `${group === 'repeaters' ? 'Backlog' : group === 'regular' ? 'Regular' : 'Total'} ${label}` })));
   const report = { type: 'result-analysis', title: TITLES['result-analysis'], filters, meta, rows, subjects: rows, overall,
-    formalHeader: { title: `RESULTS ANALYSIS CHART OF ${meta.session.semester} SEM MCA`, examination: `${meta.session.exam_session} ${meta.session.exam_year} EXAMINATION` },
+    formalHeader: { title: `RESULTS ANALYSIS CHART OF ${meta.session.semester} SEM MCA`, examination: `${academicPolicy.formatExamPeriod(meta.session)} EXAMINATION` },
     columns: [{ key: 'subject_code', label: 'Subject Code' }, { key: 'subject_name', label: 'Name of the Subject' }, ...groups, { key: 'staff', label: 'Name of the Staff' }],
     chart: { labels: rows.map(row => row.subject_code), values: rows.map(row => row.total.passPercentage) },
     metrics: [['TOTAL APP', overall.appeared], ['TOTAL FAIL', overall.failed], ['TOTAL PASS', overall.passed], ['%', overall.passPercentage.toFixed(2)], ...(overall.unavailable ? [['RESULT UNAVAILABLE', overall.unavailable]] : [])],
@@ -408,7 +409,7 @@ function filename(report) {
   const prefix = report.type === 'revaluation' ? 'revaluation-report' : report.type === 'result-analysis' ? 'result-analysis-report' : `${report.type}-result`;
   const suffix = report.type === 'revaluation' ? '' : `_${report.filters.mode}`;
   const session = report.meta.session;
-  const scope = session ? `${session.semester}_${session.exam_session}_${session.exam_year}` : `${report.filters.semester || 'all-semesters'}_all-sessions`;
+  const scope = session ? `${session.semester}_${academicPolicy.periodKey(session)}` : `${report.filters.semester || 'all-semesters'}_all-sessions`;
   const safe = `${prefix}_${component}_${scope}${suffix}`
     .replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 180);
   return `${safe}.csv`;
@@ -417,7 +418,7 @@ function filename(report) {
 function contextLines(report) {
   const { batch, session, student, subject, result } = report.meta;
   if (report.type === 'student-progress') return [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Admission Year', batch.start_year], ['Result View', `${report.filters.mode === 'effective' ? 'Effective' : 'Original'} Result`], ['Generated At', report.generatedAt]];
-  const lines = [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Semester', session?.semester || report.filters.semester || 'All Completed Semesters'], ['Result Session', session ? `${session.exam_session} ${session.exam_year}` : 'All Result Sessions']];
+  const lines = [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Semester', session?.semester || report.filters.semester || 'All Completed Semesters'], ['Result Session', session ? academicPolicy.formatExamPeriod(session) : 'All Result Sessions']];
   if (student) lines.push(['USN', student.usn], ['Student Name', student.student_name]);
   if (student && result) lines.push(['Attempt', `${result.attempt_no} - ${result.exam_type}`]);
   if (subject) lines.push(['Subject', `${subject.subject_code} - ${subject.subject_name}`], ['Credits', subject.credits], ['Max Marks', subject.max_marks]);
@@ -435,7 +436,7 @@ function contextLines(report) {
 
 function exportColumns(report) {
   if (report.type !== 'student') return report.columns;
-  return [['semester', 'Semester'], ['exam_session', 'Exam Session'], ['exam_year', 'Exam Year'], ['attempt_no', 'Attempt No.'], ['exam_type', 'Exam Type']]
+  return [['semester', 'Semester'], ['exam_period', 'Examination Period'], ['attempt_no', 'Attempt No.'], ['exam_type', 'Exam Type']]
     .map(([key, label]) => ({ key, label })).concat(report.columns.filter(column => column.key !== 'revaluated'), [{ key: 'result_view', label: 'Result View' }]);
 }
 
@@ -478,7 +479,7 @@ function* studentCsvLines(report) {
     for (const sitting of term.sessions) {
       for (const attempt of sitting.attempts) {
         yield [];
-        yield ['Exam Session', `${sitting.session.exam_session} ${sitting.session.exam_year}`];
+        yield ['Examination Period', academicPolicy.formatExamPeriod(sitting.session)];
         yield ['Attempt', attempt.result.attempt_no];
         yield ['Exam Type', attempt.result.exam_type];
         yield [];

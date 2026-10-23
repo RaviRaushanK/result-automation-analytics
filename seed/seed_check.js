@@ -24,7 +24,7 @@ const mysql = require('mysql2/promise');
       );
       console.log('  students: ' + students[0].n + '  USN ' + students[0].min_usn + ' .. ' + students[0].max_usn);
       const [sessions] = await c.query(
-        'SELECT session_id, semester, exam_session, exam_year FROM result_sessions WHERE batch_id = ?', [b.batch_id]
+        'SELECT session_id, semester, exam_session, exam_year, exam_start_month, exam_start_year, exam_end_month, exam_end_year FROM result_sessions WHERE batch_id = ?', [b.batch_id]
       );
       for (const s of sessions) {
         const [r] = await c.query(

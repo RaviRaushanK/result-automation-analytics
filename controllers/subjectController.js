@@ -220,7 +220,7 @@ const subjectController = {
             errors: check.errors,
           });
       const session = await ResultSession.findByPk(req.body.session_id, {
-        attributes: ["session_id", "batch_id", "semester", "exam_session", "exam_year"],
+        attributes: ["session_id", "batch_id", "semester", "exam_session", "exam_year", "exam_start_month", "exam_start_year", "exam_end_month", "exam_end_year"],
       });
       if (!session)
         return res
@@ -257,7 +257,8 @@ const subjectController = {
           });
       const data = await sequelize.transaction(async transaction => {
         const currentSession = await ResultSession.findByPk(session.session_id, { transaction, lock: true });
-        if (!currentSession || ['batch_id','semester','exam_session','exam_year'].some(field => String(currentSession[field]) !== String(session[field]))) throw Object.assign(new Error('The selected examination session changed. Reload it before creating the offering.'), { status: 409 });
+        if (!currentSession || ['batch_id','semester'].some(field => String(currentSession[field]) !== String(session[field]))
+          || require('../services/academicPolicy').periodKey(currentSession) !== require('../services/academicPolicy').periodKey(session)) throw Object.assign(new Error('The selected examination session changed. Reload it before creating the offering.'), { status: 409 });
         if (!await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
         const course = await academicCourses.resolve(session, check.data, transaction);
         return Subject.create({ ...check.data, session_id: session.session_id, course_id: course.course_id, subject_uuid: generateUuid() }, { transaction });
@@ -324,7 +325,8 @@ const subjectController = {
       const session = await ResultSession.findByPk(subject.session_id);
       await sequelize.transaction(async transaction => {
         const currentSession = session && await ResultSession.findByPk(session.session_id, { transaction, lock: true });
-        if (!currentSession || ['batch_id','semester','exam_session','exam_year'].some(field => String(currentSession[field]) !== String(session[field]))) throw Object.assign(new Error('The examination session changed. Reload the subject before editing.'), { status: 409 });
+        if (!currentSession || ['batch_id','semester'].some(field => String(currentSession[field]) !== String(session[field]))
+          || require('../services/academicPolicy').periodKey(currentSession) !== require('../services/academicPolicy').periodKey(session)) throw Object.assign(new Error('The examination session changed. Reload the subject before editing.'), { status: 409 });
         if (!session || !await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
         await academicCourses.updateOffering(subject, session, check.data, transaction);
       });

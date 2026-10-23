@@ -71,7 +71,7 @@ function aggregate(data, students, filters) {
       const latest = courses.map(c => c.latestAttempt).filter(Boolean).sort(policy.order).at(-1);
       attention.push({ studentId: student.student_id, usn: student.usn, name: student.student_name, period: label,
         unclearedCourses: courses.map(c => c.subjectCode).join(', '),
-        latestAttempt: latest ? `${latest.exam_session} ${latest.exam_year} / ${latest.exam_type} / Attempt ${latest.attempt_no}` : '-' });
+        latestAttempt: latest ? `${require('./academicPolicy').formatExamPeriod(latest)} / ${latest.exam_type} / Attempt ${latest.attempt_no}` : '-' });
     }
     if (!hadBacklog) continue;
     for (const term of terms) {
