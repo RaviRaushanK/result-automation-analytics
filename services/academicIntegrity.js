@@ -59,11 +59,15 @@ function originalDocumentErrors(saved, session, student, attempt, verified, mixe
   const mismatches = checks.filter(check => check.status === 'MISMATCH' && !(mixed && ['Semester','Attempt','Exam type'].includes(check.field)));
   const errors = mismatches.map(check => `Document ${check.field} ${check.document} does not match selected ${check.expected}. Select the correct student/examination session or replace the document.`);
   for (const check of checks.filter(check => !['Attempt','Exam type'].includes(check.field))) {
-    if (check.status === 'NOT PRESENT IN DOCUMENT' && !acknowledged(verified, check.field)) errors.push(`Verify the ${check.field} against the original marks card because it is not present in the document.`);
+    if (check.status === 'NOT PRESENT IN DOCUMENT' && !acknowledged(verified, check.field)) errors.push(missingVerificationMessage(check.field));
   }
   return errors;
 }
 const verificationKeys = { USN: 'usn', Semester: 'semester', 'Examination period': 'period', 'Old external marks': 'old_marks', 'Old external result': 'old_status' };
+function missingVerificationMessage(field) {
+  if (field === 'USN') return 'The student identity could not be verified from the document. Please confirm the USN against the original marks card.';
+  return `The ${field.toLowerCase()} could not be verified from the document. Please confirm it against the original marks card.`;
+}
 function acknowledged(values, field) { return values === true || values?.[verificationKeys[field]] === true; }
 function acknowledgments(body = {}) { return Object.fromEntries(Object.values(verificationKeys).map(key => [key, body['verify_' + key] === '1'])); }
 function summary(ex, target) { return contextChecks(ex, target).map(check => ({ ...check,

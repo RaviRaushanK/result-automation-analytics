@@ -10,7 +10,11 @@ document.addEventListener('DOMContentLoaded', function () {
   var sessionRequest = 0, subjectRequest = 0, departmentRequest = 0, facultyLoaded = false;
   function esc(v) { var e = document.createElement('div'); e.textContent = v == null ? '' : String(v); return e.innerHTML; }
   function batchLabel(b) { return b.batch_name + ' (' + b.start_year + '–' + b.end_year + ')'; }
-  function sessionLabel(s) { return /^\d+$/.test(String(s.semester)) ? 'Semester ' + s.semester : s.semester; }
+  function sessionLabel(s) {
+    if (!s) return '';
+    var semester = /^\d+$/.test(String(s.semester)) ? 'Semester ' + s.semester : s.semester;
+    return [semester, ExamPeriod.format(s)].filter(Boolean).join(' — ');
+  }
   function modal(id, show) { var el = $(id); if (el) bootstrap.Modal.getOrCreateInstance(el)[show ? 'show' : 'hide'](); }
   function error(id, msg) { var el = $(id); el.textContent = msg || ''; el.classList.toggle('d-none', !msg); }
   function toast(type, msg) { var c = $('facultyToastContainer'), el = document.createElement('div'); el.className = 'alert alert-' + type + ' alert-dismissible fade show'; el.innerHTML = esc(msg) + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>'; c.appendChild(el); setTimeout(() => bootstrap.Alert.getOrCreateInstance(el).close(), 4500); }

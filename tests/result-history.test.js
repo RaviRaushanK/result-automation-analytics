@@ -142,6 +142,29 @@ test('stale confirmation token and unvalidated staging cannot bypass final reval
   assert.match(decodeURIComponent((await f.invoke('confirmImport')).url), /older or unvalidated/);
   assert.equal(f.state.results.length, 0);
 });
+test('retired redirect messages are recomputed rather than echoed', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { usns: ['1MV25MC027'], semesters: [1] };
+  f.ocr.extracted_json.document_context_verified = {};
+  const query = { error: 'The document does not identify all examination details. Verify the displayed student and attempt against the original card before validating.' };
+  const missing = await f.invoke('showReviewPage', { query });
+  assert.match(missing.locals.formError, /examination period/);
+  assert.doesNotMatch(missing.locals.formError, /all examination details|displayed student|attempt/i);
+  f.ocr.extracted_json.document_evidence.periods = [{ exam_session: 'Jul', exam_year: 2026 }];
+  assert.equal((await f.invoke('showReviewPage', { query })).locals.formError, null);
+  f.ocr.extracted_json.document_evidence.periods = [{ exam_session: 'Dec', exam_year: 2025 }];
+  assert.match((await f.invoke('showReviewPage', { query })).locals.formError, /does not match/);
+});
+test('failed validation retains targeted verification controls', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { usns: ['1MV25MC027'], semesters: [1] };
+  const response = await f.invoke('validateReview', { body: { verify_period: undefined } });
+  assert.equal(response.statusCode, 422);
+  assert.match(response.locals.formError, /examination period/);
+  assert.doesNotMatch(response.locals.formError, /student identity|all examination details|attempt against/i);
+  assert.equal(response.locals.documentChecks.find(check => check.field === 'Examination period').status, 'NOT PRESENT IN DOCUMENT');
+  assert.equal(response.locals.documentChecks.find(check => check.field === 'USN').status, 'MATCH');
+});
 for (const field of ['usn','semester','period']) {
   test('positive original document contradiction cannot be manually confirmed away: ' + field, async () => {
     const f = fixture({ semester: 1 });

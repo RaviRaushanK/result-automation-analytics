@@ -18,13 +18,27 @@ test('all document identity fields match without acknowledgment; attempt/type de
 });
 test('missing critical fields require their own acknowledgment; blanket flag has no effect', () => {
   const missingPeriod = { ...full, periods: [] };
-  assert.match(errors(missingPeriod).join(), /Examination period/);
+  assert.match(errors(missingPeriod).join(), /examination period/);
   assert.deepEqual(errors(missingPeriod, { period: true }), []);
   assert.ok(errors(missingPeriod, integrity.acknowledgments({ verify_document_context: '1' })).length);
   const missingUsn = { ...full, usns: [] };
   assert.match(errors(missingUsn).join(), /USN/);
   assert.ok(errors(missingUsn, { period: true }).length);
   assert.deepEqual(errors(missingUsn, { usn: true }), []);
+});
+test('validation errors name only unresolved fields and never history-derived fields', () => {
+  assert.deepEqual(errors(full), []);
+  const onlyPeriod = errors({ ...full, periods: [] }).join(' ');
+  assert.match(onlyPeriod, /examination period/);
+  assert.doesNotMatch(onlyPeriod, /USN|semester|attempt|exam type|all examination details/i);
+  const onlyIdentity = errors({ ...full, usns: [] }).join(' ');
+  assert.match(onlyIdentity, /student identity.*USN/);
+  assert.doesNotMatch(onlyIdentity, /semester|examination period|attempt|exam type/i);
+  const both = errors({ ...full, usns: [], periods: [] });
+  assert.equal(both.length, 2);
+  assert.match(both.join(' '), /student identity/);
+  assert.match(both.join(' '), /examination period/);
+  assert.doesNotMatch(both.join(' '), /semester|attempt|exam type/i);
 });
 test('positive period/type contradictions cannot be acknowledged away', () => {
   assert.match(errors({ ...full, periods: [{ exam_session: 'Dec', exam_year: 2025 }] }, { period: true }).join(), /does not match/);

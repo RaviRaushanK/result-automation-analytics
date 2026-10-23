@@ -150,14 +150,24 @@ const facultyController = {
         .status(201)
         .json({ success: true, message: "Faculty added successfully.", data });
     } catch (error) {
-      console.error("Faculty create error:", error);
-      if (error.name === "SequelizeUniqueConstraintError")
+      if (error.name === "SequelizeUniqueConstraintError") {
+        const fields = new Set([
+          ...Object.keys(error.fields || {}),
+          ...(error.errors || []).map(item => item.path),
+        ]);
+        let message = "A faculty record with these details already exists. Review the existing faculty before creating another record.";
+        if (fields.has("faculty_code"))
+          message = "This faculty code already exists. Use the existing faculty record or enter a different faculty code.";
+        else if (fields.has("email"))
+          message = "This faculty email already exists. Use the existing faculty record or enter a different email address.";
         return res
           .status(409)
           .json({
             success: false,
-            message: "Faculty code or email already exists.",
+            message,
           });
+      }
+      console.error("Faculty create error:", error);
       res
         .status(500)
         .json({

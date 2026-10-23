@@ -40,6 +40,10 @@ function fixture() {
   }
   const models = {
     Batch: { findOne: async () => ({ batch_id: 2 }) },
+    Result: { findAll: async options => {
+      assert.deepEqual(Object.keys(options.where), ['student_id']);
+      return options.where.student_id[Op.in].some(id => String(id) === '1') ? [{ student_id: '1' }] : [];
+    } },
     Student: {
       count: async options => { calls.push({ type: 'count', options }); const rows = selected(options); return options.distinct ? new Set(rows.map(row => row.category)).size : rows.length; },
       findAll: async options => { calls.push({ type: 'rows', options }); return selected(options).sort((a, b) => a.usn.localeCompare(b.usn) || a.student_id - b.student_id).slice(options.offset, options.offset + options.limit); }
@@ -182,11 +186,46 @@ test('existing Student Result links carry authoritative batch and student identi
   const html = ejs.renderFile;
   assert.equal(typeof html, 'function');
   const rendered = ejs.render(fs.readFileSync(path.join(__dirname, '../views/students/partials/rows.ejs'), 'utf8'), {
-    rows: [records[0]], filters: { search: '' }, pagination: { page: 2, pageSize: 25 }
+    rows: [{ ...records[0], has_results: true }], filters: { search: '' }, pagination: { page: 2, pageSize: 25 }
   });
   assert.match(rendered, /\/reports\/student\?batch_id=1&amp;student_id=1/);
   assert.match(rendered, /View Results/); assert.match(rendered, /data-act="edit"/); assert.match(rendered, /data-act="delete"/);
   assert.match(rendered, /<td>26<\/td>/);
+});
+
+test('any saved result enables View Results without requiring later semesters or a passing outcome', async () => {
+  const { service } = fixture();
+  const listing = await service.list({ batch_id: 'all' });
+  assert.equal(listing.rows[0].has_results, true);
+  assert.ok(listing.rows.slice(1).every(row => row.has_results === false));
+  assert.equal(JSON.parse(JSON.stringify(listing.rows[0])).has_results, true);
+});
+
+test('initial and refreshed student rows disable navigation only when no saved results exist', () => {
+  const ejs = require('ejs');
+  const template = fs.readFileSync(path.join(__dirname, '../views/students/partials/rows.ejs'), 'utf8');
+  const browser = fs.readFileSync(path.join(__dirname, '../public/js/students.js'), 'utf8');
+  const rowFunction = browser.slice(browser.indexOf('  function rowHtml('), browser.indexOf('  function parameters('));
+  const context = { pagination: { page: 1, pageSize: 25 }, URLSearchParams,
+    esc: value => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;'), batchName: () => 'MCA' };
+  vm.runInNewContext(rowFunction, context);
+  for (const has_results of [false, true]) {
+    const student = { student_id: 1, batch_id: 1, usn: 'TEST001', student_name: 'Test Student', status: 'active', has_results };
+    const initial = ejs.render(template, { rows: [student], filters: {}, pagination: context.pagination });
+    const refreshed = context.rowHtml(student, 0);
+    for (const html of [initial, refreshed]) {
+      if (has_results) {
+        assert.match(html, /<a[^>]+href="\/reports\/student\?batch_id=1&amp;student_id=1"/);
+        assert.doesNotMatch(html, /aria-disabled="true"/);
+      } else {
+        assert.match(html, /<button[^>]+students-results-link[^>]+disabled aria-disabled="true"/);
+        assert.match(html, /No results uploaded/);
+        assert.doesNotMatch(html, /href="\/reports\/student/);
+      }
+      assert.match(html, /data-act="edit"/);
+      assert.match(html, /data-act="delete"/);
+    }
+  }
 });
 
 test('read-only MySQL search agrees with current collation and excludes deleted students', { skip: process.env.REPORTS_DB_TEST !== '1' }, async () => {

@@ -39,7 +39,7 @@ function fixture(batches = []) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/students.js'), 'utf8'), browser);
   const flush = async () => { const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn()); await pause(0); };
   const respond = async (request, student, total = 1, page = 1) => {
-    request.respond({ success: true, data: student ? [{ student_id: 42, batch_id: 2, usn: 'USN042', email: 'student@gmail.com', student_name: student, category: 'PGCET', status: 'active' }] : [],
+    request.respond({ success: true, data: student ? [{ student_id: 42, has_results: true, batch_id: 2, usn: 'USN042', email: 'student@gmail.com', student_name: student, category: 'PGCET', status: 'active' }] : [],
       pagination: { page, pageSize: 25, totalRows: total, totalPages: Math.ceil(total / 25) } }); await pause(0);
   };
   return { element, events, requests, history, location, flush, respond };

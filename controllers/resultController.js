@@ -611,7 +611,14 @@ const resultController = {
       let duplicateStudent = false;
       let registrationError = null;
       let nameError = null;
-      const reviewError = typeof req.query?.error === 'string' ? req.query.error : null;
+      let reviewError = typeof req.query?.error === 'string' ? req.query.error : null;
+      // Old redirects/bookmarks can carry the retired blanket verification error.
+      // Recompute it from authoritative evidence instead of repeating stale wording.
+      if (/^The document does not identify all examination details\./.test(reviewError || '')) {
+        reviewError = integrity.originalDocumentErrors(ctx.saved, ctx.session, ctx.saved.student || {}, attemptInfo,
+          typeof ctx.saved.document_context_verified === 'object' ? ctx.saved.document_context_verified : {},
+          false).join(' ') || null;
+      }
       if (usn) {
         const existingStudent = await Student.findOne({ where: { usn: usn.trim().toUpperCase() } });
         // Initial extraction remains editable; only failed workflow redirects block Review.
@@ -807,6 +814,8 @@ const resultController = {
           sessionDisplay: ctx.sessionDisplay,
           student: payload.student,
           attempt: { attempt_no: attemptNo, exam_type: examType },
+          documentChecks: integrity.summary(ctx.saved.document_evidence || {}, { ...(ctx.session.toJSON?.() || ctx.session),
+            usn: payload.student.usn, attempt_no: attemptNo, exam_type: examType }),
           excludedSubjects: ctx.saved.excluded_subjects || [],
           subjects,
           warnings: historyWarnings,
