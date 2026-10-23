@@ -63,7 +63,7 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   replace(db.ResultSession, 'findByPk', async () => ({ session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 }));
   replace(db.Batch, 'findByPk', async () => ({ batch_id: 1 }));
   replace(db.OcrExtraction, 'findOne', async () => ({ validation_status: 'validated', extracted_json: JSON.stringify({ ...saved,
-    document_context_verified: true, review_token: 'fixture-review', configuration_snapshot: require('../services/academicConfiguration').snapshot(
+    document_context_verified: { usn: true, semester: true, period: true }, review_token: 'fixture-review', configuration_snapshot: require('../services/academicConfiguration').snapshot(
       { batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 }, definitions, definitions.map(subject => ({ ...subject, is_required: true, roster_verified: true }))) }) }));
   const definitions = [1, 2].map(subject_id => ({ subject_id, course_id: subject_id, subject_code: `S${subject_id}`, subject_name: `Subject ${subject_id}`, max_internal: 50, max_external: 100, max_marks: 150, credits: 4 }));
   replace(db.Subject, 'findAll', async () => definitions);

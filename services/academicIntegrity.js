@@ -58,7 +58,14 @@ function originalDocumentErrors(saved, session, student, attempt, verified, mixe
   const mixed = saved.excluded_subjects?.length && mixedVerified;
   const mismatches = checks.filter(check => check.status === 'MISMATCH' && !(mixed && ['Semester','Attempt','Exam type'].includes(check.field)));
   const errors = mismatches.map(check => `Document ${check.field} ${check.document} does not match selected ${check.expected}. Select the correct student/examination session or replace the document.`);
-  if (checks.some(check => check.status === 'NOT PRESENT IN DOCUMENT') && !verified) errors.push('The document does not identify all examination details. Verify the displayed student, academic semester, examination period and attempt against the original card before validating.');
+  for (const check of checks.filter(check => !['Attempt','Exam type'].includes(check.field))) {
+    if (check.status === 'NOT PRESENT IN DOCUMENT' && !acknowledged(verified, check.field)) errors.push(`Verify the ${check.field} against the original marks card because it is not present in the document.`);
+  }
   return errors;
 }
-module.exports = { digest, present, mark, code, usn, claims, contextChecks, duplicateRows, originalDocumentErrors };
+const verificationKeys = { USN: 'usn', Semester: 'semester', 'Examination period': 'period', 'Old external marks': 'old_marks', 'Old external result': 'old_status' };
+function acknowledged(values, field) { return values === true || values?.[verificationKeys[field]] === true; }
+function acknowledgments(body = {}) { return Object.fromEntries(Object.values(verificationKeys).map(key => [key, body['verify_' + key] === '1'])); }
+function summary(ex, target) { return contextChecks(ex, target).map(check => ({ ...check,
+  key: verificationKeys[check.field], derived: ['Attempt','Exam type'].includes(check.field) && check.status === 'NOT PRESENT IN DOCUMENT' })); }
+module.exports = { digest, present, mark, code, usn, claims, contextChecks, duplicateRows, originalDocumentErrors, acknowledged, acknowledgments, summary };

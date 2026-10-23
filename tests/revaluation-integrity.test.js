@@ -19,7 +19,7 @@ function fixture() {
       ocr: { extraction_status: 'extracted', student_candidates: { usn: 'AUDIT001' }, semester_candidate: 1,
         exam_session: 'Dec', exam_year: 2025, attempt_no: 1, exam_type: 'REGULAR',
         subjects: [{ subject_result_id: 1, subjectCode: 'MMC101', oldMarks: 20, oldResult: 'FAIL' }] },
-      review: { version: 1, identity_verified: true, target_snapshot: integrity.snapshot(result), submitted_by: 1,
+      review: { version: 1, identity_verified: { usn: true, semester: true, period: true, old_marks: true, old_status: true }, target_snapshot: integrity.snapshot(result), submitted_by: 1,
         baselines: { 1: { marks: 40, status: 'fail' } }, proposal: [{ subject_result_id: 1, decision: 'accept',
           proposed_revised_internal_marks: 40, proposed_revised_external_marks: 40, proposed_revised_total_marks: 80 }] } };
     const ocr = { validation_status: 'validated', extracted_json: saved, set(key, value) { this[key] = value; }, save: async () => {} };

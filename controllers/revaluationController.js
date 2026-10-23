@@ -2020,7 +2020,7 @@ exports.submitReview = async (req, res) => {
   if (accepts.length === 0) {
     return failRender('No subjects were accepted. Accept at least one subject or reject the revaluation from the extraction stage.');
   }
-  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, accepts.map(a => a.proposal), body.verify_missing_context === '1').errors;
+  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, accepts.map(a => a.proposal), academicIntegrity.acknowledgments(body)).errors;
   if (identityErrors.length) return failRender(identityErrors.join(' '));
   const duplicateError = await duplicateRevaluationError(st.result, undefined, st.saved, accepts.map(a => a.targetSrid));
   if (duplicateError) return failRender(duplicateError);
@@ -2057,7 +2057,7 @@ exports.submitReview = async (req, res) => {
       const nextJson = Object.assign({}, currentJson, {
         review: {
           version: Number(currentJson.review?.version || 0) + 1,
-          identity_verified: body.verify_missing_context === '1',
+          identity_verified: academicIntegrity.acknowledgments(body),
           target_snapshot: revaluationIntegrity.snapshot(st.result),
           submitted_at: new Date().toISOString(),
           submitted_by: resolveAdminId(req),
@@ -2221,7 +2221,7 @@ exports.addMissing = async (req, res) => {
   }
 
   // Merge into existing review proposal
-  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, [entry], req.body.verify_missing_context === '1').errors;
+  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, [entry], academicIntegrity.acknowledgments(req.body)).errors;
   if (identityErrors.length) return res.redirect('/revaluation/review/' + importId + '?error=' + enc(identityErrors.join(' ')));
   const t = await sequelize.transaction();
   try {
@@ -2237,7 +2237,7 @@ exports.addMissing = async (req, res) => {
       review: Object.assign({}, currentJson.review || {}, {
         version: ((currentJson.review && currentJson.review.version) || 0) + 1,
         target_snapshot: revaluationIntegrity.snapshot(st.result),
-        identity_verified: req.body.verify_missing_context === '1',
+        identity_verified: academicIntegrity.acknowledgments(req.body),
         baselines: { ...(currentJson.review?.baselines || {}), [srid]: { marks: Number(sr.marks), status: sr.result_status } },
         proposal: nextProposal
       })
@@ -2342,7 +2342,7 @@ exports.approveReview = async (req, res) => {
     const duplicateError = await duplicateRevaluationError(result, t, saved, accepts.map(a => a.tgt));
     if (duplicateError) throw new BadState(duplicateError);
     if (revaluationIntegrity.digest(review.target_snapshot) !== revaluationIntegrity.digest(revaluationIntegrity.snapshot(result))) throw new StaleState('The original student, attempt or subject configuration changed. Review the document against the current original record again.');
-    const identityErrors = revaluationIntegrity.verify(saved, result, review.proposal, review.identity_verified === true).errors;
+    const identityErrors = revaluationIntegrity.verify(saved, result, review.proposal, typeof review.identity_verified === 'object' ? review.identity_verified : {}).errors;
     if (identityErrors.length) throw new BadState(identityErrors.join(' '));
     if (Number(result.student_id) !== Number(saved.student_id) ||
         Number(result.session_id) !== Number(saved.session_id) ||

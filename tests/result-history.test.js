@@ -54,7 +54,7 @@ function fixture({ semester = 2, sessionId = 20, history = [], student = true, d
   const definition = { subject_id: 1, course_id: 1, subject_type: 'theory', subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 };
   const log = { import_id: 9, file_name: 'test.pdf', file_type: 'pdf', ResultSession: session, update: async values => state.updates.push(values) };
   const ocr = { extracted_json: { student: { usn: '1MV25MC027', name: 'TEST STUDENT' }, attempt,
-    document_context_verified: true, review_token: 'fixture-review',
+    document_context_verified: { usn: true, semester: true, period: true }, review_token: 'fixture-review',
     configuration_snapshot: require('../services/academicConfiguration').snapshot(session, [definition], [{ ...definition, semester: String(semester), is_required: true, roster_verified: true, status: 'active' }]),
     subjects: [{ subject_id: 1, internalMarks: 40, externalMarks: 40 }] }, validation_status: 'validated',
   async update(values) { state.updates.push(values); Object.assign(this, values); } };
@@ -116,7 +116,7 @@ function fixture({ semester = 2, sessionId = 20, history = [], student = true, d
       render(view, locals) { this.view = view; this.locals = locals; }, redirect(url) { this.url = url; }, json(data) { this.data = data; } };
     await module.exports[method]({ params: { importId: '9' }, query: {},
       ...overrides, body: { usn: '1MV25MC027', name: 'TEST STUDENT', internal_1: '40', external_1: '40', student_id: 7, session_id: 20,
-        verify_document_context: '1', review_token: ocr.extracted_json.review_token, ...overrides.body } }, response);
+        verify_usn: '1', verify_semester: '1', verify_period: '1', review_token: ocr.extracted_json.review_token, ...overrides.body } }, response);
     return response;
   }
   return { state, session, ocr, transaction, invoke, db, definition };
@@ -147,7 +147,7 @@ for (const field of ['usn','semester','period']) {
     const f = fixture({ semester: 1 });
     f.ocr.extracted_json.document_evidence = field === 'usn' ? { usns: ['OTHER001'] }
       : field === 'semester' ? { semesters: [2] } : { periods: [{ exam_session: 'Dec', exam_year: 2025 }] };
-    const res = await f.invoke('validateReview', { body: { verify_document_context: '1', verify_mixed_context: '1' } });
+    const res = await f.invoke('validateReview', { body: { verify_usn: '1', verify_semester: '1', verify_period: '1', verify_mixed_context: '1' } });
     assert.equal(res.statusCode, 422); assert.match(res.locals.formError, /does not match/); assert.equal(f.state.results.length, 0);
   });
 }

@@ -217,7 +217,7 @@ function addImport(f) {
     AcademicCourse: { findAll: async () => [{ ...subject, is_required: true, roster_verified: true }] }
   };
   saved.configuration_snapshot = require('../services/academicConfiguration').snapshot(session, [subject], [{ ...subject, is_required: true, roster_verified: true }]);
-  saved.document_context_verified = true; saved.review_token = 'fixture-review';
+  saved.document_context_verified = { usn: true, semester: true, period: true }; saved.review_token = 'fixture-review';
   for (const [name, methods] of Object.entries(definitions)) Object.assign(f.models[name], methods);
   f.models.Result.create = async (values, options) => {
     assert.ok(options.transaction.release, 'Import must own the shared Student lock');
@@ -311,7 +311,7 @@ test('controlled revaluation approval creates separate event while preserving or
   const controller = load('controllers/revaluationController.js', { '../database/models': models, '../middlewares/upload': {},
     './resultController': { _test: { gradeFromPercent: policy.gradeFromPercent } } });
   const integrity = require('../services/revaluationIntegrity');
-  saved.review.target_snapshot = integrity.snapshot(result); saved.review.identity_verified = true;
+  saved.review.target_snapshot = integrity.snapshot(result); saved.review.identity_verified = { usn: true, semester: true, period: true, old_marks: true, old_status: true };
   const res = response(); await controller.approveReview({ params: { importId: 9 }, session: { adminId: 1 }, body: { review_token: integrity.digest(saved.review) } }, res);
   assert.equal(res.url, '/revaluation/outcome/9'); assert.equal(events.length, 1);
   assert.equal(events[0].subject_result_id, 11); assert.equal(events[0].revised_marks, 80);

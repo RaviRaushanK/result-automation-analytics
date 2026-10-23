@@ -77,7 +77,7 @@ function fixture(approved = true) {
       redirect(url) { this.url = url; }, render(view, locals) { this.view = view; this.locals = locals; } };
     await module.exports[method]({ params: { importId: '9', resultId: '7' }, query: {}, session,
       body: { session: 20, student: 7, result: 7, decision_1: 'accept', internal_1: '40', external_1: '40',
-        source_token: integrity.digest(ocr.extracted_json), review_token: integrity.digest(ocr.extracted_json.review), verify_missing_context: '1' }, ...overrides }, response);
+        source_token: integrity.digest(ocr.extracted_json), review_token: integrity.digest(ocr.extracted_json.review), verify_usn: '1', verify_semester: '1', verify_period: '1', verify_old_marks: '1', verify_old_status: '1' }, ...overrides }, response);
     return response;
   }
   return { state, invoke, ocr, log, result, transaction, controller: module.exports, session };
@@ -336,7 +336,7 @@ test('attempt picker allows approved duplicates to reach validation but still pr
 for (const value of ['50abc', '35.9', '1e3', [], [40], {}, null, Infinity, -1, 51]) {
   test('direct review submission rejects malformed revised marks ' + JSON.stringify(value), async () => {
     const f = fixture(false);
-    const response = await f.invoke('submitReview', { body: { source_token: integrity.digest(f.ocr.extracted_json), verify_missing_context: '1',
+    const response = await f.invoke('submitReview', { body: { source_token: integrity.digest(f.ocr.extracted_json), verify_usn: '1', verify_semester: '1', verify_period: '1', verify_old_marks: '1', verify_old_status: '1',
       decision_1: 'accept', internal_1: value, external_1: '40', is_effective: true, revaluation_status: 'approved' } });
     assert.equal(response.statusCode, 422); assert.equal(f.ocr.validation_status, 'pending'); assert.equal(f.state.writes, 0);
   });

@@ -48,7 +48,14 @@
   <%- include('partials/import-scope') %>
   <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
     <div class="alert alert-info">
-      <label><input type="checkbox" name="verify_document_context" value="1"> I verified the displayed student, academic semester, examination period and attempt against the original document, including any details OCR could not identify.</label>
+      <strong>Document Verification</strong>
+      <% if (typeof documentChecks !== 'undefined') { documentChecks.forEach(check => { %>
+        <div class="mt-2"><strong><%= check.field %>:</strong> <%= check.derived ? check.expected : check.status %>
+          <% if (check.derived) { %><span class="text-muted">Derived from academic history</span>
+          <% } else if (check.status === 'MISMATCH') { %><div class="text-danger">Document: <%= check.document %> — Selected: <%= check.expected %>. Confirmation is blocked.</div>
+          <% } else if (check.status === 'NOT PRESENT IN DOCUMENT') { %><div><label><input type="checkbox" name="verify_<%= check.key %>" value="1"> I verified the <%= check.field %> against the original marks card.</label></div><% } %>
+        </div>
+      <% }); } %>
       <% if (typeof excludedSubjects !== 'undefined' && excludedSubjects.length) { %><div><label><input type="checkbox" name="verify_mixed_context" value="1"> This is a mixed document. I verified that only the courses for the selected academic semester/attempt are included; the displayed excluded rows belong to a separate upload.</label></div><% } %>
     </div>
     <div class="result-review-layout">

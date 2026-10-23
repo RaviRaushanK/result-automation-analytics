@@ -632,6 +632,8 @@ const resultController = {
         sessionDisplay: ctx.sessionDisplay,
         student: ctx.saved.student || { usn: '', name: '' },
         attempt: attemptInfo,
+        documentChecks: integrity.summary(ctx.saved.document_evidence || {}, { ...ctx.session.toJSON?.() || ctx.session,
+          usn: ctx.saved.student?.usn, attempt_no: attemptInfo.attempt_no, exam_type: attemptInfo.exam_type }),
         excludedSubjects: ctx.saved.excluded_subjects || [],
         subjects,
         warnings,
@@ -752,13 +754,13 @@ const resultController = {
       }
       const historyWarnings = academicPolicy.isRetakeAttempt(examType)
         ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, attemptNo) : [];
-      const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, { exam_type: examType, attempt_no: attemptNo }, req.body.verify_document_context === '1', req.body.verify_mixed_context === '1');
+      const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, { exam_type: examType, attempt_no: attemptNo }, integrity.acknowledgments(req.body), req.body.verify_mixed_context === '1');
       if (documentErrors.length) errors.form = [errors.form, ...documentErrors].filter(Boolean).join(' ');
       await ctx.ocr.update({
         extracted_json: {
           configuration_snapshot: payload.configuration_snapshot,
           review_token: Object.keys(errors).length ? null : crypto.randomUUID(),
-          document_context_verified: req.body.verify_document_context === '1',
+          document_context_verified: integrity.acknowledgments(req.body),
           mixed_context_verified: req.body.verify_mixed_context === '1',
           document_evidence: ctx.saved.document_evidence,
           integrity_conflicts: ctx.saved.integrity_conflicts || [],
@@ -993,7 +995,7 @@ const resultController = {
         await t.rollback();
         return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(historyError));
       }
-      const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, attempt, ctx.saved.document_context_verified === true, ctx.saved.mixed_context_verified === true, t);
+      const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, attempt, typeof ctx.saved.document_context_verified === 'object' ? ctx.saved.document_context_verified : {}, ctx.saved.mixed_context_verified === true, t);
       if (documentErrors.length) {
         await t.rollback();
         return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(documentErrors.join(' ')));

@@ -161,8 +161,11 @@
     <input type="hidden" name="source_token" value="<%= meta.sourceToken || '' %>">
     <% if (meta.documentChecks) { %>
       <div class="alert alert-info">
-        <% meta.documentChecks.forEach(check => { %><div><strong><%= check.field %>:</strong> <%= check.status %><% if (check.document) { %> — <%= check.document %><% } %></div><% }) %>
-        <label><input type="checkbox" name="verify_missing_context" value="1" <%= review && review.identity_verified ? 'checked' : '' %>> I verified this document against the displayed existing student and examination attempt, including unavailable identity fields and the old external component status.</label>
+        <% meta.documentChecks.filter(check => !check.derived).forEach(check => { %><div><strong><%= check.field %>:</strong> <%= check.status %><% if (check.document) { %> — <%= check.document %><% } %></div><% }) %>
+        <% meta.documentChecks.filter(check => check.derived).forEach(check => { %><div><strong><%= check.field %>: <%= check.expected %></strong> — Derived from stored history</div><% }); %>
+        <% meta.documentChecks.filter(check => !check.derived && ['NOT PRESENT IN DOCUMENT','UNVERIFIED'].includes(check.status)).forEach(check => { %>
+          <div><label><input type="checkbox" name="verify_<%= check.key %>" value="1" <%= review?.identity_verified?.[check.key] === true ? 'checked' : '' %>> I verified the <%= check.field %> against the original card because authoritative comparison is unavailable.</label></div>
+        <% }); %>
         <div class="small mt-1">Printed old marks/result are external-component fields. Old external marks are checked when stored; the original external result status is not stored separately and needs verification against the card. It must not replace the stored overall outcome.</div>
       </div>
     <% } %>
