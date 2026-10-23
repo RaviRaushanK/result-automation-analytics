@@ -1,4 +1,10 @@
-.home-page{background:#f2f5fa;color:#17243b;min-height:100vh;font-family:Inter,system-ui,sans-serif}
+/* The public home page has fixed light surfaces in both application themes. */
+.home-page{--text-primary:#17243b;--text-secondary:#5d6d83;color-scheme:light;background:#f2f5fa;color:var(--text-primary);min-height:100vh;font-family:Inter,system-ui,sans-serif}
+:root .home-page :is(h1,h2,h3){color:var(--text-primary)}
+:root .home-page :is(.home-description,.home-access,.home-feature p,.home-start p){color:var(--text-secondary)}
+:root .home-page :is(.home-record small,.home-preview-header small,.home-preview-label,.home-preview-footer,.home-footer){color:var(--text-secondary)}
+/* Keep the inset insight panel's copy light on its navy background. */
+:root .home-page .home-insight p{color:#d5e2f3}
 .home-page *{box-sizing:border-box}
 .home-width{width:min(1160px,calc(100% - 64px));margin-inline:auto}
 .home-header{display:flex;justify-content:space-between;align-items:center;padding-block:26px;border-bottom:1px solid #dfe6ef}
@@ -105,4 +111,33 @@
 .home-header .home-signin:hover{background:#4a83ed;border-color:#83aafa;color:#fff;transform:none}
 .home-header .home-signin .material-icons{font-size:17px}
 #home-title{scroll-margin-top:28px}
+/* One quiet entrance per page visit; content stays available without motion. */
+@keyframes home-enter {
+  from { opacity:0; transform:translateY(18px); }
+  to { opacity:1; transform:translateY(0); }
+}
+@keyframes home-preview-enter {
+  from { opacity:0; transform:translateY(24px) rotate(0); }
+  to { opacity:1; transform:translateY(0) rotate(1deg); }
+}
+@media(prefers-reduced-motion:no-preference){
+  .home-page .home-navigation{animation:home-enter .55s ease-out both}
+  .home-copy > *{animation:home-enter .7s cubic-bezier(.2,.7,.3,1) both}
+  .home-copy > :nth-child(1){animation-delay:.08s}
+  .home-copy > :nth-child(2){animation-delay:.16s}
+  .home-copy > :nth-child(3){animation-delay:.25s}
+  .home-copy > :nth-child(4){animation-delay:.34s}
+  .home-copy > :nth-child(5){animation-delay:.42s}
+  .home-preview{animation:home-preview-enter .9s cubic-bezier(.2,.7,.3,1) .22s backwards}
+  .home-feature{animation:home-enter .7s ease-out .45s backwards}
+  .home-feature:nth-child(2){animation-delay:.53s}
+  .home-feature:nth-child(3){animation-delay:.61s}
+  .home-feature:nth-child(4){animation-delay:.69s}
+}
+@media(max-width:680px){
+  @keyframes home-preview-enter {
+    from { opacity:0; transform:translateY(24px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+}
 @media(max-width:680px){.home-header{padding:14px 15px;border-radius:12px}.home-header .home-brand{font-size:19px;gap:9px}.home-header .home-brand>.material-icons{width:36px;height:36px;font-size:22px}.home-header .home-brand small{font-size:8px;letter-spacing:0}.home-header .home-signin{margin-left:0;padding:10px 13px}.home-header .home-nav-link{display:none}}

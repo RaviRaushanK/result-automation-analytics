@@ -5,6 +5,29 @@
    ============================================ */
 
 /* ---------- Page Header ---------- */
+.dashboard-page {
+    color-scheme: light;
+    --bs-body-color: var(--text-primary);
+    --bs-secondary-color: var(--text-secondary);
+    --bs-heading-color: var(--text-primary);
+}
+:root[data-theme="dark"] .dashboard-page { color-scheme: dark; }
+.dashboard-page .card {
+    --bs-card-color: var(--text-primary);
+    color: var(--text-primary);
+}
+.dashboard-page .table {
+    --bs-table-color: var(--text-primary);
+    --bs-table-striped-color: var(--text-primary);
+    --bs-table-hover-color: var(--text-primary);
+    --bs-table-active-color: var(--text-primary);
+    --bs-table-border-color: var(--card-border);
+}
+:root[data-theme="dark"] .dashboard-page {
+    --color-success: #4ade80;
+    --color-danger: #f87171;
+}
+
 .dashboard-header {
     display: flex;
     align-items: center;

@@ -41,6 +41,25 @@ there is no `layouts/auth.ejs` or separate change-password template.
 Routes/controllers select layouts and supply locals. Error rendering uses the
 layout chosen by its handler, not a universally enforced error-only layout.
 
+### Public-page contrast and motion (23 October 2026)
+
+`public/css/home.css` owns the landing page's fixed light palette and its
+one-time entrance animations. `public/css/auth-pages.css` scopes light text
+tokens to white authentication cards, preserving the navy welcome panel.
+These local palettes prevent global dark-theme heading/paragraph/form rules
+from producing light text on white surfaces. Keep overrides scoped rather than
+changing the user's persisted appearance preference.
+
+`public/css/dashboard.css` maps Bootstrap card and table text variables to the
+workspace theme tokens and supplies readable dark-mode status colors. The public
+landing page (`/`) and signed-in dashboard are separate views/stylesheets.
+
+Landing animation rules run only under `prefers-reduced-motion: no-preference`.
+The navigation, hero copy, preview and feature cards animate once per page load;
+the mobile preview ends without rotation. There is no animation script or
+additional dependency. Preserve reduced-motion visibility and text contrast
+when changing these styles.
+
 ## Important Workflow Views
 
 **Public/authentication:** `landing/index.ejs` uses `home.css`,

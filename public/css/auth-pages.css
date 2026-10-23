@@ -2,7 +2,11 @@
 .auth-page .registration-intro{padding:36px 30px}
 .auth-page .registration-welcome{margin:52px 0 30px}
 .auth-page .registration-welcome h2{font-size:29px}
-.auth-page .auth-card{width:100%;max-width:none;min-width:0;border:0;border-radius:0;box-shadow:none;background:#fff;padding:42px 44px;display:flex;flex-direction:column;justify-content:center}
+/* These cards stay white even when the surrounding application uses dark mode.
+   Keep their inherited theme tokens local so global heading/form rules agree. */
+.auth-page .auth-card{--text-primary:#17243b;--text-secondary:#5d6d83;--card-bg:#fff;--card-border:#cfd8e5;color:#17243b;color-scheme:light;width:100%;max-width:none;min-width:0;border:0;border-radius:0;box-shadow:none;background:#fff;padding:42px 44px;display:flex;flex-direction:column;justify-content:center}
+.auth-page .auth-card .form-control::placeholder{color:var(--text-secondary);opacity:1}
+.auth-page .auth-card .auth-description,.auth-page .auth-card .auth-invitation,.auth-page .auth-card .registration-footer{color:var(--text-secondary)}
 .auth-form{width:100%;margin:0}
 .auth-description{font-size:13px;line-height:1.8;color:#64738a;margin:12px 0 26px}
 .auth-panel-note{display:flex;gap:12px;align-items:center;margin:0 0 36px;font-size:13px;color:#d1dff1}

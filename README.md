@@ -131,6 +131,18 @@ a collapsible mobile menu, and a workspace preview. Login, registration,
 Forgot Password and Reset Password use coordinated responsive layouts. Landing
 and workspace footers show **MCA Department, SMVIT** with an automatic year.
 
+The public landing page and white authentication cards keep a local light
+palette even when the application preference is Dark or System resolves to
+dark. Headings, supporting text and input placeholders remain readable; navy
+welcome/insight panels retain light text. The signed-in dashboard follows the
+selected theme, including card text, table states and status colors.
+
+On each landing-page visit, the navigation, headline, supporting copy and
+actions enter with a short staggered fade/slide. The workspace preview and
+feature cards follow. These CSS-only animations run once, require no JavaScript,
+and are disabled when `prefers-reduced-motion: reduce` is set. Mobile previews
+remain unrotated. Content remains available when animations are disabled.
+
 Forgot Password starts at `/forgot-password`. After successful email delivery,
 the same page displays the six-digit OTP field and a resend cooldown. Invalid
 codes stay on that page. OTP verification is bound to the requesting session.

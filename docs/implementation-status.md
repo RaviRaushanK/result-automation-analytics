@@ -43,6 +43,31 @@ timing and unrelated fixed notifications are unchanged.
 
 ## Verification Snapshot
 
+### Public-page contrast and entrance motion — 23 October 2026
+
+Implemented scoped contrast fixes in `home.css`, `auth-pages.css` and
+`dashboard.css`, plus a brief staggered CSS entrance on the landing page.
+Public light surfaces remain light in either application theme; the dashboard
+continues to follow the selected workspace theme. Reduced-motion preferences
+disable the landing animation.
+
+Executed verification for this follow-up:
+
+- Actual Login and Forgot Password pages: four browser contrast checks passed
+  (two pages in light/dark themes).
+- Rendered dashboard template: two theme contrast checks passed;
+  `node --test tests/dashboard.test.js`: seven passed, zero failed/skipped.
+- Actual public home page after the contrast fix: two theme checks passed,
+  with a visual screenshot inspection.
+- After adding motion, an isolated preview of the current landing template and
+  styles passed two theme contrast checks and three checks for active entrance
+  animation, reduced-motion visibility and mobile overflow. The application
+  server was stopped at that point, so this was not a live-route animation test.
+- `git diff --check` passed. No full regression suite was rerun for these
+  CSS-only changes; the older full-suite snapshot below remains historical.
+
+### Historical full-suite snapshot
+
 The default full-suite run on 17 October 2026 used Node.js 24.13.0 with
 `REPORTS_DB_TEST=0` and `DEMO_SEED_DB_TEST=0`:
 

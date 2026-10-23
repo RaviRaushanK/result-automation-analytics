@@ -4,7 +4,7 @@
       "label": "Dashboard",
       "icon": "dashboard",
       "route": "/dashboard",
-      "roles": ["admin", "faculty", "student"]
+      "roles": ["admin", "faculty"]
     },
     {
       "label": "Academic Management",
@@ -16,7 +16,7 @@
         { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
       ]
     },
-        {
+    {
       "label": "Student Repository",
       "icon": "person",
       "roles": ["admin", "faculty"],
