@@ -10,7 +10,7 @@ const service = require('../services/reportsService');
 const router = require('../routes/reportsRoutes');
 
 after(() => db.sequelize.close());
-const base = { batch_id: '1', semester: '1', session_id: '1' };
+const base = { batch_id: '1', semester: '1', exam_session_id: '1' };
 
 test('strict filter validation and Effective default', () => {
   assert.equal(service.normalize('class', base).mode, 'effective');
@@ -31,8 +31,8 @@ test('strict filter validation and Effective default', () => {
   assert.throws(() => service.normalize('result-analysis', { ...base, exam_type: 'REGULAR' }));
   assert.equal(service.normalize('student-progress', { batch_id: '1' }).mode, 'effective');
   assert.throws(() => service.normalize('student-progress', base), /supports Batch/);
-  assert.throws(() => service.normalize('consolidated', { ...base, session_id: 'all' }));
-  assert.throws(() => service.normalize('consolidated', { ...base, semester: 'all', session_id: '' }));
+  assert.throws(() => service.normalize('consolidated', { ...base, exam_session_id: 'all' }));
+  assert.throws(() => service.normalize('consolidated', { ...base, semester: 'all', exam_session_id: '' }));
 });
 
 test('CSV escaping, spreadsheet safety, and nullable data', () => {
@@ -94,7 +94,7 @@ test('page, API and export roles are enforced server-side', async () => {
 const fixture = `WITH
  batches AS (SELECT 1 batch_id, 'Batch A' batch_name, 2024 start_year, 2026 end_year, NULL deleted_at
    UNION ALL SELECT 2, 'Batch B', 2025, 2027, NULL),
- result_sessions AS (SELECT 1 session_id, 1 batch_id, '1' semester, 'JAN' exam_session, 2026 exam_year, 1 exam_start_month, 2026 exam_start_year, 1 exam_end_month, 2026 exam_end_year
+ exam_sessions AS (SELECT 1 exam_session_id, 1 batch_id, '1' semester, 'JAN' exam_session, 2026 exam_year, 1 exam_start_month, 2026 exam_start_year, 1 exam_end_month, 2026 exam_end_year
    UNION ALL SELECT 2, 2, '1', 'JUN', 2026, 6, 2026, 6, 2026
    UNION ALL SELECT 3, 1, '2', 'JUN', 2026, 6, 2026, 6, 2026
    UNION ALL SELECT 4, 1, '10', 'DEC', 2027, 12, 2027, 12, 2027
@@ -105,14 +105,14 @@ const fixture = `WITH
    UNION ALL SELECT 2, 1, 'USN2', 'Student Two', NULL, NULL
    UNION ALL SELECT 3, 1, 'USN3', 'Deleted', '2026-01-01', 'MGT'
    UNION ALL SELECT 4, 2, 'USN4', 'Other Batch', NULL, 'MGT'),
- subjects AS (SELECT 1 subject_id, 1 session_id, 'MCA101' subject_code, 'Subject One' subject_name, 4 credits, 100 max_marks
+ subjects AS (SELECT 1 subject_id, 1 exam_session_id, 'MCA101' subject_code, 'Subject One' subject_name, 4 credits, 100 max_marks
    UNION ALL SELECT 2, 1, 'MCA102', 'Subject Two', 4, 100
    UNION ALL SELECT 3, 2, 'MCA101', 'Other Session', 4, 100
    UNION ALL SELECT 4, 3, 'MCA201', 'Semester Two', 4, 100
    UNION ALL SELECT 5, 4, 'MCA1001', 'Semester Ten', 4, 100
    UNION ALL SELECT 6, 5, 'MCA401', 'Semester Four', 4, 100
    UNION ALL SELECT 7, 7, 'MCA101', 'Another Session', 4, 100),
- results AS (SELECT 1 result_id, 1 student_id, 1 session_id, 1 attempt_no, 'REGULAR' exam_type, 3.5 sgpa, NULL cgpa, 'fail' result_status, 1 failed_subject_count
+ results AS (SELECT 1 result_id, 1 student_id, 1 exam_session_id, 1 attempt_no, 'REGULAR' exam_type, 3.5 sgpa, NULL cgpa, 'fail' result_status, 1 failed_subject_count
    UNION ALL SELECT 2, 1, 1, 2, 'BACKLOG', 6.0, 6.0, 'pass', 0
    UNION ALL SELECT 3, 2, 1, 1, 'REGULAR', NULL, NULL, 'fail', 1
    UNION ALL SELECT 4, 3, 1, 1, 'REGULAR', 9.0, 9.0, 'pass', 0
@@ -162,8 +162,8 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
     const additions = `,
       academic_courses AS (SELECT MIN(s.subject_id) course_id,rs.batch_id,rs.semester,s.subject_code,MIN(s.subject_name) subject_name,
         4 credits,50 max_internal,50 max_external,100 max_marks,'active' status,1 is_required,1 roster_verified
-        FROM offering_fixture s JOIN result_sessions rs ON rs.session_id=s.session_id GROUP BY rs.batch_id,rs.semester,s.subject_code),
-      subjects AS (SELECT s.*,c.course_id FROM offering_fixture s JOIN result_sessions rs ON rs.session_id=s.session_id
+        FROM offering_fixture s JOIN exam_sessions rs ON rs.exam_session_id=s.exam_session_id GROUP BY rs.batch_id,rs.semester,s.subject_code),
+      subjects AS (SELECT s.*,c.course_id FROM offering_fixture s JOIN exam_sessions rs ON rs.exam_session_id=s.exam_session_id
         JOIN academic_courses c ON c.batch_id=rs.batch_id AND c.semester=rs.semester AND c.subject_code=s.subject_code),
       results AS (SELECT r.*,'LEGACY' sgpa_source,'LEGACY' cgpa_source,0 cgpa_is_cumulative,NULL grading_scheme_version FROM result_fixture r),
       subject_results AS (SELECT sr.*,NULL course_id_snapshot,NULL grade_point,NULL credits_snapshot,NULL grading_scheme_version FROM marks_fixture sr)
@@ -265,12 +265,12 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.deepEqual(effective.chart.values, effective.subjects.map(subject => subject.total.passPercentage));
       assert.deepEqual(effective.chart.labels, ['MCA101', 'MCA102']);
       assert.equal(effective.pagination.totalPages, 1);
-      await assert.rejects(service.getReport('result-analysis', { ...base, session_id: '2' }), /does not belong/);
+      await assert.rejects(service.getReport('result-analysis', { ...base, exam_session_id: '2' }), /does not belong/);
       await assert.rejects(service.getReport('result-analysis', { ...base, semester: '2' }), /does not belong/);
-      const repeatOnly = await service.getReport('result-analysis', { ...base, session_id: '7' });
+      const repeatOnly = await service.getReport('result-analysis', { ...base, exam_session_id: '7' });
       assert.deepEqual(repeatOnly.rows[0].regular, { appeared: 0, passed: 0, passPercentage: 0 });
       assert.deepEqual(repeatOnly.rows[0].repeaters, { appeared: 1, passed: 1, passPercentage: 100 });
-      const empty = await service.getReport('result-analysis', { ...base, semester: '3', session_id: '6' });
+      const empty = await service.getReport('result-analysis', { ...base, semester: '3', exam_session_id: '6' });
       assert.equal(empty.rows.length, 0); assert.equal(empty.overall.appeared, 0); assert.equal(empty.overall.passPercentage, 0);
     });
     await t.test('analysis retains zero-appearance subjects and never sums subject APP for overall APP', async () => {
@@ -331,9 +331,9 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       const backlog = await service.getReport('consolidated', { ...base, exam_type: 'BACKLOG' });
       assert.equal(backlog.rows.length, 1);
       assert.equal(Number(backlog.rows[0].attempt_no), 2);
-      await assert.rejects(service.getReport('consolidated', { ...base, session_id: '2' }), /does not belong/);
+      await assert.rejects(service.getReport('consolidated', { ...base, exam_session_id: '2' }), /does not belong/);
       await assert.rejects(service.getReport('consolidated', { ...base, semester: '2' }), /does not belong/);
-      const empty = await service.getReport('consolidated', { ...base, semester: '3', session_id: '6' });
+      const empty = await service.getReport('consolidated', { ...base, semester: '3', exam_session_id: '6' });
       assert.equal(empty.subjects.length, 0); assert.equal(empty.rows.length, 0);
     });
     await t.test('consolidated percentage uses varying actual maxima and query count stays batched', async () => {
@@ -390,13 +390,13 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.deepEqual(first.columns.map(column => column.label), ['Rank', 'USN', 'Student Name', 'Attempt No.', 'Exam Type', 'Subjects', 'Passed', 'Total', 'SGPA', 'CGPA', '% Percentage', 'Result']);
       assert.equal(first.filters.mode, 'original');
       assert.equal(Number(first.rows[0].position), 1);
-      const tied = await service.getReport('toppers', { ...base, semester: '2', session_id: '3' });
+      const tied = await service.getReport('toppers', { ...base, semester: '2', exam_session_id: '3' });
       assert.deepEqual(tied.rows.map(row => [Number(row.position), Number(row.attempt_no)]), [[1, 1], [2, 2]]);
       const regular = await service.getReport('toppers', { ...base, exam_type: 'REGULAR' });
       assert.equal(regular.rows.length, 0, 'Failed, NULL CGPA and soft-deleted results are excluded');
       const backlog = await service.getReport('toppers', { ...base, exam_type: 'BACKLOG' });
       assert.equal(backlog.rows.length, 1);
-      await assert.rejects(service.getReport('toppers', { ...base, session_id: '2' }), /does not belong/);
+      await assert.rejects(service.getReport('toppers', { ...base, exam_session_id: '2' }), /does not belong/);
       assert.match(first.context.find(([label]) => label === 'Ranking Basis')[1], /original CGPA/);
     });
     await t.test('toppers totals sum subject marks and handle missing marks or invalid maxima', async () => {
@@ -485,19 +485,19 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.equal(approved.rows.length, 5);
     });
     await t.test('wrong ownership, invalid attempts, empty result, page clamping', async () => {
-      await assert.rejects(service.getReport('class', { ...base, session_id: '2' }), /does not belong/);
+      await assert.rejects(service.getReport('class', { ...base, exam_session_id: '2' }), /does not belong/);
       await assert.rejects(service.getReport('class', { ...base, semester: '2' }), /does not belong/);
       await assert.rejects(service.getReport('subject', { ...base, subject_id: '3' }), /does not belong/);
       await assert.rejects(service.getReport('student', { ...base, student_id: '4', attempt_no: '1' }), /does not belong/);
       await assert.rejects(service.getReport('student', { ...base, student_id: '1', attempt_no: '99' }), /not found/);
-      const empty = await service.getReport('class', { batch_id: '2', semester: '1', session_id: '2' });
+      const empty = await service.getReport('class', { batch_id: '2', semester: '1', exam_session_id: '2' });
       assert.equal(empty.pagination.totalRows, 0);
       assert.equal(empty.rows.length, 0);
       const paged = await service.getReport('class', { ...base, page: '999' });
       assert.equal(paged.pagination.page, 1);
     });
     await t.test('completed semesters and sessions are student-driven, numerically ordered, and future-ready', async () => {
-      const query = { batch_id: '1', student_id: '1', semester: 'all', session_id: 'all' };
+      const query = { batch_id: '1', student_id: '1', semester: 'all', exam_session_id: 'all' };
       const semesters = await service.getOptions('student-semesters', query);
       assert.deepEqual(semesters.map(row => row.semester), ['1', '2', '4', '10']);
       const report = await service.getReport('student', query);
@@ -516,23 +516,23 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.deepEqual(updated.map(row => row.semester), ['1', '2', '4', '10']);
     });
     await t.test('specific semester/all sessions; all semesters/scoped session; unknown and empty scopes', async () => {
-      const query = { batch_id: '1', student_id: '1', semester: '1', session_id: 'all' };
+      const query = { batch_id: '1', student_id: '1', semester: '1', exam_session_id: 'all' };
       const report = await service.getReport('student', query);
       assert.equal(report.semesters.length, 1);
       assert.equal(report.semesters[0].sessions.length, 2);
       assert.equal(report.rows.length, 4);
       const sessions = await service.getOptions('student-sessions', query);
-      assert.deepEqual(sessions.map(row => Number(row.session_id)), [1, 7]);
-      const one = await service.getReport('student', { ...query, semester: 'all', session_id: '3', attempt_no: '2' });
+      assert.deepEqual(sessions.map(row => Number(row.exam_session_id)), [1, 7]);
+      const one = await service.getReport('student', { ...query, semester: 'all', exam_session_id: '3', attempt_no: '2' });
       assert.equal(one.semesters[0].semester, '2');
       assert.equal(Number(one.rows[0].internal_marks), 0);
-      await assert.rejects(service.getReport('student', { ...query, semester: '1', session_id: '3', attempt_no: '1' }), /does not belong/);
+      await assert.rejects(service.getReport('student', { ...query, semester: '1', exam_session_id: '3', attempt_no: '1' }), /does not belong/);
       await assert.rejects(service.getReport('student', { ...query, attempt_no: '1' }), /requires a specific/);
       await assert.rejects(service.getOptions('student-sessions', { ...query, student_id: '4' }), /does not belong/);
       const empty = await service.getReport('student', { ...query, semester: '3' });
       assert.equal(empty.semesters.length, 0);
       assert.equal(empty.rows.length, 0);
-      const noResults = await service.getReport('student', { batch_id: '2', student_id: '4', semester: 'all', session_id: 'all' });
+      const noResults = await service.getReport('student', { batch_id: '2', student_id: '4', semester: 'all', exam_session_id: 'all' });
       assert.equal(noResults.semesters.length, 0);
       let queries = 0;
       db.sequelize.query = (sql, options) => { queries++; return originalQuery(fixture + sql, options); };
@@ -594,7 +594,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.match(csvText, /Marks Obt\.,SGPA,CGPA,First Attempt,Pass in Backlog/);
             assert.match(csvText, /1,USN1,Student One,PGCET,135/);
             assert.match(csvText, /2,USN2,Student Two/);
-            assert.doesNotMatch(html, /name="session_id"|name="semester"/);
+            assert.doesNotMatch(html, /name="exam_session_id"|name="semester"/);
           }
           const print = await fetch(`${url}/reports/${type}/print?${query}`);
           assert.equal(print.status, 200);
@@ -633,7 +633,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.equal((printText.match(/<tr><td>/g) || []).length, 2);
           }
         }
-        const consolidated = new URLSearchParams({ batch_id: '1', student_id: '1', semester: 'all', session_id: 'all' });
+        const consolidated = new URLSearchParams({ batch_id: '1', student_id: '1', semester: 'all', exam_session_id: 'all' });
         const csv = await fetch(`${url}/reports/student/export.csv?${consolidated}`);
         const text = await csv.text();
         assert.match(text, /Semester,Examination Period,Attempt No\.,Exam Type,Subject Code,Subject Name,Credits,IA,External,Total/);

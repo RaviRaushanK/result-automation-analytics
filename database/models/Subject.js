@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       unique: true
     },
-    session_id: {
+    exam_session_id: {
       type: DataTypes.BIGINT,
       allowNull: false
     },
@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(20),
       allowNull: false
     },
-    // Composite unique index (session_id, subject_code)
+    // Composite unique index (exam_session_id, subject_code)
     // Sequelize will enforce this via the indexes array below
     subject_name: {
       type: DataTypes.STRING(100),
@@ -65,7 +65,7 @@ module.exports = (sequelize, DataTypes) => {
     indexes: [
       {
         unique: true,
-        fields: ['session_id', 'subject_code'],
+        fields: ['exam_session_id', 'subject_code'],
         name: 'unique_session_subject_code'
       }
     ]

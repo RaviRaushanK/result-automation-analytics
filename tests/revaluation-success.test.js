@@ -5,7 +5,7 @@ const ejs = require('ejs');
 const path = require('node:path');
 const template = path.join(__dirname, '../views/revaluation/outcome.ejs');
 const values = { logStatus: 'success', events: [{ id: 1, srid: 2, no: 1, originalMarks: 40, revisedMarks: 60, originalStatus: 'fail', revisedStatus: 'pass', revisedGrade: 'B', isEffective: true, remarks: '' }],
-  meta: { importId: 1, resultId: 2, studentName: 'TEST STUDENT', studentUsn: 'TEST001', sessionDisplay: 'June 2026', attemptNo: 1, examType: 'REGULAR', docUrl: null, sessionId: 1 },
+  meta: { importId: 1, resultId: 2, studentName: 'TEST STUDENT', studentUsn: 'TEST001', sessionDisplay: 'June 2026', attemptNo: 1, examType: 'REGULAR', docUrl: null, examSessionId: 1 },
   rows: [], aggregates: { overall_result: 'pass', sgpa: 7, cgpa: 7, failed_subject_count: 0 }, origResult: { sgpa: 4, cgpa: 4, result_status: 'fail', failed_subject_count: 1 },
   reviewedAt: null, reviewPresent: true, notice: null, error: null };
 

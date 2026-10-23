@@ -6,7 +6,7 @@ const {
   Department,
   Subject,
   SubjectFaculty,
-  ResultSession,
+  ExamSession,
   sequelize,
 } = require("../database/models");
 
@@ -212,8 +212,8 @@ const facultyController = {
       }
       transaction = await sequelize.transaction();
       const batchId = req.body.batch_id;
-      const session = await ResultSession.findByPk(req.body.session_id, {
-        attributes: ["session_id", "batch_id"],
+      const session = await ExamSession.findByPk(req.body.exam_session_id, {
+        attributes: ["exam_session_id", "batch_id"],
         transaction,
       });
       if (!batchId)
@@ -235,7 +235,7 @@ const facultyController = {
       const subjects = await Subject.findAll({
         where: {
           subject_id: { [Op.in]: subjectIds },
-          session_id: session.session_id,
+          exam_session_id: session.exam_session_id,
         },
         attributes: ["subject_id"],
         transaction,

@@ -14,7 +14,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT,
       allowNull: false
     },
-    session_id: {
+    exam_session_id: {
       type: DataTypes.BIGINT,
       allowNull: false
     },

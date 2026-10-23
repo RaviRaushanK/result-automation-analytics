@@ -11,11 +11,11 @@ const policy = require('../services/academicPolicy');
 function fixture() {
   const subject = { subject_id: 1, subject_code: 'MMC101', max_internal: 50, max_external: 50, max_marks: 100, credits: 4 };
   const sr = { subject_result_id: 1, result_id: 7, subject_id: 1, internal_marks: 20, external_marks: 20, marks: 40, grade: 'F', result_status: 'fail', Subject: subject };
-  const result = { result_id: 7, student_id: 7, session_id: 20, exam_type: 'REGULAR', attempt_no: 1, sgpa: 0, cgpa: 0,
-    Student: { usn: 'AUDIT001', student_name: 'AUDIT STUDENT' }, ResultSession: { semester: '1', exam_session: 'Dec', exam_year: 2025 }, SubjectResults: [sr] };
+  const result = { result_id: 7, student_id: 7, exam_session_id: 20, exam_type: 'REGULAR', attempt_no: 1, sgpa: 0, cgpa: 0,
+    Student: { usn: 'AUDIT001', student_name: 'AUDIT STUDENT' }, ExamSession: { semester: '1', exam_session: 'Dec', exam_year: 2025 }, SubjectResults: [sr] };
   const events = [], logs = new Map(); let tail = Promise.resolve();
   function draft(id, sha = 'document-' + id) {
-    const saved = { result_id: 7, student_id: 7, session_id: 20, attempt: { exam_type: 'REGULAR', attempt_no: 1 }, documents: [{ sha256: sha }],
+    const saved = { result_id: 7, student_id: 7, exam_session_id: 20, attempt: { exam_type: 'REGULAR', attempt_no: 1 }, documents: [{ sha256: sha }],
       ocr: { extraction_status: 'extracted', student_candidates: { usn: 'AUDIT001' }, semester_candidate: 1,
         exam_session: 'Dec', exam_year: 2025, attempt_no: 1, exam_type: 'REGULAR',
         subjects: [{ subject_result_id: 1, subjectCode: 'MMC101', oldMarks: 20, oldResult: 'FAIL' }] },

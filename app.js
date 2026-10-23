@@ -91,7 +91,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const batchRoutes = require("./routes/batchRoutes");
 const resultRoutes = require("./routes/resultRoutes");
 const revaluationRoutes = require("./routes/revaluationRoutes");
-const sessionRoutes = require("./routes/sessionRoutes");
+const examSessionRoutes = require("./routes/examSessionRoutes");
 const subjectRoutes = require("./routes/subjectRoutes");
 const facultyRoutes = require("./routes/facultyRoutes");
 const adminMiddleware = require("./middlewares/adminMiddleware");
@@ -117,11 +117,14 @@ app.get("/api/health", (req, res) => {
 // Protected Routes
 // ======================
 
+// Normalize academic IDs at the HTTP boundary; login sessions are untouched.
+app.use(['/exam-sessions', '/sessions', '/results', '/revaluation', '/subjects', '/faculty', '/analytics', '/reports', '/dashboard'], require('./middlewares/examSessionParameters'));
 app.use("/dashboard", authMiddleware, dashboardRoutes);
 app.use("/batches", authMiddleware, batchRoutes);
 app.use("/results", authMiddleware, resultRoutes);
 app.use("/revaluation", authMiddleware, revaluationRoutes);
-app.use("/sessions", authMiddleware, sessionRoutes);
+app.use("/sessions", authMiddleware, require('./middlewares/legacyExamSessionRedirect'));
+app.use("/exam-sessions", authMiddleware, examSessionRoutes);
 app.use("/subjects", authMiddleware, subjectRoutes);
 app.use("/faculty", authMiddleware, adminMiddleware, facultyRoutes);
 app.use('/analytics', authMiddleware, analyticsRoutes);

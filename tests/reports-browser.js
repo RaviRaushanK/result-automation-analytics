@@ -34,8 +34,8 @@ async function main() {
   app.use(require('../middlewares/themeMiddleware'));
   app.use(require('../middlewares/menuMiddleware'));
   const editBatchFixture = { batch_id: 9001, batch_name: 'MCA 2025', start_year: 2025, end_year: 2027 };
-  const editSessionFixture = { session_id: 9100, batch_id: 9001, semester: '1', exam_session: 'Jan', exam_year: 2000, Batch: editBatchFixture };
-  const editSubjectFixture = { subject_id: 9200, session_id: 9100, course_id: 9300, subject_code: 'VERIFY', subject_name: 'Verification Project', subject_type: 'project', credits: 0, max_internal: 0, max_external: 100, max_marks: 100 };
+  const editSessionFixture = { exam_session_id: 9100, batch_id: 9001, semester: '1', exam_session: 'Jan', exam_year: 2000, Batch: editBatchFixture };
+  const editSubjectFixture = { subject_id: 9200, exam_session_id: 9100, course_id: 9300, subject_code: 'VERIFY', subject_name: 'Verification Project', subject_type: 'project', credits: 0, max_internal: 0, max_external: 100, max_marks: 100 };
   const verificationWrites = [];
   const rosterFixtureCourses = [{ course_id: 9400, subject_code: 'VERIFY', subject_name: 'Required course', credits: 4, max_marks: 100, is_required: true }, { course_id: 9401, subject_code: 'EXTRA', subject_name: 'Course to exclude', credits: 3, max_marks: 100, is_required: true }];
   const assignmentFaculty = [1, 2, 3, 4].map(faculty_id => ({ faculty_id, faculty_name: 'Test Faculty ' + faculty_id, status: 'active' }));
@@ -67,11 +67,11 @@ async function main() {
       }
     }
     if (req.method === 'GET' && req.path === '/batches') return res.json({ success: true, data: [editBatchFixture] });
-    if (req.method === 'GET' && req.path === '/sessions') return res.json({ success: true, data: [editSessionFixture] });
+    if (req.method === 'GET' && req.path === '/exam-sessions') return res.json({ success: true, data: [editSessionFixture] });
     if (req.method === 'GET' && req.path === '/subjects/session/9100') return res.json([editSubjectFixture]);
-    if (req.method === 'PUT' && ['/sessions/9100', '/subjects/9200'].includes(req.path)) {
+    if (req.method === 'PUT' && ['/exam-sessions/9100', '/subjects/9200'].includes(req.path)) {
       verificationWrites.push({ path: req.path, body: req.body });
-      const data = Object.assign(req.path.startsWith('/sessions') ? editSessionFixture : editSubjectFixture, req.body);
+      const data = Object.assign(req.path.startsWith('/exam-sessions') ? editSessionFixture : editSubjectFixture, req.body);
       return res.json({ success: true, data });
     }
     return next();
@@ -88,7 +88,7 @@ async function main() {
   app.use('/subjects', require('../routes/subjectRoutes'));
   app.use('/students', require('../routes/studentRoutes'));
   app.use('/batches', require('../routes/batchRoutes'));
-  app.use('/sessions', require('../routes/sessionRoutes'));
+  app.use('/exam-sessions', require('../routes/examSessionRoutes'));
   app.use('/faculty', require('../routes/facultyRoutes'));
 
   if (process.env.MARKS_CARD_IMAGES_ONLY === '1') {
@@ -157,8 +157,8 @@ async function main() {
       res.redirect('/verification/result-management/outcome');
     });
   }
-  app.get('/verification/sessions', (req, res) => res.render('sessions/index', {
-    title: 'Session defaults verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'], sessions: [editSessionFixture],
+  app.get('/verification/exam-sessions', (req, res) => res.render('exam-sessions/index', {
+    title: 'Session defaults verification', pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/exam-sessions.css'], sessions: [editSessionFixture],
     batches: [{ batch_id: 9003, batch_name: 'Old Batch', start_year: 2020, end_year: 2022 }, { batch_id: 9001, batch_name: 'MCA Test', start_year: 2025, end_year: 2027 }, { batch_id: 9002, batch_name: 'BTech Test', start_year: 2026, end_year: 2030 }]
   }));
   app.get('/verification/subjects', (req, res) => res.render('subjects/index', { title: 'Subject edit verification', canManageRoster: true, pageStyles: ['/css/dashboard.css', '/css/batches.css', '/css/subjects.css'] }));
@@ -176,7 +176,7 @@ async function main() {
     if (req.query.zero === '1') Object.assign(subject, { internalMarks: 0, externalMarks: 0, totalMarks: 0, percent: 0, grade: 'F', grade_point: 0, result_status: 'fail' });
     const attempt = { attempt_no: 1, exam_type: 'REGULAR' };
     const history = { results: [], subjects: [], courses: [{ course_id: 1, semester: '1', subject_code: 'MMC101', credits: 4, status: 'active', is_required: true, roster_verified: req.query.missing !== '1' }] };
-    const cgpa = require('../services/academicOutcomeService').previewCumulative(history, 1, { session_id: 1, semester: '1', exam_session: 'Jun', exam_year: 2026 }, attempt, [subject]);
+    const cgpa = require('../services/academicOutcomeService').previewCumulative(history, 1, { exam_session_id: 1, semester: '1', exam_session: 'Jun', exam_year: 2026 }, attempt, [subject]);
     res.render('results/preview', { title: 'Validated Preview', importId: 9000, sessionDisplay: 'MCA 2025 - June 2026 - Semester 1', attempt, warnings: [], fileUrl: '', fileType: 'pdf',
       data: { student: { usn: 'TEST001', name: 'TEST STUDENT' }, subjects: [subject], overallResult: subject.result_status, sgpa: subject.grade_point, cgpa, failedSubjectCount: subject.result_status === 'fail' ? 1 : 0 } });
   });
@@ -187,7 +187,7 @@ async function main() {
   }));
   app.get('/verification/revaluation-success', (req, res) => res.render('revaluation/outcome', {
     title: 'Revaluation Outcome', pageStyles: ['/css/result-success.css'], logStatus: req.query.status || 'success',
-    meta: { importId: 1, resultId: 2, studentName: 'TEST STUDENT', studentUsn: 'TEST001', sessionDisplay: 'June 2026', attemptNo: 1, examType: 'REGULAR', docUrl: null, sessionId: 1 },
+    meta: { importId: 1, resultId: 2, studentName: 'TEST STUDENT', studentUsn: 'TEST001', sessionDisplay: 'June 2026', attemptNo: 1, examType: 'REGULAR', docUrl: null, examSessionId: 1 },
     rows: [], aggregates: { overall_result: 'pass', sgpa: 7, cgpa: 7, failed_subject_count: 0 },
     origResult: { sgpa: 4, cgpa: 4, result_status: 'fail', failed_subject_count: 1 }, reviewedAt: null, reviewPresent: true, notice: null, error: null,
     events: [{ id: 1, srid: 2, no: 1, originalMarks: 40, revisedMarks: 60, originalStatus: 'fail', revisedStatus: 'pass', revisedGrade: 'B', isEffective: true, remarks: '' }]
@@ -584,7 +584,7 @@ async function main() {
         const inputId=result?'marksCardInput':'revalidationDocument';
         const buttonId=result?'extractButton':'submitUploadBtn';
         if(result){
-          await evaluate('document.getElementById("resultSessionSelect").value="9000";document.getElementById("resultSessionSelect").dispatchEvent(new Event("change",{bubbles:true}))');
+          await evaluate('document.getElementById("examSessionSelect").value="9000";document.getElementById("examSessionSelect").dispatchEvent(new Event("change",{bubbles:true}))');
           await until('document.getElementById("displaySubjectCount").textContent==="1"');
         }
         const accept=await evaluate('document.getElementById('+JSON.stringify(inputId)+').accept');
@@ -771,10 +771,10 @@ async function main() {
       console.log(`Screenshot: ${output}`); return;
     }
     if (process.env.COMPACT_ALL_REPORTS_PDF_ONLY === '1') {
-      const [scopes] = await sequelize.query(`SELECT st.student_id,st.batch_id,r.session_id,rs.semester,MIN(sr.subject_id) subject_id
+      const [scopes] = await sequelize.query(`SELECT st.student_id,st.batch_id,r.exam_session_id,rs.semester,MIN(sr.subject_id) subject_id
         FROM students st JOIN results r ON r.student_id=st.student_id
-        JOIN result_sessions rs ON rs.session_id=r.session_id JOIN subject_results sr ON sr.result_id=r.result_id
-        WHERE st.deleted_at IS NULL GROUP BY st.student_id,st.batch_id,r.session_id,rs.semester ORDER BY st.student_id LIMIT 1`);
+        JOIN exam_sessions rs ON rs.exam_session_id=r.exam_session_id JOIN subject_results sr ON sr.result_id=r.result_id
+        WHERE st.deleted_at IS NULL GROUP BY st.student_id,st.batch_id,r.exam_session_id,rs.semester ORDER BY st.student_id LIMIT 1`);
       assert.ok(scopes.length, 'All-report print verification requires a saved result');
       const scope = scopes[0];
       const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -782,7 +782,7 @@ async function main() {
       for (const type of ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress']) {
         const query = { batch_id: scope.batch_id, mode: type === 'toppers' ? 'original' : 'effective' };
         if (type === 'student') query.student_id = scope.student_id;
-        else if (type !== 'student-progress') { query.session_id = scope.session_id; query.semester = scope.semester; }
+        else if (type !== 'student-progress') { query.exam_session_id = scope.exam_session_id; query.semester = scope.semester; }
         if (type === 'subject') query.subject_id = scope.subject_id;
         const report = await service.getReport(type, query);
         await command('Emulation.setDeviceMetricsOverride', { width: type === 'student-progress' ? 1588 : 1123, height: type === 'student-progress' ? 1123 : 794, deviceScaleFactor: 1, mobile: false });
@@ -938,7 +938,7 @@ async function main() {
       console.log(`Screenshots: ${output}`); return;
     }
     if (process.env.SESSION_SUMMARY_ONLY === '1') {
-      await command('Page.navigate', { url: `${base}/verification/sessions` });
+      await command('Page.navigate', { url: `${base}/verification/exam-sessions` });
       await until("document.getElementById('currentSessionName')?.textContent==='Semester 1'");
       assert.equal(await evaluate("document.getElementById('currentSessionLabel').textContent"), 'Latest Session');
       assert.equal(await evaluate("document.getElementById('currentSessionStatus').textContent"), 'Completed');
@@ -1051,7 +1051,7 @@ async function main() {
     await evaluate("document.getElementById('editBatchCourseName').value='MCA';document.getElementById('editBatchYear').value='2025';document.getElementById('editBatchSubmitBtn').click()");
     await until("document.getElementById('confirmEditModal').classList.contains('show')");
     assert.equal(await evaluate("document.querySelector('#confirmEditModal [data-field=batch_name]').textContent"), 'MCA 2025');
-    await command('Page.navigate', { url: `${base}/verification/sessions` });
+    await command('Page.navigate', { url: `${base}/verification/exam-sessions` });
     await until("document.readyState === 'complete' && !!document.getElementById('createSessionHeaderBtn')");
     await evaluate("document.getElementById('createSessionHeaderBtn').click()");
     await until("document.getElementById('createSessionModal').classList.contains('show')");
@@ -1085,7 +1085,7 @@ async function main() {
     await evaluate("document.getElementById('createSessionSubmitBtn').click()");
     await until("document.getElementById('confirmCreateSessionModal').classList.contains('show')");
     assert.equal(await evaluate("document.getElementById('confirmCreateSessionSummary').textContent.includes('Completed')"), true);
-    await command('Page.navigate', { url: `${base}/verification/sessions` });
+    await command('Page.navigate', { url: `${base}/verification/exam-sessions` });
     await until("document.querySelector('#sessionsTableBody [data-action=edit]') && document.readyState === 'complete'");
     await evaluate("document.querySelector('#sessionsTableBody [data-action=edit]').click()");
     await until("document.getElementById('editSessionModal').classList.contains('show') && !document.getElementById('editSessionSubmitBtn').disabled");
@@ -1140,7 +1140,7 @@ async function main() {
     await command('Page.navigate', { url: `${base}/results/upload` });
     await until("document.readyState==='complete' && !!document.getElementById('uploadBatchSelect')");
     assert.equal(await evaluate("document.getElementById('uploadBatchSelect').value"), String(latestBatch.batch_id));
-    assert.equal(await evaluate("[...document.getElementById('resultSessionSelect').options].filter(o=>o.value).every(o=>o.dataset.batchId===document.getElementById('uploadBatchSelect').value)"), true);
+    assert.equal(await evaluate("[...document.getElementById('examSessionSelect').options].filter(o=>o.value).every(o=>o.dataset.batchId===document.getElementById('uploadBatchSelect').value)"), true);
     assert.equal(await evaluate("document.getElementById('extractButton').disabled"), true);
     for (const width of [1440, 390]) {
       await command('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
@@ -1148,13 +1148,13 @@ async function main() {
       assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth+1"), true);
       await fs.writeFile(path.join(output, `result-upload-batch-${width}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     }
-    const uploadSessions = (await (await fetch(`${base}/sessions?format=json`)).json()).data;
+    const uploadSessions = (await (await fetch(`${base}/exam-sessions?format=json`)).json()).data;
     const uploadSession = uploadSessions.find(row => batchResponse.data.some(b => String(b.batch_id) === String(row.batch_id)));
     if (uploadSession) {
-      await evaluate(`document.getElementById('uploadBatchSelect').value='${uploadSession.batch_id}';document.getElementById('uploadBatchSelect').dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('resultSessionSelect').value='${uploadSession.session_id}';document.getElementById('resultSessionSelect').dispatchEvent(new Event('change',{bubbles:true}))`);
+      await evaluate(`document.getElementById('uploadBatchSelect').value='${uploadSession.batch_id}';document.getElementById('uploadBatchSelect').dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('examSessionSelect').value='${uploadSession.exam_session_id}';document.getElementById('examSessionSelect').dispatchEvent(new Event('change',{bubbles:true}))`);
       await until("document.getElementById('sessionDetailsCard').style.display==='block'");
       await evaluate("document.getElementById('uploadBatchSelect').value='';document.getElementById('uploadBatchSelect').dispatchEvent(new Event('change',{bubbles:true}))");
-      assert.equal(await evaluate("document.getElementById('resultSessionSelect').disabled && document.getElementById('sessionDetailsCard').style.display==='none' && document.getElementById('extractButton').disabled"), true);
+      assert.equal(await evaluate("document.getElementById('examSessionSelect').disabled && document.getElementById('sessionDetailsCard').style.display==='none' && document.getElementById('extractButton').disabled"), true);
     }
     emptyFacultyFixture = true;
     await command('Page.navigate', { url: `${base}/verification/faculty` });
@@ -1277,7 +1277,7 @@ async function main() {
       for (const semester of semesters) {
         const sessions = await service.getOptions('sessions', { batch_id: String(batch.batch_id), semester: semester.semester });
         for (const session of sessions) {
-          const query = { batch_id: String(batch.batch_id), semester: semester.semester, session_id: String(session.session_id) };
+          const query = { batch_id: String(batch.batch_id), semester: semester.semester, exam_session_id: String(session.exam_session_id) };
           const subjects = await service.getOptions('subjects', query);
           const report = await service.getReport('class', query);
           if (subjects.length && report.pagination.totalRows > 0) { scope = { query, subjects, totalRows: report.pagination.totalRows }; break; }
@@ -1397,7 +1397,7 @@ async function main() {
         const link = new URL(await evaluate("document.querySelector('[data-analytics-target=progress]').href"));
         assert.equal(link.searchParams.get('batch_id'), String(scope.query.batch_id));
         assert.equal(link.searchParams.get('semester'), String(scope.query.semester));
-        assert.equal(link.searchParams.has('session_id'), false);
+        assert.equal(link.searchParams.has('exam_session_id'), false);
         for (const chartId of ['grade-distribution-chart', 'performance-summary-chart']) {
           await until(`!!document.querySelector('#${chartId} canvas') && !!Chart.getChart(document.querySelector('#${chartId} canvas'))`);
           await evaluate(`document.getElementById('${chartId}').scrollIntoView({block:'center',behavior:'instant'})`);
@@ -1465,10 +1465,10 @@ async function main() {
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
     for (const page of ['students', 'toppers', 'failed', 'subjects', 'semesters', 'revaluation']) {
       const compatible = { ...scope.query, mode: 'effective' };
-      if (page === 'semesters') delete compatible.session_id;
+      if (page === 'semesters') delete compatible.exam_session_id;
       if (page === 'revaluation') delete compatible.mode;
       await command('Page.navigate', { url: `${base}/analytics/${page}?${new URLSearchParams(compatible)}` });
-      await until(`document.getElementById('filter-batch')?.value === '${scope.query.batch_id}' && (!document.getElementById('filter-session') || document.getElementById('filter-session').value === '${scope.query.session_id}')`);
+      await until(`document.getElementById('filter-batch')?.value === '${scope.query.batch_id}' && (!document.getElementById('filter-session') || document.getElementById('filter-session').value === '${scope.query.exam_session_id}')`);
       assert.equal(await evaluate("document.getElementById('filter-semester').value"), String(scope.query.semester));
       if (page !== 'revaluation') assert.equal(await evaluate("document.getElementById('filter-mode').value"), 'effective');
       const response = await evaluate(`(async()=>{const r=await fetch('/analytics/api/${page}?${new URLSearchParams({ ...scope.query, mode: 'effective' })}',{headers:{Accept:'application/json'}});const body=await r.json();return {status:r.status,success:body.success};})()`);
@@ -1547,7 +1547,7 @@ async function main() {
         await evaluate("window._reportSearchFetch=window.fetch;let first=true;window.fetch=async(url,options)=>{if(!String(url).includes('/students?'))return window._reportSearchFetch(url,options);const response=await window._reportSearchFetch(url,{...options,signal:undefined});if(first){first=false;await new Promise(resolve=>setTimeout(resolve,1000));}return response;};document.getElementById('report-student-search').value='NoSuchOldStudent';document.getElementById('report-student-search').dispatchEvent(new Event('input',{bubbles:true}))");
         await pause(380);
         await evaluate(`document.getElementById('report-student-search').value=${JSON.stringify(identity.usn)};document.getElementById('report-student-search').dispatchEvent(new Event('input',{bubbles:true}))`);
-        await until(`document.getElementById('report-student_id').value === '${identity.student_id}' && !document.getElementById('report-session_id').disabled && !document.getElementById('reports-generate').disabled`);
+        await until(`document.getElementById('report-student_id').value === '${identity.student_id}' && !document.getElementById('report-exam_session_id').disabled && !document.getElementById('reports-generate').disabled`);
         await pause(1200);
         assert.equal(await evaluate("document.getElementById('report-student_id').value"), String(identity.student_id));
         assert.equal(await evaluate("document.getElementById('reports-error').hidden"), true);
@@ -1556,14 +1556,14 @@ async function main() {
         await fs.writeFile(path.join(output, 'student-report-live-search.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
         console.log('Student Result: partial USN/name, live options, single-match periods, ambiguity, clearing, empty state and stale-response protection passed');
         await choose('student_id', selectedStudent.student.student_id);
-        await available('semester'); await available('session_id');
+        await available('semester'); await available('exam_session_id');
         assert.equal(await evaluate("document.getElementById('report-semester').value"), 'all');
-        assert.equal(await evaluate("document.getElementById('report-session_id').value"), 'all');
+        assert.equal(await evaluate("document.getElementById('report-exam_session_id').value"), 'all');
         assert.equal(await evaluate("document.getElementById('report-attempt_no').disabled"), true);
         await until("!document.getElementById('reports-generate').disabled");
         await evaluate("document.getElementById('reports-generate').click()");
         await until("!document.getElementById('reports-output').hidden");
-        const all = await service.getReport('student', { batch_id: scope.query.batch_id, student_id: String(selectedStudent.student.student_id), semester: 'all', session_id: 'all' });
+        const all = await service.getReport('student', { batch_id: scope.query.batch_id, student_id: String(selectedStudent.student.student_id), semester: 'all', exam_session_id: 'all' });
         assert.equal(await evaluate("document.querySelectorAll('#reports-semesters > .reports-semester').length"), all.semesters.length);
         assert.deepEqual(await evaluate("[...document.querySelectorAll('#reports-semesters > .reports-semester > h3')].map(e=>e.textContent)"), all.semesters.map(term => `Semester ${term.semester}`));
         if (all.semesters.length > 1) {
@@ -1589,7 +1589,7 @@ async function main() {
       }
       if (type !== 'student-progress') {
         await available('semester'); await choose('semester', scope.query.semester);
-        await available('session_id'); await choose('session_id', scope.query.session_id);
+        await available('exam_session_id'); await choose('exam_session_id', scope.query.exam_session_id);
       }
       if (type === 'student') {
         await available('attempt_no');
@@ -1608,7 +1608,7 @@ async function main() {
       assert.equal(await evaluate("document.querySelector('#menu-reports').classList.contains('show')"), true);
       if (type === 'student-progress') {
         const progress = await service.getReport(type, { batch_id: scope.query.batch_id });
-        assert.equal(await evaluate("document.getElementById('report-semester') === null && document.getElementById('report-session_id') === null"), true);
+        assert.equal(await evaluate("document.getElementById('report-semester') === null && document.getElementById('report-exam_session_id') === null"), true);
         assert.equal(await evaluate("document.querySelectorAll('#reports-table th[colspan=\"5\"]').length"), progress.semesters.length);
         assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#reports-table .reports-completion-group')).map(th=>th.colSpan)"), progress.completionGroups.map(g=>g.columns.length));
         assert.equal(await evaluate("document.querySelectorAll('#reports-table thead .reports-year-completion').length"), progress.academicYears.length * 2);
@@ -1710,7 +1710,7 @@ async function main() {
         assert.match(await evaluate("document.getElementById('reports-view').textContent"), /Original/);
       }
       await choose('batch_id', '');
-      assert.equal(await evaluate(type === 'student-progress' ? "document.getElementById('reports-output').hidden && document.getElementById('reports-generate').disabled" : "document.getElementById('reports-output').hidden && document.getElementById('report-session_id').disabled && document.getElementById('reports-generate').disabled"), true);
+      assert.equal(await evaluate(type === 'student-progress' ? "document.getElementById('reports-output').hidden && document.getElementById('reports-generate').disabled" : "document.getElementById('reports-output').hidden && document.getElementById('report-exam_session_id').disabled && document.getElementById('reports-generate').disabled"), true);
       console.log(`${type}: cascading filters, preview, theme, mobile and reset passed`);
     }
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
@@ -1742,7 +1742,7 @@ async function main() {
     await command('Emulation.setEmulatedMedia', { media: 'print' });
     await fs.writeFile(path.join(output, 'result-analysis-print.png'), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
     await command('Emulation.setEmulatedMedia', { media: '' });
-    const studentQuery = { batch_id: scope.query.batch_id, student_id: String(selectedStudent.student.student_id), semester: 'all', session_id: 'all' };
+    const studentQuery = { batch_id: scope.query.batch_id, student_id: String(selectedStudent.student.student_id), semester: 'all', exam_session_id: 'all' };
     await command('Page.navigate', { url: `${base}/reports/student-progress/print?batch_id=${scope.query.batch_id}` });
     await until("document.body.classList.contains('reports-progress-print') && document.querySelectorAll('tbody tr').length > 0");
     const progressPdf = await command('Page.printToPDF', { landscape: true, printBackground: true, preferCSSPageSize: true });
@@ -1775,7 +1775,7 @@ async function main() {
       await fs.writeFile(path.join(output, `semester-roster-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
       await evaluate("document.getElementById('examination-subjects-tab').click()");
       await until(`document.getElementById('subjectBatchSelect')?.value === '${scope.query.batch_id}' && !document.getElementById('subjectSessionSelect').disabled`);
-      await evaluate(`document.getElementById('subjectSessionSelect').value='${scope.query.session_id}';document.getElementById('subjectSessionSelect').dispatchEvent(new Event('change',{bubbles:true}))`);
+      await evaluate(`document.getElementById('subjectSessionSelect').value='${scope.query.exam_session_id}';document.getElementById('subjectSessionSelect').dispatchEvent(new Event('change',{bubbles:true}))`);
       await until("document.querySelectorAll('#subjectsTableBody [data-edit-subject]').length > 0");
       assert.equal(await evaluate("document.getElementById('examination-subjects-tab').getAttribute('aria-current')"), 'page');
       assert.equal(await evaluate(`new URL(document.getElementById('semester-roster-tab').href).searchParams.get('semester') === '${scope.query.semester}'`), true);
@@ -1880,7 +1880,7 @@ async function main() {
       assert.ok(csv.includes('Institution,Browser Test College')); assert.ok(csv.includes('Report Footer,Verified report branding'));
     }
     await command('Page.navigate', { url: `${base}/reports/class?${new URLSearchParams(scope.query)}` });
-    await until("document.getElementById('report-session_id').value === '" + scope.query.session_id + "'");
+    await until("document.getElementById('report-exam_session_id').value === '" + scope.query.exam_session_id + "'");
     await evaluate("document.getElementById('reports-generate').click()");
     await until("!document.getElementById('reports-output').hidden");
     assert.equal(await evaluate("document.querySelector('#reports-branding [data-branding-field=institution_name]').textContent"), 'Browser Test College');

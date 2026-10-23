@@ -12,25 +12,25 @@ const integrity = require('../services/revaluationIntegrity');
 function fixture(approved = true) {
   const state = { approved, countCalls: [], writes: 0, staged: 0, rolledBack: false, lookupFails: false, extractions: 0, extractionFails: false };
   const subject = { subject_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 };
-  const result = { result_id: 7, student_id: 7, session_id: 20, attempt_no: 1, exam_type: 'REGULAR',
+  const result = { result_id: 7, student_id: 7, exam_session_id: 20, attempt_no: 1, exam_type: 'REGULAR',
     Student: { student_name: 'TEST STUDENT', usn: '1MV25MC027' },
-    ResultSession: { semester: '1', exam_session: 'Jan', exam_year: 2026 },
+    ExamSession: { semester: '1', exam_session: 'Jan', exam_year: 2026 },
     SubjectResults: [{ subject_result_id: 1, subject_id: 1, result_id: 7, marks: 40, grade: 'F', result_status: 'fail', Subject: subject }] };
-  const saved = { result_id: 7, student_id: 7, session_id: 20, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
+  const saved = { result_id: 7, student_id: 7, exam_session_id: 20, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     student: { name: 'TEST STUDENT', usn: '1MV25MC027' },
     subjects: [{ subject_result_id: 1, subject_code: 'C1', subject_name: 'Course' }],
     ocr: { extraction_status: 'extracted', student_candidates: { name: 'TEST STUDENT', usn: '1MV25MC027' }, subjects: [] } };
   const ocr = { extraction_id: 1, extracted_json: saved, validation_status: 'pending',
     update: async values => { Object.assign(ocr, values); } };
   const log = { import_id: 9, import_type: 'REVALUATION', status: 'extracted', uploaded_by: 1,
-    file_name: 'test.pdf', OcrExtractions: [ocr], ResultSession: result.ResultSession,
+    file_name: 'test.pdf', OcrExtractions: [ocr], ExamSession: result.ExamSession,
     update: async values => Object.assign(log, values) };
   const transaction = { LOCK: { UPDATE: 'UPDATE' }, rollback: async () => { state.rolledBack = true; }, commit: async () => {} };
   const forbidden = () => { state.writes++; assert.fail('No academic writes may occur in this test'); };
   const db = {
     Result: { findByPk: async () => result, findAll: async () => [result], create: forbidden },
     Student: { findByPk: async () => result.Student }, Subject: {},
-    SubjectResult: { bulkCreate: forbidden }, ResultSession: { findByPk: async () => result.ResultSession },
+    SubjectResult: { bulkCreate: forbidden }, ExamSession: { findByPk: async () => result.ExamSession },
     ImportLog: { findByPk: async () => log, create: async values => { state.staged++; Object.assign(log, values); return log; } },
     OcrExtraction: { findByPk: async () => ocr, create: async values => { state.staged++; Object.assign(ocr, values); return ocr; } },
     RevaluationResult: { findAll: async options => {
@@ -76,7 +76,7 @@ function fixture(approved = true) {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; },
       redirect(url) { this.url = url; }, render(view, locals) { this.view = view; this.locals = locals; } };
     await module.exports[method]({ params: { importId: '9', resultId: '7' }, query: {}, session,
-      body: { session: 20, student: 7, result: 7, decision_1: 'accept', internal_1: '40', external_1: '40',
+      body: { exam_session_id: 20, student: 7, result: 7, decision_1: 'accept', internal_1: '40', external_1: '40',
         source_token: integrity.digest(ocr.extracted_json), review_token: integrity.digest(ocr.extracted_json.review), verify_usn: '1', verify_semester: '1', verify_period: '1', verify_old_marks: '1', verify_old_status: '1' }, ...overrides }, response);
     return response;
   }
@@ -160,7 +160,7 @@ for (const scenario of ['available', 'in_progress', 'lookup_failed']) {
       } else {
         const url = new URL(response.url);
         assert.equal(url.pathname, '/revaluation/start/attempts');
-        assert.equal(url.searchParams.get('session'), '20');
+        assert.equal(url.searchParams.get('exam_session_id'), '20');
         assert.equal(url.searchParams.get('student'), '7');
         assert.match(html, /Could not verify existing revaluation submissions/);
         assert.equal(session.revaluationDraft, undefined);
@@ -324,7 +324,7 @@ test('final approval rejects a duplicate that appeared after validation under th
 });
 
 test('attempt picker allows approved duplicates to reach validation but still protects active drafts', async () => {
-  const locals = { studentName: 'TEST', sessionDisplay: 'Jan 2026', sessionId: 20, studentId: 7, error: null,
+  const locals = { studentName: 'TEST', sessionDisplay: 'Jan 2026', examSessionId: 20, studentId: 7, error: null,
     attempts: [{ result_id: 7, attempt_no: 1, exam_type: 'REGULAR', result_status: 'pass', reval_state: 'APPROVED' }] };
   const file = path.join(root, 'views/revaluation/result-attempt-picker.ejs');
   const approved = await ejs.renderFile(file, locals);

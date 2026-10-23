@@ -200,18 +200,18 @@
     var definitions = [
       ['semesters', semSel, 'semester', 'semester', 'semester', false],
       ['batches', batchSel, 'batchId', 'batchName', 'batch_id', true],
-      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', false],
+      ['sessions', sessionSel, 'examSessionId', 'examSession', 'exam_session_id', false],
       ['subjects', subjectSel, 'subjectId', 'subjectCode', 'subject_id', false]
     ];
     if (changed && changed !== 'subject_id') subjectSel.value = '';
-    if (changed && !['subject_id', 'session_id'].includes(changed)) sessionSel.value = '';
+    if (changed && !['subject_id', 'exam_session_id'].includes(changed)) sessionSel.value = '';
     var params = readFilters();
-    ['batch_id', 'semester', 'session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
+    ['batch_id', 'semester', 'exam_session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
     await Promise.all(definitions.map(async function (def) {
       var scoped = new URLSearchParams(params);
       scoped.delete(def[4]);
       if (def[0] !== 'subjects') scoped.delete('subject_id');
-      if (!['subjects', 'sessions'].includes(def[0])) scoped.delete('session_id');
+      if (!['subjects', 'sessions'].includes(def[0])) scoped.delete('exam_session_id');
       try {
         var json = await fetchJSON('/analytics/api/filter-options/' + def[0] + qs(scoped));
         if (request !== filterRequest) return;

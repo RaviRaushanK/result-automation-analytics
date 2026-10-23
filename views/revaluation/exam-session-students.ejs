@@ -12,7 +12,7 @@
   <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
 
   <form class="row g-2 mb-3" method="get" action="/revaluation/start/students">
-    <input type="hidden" name="session" value="<%= session.id %>">
+    <input type="hidden" name="exam_session_id" value="<%= session.id %>">
     <div class="col-auto">
       <div class="input-group">
         <span class="input-group-text"><i class="material-icons">search</i></span>
@@ -29,7 +29,7 @@
   <% } else { %>
     <div class="list-group">
       <% students.forEach(st => { %>
-        <a href="/revaluation/start/attempts?session=<%= session.id %>&student=<%= st.student_id %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+        <a href="/revaluation/start/attempts?exam_session_id=<%= session.id %>&student=<%= st.student_id %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
           <span>
             <i class="material-icons align-middle me-2 text-primary">person</i> <%= st.student_name %>
             <span class="text-muted ms-2"><%= st.usn %></span>

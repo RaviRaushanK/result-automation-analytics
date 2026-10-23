@@ -262,7 +262,7 @@
     var att = attemptSel.value.trim(), m = modeSel.value.trim();
     if (s) p.set('semester', s);
     if (b) p.set('batch_id', b);
-    if (ss) p.set('session_id', ss);
+    if (ss) p.set('exam_session_id', ss);
     if (att && att !== 'latest') p.set('attempt', att);
     if (m) p.set('mode', m);
     if (examTypeSel && examTypeSel.value) p.set('exam_type', examTypeSel.value);
@@ -336,8 +336,8 @@
         var compatible = {
           progress: ['batch_id', 'semester', 'mode'],
           semesters: ['batch_id', 'semester', 'attempt', 'mode'],
-          revaluation: ['batch_id', 'semester', 'session_id']
-        }[target] || ['batch_id', 'semester', 'session_id', 'attempt', 'mode'];
+          revaluation: ['batch_id', 'semester', 'exam_session_id']
+        }[target] || ['batch_id', 'semester', 'exam_session_id', 'attempt', 'mode'];
         var query = new URLSearchParams();
         compatible.forEach(function (key) { if (params.has(key)) query.set(key, params.get(key)); });
         link.href = '/analytics/' + target + qs(query);
@@ -399,15 +399,15 @@
     var definitions = [
       ['semesters', semSel, 'semester', 'semester', 'semester', false],
       ['batches', batchSel, 'batchId', 'batchName', 'batch_id', true],
-      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', false]
+      ['sessions', sessionSel, 'examSessionId', 'examSession', 'exam_session_id', false]
     ];
     if (changed !== 'all' && changed !== 'session') sessionSel.value = '';
     var params = readFilters();
-    ['batch_id', 'semester', 'session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
+    ['batch_id', 'semester', 'exam_session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
     await Promise.all(definitions.map(async function (definition) {
       var scoped = new URLSearchParams(params);
       scoped.delete(definition[4]);
-      if (definition[0] !== 'sessions') scoped.delete('session_id');
+      if (definition[0] !== 'sessions') scoped.delete('exam_session_id');
       var rows = await loadFilterOptions(definition[0], scoped);
       if (request === filterRequest) {
         populateSelect(definition[1], rows, definition[2], definition[3], 'All', definition[5]);

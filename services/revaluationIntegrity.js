@@ -1,9 +1,9 @@
 'use strict';
 const integrity = require('./academicIntegrity');
-const target = result => ({ usn: result.Student?.usn, semester: result.ResultSession?.semester,
-  exam_start_month: result.ResultSession?.exam_start_month, exam_start_year: result.ResultSession?.exam_start_year,
-  exam_end_month: result.ResultSession?.exam_end_month, exam_end_year: result.ResultSession?.exam_end_year,
-  exam_session: result.ResultSession?.exam_session, exam_year: result.ResultSession?.exam_year,
+const target = result => ({ usn: result.Student?.usn, semester: result.ExamSession?.semester,
+  exam_start_month: result.ExamSession?.exam_start_month, exam_start_year: result.ExamSession?.exam_start_year,
+  exam_end_month: result.ExamSession?.exam_end_month, exam_end_year: result.ExamSession?.exam_end_year,
+  exam_session: result.ExamSession?.exam_session, exam_year: result.ExamSession?.exam_year,
   attempt_no: result.attempt_no, exam_type: result.exam_type });
 function checks(saved, result) {
   const list = integrity.summary(saved.ocr || {}, target(result));
@@ -20,11 +20,11 @@ function checks(saved, result) {
   return list;
 }
 function snapshot(result) {
-  return { student_id: result.student_id, usn: result.Student?.usn, session_id: result.session_id,
-    semester: result.ResultSession?.semester,
-    exam_start_month: result.ResultSession?.exam_start_month, exam_start_year: result.ResultSession?.exam_start_year,
-    exam_end_month: result.ResultSession?.exam_end_month, exam_end_year: result.ResultSession?.exam_end_year,
-    exam_session: result.ResultSession?.exam_session, exam_year: result.ResultSession?.exam_year,
+  return { student_id: result.student_id, usn: result.Student?.usn, exam_session_id: result.exam_session_id,
+    semester: result.ExamSession?.semester,
+    exam_start_month: result.ExamSession?.exam_start_month, exam_start_year: result.ExamSession?.exam_start_year,
+    exam_end_month: result.ExamSession?.exam_end_month, exam_end_year: result.ExamSession?.exam_end_year,
+    exam_session: result.ExamSession?.exam_session, exam_year: result.ExamSession?.exam_year,
     attempt_no: result.attempt_no, exam_type: result.exam_type,
     subjects: (result.SubjectResults || []).map(sr => ({ id: sr.subject_result_id, subject_id: sr.subject_id, marks: sr.marks,
       internal: sr.internal_marks, external: sr.external_marks,
@@ -32,9 +32,9 @@ function snapshot(result) {
 }
 function verify(saved, result, proposals = [], acknowledged = false) {
   const errors = [], documentChecks = checks(saved, result);
-  if (!result.Student || !integrity.usn(result.Student.usn) || !result.ResultSession) errors.push('The authoritative original student or examination context is unavailable. Restore or verify the registered student and select the correct existing attempt before revaluation.');
-  if (result.Student?.batch_id !== undefined && result.ResultSession?.batch_id !== undefined
-    && String(result.Student.batch_id) !== String(result.ResultSession.batch_id)) errors.push('The original student and examination batch do not match. Resolve the historical association through a controlled academic workflow before revaluation.');
+  if (!result.Student || !integrity.usn(result.Student.usn) || !result.ExamSession) errors.push('The authoritative original student or examination context is unavailable. Restore or verify the registered student and select the correct existing attempt before revaluation.');
+  if (result.Student?.batch_id !== undefined && result.ExamSession?.batch_id !== undefined
+    && String(result.Student.batch_id) !== String(result.ExamSession.batch_id)) errors.push('The original student and examination batch do not match. Resolve the historical association through a controlled academic workflow before revaluation.');
   for (const check of documentChecks.filter(check => check.status === 'MISMATCH')) errors.push(
     `The revaluation document identifies ${check.field} ${check.document}, but the selected result identifies ${check.expected}. Approval is blocked. Select the correct attempt or replace the document.`);
   for (const check of documentChecks.filter(check => !check.derived)) {
@@ -49,7 +49,7 @@ function verify(saved, result, proposals = [], acknowledged = false) {
     if (!sr) { errors.push('The subject does not belong to the selected existing attempt.'); continue; }
     if (!sr.Subject || !sr.Subject.subject_code) { errors.push('The authoritative original subject offering is unavailable. Select an existing subject from the correct attempt.'); continue; }
     if (String(sr.result_id) !== String(result.result_id)
-      || sr.Subject?.session_id !== undefined && String(sr.Subject.session_id) !== String(result.session_id)) errors.push('The original subject offering does not belong to this exact examination attempt.');
+      || sr.Subject?.exam_session_id !== undefined && String(sr.Subject.exam_session_id) !== String(result.exam_session_id)) errors.push('The original subject offering does not belong to this exact examination attempt.');
     const rows = saved.ocr?.subjects || [];
     const ev = p.source === 'UNMATCHED_OCR' ? { ocr_subject_code: p.ocr_subject_code }
       : rows.find(row => Number(row.subject_result_id) === Number(p.subject_result_id))

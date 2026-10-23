@@ -11,7 +11,7 @@ function fixture() {
   const courses = Array.from({ length: 6 }, (_, i) => ({ course_id: i+1, batch_id: 1, semester: '1', subject_code: `MMC10${i+1}`, credits: i===5 ? 2 : 4, status: 'active', is_required: true, roster_verified: true }));
   const results = [], subjects = [];
   for (let student=1;student<=5;student++) {
-    const regular = { result_id: student, student_id: student, session_id: 1, semester: '1', exam_year: 2025, exam_session: 'Dec', attempt_no: 7, exam_type: 'REGULAR' };
+    const regular = { result_id: student, student_id: student, exam_session_id: 1, semester: '1', exam_year: 2025, exam_session: 'Dec', attempt_no: 7, exam_type: 'REGULAR' };
     results.push(regular);
     for (const course of courses) {
       if (student===4 && course.course_id===6) continue;
@@ -20,7 +20,7 @@ function fixture() {
         grade: fail ? 'F' : 'A', grade_point: fail ? 0 : 8, grading_scheme_version: policy.SCHEME, credits_snapshot: course.credits });
     }
     if ([1,3,5].includes(student)) {
-      const retake = { result_id: student+10, student_id: student, session_id: 2, semester: '1', exam_year: 2026, exam_session: 'Jun', attempt_no: 1, exam_type: 'BACKLOG' };
+      const retake = { result_id: student+10, student_id: student, exam_session_id: 2, semester: '1', exam_year: 2026, exam_session: 'Jun', attempt_no: 1, exam_type: 'BACKLOG' };
       results.push(retake);
       subjects.push({ ...retake, subject_id: student+100, course_id: student===5 ? 203 : 3, outcome_status: student===3 ? 'fail' : 'pass', outcome_marks: student===3 ? 30 : 90,
         grade: student===3 ? 'F' : 'O', grade_point: student===3 ? 0 : 10, grading_scheme_version: policy.SCHEME, credits_snapshot: 4 });
@@ -101,22 +101,22 @@ test('new regular imports require full verified roster; all three retake types a
 });
 
 test('session controller allows different periods of one semester and rejects identical periods', async () => {
-  const controller=require('../controllers/sessionController');
-  const originals=[db.Batch.findByPk,db.ResultSession.findOne,db.ResultSession.create];
+  const controller=require('../controllers/examSessionController');
+  const originals=[db.Batch.findByPk,db.ExamSession.findOne,db.ExamSession.create];
   db.Batch.findByPk=async()=>({batch_id:1,start_year:2025,end_year:2027});
-  db.ResultSession.findOne=async({where})=>where.exam_start_month===12&&where.exam_start_year===2025&&where.exam_end_month===12&&where.exam_end_year===2025?{session_id:1}:null;
-  db.ResultSession.create=async data=>data;
+  db.ExamSession.findOne=async({where})=>where.exam_start_month===12&&where.exam_start_year===2025&&where.exam_end_month===12&&where.exam_end_year===2025?{exam_session_id:1}:null;
+  db.ExamSession.create=async data=>data;
   const invoke=async body=>{let status,data;await controller.create({body},{status:n=>{status=n;return{json:value=>{data=value;}};}});return{status,data};};
   try{
     assert.equal((await invoke({batch_id:1,semester:'1',exam_start_month:6,exam_start_year:2026})).status,201);
     assert.equal((await invoke({batch_id:1,semester:'1',exam_start_month:12,exam_start_year:2025})).status,409);
-  }finally{[db.Batch.findByPk,db.ResultSession.findOne,db.ResultSession.create]=originals;}
+  }finally{[db.Batch.findByPk,db.ExamSession.findOne,db.ExamSession.create]=originals;}
 });
 
 test('cumulative GPA spans semesters by credit points, not an average of semester GPAs or the latest attempt', () => {
   const data=fixture();
   const course={...data.courses[0],course_id:20,semester:'2',subject_code:'MMC201',credits:2};
-  const result={...data.results[0],result_id:30,semester:'2',session_id:3,exam_session:'Dec',exam_year:2026};
+  const result={...data.results[0],result_id:30,semester:'2',exam_session_id:3,exam_session:'Dec',exam_year:2026};
   data.courses.push(course);data.results.push(result);
   data.subjects.push({...result,course_id:20,outcome_status:'pass',grade:'C',grade_point:5,credits_snapshot:2,grading_scheme_version:policy.SCHEME});
   assert.equal(outcomes.cumulative(data,1,'2'),8.08);
@@ -150,9 +150,9 @@ test('retake history is checked by course and earlier examination period with a 
     assert.deepEqual(await outcomes.retakeWarnings(session,'TEST',[{course_id:3,subject_code:'MMC103'}]),[]);
     assert.match((await outcomes.retakeWarnings(session,'TEST',[{course_id:203,subject_code:'MMC203'}]))[0],/MMC203/);
     assert.equal((await outcomes.retakeWarnings({...session,exam_year:2024},'TEST',[{course_id:3,subject_code:'MMC103'}])).length,1);
-    repository.priorCourses=async()=>[{course_id:3,exam_session:'Jun',exam_year:2026,session_id:2,attempt_no:1}];
-    assert.deepEqual(await outcomes.retakeWarnings({...session,session_id:2},'TEST',[{course_id:3,subject_code:'MMC103'}],undefined,2),[]);
-    assert.equal((await outcomes.retakeWarnings({...session,session_id:3},'TEST',[{course_id:3,subject_code:'MMC103'}],undefined,2)).length,1);
+    repository.priorCourses=async()=>[{course_id:3,exam_session:'Jun',exam_year:2026,exam_session_id:2,attempt_no:1}];
+    assert.deepEqual(await outcomes.retakeWarnings({...session,exam_session_id:2},'TEST',[{course_id:3,subject_code:'MMC103'}],undefined,2),[]);
+    assert.equal((await outcomes.retakeWarnings({...session,exam_session_id:3},'TEST',[{course_id:3,subject_code:'MMC103'}],undefined,2)).length,1);
   }finally{repository.priorCourses=saved;}
 });
 
@@ -161,10 +161,10 @@ test('subject creation passes the academic semester into stable-course resolutio
   db.Batch.findByPk = async () => ({ batch_id: 1 });
   const controller=require('../controllers/subjectController');
   const service=require('../services/academicCourseService');
-  const saved=[db.ResultSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve];
+  const saved=[db.ExamSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve];
   let attributes,identity,created;
-  db.ResultSession.findByPk=async(id,options)=>{
-    const row={session_id:2,batch_id:1,semester:'1',exam_session:'Dec',exam_year:2025};
+  db.ExamSession.findByPk=async(id,options)=>{
+    const row={exam_session_id:2,batch_id:1,semester:'1',exam_session:'Dec',exam_year:2025};
     if(options.attributes){attributes=options.attributes;return Object.fromEntries(options.attributes.map(key=>[key,row[key]]));}
     return row;
   };
@@ -174,10 +174,10 @@ test('subject creation passes the academic semester into stable-course resolutio
   db.Subject.create=async row=>{created=row;return row;};
   let status;
   try{
-    await controller.create({body:{session_id:2,batch_id:1,subject_code:'MMC103',subject_name:'Course',subject_type:'theory',credits:4,max_internal:50,max_external:50,max_marks:100}},
+    await controller.create({body:{exam_session_id:2,batch_id:1,subject_code:'MMC103',subject_name:'Course',subject_type:'theory',credits:4,max_internal:50,max_external:50,max_marks:100}},
       {status:n=>{status=n;return{json(){}};}});
     assert.equal(status,201);assert.ok(attributes.includes('semester'));assert.equal(identity.semester,'1');assert.equal(created.course_id,3);
-  }finally{[db.ResultSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve]=saved;db.Batch.findByPk=savedBatchLookup;}
+  }finally{[db.ExamSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve]=saved;db.Batch.findByPk=savedBatchLookup;}
   await assert.rejects(()=>service.resolve({batch_id:1},{}),/valid academic semester/);
 });
 
@@ -200,11 +200,11 @@ test('academic roster endpoints require administrators and validate scope and ex
 
 test('additive course migration is idempotent and does not update academic results or revaluation ledger', async () => {
   const S=require('sequelize');const tables=[];const columns={subjects:{},results:{},subject_results:{}};const indexes=[];const statements=[];let creations=0,additions=0;
-  const row={subject_id:1,session_id:1,batch_id:1,semester:'1',subject_code:'MMC103',subject_name:'Database',subject_type:'theory',credits:4,max_internal:50,max_external:50,max_marks:100};
+  const row={subject_id:1,exam_session_id:1,batch_id:1,semester:'1',subject_code:'MMC103',subject_name:'Database',subject_type:'theory',credits:4,max_internal:50,max_external:50,max_marks:100};
   const q={showAllTables:async()=>tables,createTable:async name=>{tables.push(name);creations++;},showIndex:async()=>indexes,
     addIndex:async(table,fields,options)=>indexes.push(options),describeTable:async table=>columns[table],
     addColumn:async(table,name,options)=>{columns[table][name]=options;additions++;},
-    sequelize:{transaction:async fn=>fn({}),query:async sql=>{statements.push(sql);if(sql.startsWith('SELECT s.*'))return[row];if(sql.startsWith('SELECT DISTINCT'))return[{batch_id:1,semester:'1',session_id:1}];if(sql.startsWith('SELECT * FROM academic_courses'))return[{...row,course_id:1}];return[];}}};
+    sequelize:{transaction:async fn=>fn({}),query:async sql=>{statements.push(sql);if(sql.startsWith('SELECT s.*'))return[row];if(sql.startsWith('SELECT DISTINCT'))return[{batch_id:1,semester:'1',exam_session_id:1}];if(sql.startsWith('SELECT * FROM academic_courses'))return[{...row,course_id:1}];return[];}}};
   await migration.up(q,S);const count=additions;await migration.up(q,S);
   assert.equal(creations,1);assert.equal(additions,count);assert.equal(indexes.length,1);
   assert.equal(columns.results.cgpa_is_cumulative.defaultValue,false);
@@ -219,21 +219,21 @@ test('session-scoped attempt numbers order a shared sitting without becoming lif
   data.subjects.push(...data.subjects.filter(s=>s.student_id===2).map(s=>({...s,...later})));
   assert.equal(outcomes.semesterOutcome(data,2,'1').firstAttempt,'P');
   assert.equal(outcomes.semesterOutcome(data,2,'1').firstRegularResult.attempt_no,7);
-  later.session_id=999;
+  later.exam_session_id=999;
   assert.equal(outcomes.semesterOutcome(data,2,'1').firstAttempt,'-','Two distinct regular sessions in one undated month are ambiguous');
 });
 
 test('session academic semester cannot change after configuring stable course offerings', async () => {
-  const controller=require('../controllers/sessionController');
-  const saved=[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update,db.Result.count,db.sequelize.transaction];let wrote=false,status;
+  const controller=require('../controllers/examSessionController');
+  const saved=[db.ExamSession.findByPk,db.ExamSession.findOne,db.Subject.count,db.ExamSession.update,db.Result.count,db.sequelize.transaction];let wrote=false,status;
   db.Result.count=async()=>0;db.sequelize.transaction=async run=>run({});
-  db.ResultSession.findByPk=async()=>({session_id:1,batch_id:1,semester:'1',exam_start_month:12,exam_start_year:2025,exam_end_month:12,exam_end_year:2025});
-  db.ResultSession.findOne=async()=>null;db.Subject.count=async()=>1;
-  db.ResultSession.update=async()=>{wrote=true;};
+  db.ExamSession.findByPk=async()=>({exam_session_id:1,batch_id:1,semester:'1',exam_start_month:12,exam_start_year:2025,exam_end_month:12,exam_end_year:2025});
+  db.ExamSession.findOne=async()=>null;db.Subject.count=async()=>1;
+  db.ExamSession.update=async()=>{wrote=true;};
   try{
     await controller.update({params:{id:1},body:{semester:'2',exam_start_month:6,exam_start_year:2026}},{status:n=>{status=n;return{json(){}};}});
     assert.equal(status,409);assert.equal(wrote,false);
-  }finally{[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update,db.Result.count,db.sequelize.transaction]=saved;}
+  }finally{[db.ExamSession.findByPk,db.ExamSession.findOne,db.Subject.count,db.ExamSession.update,db.Result.count,db.sequelize.transaction]=saved;}
 });
 
 test('explicit semester roster confirmation writes only reviewed course definitions and rejects unmapped offerings', async () => {
@@ -262,7 +262,7 @@ test('Progress cumulative GPA includes later semesters even when the newest Resu
   const repository=require('../repositories/reportsRepository');const service=require('../services/reportsService');
   const saved=[repository.batch,repository.progressSemesters,repository.progressStudentCount,repository.progressStudents,outcomes.load];
   const data=fixture();const course={...data.courses[0],course_id:20,semester:'2',subject_code:'MMC201',credits:2};
-  const result={...data.results[0],result_id:30,semester:'2',session_id:3,exam_session:'Dec',exam_year:2026};
+  const result={...data.results[0],result_id:30,semester:'2',exam_session_id:3,exam_session:'Dec',exam_year:2026};
   data.courses.push(course);data.results.push(result);
   data.subjects.push({...result,course_id:20,outcome_status:'pass',result_status:'pass',marks:55,grade:'C',grade_point:5,credits_snapshot:2,grading_scheme_version:policy.SCHEME});
   for(const subject of data.subjects){subject.result_status=subject.outcome_status;subject.marks=subject.outcome_marks??subject.marks;}
@@ -288,9 +288,9 @@ test('read-only MySQL course history deduplicates effective events and preserves
     SELECT 1 course_id,1 batch_id,'1' semester,'MMC101' subject_code,4 credits,'active' status,1 is_required,1 roster_verified
     UNION ALL SELECT 2,1,'1','MMC102',4,'active',1,1),
     students AS (SELECT 1 student_id,1 batch_id,'TEST' usn,NULL deleted_at),
-    result_sessions AS (SELECT 1 session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year,12 exam_start_month,2025 exam_start_year,12 exam_end_month,2025 exam_end_year UNION ALL SELECT 2,1,'1','Jun',2026,6,2026,6,2026),
-    results AS (SELECT 1 result_id,1 student_id,1 session_id,7 attempt_no,'REGULAR' exam_type UNION ALL SELECT 2,1,2,1,'BACKLOG'),
-    subjects AS (SELECT 1 subject_id,1 session_id,1 course_id,'MMC101' subject_code,4 credits,100 max_marks
+    exam_sessions AS (SELECT 1 exam_session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year,12 exam_start_month,2025 exam_start_year,12 exam_end_month,2025 exam_end_year UNION ALL SELECT 2,1,'1','Jun',2026,6,2026,6,2026),
+    results AS (SELECT 1 result_id,1 student_id,1 exam_session_id,7 attempt_no,'REGULAR' exam_type UNION ALL SELECT 2,1,2,1,'BACKLOG'),
+    subjects AS (SELECT 1 subject_id,1 exam_session_id,1 course_id,'MMC101' subject_code,4 credits,100 max_marks
       UNION ALL SELECT 2,1,2,'MMC102',4,100 UNION ALL SELECT 3,2,1,'MMC101',4,100),
     subject_results AS (SELECT 1 subject_result_id,1 result_id,1 subject_id,40 marks,'fail' result_status,'F' grade,NULL course_id_snapshot
       UNION ALL SELECT 2,1,2,80,'pass','A',NULL UNION ALL SELECT 3,2,3,70,'pass','B+',1),

@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('ResultSession', {
-    session_id: {
+  return sequelize.define('ExamSession', {
+    exam_session_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
       autoIncrement: true
@@ -40,7 +40,7 @@ module.exports = (sequelize, DataTypes) => {
     }
     }, {
       timestamps: false,
-      tableName: 'result_sessions',
+      tableName: 'exam_sessions',
       validate: {
         chronologicalExaminationPeriod() {
           if ((this.exam_end_year * 12 + this.exam_end_month) < (this.exam_start_year * 12 + this.exam_start_month)) {

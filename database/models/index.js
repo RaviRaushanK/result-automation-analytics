@@ -26,7 +26,7 @@ const Department = require('./Department')(sequelize, DataTypes);
 const AdminUser = require('./AdminUser')(sequelize, DataTypes);
 const Batch = require('./Batch')(sequelize, DataTypes);
 const Faculty = require('./Faculty')(sequelize, DataTypes);
-const ResultSession = require('./ResultSession')(sequelize, DataTypes);
+const ExamSession = require('./ExamSession')(sequelize, DataTypes);
 const Subject = require('./Subject')(sequelize, DataTypes);
 const AcademicCourse = require('./AcademicCourse')(sequelize, DataTypes);
 const SubjectFaculty = require('./SubjectFaculty')(sequelize, DataTypes);
@@ -53,13 +53,13 @@ Batch.belongsTo(Department, { foreignKey: 'department_id' });
 Department.hasMany(Faculty, { foreignKey: 'department_id' });
 Faculty.belongsTo(Department, { foreignKey: 'department_id' });
 
-// Batch ↔ ResultSession
-Batch.hasMany(ResultSession, { foreignKey: 'batch_id' });
-ResultSession.belongsTo(Batch, { foreignKey: 'batch_id' });
+// Batch ↔ ExamSession
+Batch.hasMany(ExamSession, { foreignKey: 'batch_id' });
+ExamSession.belongsTo(Batch, { foreignKey: 'batch_id' });
 
-// ResultSession ↔ Subject
-ResultSession.hasMany(Subject, { foreignKey: 'session_id' });
-Subject.belongsTo(ResultSession, { foreignKey: 'session_id' });
+// ExamSession ↔ Subject
+ExamSession.hasMany(Subject, { foreignKey: 'exam_session_id' });
+Subject.belongsTo(ExamSession, { foreignKey: 'exam_session_id' });
 Batch.hasMany(AcademicCourse, { foreignKey: 'batch_id' });
 AcademicCourse.belongsTo(Batch, { foreignKey: 'batch_id' });
 AcademicCourse.hasMany(Subject, { foreignKey: 'course_id' });
@@ -86,9 +86,9 @@ Student.belongsTo(Batch, { foreignKey: 'batch_id' });
 Student.hasMany(Result, { foreignKey: 'student_id' });
 Result.belongsTo(Student, { foreignKey: 'student_id' });
 
-// ResultSession ↔ Result
-ResultSession.hasMany(Result, { foreignKey: 'session_id' });
-Result.belongsTo(ResultSession, { foreignKey: 'session_id' });
+// ExamSession ↔ Result
+ExamSession.hasMany(Result, { foreignKey: 'exam_session_id' });
+Result.belongsTo(ExamSession, { foreignKey: 'exam_session_id' });
 
 // Result ↔ SubjectResult
 Result.hasMany(SubjectResult, { foreignKey: 'result_id' });
@@ -127,9 +127,9 @@ RevaluationResult.belongsTo(AdminUser, {
   as: 'uploader'
 });
 
-// ResultSession ↔ ImportLog
-ResultSession.hasMany(ImportLog, { foreignKey: 'session_id' });
-ImportLog.belongsTo(ResultSession, { foreignKey: 'session_id' });
+// ExamSession ↔ ImportLog
+ExamSession.hasMany(ImportLog, { foreignKey: 'exam_session_id' });
+ImportLog.belongsTo(ExamSession, { foreignKey: 'exam_session_id' });
 
 // AdminUser ↔ ImportLog
 AdminUser.hasMany(ImportLog, { foreignKey: 'uploaded_by' });
@@ -145,7 +145,7 @@ module.exports = {
   AdminUser,
   Batch,
   Faculty,
-  ResultSession,
+  ExamSession,
   Subject,
   AcademicCourse,
   SubjectFaculty,

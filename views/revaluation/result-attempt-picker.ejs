@@ -3,11 +3,11 @@
     <div class="col">
       <h4 class="mb-1"><i class="material-icons me-1">assignment_ind</i> Revaluation — Step 3: Select Attempt</h4>
       <p class="text-muted mb-0">
-        Student <strong><%= studentName %></strong> &middot; Session <strong><%= sessionDisplay %></strong>.
+        Student <strong><%= studentName %></strong> &middot; Exam Session <strong><%= sessionDisplay %></strong>.
       </p>
     </div>
     <div class="col-auto">
-      <a href="/revaluation/start/students?session=<%= sessionId %>" class="btn btn-outline-secondary btn-sm">Back to students</a>
+      <a href="/revaluation/start/students?exam_session_id=<%= examSessionId %>" class="btn btn-outline-secondary btn-sm">Back to students</a>
     </div>
   </div>
 
@@ -48,7 +48,7 @@
               <button type="button" class="btn btn-sm btn-secondary" disabled title="A revaluation submission already exists for this attempt">Continue</button>
             <% } else { %>
               <form method="post" action="/revaluation/start/attempt">
-                <input type="hidden" name="session" value="<%= sessionId %>">
+                <input type="hidden" name="exam_session_id" value="<%= examSessionId %>">
                 <input type="hidden" name="student" value="<%= studentId %>">
                 <input type="hidden" name="result" value="<%= a.result_id %>">
                 <button type="submit" class="btn btn-sm btn-primary">Continue</button>

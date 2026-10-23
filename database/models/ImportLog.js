@@ -5,7 +5,7 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    session_id: {
+    exam_session_id: {
       type: DataTypes.BIGINT,
       allowNull: false
     },

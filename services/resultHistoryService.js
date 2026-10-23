@@ -1,10 +1,10 @@
 'use strict';
-const { Result, ResultSession, SubjectResult, Subject, RevaluationResult } = require('../database/models');
+const { Result, ExamSession, SubjectResult, Subject, RevaluationResult } = require('../database/models');
 const policy = require('./academicPolicy');
 
 async function validationError(session, student, attempt, transaction, attemptedSubjects) {
   const semester = Number(session?.semester);
-  if (!Number.isInteger(semester) || semester < 1 || semester > 24) return 'Correct the academic semester of the selected result session before importing.';
+  if (!Number.isInteger(semester) || semester < 1 || semester > 24) return 'Correct the academic semester of the selected exam session before importing.';
   if (!student || String(student.batch_id) !== String(session.batch_id)) return 'Register or restore this student in the selected batch before importing results.';
   if (!Number.isSafeInteger(Number(attempt.attempt_no)) || Number(attempt.attempt_no) < 1 || !policy.EXAM_TYPES.includes(attempt.exam_type)) return 'Correct the examination attempt before importing results.';
   const needsOriginal = policy.isRetakeAttempt(attempt.exam_type) || Number(attempt.attempt_no) > 1;
@@ -13,29 +13,29 @@ async function validationError(session, student, attempt, transaction, attempted
   if (cutoff === null) return 'Correct the examination month and year before checking previous result cards.';
   const results = await Result.findAll({
     where: { student_id: student.student_id },
-    attributes: ['result_id', 'session_id', 'attempt_no', 'exam_type'],
+    attributes: ['result_id', 'exam_session_id', 'attempt_no', 'exam_type'],
     include: [
-      { model: ResultSession, required: true, where: { batch_id: session.batch_id }, attributes: ['session_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
+      { model: ExamSession, required: true, where: { batch_id: session.batch_id }, attributes: ['exam_session_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
       { model: SubjectResult, required: false, attributes: ['subject_result_id','course_id_snapshot','result_status'], include: [
         { model: Subject, attributes: ['course_id'] },
         { model: RevaluationResult, as: 'Revaluations', required: false, where: { revaluation_status: 'approved', is_effective: true } }
       ] }
     ], transaction, ...(transaction ? { lock: true } : {})
   });
-  const semesterResults = results.filter(result => Number(result.ResultSession?.semester) === semester);
-  if (attempt.exam_type === 'BACKLOG' && semesterResults.some(result => policy.periodKey(result.ResultSession) === policy.periodKey(session))) {
+  const semesterResults = results.filter(result => Number(result.ExamSession?.semester) === semester);
+  if (attempt.exam_type === 'BACKLOG' && semesterResults.some(result => policy.periodKey(result.ExamSession) === policy.periodKey(session))) {
     return 'BACKLOG must use a new examination period. An attempt for this student and Semester ' + semester +
       ' already uses ' + policy.formatExamPeriod(session) + '. Select or create the session in which the backlog was actually written.';
   }
   // Draft extractions and empty headers do not establish an uploaded card.
   const present = new Set();
   for (const result of results) {
-    if (result.exam_type !== 'REGULAR' || !result.ResultSession || !result.SubjectResults?.length) continue;
-    const previousSemester = Number(result.ResultSession.semester);
-    const previousPeriod = policy.period(result.ResultSession);
+    if (result.exam_type !== 'REGULAR' || !result.ExamSession || !result.SubjectResults?.length) continue;
+    const previousSemester = Number(result.ExamSession.semester);
+    const previousPeriod = policy.period(result.ExamSession);
     if (previousPeriod === null || previousPeriod > cutoff) continue;
     if (previousSemester === semester && !(previousPeriod < cutoff ||
-      (String(result.session_id) === String(session.session_id) && Number(result.attempt_no) < Number(attempt.attempt_no)))) continue;
+      (String(result.exam_session_id) === String(session.exam_session_id) && Number(result.attempt_no) < Number(attempt.attempt_no)))) continue;
     present.add(previousSemester);
   }
   const missing = [];
@@ -54,7 +54,7 @@ async function validationError(session, student, attempt, transaction, attempted
         return 'BACKLOG must use attempt ' + next + ' for this student and Semester ' + semester +
           '. Attempt numbers continue across examination sessions: REGULAR 1, BACKLOG 2, 3, and onward.';
       }
-      if (semesterResults.some(result => policy.period(result.ResultSession) === null || policy.period(result.ResultSession) > cutoff)) {
+      if (semesterResults.some(result => policy.period(result.ExamSession) === null || policy.period(result.ExamSession) > cutoff)) {
         return 'Upload this semester\'s attempts in examination order. A later or undated attempt is already recorded.';
       }
       if (Array.isArray(attemptedSubjects)) {

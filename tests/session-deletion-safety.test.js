@@ -8,10 +8,10 @@ const vm = require('node:vm');
 function fixture({ subjects = 0, results = 0, imports = 0, exists = true } = {}) {
   const transaction = { LOCK: { UPDATE: 'UPDATE' } };
   const state = { destroyed: 0, locked: false };
-  const session = exists ? { session_id: 7 } : null;
+  const session = exists ? { exam_session_id: 7 } : null;
   const models = {
     sequelize: { transaction: async callback => callback(transaction) },
-    ResultSession: {
+    ExamSession: {
       findByPk: async (id, options) => {
         assert.equal(String(id), '7');
         assert.equal(options.transaction, transaction);
@@ -21,7 +21,7 @@ function fixture({ subjects = 0, results = 0, imports = 0, exists = true } = {})
       },
       destroy: async options => {
         assert.equal(state.locked, true);
-        assert.equal(options.where.session_id, 7);
+        assert.equal(options.where.exam_session_id, 7);
         assert.equal(Object.keys(options.where).length, 1);
         assert.equal(options.transaction, transaction);
         state.destroyed++;
@@ -33,7 +33,7 @@ function fixture({ subjects = 0, results = 0, imports = 0, exists = true } = {})
     Batch: {}, Department: {}
   };
   const module = { exports: {} };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/sessionController'), 'utf8'), {
+  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/examSessionController'), 'utf8'), {
     module, console, require: name => name === '../database/models' ? models : require(name)
   });
   return { state, async invoke() {

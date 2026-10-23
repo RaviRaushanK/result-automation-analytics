@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+router.use(require('../middlewares/examSessionParameters'));
 const facultyController = require('../controllers/facultyController');
 
 router.get('/', facultyController.dashboard);

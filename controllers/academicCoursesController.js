@@ -1,5 +1,5 @@
 'use strict';
-const { AcademicCourse, Batch, Subject, Result, ResultSession, sequelize } = require('../database/models');
+const { AcademicCourse, Batch, Subject, Result, ExamSession, sequelize } = require('../database/models');
 const { sortBatches, semesterCount } = require('../public/js/academic-form-options');
 
 function positiveInteger(value) {
@@ -69,8 +69,8 @@ exports.confirm = async (req, res, next) => {
       const courses = await AcademicCourse.findAll({ where: selected, transaction, lock: transaction.LOCK.UPDATE });
       if (ids.some(id => !courses.some(course => String(course.course_id) === id))) throw invalid('A selected course does not belong to this batch and semester.');
       const changed = courses.some(course => Boolean(Number(course.is_required)) !== ids.includes(String(course.course_id)));
-      if (changed && await Result.count({ include: [{ model: ResultSession, required: true, where: selected }], transaction, lock: true })) throw Object.assign(new Error('Required courses cannot change after this semester has saved results. Keep its historical roster and configure curriculum changes in the appropriate new batch.'), { status: 409 });
-      const unmapped = await Subject.count({ where: { course_id: null }, include: [{ model: ResultSession, where: selected, required: true }], transaction });
+      if (changed && await Result.count({ include: [{ model: ExamSession, required: true, where: selected }], transaction, lock: true })) throw Object.assign(new Error('Required courses cannot change after this semester has saved results. Keep its historical roster and configure curriculum changes in the appropriate new batch.'), { status: 409 });
+      const unmapped = await Subject.count({ where: { course_id: null }, include: [{ model: ExamSession, where: selected, required: true }], transaction });
       if (unmapped) throw Object.assign(new Error('Unmapped examination subjects must be reconciled before confirming this semester.'), { status: 409 });
       for (const course of courses) await course.update({ is_required: ids.includes(String(course.course_id)), roster_verified: true, reviewed_by: req.session.adminId, reviewed_at: new Date() }, { transaction });
     });

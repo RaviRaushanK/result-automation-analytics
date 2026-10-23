@@ -10,7 +10,7 @@
       </p>
     </div>
     <div class="col-auto d-flex align-items-start">
-      <a href="/revaluation/start/attempts?session=<%= sessionId %>&student=<%= studentId %>" class="btn btn-outline-secondary btn-sm">Back</a>
+      <a href="/revaluation/start/attempts?exam_session_id=<%= examSessionId %>&student=<%= studentId %>" class="btn btn-outline-secondary btn-sm">Back</a>
     </div>
   </div>
 
@@ -78,7 +78,7 @@
       <button type="submit" class="btn btn-success" id="submitUploadBtn" disabled>
         <i class="material-icons align-middle" aria-hidden="true">cloud_upload</i> Upload &amp; Preview
       </button>
-      <a href="/revaluation/start/attempts?session=<%= sessionId %>&student=<%= studentId %>" class="btn btn-outline-secondary">Back</a>
+      <a href="/revaluation/start/attempts?exam_session_id=<%= examSessionId %>&student=<%= studentId %>" class="btn btn-outline-secondary">Back</a>
     </div>
     <p id="uploadProgress" class="text-muted mt-3 d-none" role="status">Uploading and extracting the marks card...</p>
   </form>

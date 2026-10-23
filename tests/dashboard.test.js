@@ -10,7 +10,7 @@ function fixture({ empty = false, zero = false, gradeRows } = {}) {
   const track = (model, method, response) => async query => { calls.push({ model, method, query }); return response; };
   const models = {
     Batch: { findAll: track('Batch', 'findAll', [{ batch_id: 1, batch_name: 'MCA 2025' }]) },
-    ResultSession: { findAll: track('ResultSession', 'findAll', empty ? [] : [{ session_id: 10, batch_id: 1, semester: '2' }, { session_id: 11, batch_id: 1, semester: '10' }]) },
+    ExamSession: { findAll: track('ExamSession', 'findAll', empty ? [] : [{ exam_session_id: 10, batch_id: 1, semester: '2' }, { exam_session_id: 11, batch_id: 1, semester: '10' }]) },
     Student: {}, Subject: { count: track('Subject', 'count', empty ? 0 : 2) },
     SubjectResult: {
       max: (field, query) => track('SubjectResult', 'max', empty ? null : zero ? 0 : 150)(query),
@@ -27,7 +27,7 @@ function fixture({ empty = false, zero = false, gradeRows } = {}) {
       findAll: async query => {
         calls.push({ model: 'Result', method: 'findAll', query });
         if (empty) return [];
-        return query.limit ? [{ session_id: 10, attempt_no: 1, sgpa: '9.00', cgpa: '9.00', result_status: 'pass', Student: { student_id: 5, batch_id: 1, student_name: 'STUDENT', usn: 'TEST001' } }] : [
+        return query.limit ? [{ exam_session_id: 10, attempt_no: 1, sgpa: '9.00', cgpa: '9.00', result_status: 'pass', Student: { student_id: 5, batch_id: 1, student_name: 'STUDENT', usn: 'TEST001' } }] : [
           { semester: '10', attempted: '2', passed: '2', failed: '0' }, { semester: '2', attempted: '2', passed: '1', failed: '1' }
         ];
       }
@@ -59,13 +59,13 @@ test('dashboard uses the same session scope for metrics, subject results, and gr
   assert.equal(data.gradeSummary.total, 4);
   assert.equal(data.semesterPerformance, undefined);
   assert.equal(data.basis, 'original'); assert.equal(data.attempt, 'all');
-  const sessions = f.calls.find(c => c.model === 'ResultSession');
+  const sessions = f.calls.find(c => c.model === 'ExamSession');
   assert.equal(sessions.query.where.batch_id, 1); assert.equal(sessions.query.where.semester, '2');
   const subjects = f.calls.find(c => c.model === 'SubjectResult' && c.method === 'findAll');
   assert.equal(subjects.query.include.length, 2);
-  for (const include of subjects.query.include) assert.deepEqual(Array.from(include.where.session_id[Op.in]), [10, 11]);
+  for (const include of subjects.query.include) assert.deepEqual(Array.from(include.where.exam_session_id[Op.in]), [10, 11]);
   const gradeQuery = f.calls.find(c => c.query?.group?.includes('SubjectResult.grade')).query;
-  for (const include of gradeQuery.include) assert.deepEqual(Array.from(include.where.session_id[Op.in]), [10, 11]);
+  for (const include of gradeQuery.include) assert.deepEqual(Array.from(include.where.exam_session_id[Op.in]), [10, 11]);
 });
 
 test('batch with no sessions never falls back to all results across any dashboard endpoint', async () => {
@@ -82,9 +82,9 @@ test('batch with no sessions never falls back to all results across any dashboar
       assert.equal(response.body.data.gradeSummary.total, 0);
     }
   }
-  for (const call of f.calls.filter(c => c.query?.where?.session_id)) assert.equal(call.query.where.session_id[Op.in].length, 0);
+  for (const call of f.calls.filter(c => c.query?.where?.exam_session_id)) assert.equal(call.query.where.exam_session_id[Op.in].length, 0);
   for (const call of f.calls.filter(c => c.model === 'SubjectResult')) {
-    for (const include of call.query.include) assert.equal(include.where.session_id[Op.in].length, 0);
+    for (const include of call.query.include) assert.equal(include.where.exam_session_id[Op.in].length, 0);
   }
 });
 
@@ -124,7 +124,7 @@ test('top scorer drill-down retains student, batch, session and passed-with-CGPA
   assert.equal(call.query.where.cgpa[Op.ne], null);
   assert.equal(call.query.include[0].required, true);
   assert.equal(response.body.data[0].student_id, 5);
-  assert.equal(response.body.data[0].session_id, 10);
+  assert.equal(response.body.data[0].exam_session_id, 10);
 });
 
 test('invalid filters are rejected before any database query', async () => {

@@ -4,7 +4,20 @@ Reviewed on 23 October 2026. Source services and applied migrations remain autho
 
 ## Stable Identity And Rollout
 
-`ResultSession` examination identity is batch + academic semester + structured
+`ExamSession` is the examination sitting/period container: batch + academic
+semester + examination period. `Result` is a student's academic outcome within
+that container, with its exam type and attempt. These are separate entities.
+The table is `exam_sessions`; its primary key and the foreign keys on `subjects`,
+`results`, and `import_logs` are `exam_session_id`. Faculty assignments link
+through their Subject offering; OCR records link through ImportLog.
+
+The management URL is `/exam-sessions`. Old `/sessions` URLs redirect with HTTP
+307, preserving method, path and query. New requests use `exam_session_id`;
+legacy academic ID parameters are normalized at the boundary and conflicting
+values are rejected. See `exam-session-refactor-report.md` for deployment and
+rollback limitations. Authentication `req.session` and its store are unrelated.
+
+`ExamSession` examination identity is batch + academic semester + structured
 start month/year + end month/year. A one-month examination stores the same start
 and end; ranges may cross calendar years. `exam_session` and `exam_year` remain
 as compatibility columns derived from the start period, but they are not the
@@ -112,7 +125,7 @@ new original result or backfill missing previous cards. See
 
 ## Participation And Clearance
 
-Result identity remains `(student_id, session_id, attempt_no)`. New attempt numbers
+Result identity remains `(student_id, exam_session_id, attempt_no)`. New attempt numbers
 continue per student and academic semester across examination sessions: REGULAR 1,
 then BACKLOG 2, 3 and onward. A new semester starts again at REGULAR 1. Legacy
 session-scoped numbers remain unchanged and readable. New backlog numbering
@@ -227,7 +240,7 @@ Modified:
 
 - `database/models/index.js`, `database/models/Subject.js`, `database/models/Result.js`, `database/models/SubjectResult.js`, `database/schema.sql`: additive identity/provenance.
 - `controllers/resultController.js`: partial retakes, full regular validation, new GPA persistence and history review.
-- `controllers/sessionController.js`, `public/js/sessions.js`: full structured-period uniqueness; stable academic semester.
+- `controllers/examSessionController.js`, `public/js/exam-sessions.js`: full structured-period uniqueness; stable academic semester.
 - `controllers/subjectController.js`, `routes/subjectRoutes.js`, `public/js/subjects.js`, `views/subjects/index.ejs`: course-linked offerings and admin roster review.
 - `repositories/reportsRepository.js`, `repositories/analyticsRepository.js`: shared effective overlay and exam-type constants, unchanged ranking rules.
 - `services/reportsService.js`, `controllers/reportsController.js`, `public/js/reports/common.js`, `public/css/reports.css`: course-level progression, safe GPA, supplementary labels, semester completion flags and export structure.

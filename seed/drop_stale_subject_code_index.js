@@ -3,7 +3,7 @@
  * One-off fix for the known issue in README Troubleshooting:
  * a stale single-column UNIQUE index on subjects.subject_code blocks
  * the same subject code appearing in multiple sessions. The composite
- * UNIQUE(session_id, subject_code) remains and is correct.
+ * UNIQUE(exam_session_id, subject_code) remains and is correct.
  *
  * Run: node seed/drop_stale_subject_code_index.js
  */

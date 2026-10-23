@@ -9,7 +9,8 @@ router.get('/', controller.overview);
 router.get('/api/batches', controller.options('batches'));
 router.get('/api/batches/:batchId/students', controller.options('students'));
 router.get('/api/batches/:batchId/semesters', controller.options('semesters'));
-router.get('/api/sessions', controller.options('sessions'));
+router.get('/api/exam-sessions', controller.options('sessions'));
+router.get('/api/sessions', controller.options('sessions')); // Deprecated saved API links.
 router.get('/api/subjects', controller.options('subjects'));
 router.get('/api/student-results', controller.options('student-results'));
 router.get('/api/student-semesters', controller.options('student-semesters'));

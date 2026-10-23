@@ -19,6 +19,7 @@ function overviewResponse() {
   vm.runInNewContext(fs.readFileSync(path.join(root, 'services/analyticsService.js'), 'utf8'), {
     module, exports: module.exports,
     require(name) {
+      if (name === '../services/examSessionParameters') return require('../services/examSessionParameters');
       if (name === '../public/js/exam-period') return require('../public/js/exam-period');
       assert.equal(name, '../repositories/analyticsRepository');
       return repository;
@@ -35,10 +36,11 @@ test('Overview service response contract', async () => {
 
 test('Analytics session options format structured ranges ahead of legacy month/year', async () => {
   const module = { exports: {} };
-  const repository = { getFilterOptions: async () => [{ sessionId: 1, examSession: 'Apr', examYear: 2026,
+  const repository = { getFilterOptions: async () => [{ examSessionId: 1, examSession: 'Apr', examYear: 2026,
     examStartMonth: 12, examStartYear: 2025, examEndMonth: 1, examEndYear: 2026 }] };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'services/analyticsService.js'), 'utf8'), {
     module, exports: module.exports, require(name) {
+      if (name === '../services/examSessionParameters') return require('../services/examSessionParameters');
       if (name === '../public/js/exam-period') return require('../public/js/exam-period');
       assert.equal(name, '../repositories/analyticsRepository'); return repository;
     }

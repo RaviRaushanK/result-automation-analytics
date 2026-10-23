@@ -16,7 +16,7 @@ const path = require('path');
 const fs = require('fs');
 const { Op, Transaction } = require('sequelize');
 const {
-  Result, Student, ResultSession, SubjectResult, Subject,
+  Result, Student, ExamSession, SubjectResult, Subject,
   ImportLog, OcrExtraction, RevaluationResult, sequelize
 } = require('../database/models');
 const {
@@ -37,7 +37,12 @@ function resolveAdminId(req) {
 
 function safeJson(v) {
   try {
-    return typeof v === 'object' && v !== null ? v : JSON.parse(v || '{}');
+    const parsed = typeof v === 'object' && v !== null ? v : JSON.parse(v || '{}');
+    if (parsed && Object.hasOwn(parsed, 'session_id')) {
+      const { session_id, ...rest } = parsed; // Historical OCR schema compatibility, read only.
+      return require('../services/examSessionParameters').normalize({ ...rest, session_id });
+    }
+    return parsed;
   } catch { return {}; }
 }
 
@@ -118,7 +123,7 @@ function loadResultContext(resultId) {
   return Result.findByPk(resultId, {
     include: [
       { model: Student, attributes: ['student_name', 'usn'] },
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
+      { model: ExamSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
       {
         model: SubjectResult,
         attributes: ['subject_result_id', 'result_id', 'subject_id', 'marks', 'grade', 'result_status', 'created_at'],
@@ -127,12 +132,12 @@ function loadResultContext(resultId) {
     ]
   });
 }
-/** Step 1 — list Result Sessions that contain at least one Result. */
+/** Step 1 — list Exam Sessions that contain at least one Result. */
 exports.showSessionPicker = async (req, res) => {
   let sessions = [];
   try {
-    sessions = await ResultSession.findAll({
-      attributes: ['session_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'],
+    sessions = await ExamSession.findAll({
+      attributes: ['exam_session_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'],
       include: [{ model: Result, attributes: ['result_id'] }],
       where: { '$Results.result_id$': { [Op.ne]: null } },
       order: [['exam_start_year', 'DESC'], ['exam_start_month', 'DESC'], ['semester', 'ASC']],
@@ -140,17 +145,17 @@ exports.showSessionPicker = async (req, res) => {
     });
   } catch (err) {
     console.error('[revaluation] showSessionPicker error:', err);
-    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load result sessions.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load exam sessions.'));
   }
   const list = sessions.filter(s => (s.Results && s.Results.length > 0)).map(s => ({
-    sessionId: s.session_id,
+    examSessionId: s.exam_session_id,
     semester: s.semester,
     exam_session: s.exam_session,
     exam_year: s.exam_year,
     display: sessionDisplay(s)
   }));
-  return res.render('revaluation/result-session-picker', {
-    title: 'Revaluation — Step 1: Select Result Session',
+  return res.render('revaluation/exam-session-picker', {
+    title: 'Revaluation — Step 1: Select Exam Session',
     breadcrumbItems: [{ label: 'Result Management' }, { label: 'Upload Revaluation', href: '/revaluation/start', active: true }],
     sessions: list,
     error: req.query.error || null
@@ -158,17 +163,17 @@ exports.showSessionPicker = async (req, res) => {
 };
 
 /**
- * Step 2 — students that have Results in the selected Result Session.
- * Restricted server-side to the session (inner join on Result.session_id).
+ * Step 2 — students that have Results in the selected Exam Session.
+ * Restricted server-side to the session (inner join on Result.exam_session_id).
  */
 exports.showSessionStudents = async (req, res) => {
-  const sessionId = Number(req.params.sessionId || req.query.session) || 0;
-  if (!Number.isInteger(sessionId) || sessionId <= 0) {
-    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid result session.'));
+  const examSessionId = Number(req.params.examSessionId || req.query.exam_session_id) || 0;
+  if (!Number.isInteger(examSessionId) || examSessionId <= 0) {
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid exam session.'));
   }
-  const session = await ResultSession.findByPk(sessionId);
+  const session = await ExamSession.findByPk(examSessionId);
   if (!session) {
-    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Result session not found.'));
+    return res.redirect('/revaluation/start?error=' + encodeURIComponent('Exam session not found.'));
   }
   const q = (req.query.q || '').trim();
   const studentWhere = q
@@ -179,7 +184,7 @@ exports.showSessionStudents = async (req, res) => {
     students = await Student.findAll({
       attributes: ['student_id', 'usn', 'student_name'],
       where: studentWhere,
-      include: [{ model: Result, attributes: ['result_id'], where: { session_id: sessionId }, required: true }],
+      include: [{ model: Result, attributes: ['result_id'], where: { exam_session_id: examSessionId }, required: true }],
       distinct: true,
       order: [['student_name', 'ASC']]
     });
@@ -187,7 +192,7 @@ exports.showSessionStudents = async (req, res) => {
     console.error('[revaluation] showSessionStudents error:', err);
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Could not load students.'));
   }
-  return res.render('revaluation/result-session-students', {
+  return res.render('revaluation/exam-session-students', {
     title: 'Revaluation — Step 2: Select Student',
     breadcrumbItems: [
       { label: 'Result Management' },
@@ -195,7 +200,7 @@ exports.showSessionStudents = async (req, res) => {
       { label: 'Step 1: Session', href: '/revaluation/start' },
       { label: 'Select Student', active: true }
     ],
-    session: { id: sessionId, display: sessionDisplay(session) },
+    session: { id: examSessionId, display: sessionDisplay(session) },
     query: q,
     students: students.map(st => ({ student_id: st.student_id, usn: st.usn, student_name: st.student_name })),
     error: req.query.error || null
@@ -203,26 +208,26 @@ exports.showSessionStudents = async (req, res) => {
 };
 /**
  * Step 3 — the selected student's Results/attempts for the selected session.
- * Restricted server-side to BOTH session_id AND student_id.
+ * Restricted server-side to BOTH exam_session_id AND student_id.
  */
 exports.resolveShowAttempts = async (req, res) => {
-  const sessionId = Number(req.params.sessionId || req.query.session) || 0;
+  const examSessionId = Number(req.params.examSessionId || req.query.exam_session_id) || 0;
   const studentId = Number(req.params.studentId || req.query.student) || 0;
-  if (!Number.isInteger(sessionId) || sessionId <= 0 || !Number.isInteger(studentId) || studentId <= 0) {
+  if (!Number.isInteger(examSessionId) || examSessionId <= 0 || !Number.isInteger(studentId) || studentId <= 0) {
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid selection.'));
   }
-  const session = await ResultSession.findByPk(sessionId);
+  const session = await ExamSession.findByPk(examSessionId);
   const student = await Student.findByPk(studentId, { attributes: ['student_id', 'usn', 'student_name'] });
   if (!session || !student) {
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Unknown session or student.'));
   }
   const results = await Result.findAll({
-    where: { session_id: sessionId, student_id: studentId },
+    where: { exam_session_id: examSessionId, student_id: studentId },
     attributes: ['result_id', 'attempt_no', 'exam_type', 'result_status', 'sgpa', 'cgpa'],
     order: [['attempt_no', 'ASC']]
   });
   if (!results.length) {
-    return res.redirect(`/revaluation/start/students?session=${sessionId}&error=` +
+    return res.redirect(`/revaluation/start/students?exam_session_id=${examSessionId}&error=` +
       encodeURIComponent('No Results/attempts found for this student in this session.'));
   }
 
@@ -242,10 +247,10 @@ exports.resolveShowAttempts = async (req, res) => {
     breadcrumbItems: [
       { label: 'Result Management' },
       { label: 'Upload Revaluation', href: '/revaluation/start' },
-      { label: 'Select Student', href: `/revaluation/start/students?session=${sessionId}` },
+      { label: 'Select Student', href: `/revaluation/start/students?exam_session_id=${examSessionId}` },
       { label: 'Select Attempt', active: true }
     ],
-    sessionId,
+    examSessionId,
     studentId,
     sessionDisplay: sessionDisplay(session),
     studentName: student.student_name + ' (' + student.usn + ')',
@@ -269,16 +274,16 @@ exports.resolveShowAttempts = async (req, res) => {
 /**
  * Step 4 — POST selecting an attempt. Browser ids are hints only. The
  * authoritative Result is resolved server-side, the full chain is re-verified
- * (Result exists; session_id matches; student_id matches; attempt_no/exam_type
+ * (Result exists; exam_session_id matches; student_id matches; attempt_no/exam_type
  * come from the DB row), the Prompt-12 open-submission guard runs, then the
  * server-authoritative draft (incl. the Result's full SubjectResult scope) is
  * stashed and the existing upload page is opened.
  */
 exports.confirmAttemptSelection = async (req, res) => {
-  const sessionId = Number(req.body.session || req.body.sessionId || 0);
+  const examSessionId = Number(req.body.exam_session_id || 0);
   const studentId = Number(req.body.student || req.body.studentId || 0);
   const resultId = Number(req.body.result || req.body.resultId || 0);
-  if (!Number.isInteger(sessionId) || sessionId <= 0 ||
+  if (!Number.isInteger(examSessionId) || examSessionId <= 0 ||
       !Number.isInteger(studentId) || studentId <= 0 ||
       !Number.isInteger(resultId) || resultId <= 0) {
     return res.redirect('/revaluation/start?error=' + encodeURIComponent('Invalid selection.'));
@@ -293,16 +298,16 @@ exports.confirmAttemptSelection = async (req, res) => {
   if (!result) return res.redirect('/revaluation/start?error=' + encodeURIComponent('Result not found.'));
 
   // Server-authoritative chain verification (browser ids were hints only).
-  if (Number(result.session_id) !== sessionId) {
+  if (Number(result.exam_session_id) !== examSessionId) {
     return res.redirect('/revaluation/start?error=' +
-      encodeURIComponent('Result does not belong to the selected Result Session. Please re-select.'));
+      encodeURIComponent('Result does not belong to the selected Exam Session. Please re-select.'));
   }
   if (Number(result.student_id) !== studentId) {
     return res.redirect('/revaluation/start?error=' +
       encodeURIComponent('Result does not belong to the selected student. Please re-select.'));
   }
 
-  const attemptPage = `/revaluation/start/attempts?session=${sessionId}&student=${studentId}`;
+  const attemptPage = `/revaluation/start/attempts?exam_session_id=${examSessionId}&student=${studentId}`;
 
   // Prompt-12 open-submission guard — unchanged, must run before proceeding.
   let opr;
@@ -328,7 +333,7 @@ exports.confirmAttemptSelection = async (req, res) => {
   req.session.revaluationDraft = {
     resultId: Number(result.result_id),
     studentId: Number(result.student_id),
-    sessionId: Number(result.session_id),
+    examSessionId: Number(result.exam_session_id),
     attempt_no: Number(result.attempt_no),
     exam_type: result.exam_type,
     startedAt: Date.now()
@@ -360,7 +365,7 @@ exports.showUploadPage = async (req, res) => {
       req.session.revaluationDraft = {
         resultId: Number(ctx.result_id),
         studentId: Number(ctx.student_id),
-        sessionId: Number(ctx.session_id),
+        examSessionId: Number(ctx.exam_session_id),
         attempt_no: Number(ctx.attempt_no),
         exam_type: ctx.exam_type,
         startedAt: Date.now(),
@@ -408,10 +413,10 @@ exports.showUploadPage = async (req, res) => {
       { label: 'Re-upload Document', active: true }
     ],
     resultId: result.result_id,
-    sessionId: Number(result.session_id),
+    examSessionId: Number(result.exam_session_id),
     studentId: Number(result.student_id),
     student: { name: result.Student ? result.Student.student_name : '', usn: result.Student ? result.Student.usn : '' },
-    sessionDisplay: sessionDisplay(result.ResultSession),
+    sessionDisplay: sessionDisplay(result.ExamSession),
     attempt: { attempt_no: Number(result.attempt_no), exam_type: result.exam_type },
     subjects,
     subjectCount: subjects.length,
@@ -538,7 +543,7 @@ exports.processUpload = async (req, res) => {
     // Existing approved results are checked at validation and again under the approval lock.
 
     importLog = await ImportLog.create({
-      session_id: Number(result.session_id),
+      exam_session_id: Number(result.exam_session_id),
       uploaded_by: adminId,
       file_name: secureName,
       file_path: storedPath,
@@ -593,7 +598,7 @@ exports.processUpload = async (req, res) => {
         source: 'revaluation',
         result_id: Number(result.result_id),
         student_id: Number(result.student_id),
-        session_id: Number(result.session_id),
+        exam_session_id: Number(result.exam_session_id),
         attempt: { attempt_no: Number(result.attempt_no), exam_type: result.exam_type },
         documents: [{
           sha256: academicIntegrity.digest(fs.readFileSync(storedPath)),
@@ -606,14 +611,14 @@ exports.processUpload = async (req, res) => {
           usn: result.Student ? result.Student.usn : null
         },
         session: {
-          session_id: Number(result.session_id),
-          semester: result.ResultSession ? result.ResultSession.semester : null,
-          exam_session: result.ResultSession ? result.ResultSession.exam_session : null,
-          exam_year: result.ResultSession ? result.ResultSession.exam_year : null,
-          exam_start_month: result.ResultSession ? result.ResultSession.exam_start_month : null,
-          exam_start_year: result.ResultSession ? result.ResultSession.exam_start_year : null,
-          exam_end_month: result.ResultSession ? result.ResultSession.exam_end_month : null,
-          exam_end_year: result.ResultSession ? result.ResultSession.exam_end_year : null
+          exam_session_id: Number(result.exam_session_id),
+          semester: result.ExamSession ? result.ExamSession.semester : null,
+          exam_session: result.ExamSession ? result.ExamSession.exam_session : null,
+          exam_year: result.ExamSession ? result.ExamSession.exam_year : null,
+          exam_start_month: result.ExamSession ? result.ExamSession.exam_start_month : null,
+          exam_start_year: result.ExamSession ? result.ExamSession.exam_start_year : null,
+          exam_end_month: result.ExamSession ? result.ExamSession.exam_end_month : null,
+          exam_end_year: result.ExamSession ? result.ExamSession.exam_end_year : null
         },
         // The full student SubjectResults set is persisted. The review
         // page uses this to offer "Add Subject" candidates (admin manual
@@ -669,7 +674,7 @@ exports.showPending = async (req, res) => {
   try {
     log = await ImportLog.findByPk(importId, {
       include: [
-        { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
+        { model: ExamSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
         { model: OcrExtraction }
       ]
     });
@@ -701,13 +706,13 @@ exports.showPending = async (req, res) => {
     uploadedBy: log.uploaded_by,
     createdAt: log.created_at,
     file_name: log.file_name,
-    sessionDisplay: sessionDisplay(log.ResultSession),
+    sessionDisplay: sessionDisplay(log.ExamSession),
     student: (saved && saved.student) || {},
     attempt: (saved && saved.attempt) || {},
         documents: (saved && saved.documents) || [],
     subjects: (saved && saved.subjects) || [],
     subjectCount: (saved && saved.subjects) ? saved.subjects.length : 0,
-    sessionId: (saved && saved.session_id) || null,
+    examSessionId: (saved && saved.exam_session_id) || null,
     resultId: (saved && saved.result_id) || null,
     error: req.query.error || (saved && saved.ocr && saved.ocr.error) || null
   });
@@ -931,7 +936,7 @@ exports.showExtraction = (req, res) => {
 async function loadRevalImport(importId) {
   return ImportLog.findByPk(importId, {
     include: [
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
+      { model: ExamSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'] },
       { model: OcrExtraction }
     ]
   });
@@ -1393,13 +1398,13 @@ function loadResultContextFull(resultId, t, lock) {
   const opts = {
     include: [
       { model: Student, attributes: ['student_name', 'usn', 'batch_id'] },
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year', 'batch_id'] },
+      { model: ExamSession, attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year', 'batch_id'] },
       {
         model: SubjectResult,
         attributes: ['subject_result_id', 'result_id', 'subject_id', 'internal_marks', 'external_marks', 'marks', 'grade', 'result_status'],
         include: [{
           model: Subject,
-          attributes: ['subject_code', 'subject_name', 'credits', 'session_id', 'course_id',
+          attributes: ['subject_code', 'subject_name', 'credits', 'exam_session_id', 'course_id',
                        'max_internal', 'max_external', 'max_marks']
         }]
       }
@@ -1442,13 +1447,13 @@ exports.confirmIdentity = async (req, res) => {
   const ocr = (saved && saved.ocr) || {};
   const ocrCandidates = ocr.student_candidates || {};
   let serverStudent = null;
-  let sessionId = (saved && saved.session_id) || null;
+  let examSessionId = (saved && saved.exam_session_id) || null;
   if (saved && saved.result_id) {
     try {
       const full = await loadResultContext(saved.result_id);
       if (full && full.Student) {
         serverStudent = { student_name: full.Student.student_name, usn: full.Student.usn };
-        if (!sessionId) sessionId = full.session_id;
+        if (!examSessionId) examSessionId = full.exam_session_id;
       }
     } catch (_) {}
   }
@@ -1505,7 +1510,7 @@ exports.confirmIdentity = async (req, res) => {
 
 /**
  * Guard: does the stored extracted_json contain a complete, runnable
- * server-side context (result_id / student_id / session_id / attempt
+ * server-side context (result_id / student_id / exam_session_id / attempt
  * block / subjects array)? Used by every revaluation handler that
  * re-derives from the stored row before touching the DB.
  */
@@ -1513,7 +1518,7 @@ function stored_guardHasContext(saved) {
   if (!saved || typeof saved !== 'object') return false;
   if (!Number.isInteger(Number(saved.result_id)) || Number(saved.result_id) <= 0) return false;
   if (!Number.isInteger(Number(saved.student_id)) || Number(saved.student_id) <= 0) return false;
-  if (!Number.isInteger(Number(saved.session_id)) || Number(saved.session_id) <= 0) return false;
+  if (!Number.isInteger(Number(saved.exam_session_id)) || Number(saved.exam_session_id) <= 0) return false;
   if (!saved.attempt || typeof saved.attempt !== 'object') return false;
   if (!Array.isArray(saved.subjects)) return false;
   return true;
@@ -1572,7 +1577,7 @@ async function loadReviewState(importId, optsIn) {
   // Identity drift checks vs CURRENT DB truth (fail-closed).
   const ctxErrs = [];
   if (Number(result.student_id) !== Number(saved.student_id)) ctxErrs.push('Stored student no longer matches the Result.');
-  if (Number(result.session_id) !== Number(saved.session_id)) ctxErrs.push('Stored session no longer matches the Result.');
+  if (Number(result.exam_session_id) !== Number(saved.exam_session_id)) ctxErrs.push('Stored session no longer matches the Result.');
   if (saved.attempt && (Number(result.attempt_no) !== Number(saved.attempt.attempt_no) ||
                         result.exam_type !== saved.attempt.exam_type)) {
     ctxErrs.push('Stored attempt number/type no longer matches the Result.');
@@ -1698,7 +1703,7 @@ async function loadReviewState(importId, optsIn) {
       resultId: Number(result.result_id),
       studentName: result.Student ? result.Student.student_name : '',
       studentUsn: result.Student ? result.Student.usn : '',
-      sessionDisplay: sessionDisplay(result.ResultSession),
+      sessionDisplay: sessionDisplay(result.ExamSession),
       attemptNo: Number(result.attempt_no),
       examType: result.exam_type,
     // PHASE 4: selected subjects NOT detected by OCR (no card data available)
@@ -1751,7 +1756,7 @@ exports.showReview = async (req, res) => {
     review: st.review,
     rows: st.rows,
     missingSubjects: (st.meta && st.meta.missingSubjects) || [],
-    meta: Object.assign({}, st.meta, { sessionId: (st.saved && st.saved.session_id) || null }),
+    meta: Object.assign({}, st.meta, { examSessionId: (st.saved && st.saved.exam_session_id) || null }),
     errors: {},
     enteredVals: {},
     notice: req.query.notice ? decodeURIComponent(req.query.notice) : null,
@@ -2345,7 +2350,7 @@ exports.approveReview = async (req, res) => {
     const identityErrors = revaluationIntegrity.verify(saved, result, review.proposal, typeof review.identity_verified === 'object' ? review.identity_verified : {}).errors;
     if (identityErrors.length) throw new BadState(identityErrors.join(' '));
     if (Number(result.student_id) !== Number(saved.student_id) ||
-        Number(result.session_id) !== Number(saved.session_id) ||
+        Number(result.exam_session_id) !== Number(saved.exam_session_id) ||
         (saved.attempt && Number(result.attempt_no) !== Number(saved.attempt.attempt_no)) ||
         (saved.attempt && result.exam_type !== saved.attempt.exam_type)) {
       throw new BadState('Result identity drifted from the validated review context.');
@@ -2638,7 +2643,7 @@ exports.showOutcome = async (req, res) => {
       { label: 'Review & Validate', href: `/revaluation/review/${importId}` },
       { label: 'Outcome', active: true }
     ],
-    meta: Object.assign({}, st.meta, { sessionId: (st.saved && st.saved.session_id) || null }),
+    meta: Object.assign({}, st.meta, { examSessionId: (st.saved && st.saved.exam_session_id) || null }),
     logStatus: st.log.status,
     reviewedAt: review.approved_at || review.submitted_at || null,
     reviewPresent: !!saved.review,

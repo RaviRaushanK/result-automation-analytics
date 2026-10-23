@@ -21,7 +21,7 @@ database write is required merely to update this documentation.
 | `departments`, `batches` | Department affiliation and course/cohort years |
 | `admin_users` | Login accounts; distinct from teaching faculty and student identities |
 | `faculty`, `subject_faculty` | Teaching faculty and many-to-many offering assignments |
-| `result_sessions` | Batch + academic semester + structured examination start/end month and year |
+| `exam_sessions` | Batch + academic semester + structured examination start/end month and year |
 | `academic_courses` | Stable batch/semester/course identity, definition and roster review |
 | `subjects` | Session-specific course offerings |
 | `students` | Student identity, batch, category, status and soft-delete timestamp |
@@ -38,8 +38,19 @@ not additional student/result workflow models.
 
 ## Important Keys and Invariants
 
+- `ExamSession` maps to `exam_sessions`, primary key `exam_session_id`.
+  `results`, `subjects`, and `import_logs` use that same foreign-key name.
+  `subject_faculty` has no direct examination-session column; its subject supplies
+  the context. OCR extraction has an import FK, not a direct exam-session FK.
+  Login storage still uses its unrelated `sessions.session_id`.
+- The rename migration uses MySQL 8 metadata renames, preserving numeric IDs,
+  AUTO_INCREMENT, FK actions, index definitions and period checks. The
+  `effective_student_results` view is redefined with the renamed ID column while
+  retaining its existing outcome expressions. Existing audit payloads are not
+  rewritten. Historical constraint/index names are retained intentionally.
+
 - `subjects`: unique offering code within a session, not globally unique.
-- `result_sessions`: unique batch/semester/start-month/start-year/end-month/end-year
+- `exam_sessions`: unique batch/semester/start-month/start-year/end-month/end-year
   combination. `exam_session` and `exam_year` are retained compatibility values
   derived from the start period; the structured fields are authoritative.
 - `academic_courses`: unique batch/semester/exact normalized subject code.

@@ -25,7 +25,7 @@ test('session status is identical before/after saving and changes only with the 
   for (const [month, year, expected] of [['Sep', 2026, 'completed'], ['Oct', 2026, 'active'], ['November', 2026, 'upcoming'], ['JAN', 2027, 'upcoming'], ['Dec', 2025, 'completed']]) {
     const draft = { exam_session: month, exam_year: year };
     assert.equal(options.sessionStatus(draft, now), expected);
-    assert.equal(options.sessionStatus({ ...draft, session_id: 1 }, now), expected);
+    assert.equal(options.sessionStatus({ ...draft, exam_session_id: 1 }, now), expected);
   }
   assert.equal(options.sessionStatus({ exam_session: '', exam_year: 2026 }, now), '');
 });
@@ -43,9 +43,9 @@ test('faculty email validation supports institutional mail, optional blank and m
 function sessionFixture() {
   let batch = { batch_id: 1, start_year: 2025, end_year: 2027 };
   const writes = [];
-  const models = { Batch: { findByPk: async () => batch }, ResultSession: { findOne: async () => null, create: async value => { writes.push(value); return value; } } };
+  const models = { Batch: { findByPk: async () => batch }, ExamSession: { findOne: async () => null, create: async value => { writes.push(value); return value; } } };
   const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : require(name) };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../controllers/sessionController.js'), 'utf8'), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../controllers/examSessionController.js'), 'utf8'), context);
   return {
     setBatch(value) { batch = value; }, writes,
     async create(body) { const res = { statusCode: 200, status(value) { this.statusCode = value; return this; }, json(value) { this.body = value; } }; await context.module.exports.create({ body }, res); return res; }

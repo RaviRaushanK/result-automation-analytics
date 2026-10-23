@@ -21,7 +21,7 @@
     <div class="card-body">
       <p class="mb-1"><strong>Import ID:</strong> <%= meta.importId %> &middot; <strong>Result ID:</strong> <%= meta.resultId %></p>
       <p class="mb-1"><strong>Student:</strong> <%= meta.studentName || '—' %> (<%= meta.studentUsn || '—' %>)</p>
-      <p class="mb-1"><strong>Session:</strong> <%= meta.sessionDisplay || '—' %> &middot;
+      <p class="mb-1"><strong>Exam Session:</strong> <%= meta.sessionDisplay || '—' %> &middot;
         <strong>Attempt:</strong> #<%= meta.attemptNo %> &middot;
         <span class="badge bg-info text-dark"><%= meta.examType %></span>
         <% if (meta.docUrl) { %> &middot;
@@ -129,8 +129,8 @@
     <a href="/revaluation/review/<%= meta.importId %>" class="btn btn-outline-secondary btn-sm">
       <i class="material-icons">arrow_back</i> Review page
     </a>
-    <% if (meta.sessionId) { %>
-      <a href="/revaluation/start/students?session=<%= meta.sessionId %>" class="btn btn-outline-secondary btn-sm">
+    <% if (meta.examSessionId) { %>
+      <a href="/revaluation/start/students?exam_session_id=<%= meta.examSessionId %>" class="btn btn-outline-secondary btn-sm">
         <i class="material-icons">arrow_back</i> Back to Students
       </a>
     <% } %>

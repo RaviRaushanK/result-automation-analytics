@@ -10,7 +10,7 @@
       if (el.tagName !== 'SELECT' || Array.from(el.options).some(function (o) { return o.value === initialQuery.get(el.name); })) el.value = initialQuery.get(el.name);
     });
     Array.from(initialQuery.keys()).forEach(function (key) {
-      if (['batch_id', 'semester', 'session_id', 'subject_id'].indexOf(key) === -1) initialQuery.delete(key);
+      if (['batch_id', 'semester', 'exam_session_id', 'subject_id'].indexOf(key) === -1) initialQuery.delete(key);
     });
     var request = 0, filterRequest = 0, offset = 0, limit = 25, charts = [];
     var searchTimer, requestAbort;
@@ -153,13 +153,13 @@
     var definitions = [
       ['semesters', 'semester', 'semester', 'semester'],
       ['batches', 'batch_id', 'batchId', 'batchName'],
-      ['sessions', 'session_id', 'sessionId', 'examSession'],
+      ['sessions', 'exam_session_id', 'examSessionId', 'examSession'],
       ['subjects', 'subject_id', 'subjectId', 'subjectCode']
     ];
     async function refresh(changed) {
       var current = ++filterRequest;
-      var children = { semester: ['session_id', 'subject_id'],
-        batch_id: ['session_id', 'subject_id'], session_id: ['subject_id'] };
+      var children = { semester: ['exam_session_id', 'subject_id'],
+        batch_id: ['exam_session_id', 'subject_id'], exam_session_id: ['subject_id'] };
       (children[changed] || []).forEach(function (name) { if (form.elements.namedItem(name)) form.elements.namedItem(name).value = ''; });
       var params = filters();
       initialQuery.forEach(function (value, key) { if (form.elements.namedItem(key)) params.set(key, value); });

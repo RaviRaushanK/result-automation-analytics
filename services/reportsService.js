@@ -39,10 +39,11 @@ function semester(value, required = true) {
 }
 
 function normalize(type, query) {
+  query = require('./examSessionParameters').normalize(query);
   if (!TYPES.includes(type)) invalid('Unknown report.', 404);
   const f = {
     batch_id: integer(query.batch_id, 'Batch', true),
-    session_id: integer(type === 'student' && query.session_id === 'all' ? undefined : query.session_id, 'Result session', !['student', 'student-progress'].includes(type)),
+    exam_session_id: integer(type === 'student' && query.exam_session_id === 'all' ? undefined : query.exam_session_id, 'Exam session', !['student', 'student-progress'].includes(type)),
     semester: semester(type === 'student' && query.semester === 'all' ? undefined : query.semester, !['student', 'student-progress'].includes(type)),
     student_id: integer(query.student_id, 'Student', type === 'student'),
     subject_id: integer(query.subject_id, 'Subject', type === 'subject'),
@@ -58,12 +59,12 @@ function normalize(type, query) {
   // Each report accepts only filters with a defined meaning for its dataset.
   if (type !== 'student' && (f.student_id || f.attempt_no)) invalid('Student and attempt filters are only supported by Student Result.');
   if (type === 'student' && (f.subject_id || f.exam_type || f.result_status || f.revaluation_status)) invalid('Unsupported Student Result filter.');
-  if (type === 'student' && f.attempt_no && !f.session_id) invalid('An exact attempt requires a specific result session.');
+  if (type === 'student' && f.attempt_no && !f.exam_session_id) invalid('An exact attempt requires a specific exam session.');
   if (type === 'class' && (f.subject_id || f.revaluation_status)) invalid('Unsupported Class Result filter.');
   if (type === 'toppers' && (f.subject_id || f.revaluation_status || f.result_status)) invalid('Unsupported Toppers filter.');
   if (type === 'consolidated' && (f.subject_id || f.revaluation_status || f.result_status)) invalid('Unsupported Consolidated Result filter.');
   if (type === 'result-analysis' && (f.subject_id || f.revaluation_status || f.result_status || f.exam_type)) invalid('Unsupported Result Analysis filter.');
-  if (type === 'student-progress' && (f.session_id || f.semester || f.subject_id || f.exam_type || f.result_status || f.revaluation_status)) invalid('Student Progress supports Batch and Result View only.');
+  if (type === 'student-progress' && (f.exam_session_id || f.semester || f.subject_id || f.exam_type || f.result_status || f.revaluation_status)) invalid('Student Progress supports Batch and Result View only.');
   if (type === 'subject' && (f.exam_type || f.revaluation_status)) invalid('Unsupported Subject Result filter.');
   if (type === 'revaluation' && (f.exam_type || f.result_status)) invalid('Unsupported Revaluation filter.');
   return f;
@@ -77,17 +78,18 @@ async function requireBatch(batchId) {
 
 async function context(type, f) {
   const batch = await requireBatch(f.batch_id);
-  const session = await repository.session(f.session_id, f.batch_id, f.semester);
-  if (!session) invalid('Result session does not belong to the selected batch and semester.', 404);
+  const session = await repository.session(f.exam_session_id, f.batch_id, f.semester);
+  if (!session) invalid('Exam session does not belong to the selected batch and semester.', 404);
   const meta = { batch, session };
   if (f.subject_id) {
-    meta.subject = await repository.subject(f.subject_id, f.session_id);
-    if (!meta.subject) invalid('Subject does not belong to the selected result session.', 404);
+    meta.subject = await repository.subject(f.subject_id, f.exam_session_id);
+    if (!meta.subject) invalid('Subject does not belong to the selected exam session.', 404);
   }
   return meta;
 }
 
 async function getOptions(scope, query = {}) {
+  query = require('./examSessionParameters').normalize(query);
   const f = {};
   if (scope === 'batches') return repository.options(scope, f);
   if (!['students', 'semesters', 'sessions', 'subjects', 'student-results', 'student-semesters', 'student-sessions'].includes(scope)) invalid('Unknown filter.', 404);
@@ -100,8 +102,8 @@ async function getOptions(scope, query = {}) {
   }
   if (scope === 'sessions') f.semester = semester(query.semester);
   if (scope === 'subjects' || scope === 'student-results') {
-    f.session_id = integer(query.session_id, 'Result session', true);
-    if (!await repository.session(f.session_id, f.batch_id)) invalid('Result session does not belong to the selected batch.', 404);
+    f.exam_session_id = integer(query.exam_session_id, 'Exam session', true);
+    if (!await repository.session(f.exam_session_id, f.batch_id)) invalid('Exam session does not belong to the selected batch.', 404);
   }
   if (scope === 'student-sessions') f.semester = semester(query.semester === 'all' ? undefined : query.semester, false);
   if (['student-results', 'student-semesters', 'student-sessions'].includes(scope)) {
@@ -138,9 +140,9 @@ async function studentReport(filters) {
   const student = await repository.student(filters.student_id, filters.batch_id);
   if (!student) invalid('Student does not belong to the selected batch.', 404);
   let session;
-  if (filters.session_id) {
-    session = await repository.session(filters.session_id, filters.batch_id, filters.semester);
-    if (!session) invalid('Result session does not belong to the selected batch and semester.', 404);
+  if (filters.exam_session_id) {
+    session = await repository.session(filters.exam_session_id, filters.batch_id, filters.semester);
+    if (!session) invalid('Exam session does not belong to the selected batch and semester.', 404);
   }
   const results = await repository.studentResults(filters);
   if (session) {
@@ -158,14 +160,14 @@ async function studentReport(filters) {
   }
   results.sort((a, b) => String(a.semester).localeCompare(String(b.semester), 'en', { numeric: true })
     || (academicPolicy.period(a) ?? Infinity) - (academicPolicy.period(b) ?? Infinity)
-    || Number(a.session_id) - Number(b.session_id) || Number(a.attempt_no) - Number(b.attempt_no));
+    || Number(a.exam_session_id) - Number(b.exam_session_id) || Number(a.attempt_no) - Number(b.attempt_no));
   const semesters = [];
   for (const result of results) {
     let term = semesters.find(term => String(term.semester) === String(result.semester));
     if (!term) { term = { semester: result.semester, sessions: [] }; semesters.push(term); }
-    let sitting = term.sessions.find(sitting => String(sitting.session.session_id) === String(result.session_id));
+    let sitting = term.sessions.find(sitting => String(sitting.session.exam_session_id) === String(result.exam_session_id));
     if (!sitting) {
-      sitting = { session: { session_id: result.session_id, semester: result.semester,
+      sitting = { session: { exam_session_id: result.exam_session_id, semester: result.semester,
         exam_session: result.exam_session, exam_year: result.exam_year,
         exam_start_month: result.exam_start_month, exam_start_year: result.exam_start_year,
         exam_end_month: result.exam_end_month, exam_end_year: result.exam_end_year,
@@ -250,7 +252,7 @@ async function* fullRows(report) {
 
 function resultOrder(a, b) {
   return String(a.semester).localeCompare(String(b.semester), 'en', { numeric: true })
-    || (academicPolicy.period(a) ?? Infinity) - (academicPolicy.period(b) ?? Infinity) || Number(a.session_id) - Number(b.session_id)
+    || (academicPolicy.period(a) ?? Infinity) - (academicPolicy.period(b) ?? Infinity) || Number(a.exam_session_id) - Number(b.exam_session_id)
     || Number(a.attempt_no) - Number(b.attempt_no) || Number(a.result_id) - Number(b.result_id);
 }
 const PROGRESS_FIELDS = [['marks', 'Marks Obt.'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['first_attempt', 'First Attempt'], ['supplementary_pass', 'Pass in Backlog']];
@@ -418,7 +420,7 @@ function filename(report) {
 function contextLines(report) {
   const { batch, session, student, subject, result } = report.meta;
   if (report.type === 'student-progress') return [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Admission Year', batch.start_year], ['Result View', `${report.filters.mode === 'effective' ? 'Effective' : 'Original'} Result`], ['Generated At', report.generatedAt]];
-  const lines = [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Semester', session?.semester || report.filters.semester || 'All Completed Semesters'], ['Result Session', session ? academicPolicy.formatExamPeriod(session) : 'All Result Sessions']];
+  const lines = [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Semester', session?.semester || report.filters.semester || 'All Completed Semesters'], ['Exam Session', session ? academicPolicy.formatExamPeriod(session) : 'All Exam Sessions']];
   if (student) lines.push(['USN', student.usn], ['Student Name', student.student_name]);
   if (student && result) lines.push(['Attempt', `${result.attempt_no} - ${result.exam_type}`]);
   if (subject) lines.push(['Subject', `${subject.subject_code} - ${subject.subject_name}`], ['Credits', subject.credits], ['Max Marks', subject.max_marks]);

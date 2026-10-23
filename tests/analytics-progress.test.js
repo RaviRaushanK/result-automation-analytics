@@ -9,10 +9,10 @@ after(() => db.sequelize.close());
 
 function fixture(first = 'pass', retakes = []) {
   const courses = [1, 2].map(n => ({ course_id: n, semester: String(n), subject_code: 'C' + n, subject_name: 'Course', status: 'active', is_required: true, roster_verified: true }));
-  const regular = { student_id: 1, result_id: 1, session_id: 1, semester: '1', exam_type: 'REGULAR', attempt_no: 7, exam_session: 'Dec', exam_year: 2025 };
+  const regular = { student_id: 1, result_id: 1, exam_session_id: 1, semester: '1', exam_type: 'REGULAR', attempt_no: 7, exam_session: 'Dec', exam_year: 2025 };
   const results = [regular], subjects = [{ ...regular, course_id: 1, outcome_status: first }];
   retakes.forEach(([exam_type, outcome_status], i) => {
-    const result = { ...regular, result_id: 2 + i, session_id: 2 + i, attempt_no: 1, exam_type, exam_session: 'Jun', exam_year: 2026 + i };
+    const result = { ...regular, result_id: 2 + i, exam_session_id: 2 + i, attempt_no: 1, exam_type, exam_session: 'Jun', exam_year: 2026 + i };
     results.push(result); subjects.push({ ...result, course_id: 1, outcome_status });
   });
   return { courses, results, subjects };
@@ -60,7 +60,7 @@ test('future semester is unknown in selected period and absent from participatio
 test('academic year uses the existing year helper and needs both verified semesters', () => {
   const data = fixture('fail', [['BACKLOG', 'pass']]);
   assert.equal(aggregate(data, { semester: undefined, academic_year: 1 }).summary.unknown, 1);
-  const result = { ...data.results[0], result_id: 20, session_id: 20, semester: '2', exam_session: 'Jun', exam_year: 2026 };
+  const result = { ...data.results[0], result_id: 20, exam_session_id: 20, semester: '2', exam_session: 'Jun', exam_year: 2026 };
   data.results.push(result); data.subjects.push({ ...result, course_id: 2, outcome_status: 'pass' });
   assert.equal(aggregate(data, { semester: undefined, academic_year: 1 }).summary.withBacklog, 1);
 });
@@ -109,9 +109,9 @@ test('read-only MySQL overlay: only approved effective revaluation clears progre
   const fixtureSql = `WITH academic_courses AS (SELECT 1 course_id,1 batch_id,'1' semester,'C1' subject_code,'Course' subject_name,'active' status,1 is_required,1 roster_verified),
     batches AS (SELECT 1 batch_id,'Test' batch_name,2025 start_year,2027 end_year,NULL deleted_at),
     students AS (SELECT 1 student_id,1 batch_id,'U1' usn,'Student 1' student_name,NULL category,NULL deleted_at UNION ALL SELECT 2,1,'U2','Student 2',NULL,NULL UNION ALL SELECT 3,1,'U3','Student 3',NULL,NULL UNION ALL SELECT 4,1,'U4','Student 4',NULL,NULL),
-    result_sessions AS (SELECT 1 session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year,12 exam_start_month,2025 exam_start_year,12 exam_end_month,2025 exam_end_year UNION ALL SELECT 2,1,'1','Jun',2026,6,2026,6,2026),
-    results AS (SELECT 1 result_id,1 student_id,1 session_id,1 attempt_no,'REGULAR' exam_type UNION ALL SELECT 2,2,1,1,'REGULAR' UNION ALL SELECT 3,3,1,1,'REGULAR' UNION ALL SELECT 4,4,1,1,'REGULAR' UNION ALL SELECT 5,4,2,1,'BACKLOG'),
-    subjects AS (SELECT 1 subject_id,1 session_id,1 course_id,'C1' subject_code,4 credits,100 max_marks UNION ALL SELECT 2,2,1,'C1',4,100),
+    exam_sessions AS (SELECT 1 exam_session_id,1 batch_id,'1' semester,'Dec' exam_session,2025 exam_year,12 exam_start_month,2025 exam_start_year,12 exam_end_month,2025 exam_end_year UNION ALL SELECT 2,1,'1','Jun',2026,6,2026,6,2026),
+    results AS (SELECT 1 result_id,1 student_id,1 exam_session_id,1 attempt_no,'REGULAR' exam_type UNION ALL SELECT 2,2,1,1,'REGULAR' UNION ALL SELECT 3,3,1,1,'REGULAR' UNION ALL SELECT 4,4,1,1,'REGULAR' UNION ALL SELECT 5,4,2,1,'BACKLOG'),
+    subjects AS (SELECT 1 subject_id,1 exam_session_id,1 course_id,'C1' subject_code,4 credits,100 max_marks UNION ALL SELECT 2,2,1,'C1',4,100),
     subject_results AS (SELECT 1 subject_result_id,1 result_id,1 subject_id,30 marks,'fail' result_status,'F' grade,1 course_id_snapshot UNION ALL SELECT 2,2,1,30,'fail','F',1 UNION ALL SELECT 3,3,1,30,'fail','F',1 UNION ALL SELECT 4,4,1,30,'fail','F',1 UNION ALL SELECT 5,5,2,30,'fail','F',1),
     revaluation_results AS (SELECT 1 revaluation_id,1 subject_result_id,1 revaluation_no,1 is_effective,'approved' revaluation_status,60 revised_marks,'pass' revised_status,'B' revised_grade
       UNION ALL SELECT 2,2,1,1,'pending',60,'pass','B' UNION ALL SELECT 3,3,1,1,'rejected',60,'pass','B'

@@ -7,8 +7,8 @@
   const form = document.getElementById('reports-filters');
   const el = name => document.getElementById(`report-${name}`);
   const ui = name => document.getElementById(`reports-${name}`);
-  const required = ['batch_id', ...(type === 'student' ? ['student_id'] : []), ...(type === 'student-progress' ? [] : ['semester', 'session_id']), ...(type === 'subject' ? ['subject_id'] : [])];
-  const dependent = ['batch_id', ...(type === 'student' ? ['student_id'] : []), ...(type === 'student-progress' ? [] : ['semester', 'session_id']), ...(type === 'student' ? ['attempt_no'] : []), ...(['subject', 'revaluation'].includes(type) ? ['subject_id'] : [])];
+  const required = ['batch_id', ...(type === 'student' ? ['student_id'] : []), ...(type === 'student-progress' ? [] : ['semester', 'exam_session_id']), ...(type === 'subject' ? ['subject_id'] : [])];
+  const dependent = ['batch_id', ...(type === 'student' ? ['student_id'] : []), ...(type === 'student-progress' ? [] : ['semester', 'exam_session_id']), ...(type === 'student' ? ['attempt_no'] : []), ...(['subject', 'revaluation'].includes(type) ? ['subject_id'] : [])];
   let version = 0;
   let cascadeAbort;
   let reportAbort;
@@ -22,7 +22,7 @@
   let studentSearchTimer;
 
   function missingRequired() {
-    const names = [...required, ...(type === 'student' && el('session_id').value !== 'all' ? ['attempt_no'] : [])];
+    const names = [...required, ...(type === 'student' && el('exam_session_id').value !== 'all' ? ['attempt_no'] : [])];
     return names.some(name => !el(name).value || el(name).disabled);
   }
 
@@ -51,7 +51,7 @@
   function placeholder(name) {
     const select = el(name);
     if (type === 'student' && name === 'semester') return 'All Completed Semesters';
-    if (type === 'student' && name === 'session_id') return 'All Result Sessions';
+    if (type === 'student' && name === 'exam_session_id') return 'All Exam Sessions';
     return type === 'revaluation' && name === 'subject_id' ? 'All Subjects' : `Select ${select.labels[0].textContent}`;
   }
 
@@ -76,7 +76,7 @@
     select.replaceChildren(new Option('Loading...', ''));
     const { options } = await fetchJSON(path, signal);
     if (expectedVersion !== version) return;
-    const all = type === 'student' && ['semester', 'session_id'].includes(name);
+    const all = type === 'student' && ['semester', 'exam_session_id'].includes(name);
     select.replaceChildren(new Option(options.length ? placeholder(name) : `No ${name === 'attempt_no' ? 'results' : select.labels[0].textContent.toLowerCase()} available`, options.length && all ? 'all' : ''));
     options.forEach(row => select.add(new Option(label(row), String(row[key]))));
     select.disabled = !options.length;
@@ -91,7 +91,7 @@
     await load('semester', `api/student-semesters?${query}`, 'semester', row => `Semester ${row.semester}`, signal, expectedVersion);
     if (el('semester').value && expectedVersion === version) {
       query.set('semester', el('semester').value);
-      await load('session_id', `api/student-sessions?${query}`, 'session_id', row => `${ExamPeriod.format(row)} - Semester ${row.semester}`, signal, expectedVersion);
+      await load('exam_session_id', `api/student-sessions?${query}`, 'exam_session_id', row => `${ExamPeriod.format(row)} - Semester ${row.semester}`, signal, expectedVersion);
     }
   }
 
@@ -125,9 +125,9 @@
       } else if (name === 'semester' && el('semester').value) {
         query.set('semester', el('semester').value);
         if (type === 'student') query.set('student_id', el('student_id').value);
-        await load('session_id', `${type === 'student' ? 'api/student-sessions' : 'api/sessions'}?${query}`, 'session_id', row => `${ExamPeriod.format(row)} - Semester ${row.semester}`, signal, expectedVersion);
-      } else if (name === 'session_id' && el('session_id').value && el('session_id').value !== 'all') {
-        query.set('session_id', el('session_id').value);
+        await load('exam_session_id', `${type === 'student' ? 'api/student-sessions' : 'api/exam-sessions'}?${query}`, 'exam_session_id', row => `${ExamPeriod.format(row)} - Semester ${row.semester}`, signal, expectedVersion);
+      } else if (name === 'exam_session_id' && el('exam_session_id').value && el('exam_session_id').value !== 'all') {
+        query.set('exam_session_id', el('exam_session_id').value);
         if (type === 'student') {
           query.set('student_id', el('student_id').value);
           await load('attempt_no', `api/student-results?${query}`, 'attempt_no', row => `Attempt ${row.attempt_no} - ${row.exam_type}`, signal, expectedVersion);
@@ -296,7 +296,7 @@
     });
     if (!report.rows.length) {
       const tr = node('tr');
-      const td = node('td', { student: 'No subject results are stored for this attempt.', 'student-progress': 'No students belong to the selected batch.', class: 'No result attempts match the selected filters.', consolidated: 'No result attempts match the selected filters.', 'result-analysis': 'No subjects belong to the selected result session.', subject: 'No subject result attempts match the selected filters.', revaluation: 'No persisted revaluation events match the selected filters.', toppers: 'No passing results with a stored CGPA match the selected filters.' }[type], 'reports-table-empty');
+      const td = node('td', { student: 'No subject results are stored for this attempt.', 'student-progress': 'No students belong to the selected batch.', class: 'No result attempts match the selected filters.', consolidated: 'No result attempts match the selected filters.', 'result-analysis': 'No subjects belong to the selected exam session.', subject: 'No subject result attempts match the selected filters.', revaluation: 'No persisted revaluation events match the selected filters.', toppers: 'No passing results with a stored CGPA match the selected filters.' }[type], 'reports-table-empty');
       td.colSpan = report.columns.length + Number(numbered);
       tr.append(td); fragment.append(tr);
     }

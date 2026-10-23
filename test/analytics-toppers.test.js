@@ -12,8 +12,8 @@ function loadRepository() {
   const queries = [];
   const module = { exports: {} };
   const database = {
-    ResultSession: {
-      findAll: async () => [{ session_id: 1 }]
+    ExamSession: {
+      findAll: async () => [{ exam_session_id: 1 }]
     },
     sequelize: {
       query: async (sql, options) => {
@@ -26,6 +26,7 @@ function loadRepository() {
   vm.runInNewContext(fs.readFileSync(path.join(root, 'repositories/analyticsRepository.js'), 'utf8'), {
     module, exports: module.exports,
     require(name) {
+      if (name === '../services/examSessionParameters') return require('../services/examSessionParameters');
       if (name === 'sequelize') return { QueryTypes: { SELECT: 'SELECT' } };
       if (name === '../database/models') return database;
       if (name === '../services/academicPolicy') return require('../services/academicPolicy');
@@ -47,6 +48,7 @@ function topperServiceResponse() {
   vm.runInNewContext(fs.readFileSync(path.join(root, 'services/analyticsService.js'), 'utf8'), {
     module, exports: module.exports,
     require(name) {
+      if (name === '../services/examSessionParameters') return require('../services/examSessionParameters');
       if (name === '../public/js/exam-period') return require('../public/js/exam-period');
       assert.equal(name, '../repositories/analyticsRepository');
       return repository;
@@ -70,7 +72,7 @@ test('Toppers query excludes failed or CGPA-less results and ranks before pagina
   // The repository is evaluated in a VM; round-trip the replacements to
   // compare their values with this realm's native strict deep equality.
   assert.deepEqual(JSON.parse(JSON.stringify(replacements)), {
-    sessionIds: [1], limitValue: 25, offsetValue: 50
+    examSessionIds: [1], limitValue: 25, offsetValue: 50
   });
 });
 

@@ -87,16 +87,16 @@ test('Analytics filter renders with only the normal types on every attempt analy
 });
 
 test('Analytics scopes both modes by exact exam type and keeps legacy filters readable', async () => {
-  const query = db.sequelize.query, sessions = db.ResultSession.findAll;
+  const query = db.sequelize.query, sessions = db.ExamSession.findAll;
   let captured;
-  db.ResultSession.findAll = async () => [{ session_id: 1 }];
+  db.ExamSession.findAll = async () => [{ exam_session_id: 1 }];
   db.sequelize.query = async (sql, options) => {
     captured = { sql, params: options.replacements };
     return [{ examType: options.replacements.examType, sgpa: null, cgpa: null, subjectsAttempted: 1, passed: 0, failed: 1 }];
   };
   try {
     for (const mode of ['original', 'effective']) for (const exam_type of policy.EXAM_TYPES) {
-      const result = await analytics.getStudentAnalytics({ session_id: 1, attempt: 'all', mode, exam_type });
+      const result = await analytics.getStudentAnalytics({ exam_session_id: 1, attempt: 'all', mode, exam_type });
       assert.match(captured.sql, /r\.exam_type = :examType/);
       assert.equal(captured.params.examType, exam_type);
       assert.equal(result.data[0].examType, exam_type);
@@ -104,8 +104,8 @@ test('Analytics scopes both modes by exact exam type and keeps legacy filters re
       assert.equal(result.mode, mode);
       if (mode === 'effective') assert.match(captured.sql, /revaluation_status = 'approved'/);
     }
-    await analytics.getStudentAnalytics({ session_id: 1, attempt: 'all' });
+    await analytics.getStudentAnalytics({ exam_session_id: 1, attempt: 'all' });
     assert.equal(captured.params.examType, undefined);
     assert.doesNotMatch(captured.sql, /r\.exam_type = :examType/);
-  } finally { db.sequelize.query = query; db.ResultSession.findAll = sessions; }
+  } finally { db.sequelize.query = query; db.ExamSession.findAll = sessions; }
 });

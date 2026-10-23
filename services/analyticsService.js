@@ -73,7 +73,7 @@ function toNum(value) {
  * defaults (mode=original, attempt=latest). Zero remains a valid value.
  */
 function normalizeFilters(filters) {
-  const f = filters || {};
+  const f = require('../services/examSessionParameters').normalize(filters || {});
   const mode = MODES.includes(f.mode) ? f.mode : 'original';
   const attempt = ATTEMPTS.includes(f.attempt) ? f.attempt : 'latest';
 
@@ -85,7 +85,7 @@ function normalizeFilters(filters) {
     exam_session: toStr(f.exam_session),
     department_id: toInt(f.department_id),
     batch_id: toInt(f.batch_id),
-    session_id: toInt(f.session_id),
+    exam_session_id: toInt(f.exam_session_id),
     subject_id: toInt(f.subject_id),
     subject_code: toStr(f.subject_code),
     student_id: toInt(f.student_id),

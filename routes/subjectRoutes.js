@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+router.use(require('../middlewares/examSessionParameters'));
 
 const subjectController = require("../controllers/subjectController");
 const adminMiddleware = require("../middlewares/adminMiddleware");
@@ -13,7 +14,7 @@ router.get('/', (req, res, next) => {
   if (req.query.tab === 'roster') return adminMiddleware(req, res, () => courses.page(req, res, next));
   return subjectController.all(req, res);
 });
-router.get("/session/:session_id", subjectController.getBySession);
+router.get("/session/:exam_session_id", subjectController.getBySession);
 router.get("/:id", subjectController.getById);
 router.post("/", adminMiddleware, subjectController.create);
 router.put("/:id", adminMiddleware, subjectController.update);

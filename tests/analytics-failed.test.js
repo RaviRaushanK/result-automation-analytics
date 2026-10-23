@@ -8,12 +8,12 @@ after(() => db.sequelize.close());
 // CTEs shadow production tables: these scenarios never persist academic data.
 const fixture = `WITH
  batches AS (SELECT 1 batch_id,'Test' batch_name),
- result_sessions AS (SELECT 1 session_id,1 batch_id,2026 exam_year,'1' semester),
+ exam_sessions AS (SELECT 1 exam_session_id,1 batch_id,2026 exam_year,'1' semester),
  students AS (SELECT 1 student_id,'U1' usn,'Student 1' student_name UNION ALL SELECT 2,'U2','Student 2'
    UNION ALL SELECT 3,'U3','Student 3' UNION ALL SELECT 4,'U4','Student 4' UNION ALL SELECT 5,'U5','Student 5'
    UNION ALL SELECT 6,'U6','Student 6' UNION ALL SELECT 7,'U7','Student 7' UNION ALL SELECT 8,'U8','Student 8' UNION ALL SELECT 9,'U9','Student 9'),
  subjects AS (SELECT 1 subject_id,'C1' subject_code,'Course' subject_name),
- results AS (SELECT student_id result_id,student_id,1 session_id,1 attempt_no,'REGULAR' exam_type FROM students
+ results AS (SELECT student_id result_id,student_id,1 exam_session_id,1 attempt_no,'REGULAR' exam_type FROM students
    UNION ALL SELECT 10,1,1,2,'REGULAR'),
  subject_results AS (SELECT student_id subject_result_id,student_id result_id,1 subject_id,
    CASE WHEN student_id=9 THEN NULL WHEN student_id=5 THEN 80 ELSE 30 END marks,
@@ -32,11 +32,11 @@ const fixture = `WITH
 
 test('failed subject API compares Original and Effective truth without changing failure membership rules', { skip: process.env.REPORTS_DB_TEST !== '1' }, async t => {
   await db.sequelize.authenticate();
-  const realQuery = db.sequelize.query.bind(db.sequelize), findAll = db.ResultSession.findAll;
+  const realQuery = db.sequelize.query.bind(db.sequelize), findAll = db.ExamSession.findAll;
   let calls = 0;
-  db.ResultSession.findAll = async options => options.where.batch_id === 2 ? [] : [{ session_id: 1 }];
+  db.ExamSession.findAll = async options => options.where.batch_id === 2 ? [] : [{ exam_session_id: 1 }];
   db.sequelize.query = (sql, options) => { calls++; assert.match(sql.trim(), /^SELECT\b/); return realQuery(fixture + sql, options); };
-  const query = { batch_id: 1, semester: '1', session_id: 1, attempt: 'all' };
+  const query = { batch_id: 1, semester: '1', exam_session_id: 1, attempt: 'all' };
   try {
     const original = await service.getFailedStudents({ ...query, mode: 'original' }, { limit: 100 });
     const effective = await service.getFailedStudents({ ...query, mode: 'effective' }, { limit: 100 });
@@ -79,5 +79,5 @@ test('failed subject API compares Original and Effective truth without changing 
       assert.deepEqual((await service.getFailedStudents({ ...query, batch_id: 2 })).data, []);
       assert.equal(calls, before, 'Empty session scope never falls back to unrestricted data');
     });
-  } finally { db.sequelize.query = realQuery; db.ResultSession.findAll = findAll; }
+  } finally { db.sequelize.query = realQuery; db.ExamSession.findAll = findAll; }
 });

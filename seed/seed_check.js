@@ -24,18 +24,18 @@ const mysql = require('mysql2/promise');
       );
       console.log('  students: ' + students[0].n + '  USN ' + students[0].min_usn + ' .. ' + students[0].max_usn);
       const [sessions] = await c.query(
-        'SELECT session_id, semester, exam_session, exam_year, exam_start_month, exam_start_year, exam_end_month, exam_end_year FROM result_sessions WHERE batch_id = ?', [b.batch_id]
+        'SELECT exam_session_id, semester, exam_session, exam_year, exam_start_month, exam_start_year, exam_end_month, exam_end_year FROM exam_sessions WHERE batch_id = ?', [b.batch_id]
       );
       for (const s of sessions) {
         const [r] = await c.query(
           'SELECT COUNT(*) n, SUM(result_status="pass") pass, SUM(result_status="fail") fail, ' +
           'SUM(cgpa IS NULL) cgpa_null, SUM(sgpa IS NULL) sgpa_null, ' +
           'SUM(attempt_no=2) attempts2, SUM(exam_type="BACKLOG") backlogs ' +
-          'FROM results WHERE session_id = ?', [s.session_id]
+          'FROM results WHERE exam_session_id = ?', [s.exam_session_id]
         );
         const [sr] = await c.query(
           'SELECT COUNT(*) n, SUM(sr.result_status="fail") fail FROM subject_results sr ' +
-          'JOIN results r ON r.result_id=sr.result_id WHERE r.session_id = ?', [s.session_id]
+          'JOIN results r ON r.result_id=sr.result_id WHERE r.exam_session_id = ?', [s.exam_session_id]
         );
         console.log('  Sem' + s.semester + ' ' + s.exam_session + ' ' + s.exam_year +
           ': results=' + r[0].n + ' pass=' + (r[0].pass || 0) + ' fail=' + (r[0].fail || 0) +

@@ -59,8 +59,8 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   const saved = { student: { usn: 'TESTUSN', name: 'Test Student' }, attempt: { attempt_no: 2, exam_type: 'BACKLOG' },
     subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34, totalMarks: 999 }, { subject_id: 2, internalMarks: 0, externalMarks: 0 }] };
   replace(db.sequelize, 'transaction', async () => ({ commit: async () => { committed = true; }, rollback: async () => { rolledBack = true; } }));
-  replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', ResultSession: { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026, Batch: { batch_name: 'Test Batch' } }, update: async () => {} }));
-  replace(db.ResultSession, 'findByPk', async () => ({ session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 }));
+  replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', ExamSession: { exam_session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026, Batch: { batch_name: 'Test Batch' } }, update: async () => {} }));
+  replace(db.ExamSession, 'findByPk', async () => ({ exam_session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 }));
   replace(db.Batch, 'findByPk', async () => ({ batch_id: 1 }));
   replace(db.OcrExtraction, 'findOne', async () => ({ validation_status: 'validated', extracted_json: JSON.stringify({ ...saved,
     document_context_verified: { usn: true, semester: true, period: true }, review_token: 'fixture-review', configuration_snapshot: require('../services/academicConfiguration').snapshot(
@@ -71,8 +71,8 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   replace(require('../services/academicOutcomeService'), 'calculateCumulative', async () => null);
   replace(db.Student, 'findOne', async () => ({ student_id: 101, batch_id: 1, student_name: 'TEST STUDENT' }));
   replace(db.Result, 'findOne', async () => duplicate ? { result_id: 99 } : null);
-  replace(db.Result, 'findAll', async () => [{ result_id: 6, session_id: 1, attempt_no: 1, exam_type: 'REGULAR',
-    ResultSession: { session_id: 2, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025 },
+  replace(db.Result, 'findAll', async () => [{ result_id: 6, exam_session_id: 1, attempt_no: 1, exam_type: 'REGULAR',
+    ExamSession: { exam_session_id: 2, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025 },
     SubjectResults: [1, 2].map(course_id_snapshot => ({ subject_result_id: course_id_snapshot, course_id_snapshot, result_status: 'fail' })) }]);
   replace(db.Result, 'create', async data => { header = data; return { result_id: 7 }; });
   replace(db.SubjectResult, 'bulkCreate', async data => { subjectRows = data; });

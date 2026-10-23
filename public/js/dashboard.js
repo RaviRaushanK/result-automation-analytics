@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function renderScorers(rows, selected) {
         document.querySelector('#topScorersTable tbody').innerHTML = rows.length ? rows.map((s, i) => {
-            const name = canReview && s.student_id ? '<a class="dashboard-record-link" href="' + escapeHtml(url('/reports/student', { batch_id: s.batch_id || selected.batch_id, student_id: s.student_id, session_id: s.session_id, attempt_no: s.attempt_no, semester: selected.semester, mode: 'original' })) + '">' + escapeHtml(s.student_name) + '</a>' : escapeHtml(s.student_name);
+            const name = canReview && s.student_id ? '<a class="dashboard-record-link" href="' + escapeHtml(url('/reports/student', { batch_id: s.batch_id || selected.batch_id, student_id: s.student_id, exam_session_id: s.exam_session_id, attempt_no: s.attempt_no, semester: selected.semester, mode: 'original' })) + '">' + escapeHtml(s.student_name) + '</a>' : escapeHtml(s.student_name);
             return '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(s.usn) + '</td><td>' + name + '</td><td>' + escapeHtml(s.sgpa == null ? '--' : s.sgpa) + '</td><td>' + escapeHtml(s.cgpa == null ? '--' : s.cgpa) + '</td><td><span class="badge-status badge-pass">Pass</span></td></tr>';
         }).join('') : '<tr><td colspan="6" class="text-muted text-center py-4">No passing attempts with stored CGPA in this selection.</td></tr>';
     }

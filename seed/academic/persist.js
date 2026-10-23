@@ -15,7 +15,7 @@ const BACKUP_TABLES = [
   'results',
   'subject_faculty',
   'subjects',
-  'result_sessions',
+  'exam_sessions',
   'academic_courses',
   'students',
   'batches'
@@ -328,7 +328,7 @@ async function persist(db, transaction) {
     }
 
     const row =
-      await db.ResultSession.create({
+      await db.ExamSession.create({
         session_uuid:
           data.uuid(session.key),
 
@@ -397,8 +397,8 @@ async function persist(db, transaction) {
           course_id:
             course.course_id,
 
-          session_id:
-            row.session_id,
+          exam_session_id:
+            row.exam_session_id,
 
           created_at:
             data.STAMP,
@@ -663,8 +663,8 @@ async function persist(db, transaction) {
         student_id:
           person.student_id,
 
-        session_id:
-          session.session_id,
+        exam_session_id:
+          session.exam_session_id,
 
         attempt_no:
           spec.attempt_no,

@@ -15,7 +15,7 @@ async function inspect(db, transaction) {
       'Batch',
       'Student',
       'AcademicCourse',
-      'ResultSession',
+      'ExamSession',
       'Subject',
       'Result',
       'SubjectResult',
@@ -52,8 +52,8 @@ function references(rows) {
 
     sessions:
       by(
-        rows.ResultSession,
-        'session_id'
+        rows.ExamSession,
+        'exam_session_id'
       ),
 
     courses:
@@ -155,7 +155,7 @@ function logicalDigest(rows) {
 
         session:
           ref.sessions.get(
-            String(row.session_id)
+            String(row.exam_session_id)
           ).session_uuid
       }))
     ),
@@ -171,7 +171,7 @@ function logicalDigest(rows) {
 
         session:
           ref.sessions.get(
-            String(row.session_id)
+            String(row.exam_session_id)
           ).session_uuid,
 
         type: row.exam_type,
@@ -358,7 +358,7 @@ async function verify(
   );
 
   distinct(
-    rows.ResultSession,
+    rows.ExamSession,
     row =>
       `${row.batch_id}:` +
       `${row.semester}:` +
@@ -370,7 +370,7 @@ async function verify(
     rows.Result,
     row =>
       `${row.student_id}:` +
-      `${row.session_id}:` +
+      `${row.exam_session_id}:` +
       `${row.attempt_no}`
   );
 
@@ -480,7 +480,7 @@ async function verify(
   );
 
   assert.equal(
-    rows.ResultSession.length,
+    rows.ExamSession.length,
     12
   );
 
@@ -543,7 +543,7 @@ async function verify(
     const session =
       ref.sessions.get(
         String(
-          subject.session_id
+          subject.exam_session_id
         )
       );
 
@@ -660,7 +660,7 @@ async function verify(
     const session =
       ref.sessions.get(
         String(
-          header.session_id
+          header.exam_session_id
         )
       );
 
@@ -735,10 +735,10 @@ async function verify(
 
       assert.equal(
         String(
-          subject.session_id
+          subject.exam_session_id
         ),
         String(
-          header.session_id
+          header.exam_session_id
         )
       );
 
@@ -1316,7 +1316,7 @@ async function verify(
       rows.AcademicCourse.length,
 
     sessions:
-      rows.ResultSession.length,
+      rows.ExamSession.length,
 
     subjects:
       rows.Subject.length,
@@ -1383,7 +1383,7 @@ async function verifyReports(db) {
   assert.ok(primary);
 
   const session =
-    await db.ResultSession.findOne({
+    await db.ExamSession.findOne({
       where: {
         batch_id:
           primary.batch_id,
@@ -1401,8 +1401,8 @@ async function verifyReports(db) {
   const subject =
     await db.Subject.findOne({
       where: {
-        session_id:
-          session.session_id,
+        exam_session_id:
+          session.exam_session_id,
 
         subject_code:
           'MMC103'
@@ -1419,9 +1419,9 @@ async function verifyReports(db) {
 
     semester: '1',
 
-    session_id:
+    exam_session_id:
       String(
-        session.session_id
+        session.exam_session_id
       ),
 
     pageSize: '100'

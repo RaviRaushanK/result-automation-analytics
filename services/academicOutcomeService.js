@@ -15,11 +15,11 @@ function semesterOutcome(data, studentId, semester, cutoff = Infinity) {
   const regular = results.filter(r => policy.isRegularAttempt(r.exam_type));
   const first = regular[0] || null;
   const ambiguousRegular = first && regular.some(r => r !== first && policy.period(r) === policy.period(first)
-    && (String(r.session_id) !== String(first.session_id) || Number(r.attempt_no) === Number(first.attempt_no)));
+    && (String(r.exam_session_id) !== String(first.exam_session_id) || Number(r.attempt_no) === Number(first.attempt_no)));
   // Several regular headers in one period cannot establish the first sitting.
   const firstKnown = rosterKnown && !badChronology && first
     && !results.some(r => policy.isRetakeAttempt(r.exam_type) && (policy.period(r) < policy.period(first)
-      || policy.period(r) === policy.period(first) && String(r.session_id) === String(first.session_id) && Number(r.attempt_no) < Number(first.attempt_no)))
+      || policy.period(r) === policy.period(first) && String(r.exam_session_id) === String(first.exam_session_id) && Number(r.attempt_no) < Number(first.attempt_no)))
     && !ambiguousRegular;
   const firstRows = first ? subjects.filter(s => String(s.result_id) === String(first.result_id)) : [];
   const firstByCourse = new Map(firstRows.map(s => [String(s.course_id_snapshot ?? s.course_id), s]));
@@ -29,7 +29,7 @@ function semesterOutcome(data, studentId, semester, cutoff = Infinity) {
   const courses = required.map(course => {
     const attempts = subjects.filter(s => String(s.course_id_snapshot ?? s.course_id) === String(course.course_id)).sort(policy.order);
     const ties = attempts.some((a, i) => i && policy.period(a) === policy.period(attempts[i-1])
-      && (String(a.session_id) !== String(attempts[i-1].session_id) || Number(a.attempt_no) === Number(attempts[i-1].attempt_no)));
+      && (String(a.exam_session_id) !== String(attempts[i-1].exam_session_id) || Number(a.attempt_no) === Number(attempts[i-1].attempt_no)));
     const passing = attempts.find(a => a.outcome_status === 'pass');
     const unknown = !rosterKnown || badChronology || ambiguousRegular || ties || !attempts.length || attempts.some(a => !['pass','fail'].includes(a.outcome_status));
     const accepted = passing || attempts.at(-1) || null;
@@ -94,8 +94,8 @@ function previewCumulative(data, studentId, session, attempt, subjects) {
     || !policy.EXAM_TYPES.includes(attempt.exam_type)) return null;
   // A duplicate cannot be previewed as a new academic attempt.
   if (data.results.some(result => String(result.student_id) === String(studentId)
-    && String(result.session_id) === String(session.session_id) && Number(result.attempt_no) === Number(attempt.attempt_no))) return null;
-  const pending = { result_id: 'preview-result', student_id: studentId, session_id: session.session_id,
+    && String(result.exam_session_id) === String(session.exam_session_id) && Number(result.attempt_no) === Number(attempt.attempt_no))) return null;
+  const pending = { result_id: 'preview-result', student_id: studentId, exam_session_id: session.exam_session_id,
     semester: String(session.semester), exam_session: session.exam_session, exam_year: session.exam_year,
     exam_start_month: session.exam_start_month, exam_start_year: session.exam_start_year,
     exam_end_month: session.exam_end_month, exam_end_year: session.exam_end_year,
@@ -112,7 +112,7 @@ async function retakeWarnings(session, usn, subjects, transaction, attemptNo) {
   const history = await repository.priorCourses(session.batch_id, usn, transaction);
   const missing = subjects.filter(subject => !history.some(row => String(row.course_id) === String(subject.course_id)
     && current !== null && policy.period(row) !== null && (policy.period(row) < current
-      || policy.period(row) === current && String(row.session_id) === String(session.session_id) && Number(row.attempt_no) < Number(attemptNo))));
+      || policy.period(row) === current && String(row.exam_session_id) === String(session.exam_session_id) && Number(row.attempt_no) < Number(attemptNo))));
   return missing.length ? [`Prior course history could not be verified for ${missing.map(s => s.subject_code).join(', ')}. Review the earlier results before confirming this retake; clearance will remain unknown where history is incomplete.`] : [];
 }
 module.exports = { semesterOutcome, academicYearOutcome, cumulative, calculateCumulative, previewCumulative, retakeWarnings, load: repository.load };

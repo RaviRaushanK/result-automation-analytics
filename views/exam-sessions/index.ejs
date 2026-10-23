@@ -3,25 +3,25 @@
 
   <div class="dashboard-header sessions-header">
     <div>
-      <h4>Session Management</h4>
+      <h4>Exam Session Management</h4>
       <p class="text-muted">Create, manage and update academic sessions</p>
     </div>
     <button type="button" class="btn btn-primary btn-sm" id="createSessionHeaderBtn">
-      <span class="material-icons btn-icon">add</span>Create New Session
+      <span class="material-icons btn-icon">add</span>Create New Exam Session
     </button>
   </div>
 
   <div class="sessions-summary">
-    <div class="card stat-card stat-blue"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">event</span></div><div class="stat-content"><div class="stat-label">Total Sessions</div><div class="stat-value" id="totalSessionsCount">0</div></div></div></div>
+    <div class="card stat-card stat-blue"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">event</span></div><div class="stat-content"><div class="stat-label">Total Exam Sessions</div><div class="stat-value" id="totalSessionsCount">0</div></div></div></div>
     <div class="card stat-card stat-green"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">check_circle</span></div><div class="stat-content"><div class="stat-label">Completed</div><div class="stat-value" id="completedSessionsCount">0</div></div></div></div>
     <div class="card stat-card stat-amber"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">schedule</span></div><div class="stat-content"><div class="stat-label">Upcoming</div><div class="stat-value" id="upcomingSessionsCount">0</div></div></div></div>
-    <div class="card stat-card stat-teal session-summary-current"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">today</span></div><div class="stat-content"><div class="stat-label" id="currentSessionLabel">Current Session</div><div class="stat-value" id="currentSessionName">—</div></div></div></div>
+    <div class="card stat-card stat-teal session-summary-current"><span class="stat-corner"></span><div class="card-body"><div class="stat-icon" aria-hidden="true"><span class="material-icons">today</span></div><div class="stat-content"><div class="stat-label" id="currentSessionLabel">Current Exam Session</div><div class="stat-value" id="currentSessionName">—</div></div></div></div>
   </div>
   <div class="session-summary-context" id="currentSessionContext"><span id="currentSessionBatch"></span><div class="session-summary-period"><span id="currentSessionPeriod"></span><span class="badge" id="currentSessionStatus"></span></div></div>
 
   <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <h5 class="card-title mb-0">All Sessions</h5>
+      <h5 class="card-title mb-0">All Exam Sessions</h5>
       <div class="sessions-toolbar">
         <div class="input-group sessions-search"><span class="input-group-text"><span class="material-icons">search</span></span><input type="search" class="form-control" id="sessionSearch" placeholder="Search sessions..."></div>
         <select class="form-select" id="sessionStatusFilter" aria-label="Filter sessions by status"><option value="all">All Status</option><option value="completed">Completed</option><option value="active">Active</option><option value="upcoming">Upcoming</option></select>
@@ -31,17 +31,17 @@
     <div class="card-body">
       <div class="table-responsive" id="sessionsTableWrapper">
         <table class="table table-hover align-middle batches-table sessions-table mb-0" id="sessionsTable">
-          <thead class="table-light"><tr><th>Session</th><th>Batch</th><th>Department</th><th>Semester</th><th>Examination Period</th><th>Status</th><th>Created Date</th><th class="text-center">Actions</th></tr></thead>
+          <thead class="table-light"><tr><th>Exam Session</th><th>Batch</th><th>Department</th><th>Semester</th><th>Examination Period</th><th>Status</th><th>Created Date</th><th class="text-center">Actions</th></tr></thead>
           <tbody id="sessionsTableBody"><tr><td colspan="8" class="text-center table-loading"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading sessions...</td></tr></tbody>
         </table>
       </div>
-      <div class="batches-empty-state sessions-empty-state d-none" id="sessionsEmptyState"><span class="material-icons batches-empty-icon">event_available</span><h6 class="batches-empty-title" id="sessionsEmptyTitle">No sessions found</h6><p class="batches-empty-text mb-0" id="sessionsEmptyText">Create your first academic session to get started.</p><button type="button" class="btn btn-primary mt-3" id="emptyStateCreateSessionBtn"><span class="material-icons btn-icon">add</span>Create New Session</button></div>
+      <div class="batches-empty-state sessions-empty-state d-none" id="sessionsEmptyState"><span class="material-icons batches-empty-icon">event_available</span><h6 class="batches-empty-title" id="sessionsEmptyTitle">No sessions found</h6><p class="batches-empty-text mb-0" id="sessionsEmptyText">Create your first academic session to get started.</p><button type="button" class="btn btn-primary mt-3" id="emptyStateCreateSessionBtn"><span class="material-icons btn-icon">add</span>Create New Exam Session</button></div>
     </div>
   </div>
 
   <div class="modal fade batches-modal sessions-modal" id="createSessionModal" tabindex="-1" aria-labelledby="createSessionModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title" id="createSessionModalLabel">Create New Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-header"><h5 class="modal-title" id="createSessionModalLabel">Create New Exam Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
       <form id="createSessionForm" novalidate><div class="modal-body">
         <div class="alert alert-danger d-none" id="createSessionError" role="alert"></div>
         <div class="mb-3"><label for="createSessionBatch" class="form-label">Batch <span class="text-danger">*</span></label><select class="form-select" id="createSessionBatch" required><option value="">Select a batch</option><% batches.forEach(function(b){ %><option value="<%= b.batch_id %>"><%= b.batch_name %> — <%= b.Department ? b.Department.department_name : '' %></option><% }); %></select><div class="invalid-feedback">Please select a batch.</div></div>
@@ -54,16 +54,16 @@
           <div class="col-md-6 d-none" data-period-end="createSession"><label for="createSessionEndYear" class="form-label">End Year <span class="text-danger">*</span></label><%- include('../batches/partials/year-input', { controlId: 'createSessionEndYear', fieldName: 'exam_end_year', fieldLabel: 'End Year', placeholder: '2026', feedback: 'Enter a valid end year.' }) %></div>
           <div class="col-md-6"><label for="createSessionStatus" class="form-label">Status (Automatic)</label><input type="text" class="form-control session-readonly-field" id="createSessionStatus" readonly placeholder="Select examination period"></div>
         </div>
-      </div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="createSessionSubmitBtn"><span class="material-icons btn-icon">add</span><span class="btn-text">Create Session</span></button></div></form>
+      </div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="createSessionSubmitBtn"><span class="material-icons btn-icon">add</span><span class="btn-text">Create Exam Session</span></button></div></form>
     </div></div>
   </div>
 
   <div class="modal fade batches-modal sessions-modal" id="confirmCreateSessionModal" tabindex="-1" aria-labelledby="confirmCreateSessionModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="confirmCreateSessionModalLabel">Confirm New Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="confirmCreateSessionError" role="alert"></div><p>Are you sure you want to create this session?</p><div class="batch-confirm-summary" id="confirmCreateSessionSummary"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="confirmCreateSessionCancelBtn">Cancel</button><button type="button" class="btn btn-primary" id="confirmCreateSessionBtn">Confirm &amp; Create</button></div></div></div>
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="confirmCreateSessionModalLabel">Confirm New Exam Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="confirmCreateSessionError" role="alert"></div><p>Are you sure you want to create this session?</p><div class="batch-confirm-summary" id="confirmCreateSessionSummary"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="confirmCreateSessionCancelBtn">Cancel</button><button type="button" class="btn btn-primary" id="confirmCreateSessionBtn">Confirm &amp; Create</button></div></div></div>
   </div>
 
   <div class="modal fade batches-modal sessions-modal" id="editSessionModal" tabindex="-1" aria-labelledby="editSessionModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="editSessionModalLabel">Edit Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="editSessionModalLabel">Edit Exam Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
       <form id="editSessionForm" novalidate><div class="modal-body"><div class="alert alert-danger d-none" id="editSessionError" role="alert"></div><input type="hidden" id="editSessionId"><div class="mb-3"><label for="editSessionBatch" class="form-label">Batch</label><input type="text" class="form-control session-readonly-field" id="editSessionBatch" readonly><div class="form-text session-hint">The batch association cannot be changed.</div></div><div class="row g-3">
         <div class="col-md-6"><label for="editSessionSemester" class="form-label">Semester <span class="text-danger">*</span></label><select class="form-select" id="editSessionSemester" required aria-describedby="editSessionSemesterNote"><option value="">Select semester</option></select><div class="invalid-feedback">Select a semester for this batch.</div><div class="form-text" id="editSessionSemesterNote" aria-live="polite"></div></div>
         <div class="col-md-6"><label for="editSessionStartMonth" class="form-label">Start Month <span class="text-danger">*</span></label><select class="form-select" id="editSessionStartMonth" required><option value="">Select month</option></select><div class="invalid-feedback">Select a start month.</div></div>
@@ -77,24 +77,24 @@
   </div>
 
   <div class="modal fade batches-modal sessions-modal" id="confirmEditSessionModal" tabindex="-1" aria-labelledby="confirmEditSessionModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="confirmEditSessionModalLabel">Confirm Session Update</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="confirmEditSessionError" role="alert"></div><p>Are you sure you want to update this session?</p><div class="batch-confirm-summary" id="confirmEditSessionSummary"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="confirmEditSessionCancelBtn">Cancel</button><button type="button" class="btn btn-primary" id="confirmEditSessionBtn">Confirm &amp; Save</button></div></div></div>
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="confirmEditSessionModalLabel">Confirm Exam Session Update</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="confirmEditSessionError" role="alert"></div><p>Are you sure you want to update this session?</p><div class="batch-confirm-summary" id="confirmEditSessionSummary"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="confirmEditSessionCancelBtn">Cancel</button><button type="button" class="btn btn-primary" id="confirmEditSessionBtn">Confirm &amp; Save</button></div></div></div>
   </div>
 
   <div class="modal fade batches-modal sessions-modal" id="deleteSessionModal" tabindex="-1" aria-labelledby="deleteSessionModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title" id="deleteSessionModalLabel">Delete Unused Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-header"><h5 class="modal-title" id="deleteSessionModalLabel">Delete Unused Exam Session</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
       <div class="modal-body"><div class="alert alert-danger d-none" id="deleteSessionError" role="alert"></div><p>This permanently deletes the unused examination session. This action is available only while it has no subjects, results, or upload/import records.</p><div class="batch-confirm-summary" id="deleteSessionSummary"></div></div>
-      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-danger" id="confirmDeleteSessionBtn"><span class="material-icons btn-icon">delete</span><span class="btn-text">Delete Unused Session</span></button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-danger" id="confirmDeleteSessionBtn"><span class="material-icons btn-icon">delete</span><span class="btn-text">Delete Unused Exam Session</span></button></div>
     </div></div>
   </div>
 
   <div class="modal fade batches-modal sessions-modal" id="sessionDetailsModal" tabindex="-1" aria-labelledby="sessionDetailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="sessionDetailsModalLabel">Session Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="sessionDetailsError" role="alert"></div><div class="text-center py-3" id="sessionDetailsLoading"><span class="spinner-border text-primary"></span><div class="mt-2 text-muted">Loading session details...</div></div><div class="batch-confirm-summary d-none" id="sessionDetailsList"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div></div></div>
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="sessionDetailsModalLabel">Exam Session Details</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-danger d-none" id="sessionDetailsError" role="alert"></div><div class="text-center py-3" id="sessionDetailsLoading"><span class="spinner-border text-primary"></span><div class="mt-2 text-muted">Loading session details...</div></div><div class="batch-confirm-summary d-none" id="sessionDetailsList"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div></div></div>
   </div>
 
   <script src="/js/exam-period.js"></script>
   <script src="/js/academic-form-options.js"></script>
-  <script src="/js/sessions.js"></script>
+  <script src="/js/exam-sessions.js"></script>
   <script src="/js/year-picker.js" defer></script>
 
 </div>

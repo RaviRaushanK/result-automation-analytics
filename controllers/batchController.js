@@ -1,5 +1,5 @@
 // Import models from centralized registry
-const { Batch, Department, Student, Result, ResultSession, AcademicCourse, sequelize } = require('../database/models');
+const { Batch, Department, Student, Result, ExamSession, AcademicCourse, sequelize } = require('../database/models');
 
 // Page styles for the Batches Management dashboard (Academic Management → Batches)
 const BATCH_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css'];
@@ -186,7 +186,7 @@ const batchController = {
         }
         const identityChanged = ['batch_name','department_id','start_year','end_year'].some(field => String(payload[field]) !== String(existing[field]));
         if (identityChanged && (await Student.count({ where: { batch_id: existing.batch_id }, paranoid: false, transaction, lock: true })
-          || await Result.count({ include: [{ model: ResultSession, required: true, where: { batch_id: existing.batch_id } }], transaction, lock: true }))) fail('Batch identity, department and years cannot change after students or academic history depend on this batch. Configure a separate batch for the new cohort/syllabus.', 409);
+          || await Result.count({ include: [{ model: ExamSession, required: true, where: { batch_id: existing.batch_id } }], transaction, lock: true }))) fail('Batch identity, department and years cannot change after students or academic history depend on this batch. Configure a separate batch for the new cohort/syllabus.', 409);
         await existing.update(payload, { transaction });
         return existing;
       });
@@ -208,7 +208,7 @@ const batchController = {
         const batch = await Batch.findByPk(req.params.id, { transaction, lock: true });
         if (!batch) return 0;
         if (await Student.count({ where: { batch_id: batch.batch_id }, paranoid: false, transaction, lock: true })
-          || await ResultSession.count({ where: { batch_id: batch.batch_id }, transaction, lock: true })
+          || await ExamSession.count({ where: { batch_id: batch.batch_id }, transaction, lock: true })
           || await AcademicCourse.count({ where: { batch_id: batch.batch_id }, transaction, lock: true })) throw Object.assign(new Error('This batch contains students or academic configuration/history and cannot be deleted. Keep it for historical reporting; use status only where appropriate.'), { status: 409 });
         return Batch.destroy({ where: { batch_id: batch.batch_id }, transaction });
       });

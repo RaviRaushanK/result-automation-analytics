@@ -41,7 +41,7 @@
  *   approved effective event per subject_result_id) because the schema has NO
  *   database uniqueness guarantee on one effective row; an ORM hasMany include
  *   would silently multiply joined rows and corrupt aggregates. Latest-attempt
- *   filtering similarly needs a per (student_id, session_id) MAX(attempt_no)
+ *   filtering similarly needs a per (student_id, exam_session_id) MAX(attempt_no)
  *   join. Both are parameterized SELECTs against the shared Sequelize instance
  *   exported by database/models (no new connection).
  *
@@ -57,7 +57,7 @@ const {
   sequelize,
   Department,
   Batch,
-  ResultSession,
+  ExamSession,
   Student,
   Result,
   Subject,
@@ -105,7 +105,7 @@ const EFFECTIVE_EVENT_JOIN = `
 const SUBJECT_FROM = `
   FROM subject_results sr
   INNER JOIN results r          ON r.result_id    = sr.result_id
-  INNER JOIN result_sessions rs ON rs.session_id  = r.session_id
+  INNER JOIN exam_sessions rs ON rs.exam_session_id  = r.exam_session_id
   INNER JOIN batches b          ON b.batch_id     = rs.batch_id
   INNER JOIN students st        ON st.student_id  = r.student_id
   INNER JOIN subjects sub       ON sub.subject_id = sr.subject_id
@@ -141,11 +141,11 @@ function toStr(value) {
  * Unknown / invalid values are dropped (never injected into SQL).
  */
 function normalizeFilters(filters) {
-  const f = filters || {};
+  const f = require('../services/examSessionParameters').normalize(filters || {});
   const normalized = {
     mode: allowlisted(f.mode, MODES) || 'original',
     attempt: allowlisted(f.attempt, ATTEMPTS) || 'all',
-    session_id: toInt(f.session_id),
+    exam_session_id: toInt(f.exam_session_id),
     exam_year: toInt(f.exam_year),
     semester: toStr(f.semester),
     exam_session: toStr(f.exam_session),
@@ -164,7 +164,7 @@ function normalizeFilters(filters) {
     // parent Result status).
     result_status: allowlisted(f.result_status, SUBJECT_STATUSES)
   };
-  normalized.hasSessionScope = normalized.session_id !== undefined
+  normalized.hasSessionScope = normalized.exam_session_id !== undefined
     || normalized.exam_year !== undefined
     || normalized.semester !== undefined
     || normalized.exam_session !== undefined
@@ -187,18 +187,18 @@ async function resolveSessionsInternal(filters) {
   if (!f.hasSessionScope) return { scoped: false, ids: [], empty: false };
 
   const where = {};
-  if (f.session_id !== undefined) where.session_id = f.session_id;
+  if (f.exam_session_id !== undefined) where.exam_session_id = f.exam_session_id;
   if (f.exam_year !== undefined) where.exam_year = f.exam_year;
   if (f.semester !== undefined) where.semester = f.semester;
   if (f.exam_session !== undefined) where.exam_session = f.exam_session;
   if (f.batch_id !== undefined) where.batch_id = f.batch_id;
   if (f.department_id !== undefined) {
-    // Department -> Batch -> ResultSession (batch_name is NOT a program)
+    // Department -> Batch -> ExamSession (batch_name is NOT a program)
     where['$batch.department_id$'] = f.department_id;
   }
 
-  const rows = await ResultSession.findAll({
-    attributes: ['session_id'],
+  const rows = await ExamSession.findAll({
+    attributes: ['exam_session_id'],
     where,
     include: f.department_id !== undefined
       ? [{ model: Batch, attributes: [], required: true }]
@@ -206,7 +206,7 @@ async function resolveSessionsInternal(filters) {
     raw: true
   });
 
-  const ids = rows.map((r) => r.session_id);
+  const ids = rows.map((r) => r.exam_session_id);
   return { scoped: true, ids, empty: ids.length === 0 };
 }
 
@@ -217,8 +217,8 @@ async function resolveSessionsInternal(filters) {
 function buildSessionFragment(resolved, params) {
   if (!resolved.scoped) return '';
   if (resolved.empty) return null;
-  params.sessionIds = resolved.ids;
-  return ' AND rs.session_id IN (:sessionIds)';
+  params.examSessionIds = resolved.ids;
+  return ' AND rs.exam_session_id IN (:examSessionIds)';
 }
 
 /** Row-level filter fragments applying to per-mode status/grade expressions. */
@@ -252,11 +252,11 @@ function buildAttemptFragment(f) {
   return {
     join: `
   INNER JOIN (
-    SELECT student_id, session_id, MAX(attempt_no) AS max_attempt_no
+    SELECT student_id, exam_session_id, MAX(attempt_no) AS max_attempt_no
     FROM results
-    GROUP BY student_id, session_id
+    GROUP BY student_id, exam_session_id
   ) la ON la.student_id = r.student_id
-      AND la.session_id = r.session_id
+      AND la.exam_session_id = r.exam_session_id
       AND r.attempt_no  = la.max_attempt_no
 `,
     fragment: ' AND r.attempt_no = la.max_attempt_no'
@@ -382,7 +382,7 @@ async function getSummary(filters) {
       AVG(r.sgpa)                                                 AS avgSgpa,
       AVG(r.cgpa)                                                 AS avgCgpa
     FROM results r
-    INNER JOIN result_sessions rs ON rs.session_id = r.session_id
+    INNER JOIN exam_sessions rs ON rs.exam_session_id = r.exam_session_id
   `;
   const sessionFragment = buildSessionFragment(resolved, parentParams);
   if (sessionFragment === null) return { mode: f.mode, subject: emptySummarySubject(), parent: emptySummaryParent(), ...(f.mode === 'effective' ? { effectiveAnomalies: 0 } : {}) };
@@ -539,7 +539,7 @@ async function getGradeDistribution(filters) {
 
 /**
  * 5. getSemesterAnalytics(filters)
- * Grouped by ResultSession. Subject-level pass/fail honor filters.mode;
+ * Grouped by ExamSession. Subject-level pass/fail honor filters.mode;
  * sgpa/cgpa/result pass-fail are STORED parent header values (clearly separate
  * fields, never post-revaluation values).
  */
@@ -552,7 +552,7 @@ async function getSemesterAnalytics(filters) {
 
   return select(`
     SELECT
-      rs.session_id        AS sessionId,
+      rs.exam_session_id        AS examSessionId,
       rs.exam_year         AS examYear,
       rs.semester          AS semester,
       rs.exam_session      AS examSession,
@@ -572,7 +572,7 @@ async function getSemesterAnalytics(filters) {
       SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) AS subjectFailed,
       AVG(${base.marksExpr}) AS avgMarks
     ${base.whereSql}
-    GROUP BY rs.session_id, rs.exam_year, rs.semester, rs.exam_session, rs.exam_start_month,
+    GROUP BY rs.exam_session_id, rs.exam_year, rs.semester, rs.exam_session, rs.exam_start_month,
              rs.exam_start_year, rs.exam_end_month, rs.exam_end_year, rs.batch_id,
              b.batch_name
     ORDER BY rs.exam_start_year ASC, rs.exam_start_month ASC, rs.semester ASC
@@ -601,7 +601,7 @@ async function getStudentAnalytics(filters, options) {
       st.usn              AS usn,
       st.student_name     AS studentName,
       r.result_id         AS resultId,
-      r.session_id        AS sessionId,
+      r.exam_session_id        AS examSessionId,
       rs.exam_year        AS examYear,
       rs.semester         AS semester,
       r.attempt_no        AS attemptNo,
@@ -614,7 +614,7 @@ async function getStudentAnalytics(filters, options) {
       SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) AS failed,
       AVG(${base.marksExpr}) AS avgMarks
     ${base.whereSql}
-    GROUP BY st.student_id, st.usn, st.student_name, r.result_id, r.session_id,
+    GROUP BY st.student_id, st.usn, st.student_name, r.result_id, r.exam_session_id,
              rs.exam_year, rs.semester, r.attempt_no, r.exam_type, r.sgpa,
              r.cgpa, r.result_status
     ORDER BY st.usn ASC, rs.exam_year ASC, rs.semester ASC, r.attempt_no ASC
@@ -642,7 +642,7 @@ async function getTopStudents(filters, options) {
       st.usn              AS usn,
       st.student_name     AS studentName,
       r.result_id         AS resultId,
-      r.session_id        AS sessionId,
+      r.exam_session_id        AS examSessionId,
       rs.exam_year        AS examYear,
       rs.semester         AS semester,
       r.attempt_no        AS attemptNo,
@@ -658,7 +658,7 @@ async function getTopStudents(filters, options) {
     ${base.whereSql}
       AND r.result_status = 'pass'
       AND r.cgpa IS NOT NULL
-    GROUP BY st.student_id, st.usn, st.student_name, r.result_id, r.session_id,
+    GROUP BY st.student_id, st.usn, st.student_name, r.result_id, r.exam_session_id,
              rs.exam_year, rs.semester, r.attempt_no, r.exam_type, r.sgpa,
              r.cgpa, r.result_status
     HAVING SUM(CASE WHEN ${base.statusExpr} = 'fail' THEN 1 ELSE 0 END) = 0
@@ -708,7 +708,7 @@ async function getFailedStudents(filters, options) {
       ${base.statusExpr}  AS resultStatus,
       ${overlaySelect}
       r.result_id         AS resultId,
-      r.session_id        AS sessionId,
+      r.exam_session_id        AS examSessionId,
       rs.exam_year        AS examYear,
       rs.semester         AS semester,
       r.attempt_no        AS attemptNo,
@@ -786,7 +786,7 @@ async function getRevaluationAnalytics(filters) {
   pipelineSql += `
     INNER JOIN subject_results sr2 ON sr2.subject_result_id = rv.subject_result_id
     INNER JOIN results r2          ON r2.result_id = sr2.result_id
-    INNER JOIN result_sessions rs  ON rs.session_id = r2.session_id
+    INNER JOIN exam_sessions rs  ON rs.exam_session_id = r2.exam_session_id
     WHERE 1 = 1${sessionFragment}
     GROUP BY rv.revaluation_status
     ORDER BY rv.revaluation_status ASC
@@ -864,7 +864,7 @@ async function getFilterOptions(scope, parentFilters) {
     case 'years':
       return select(`
         SELECT DISTINCT rs.exam_year AS examYear
-        FROM result_sessions rs
+        FROM exam_sessions rs
         ${whereSessions}
         ORDER BY rs.exam_year DESC
       `, params);
@@ -872,7 +872,7 @@ async function getFilterOptions(scope, parentFilters) {
     case 'semesters':
       return select(`
         SELECT DISTINCT rs.semester AS semester
-        FROM result_sessions rs
+        FROM exam_sessions rs
         ${whereSessions}
         ORDER BY rs.semester ASC
       `, params);
@@ -881,7 +881,7 @@ async function getFilterOptions(scope, parentFilters) {
       return select(`
         SELECT DISTINCT d.department_id AS departmentId, d.department_code AS code,
                d.department_name AS name
-        FROM result_sessions rs
+        FROM exam_sessions rs
         INNER JOIN batches b      ON b.batch_id      = rs.batch_id
         INNER JOIN departments d  ON d.department_id = b.department_id
         ${whereSessions}
@@ -893,7 +893,7 @@ async function getFilterOptions(scope, parentFilters) {
         SELECT DISTINCT b.batch_id AS batchId, b.batch_name AS batchName,
                b.start_year AS startYear, b.end_year AS endYear,
                b.department_id AS departmentId
-        FROM result_sessions rs
+        FROM exam_sessions rs
         INNER JOIN batches b ON b.batch_id = rs.batch_id
         ${whereSessions}
         ORDER BY b.start_year DESC, b.batch_name ASC
@@ -901,13 +901,13 @@ async function getFilterOptions(scope, parentFilters) {
 
     case 'sessions':
       return select(`
-        SELECT rs.session_id AS sessionId, rs.exam_year AS examYear,
+        SELECT rs.exam_session_id AS examSessionId, rs.exam_year AS examYear,
                rs.semester AS semester, rs.exam_session AS examSession,
                rs.exam_start_month AS examStartMonth, rs.exam_start_year AS examStartYear,
                rs.exam_end_month AS examEndMonth, rs.exam_end_year AS examEndYear,
                rs.batch_id AS batchId, b.batch_name AS batchName,
                d.department_id AS departmentId, d.department_code AS departmentCode
-        FROM result_sessions rs
+        FROM exam_sessions rs
         INNER JOIN batches b     ON b.batch_id      = rs.batch_id
         INNER JOIN departments d ON d.department_id = b.department_id
         ${whereSessions}
@@ -918,9 +918,9 @@ async function getFilterOptions(scope, parentFilters) {
       return select(`
         SELECT sub.subject_id AS subjectId, sub.subject_code AS subjectCode,
                sub.subject_name AS subjectName, sub.credits AS credits,
-               sub.max_marks AS maxMarks, sub.session_id AS sessionId
+               sub.max_marks AS maxMarks, sub.exam_session_id AS examSessionId
         FROM subjects sub
-        INNER JOIN result_sessions rs ON rs.session_id = sub.session_id
+        INNER JOIN exam_sessions rs ON rs.exam_session_id = sub.exam_session_id
         ${whereSessions}
         ORDER BY sub.subject_code ASC
       `, params);
@@ -1023,7 +1023,7 @@ async function getRevaluationDetail(filters) {
            AND pick.max_no = rv.revaluation_no
     INNER JOIN subject_results sr ON sr.subject_result_id = rv.subject_result_id
     INNER JOIN results r          ON r.result_id         = sr.result_id
-    INNER JOIN result_sessions rs ON rs.session_id       = r.session_id
+    INNER JOIN exam_sessions rs ON rs.exam_session_id       = r.exam_session_id
     INNER JOIN students st        ON st.student_id       = r.student_id
     INNER JOIN subjects sub       ON sub.subject_id      = sr.subject_id
     WHERE rv.is_effective = 1 AND rv.revaluation_status = 'approved'

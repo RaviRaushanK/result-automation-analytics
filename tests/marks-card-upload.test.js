@@ -71,7 +71,7 @@ for (const flow of ['results', 'revaluation']) {
     const url = 'http://127.0.0.1:' + server.address().port + '/' + flow + (flow === 'results' ? '/upload' : '/7/upload');
     async function post(name, mime, bytes) {
       const body = new FormData();
-      body.set('sessionId', '20');
+      body.set('exam_session_id', '20');
       body.set(flow === 'results' ? 'resultDocument' : 'revalidationDocument', new Blob([bytes], { type: mime }), name);
       return fetch(url, { method: 'POST', body, redirect: 'manual' });
     }
@@ -82,7 +82,7 @@ for (const flow of ['results', 'revaluation']) {
       const response = await post(name,mime,bytes);
       assert.equal(response.status,200,name);
       assert.equal((await response.json()).extracted,true);
-      assert.equal(received.at(-1).body.sessionId,'20');
+      assert.equal(received.at(-1).body.exam_session_id,'20');
     }
     for (const [name,mime,bytes] of [
       ['card.png','image/jpeg',jpeg],

@@ -91,7 +91,7 @@
     var subj = v(subjectSel), att = attemptSel.value.trim(), m = modeSel.value.trim();
     if (s) p.set('semester', s);
     if (b) p.set('batch_id', b);
-    if (ss) p.set('session_id', ss);
+    if (ss) p.set('exam_session_id', ss);
     if (subj) p.set('subject_id', subj);
     if (att && att !== 'latest') p.set('attempt', att);
     if (m) p.set('mode', m);
@@ -171,17 +171,17 @@
         populateSelect(batchSel, batches, 'batchId', 'batchName', 'Batch', true);
       }
       const params = readFilters();
-      ['semester', 'session_id', 'subject_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
+      ['semester', 'exam_session_id', 'subject_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
       const definitions = [
         ['semesters', semSel, 'semester', 'semester', 'All Semesters'],
-        ['sessions', sessionSel, 'sessionId', 'examSession', 'All Sessions'],
+        ['sessions', sessionSel, 'examSessionId', 'examSession', 'All Sessions'],
         ['subjects', subjectSel, 'subjectId', 'subjectCode', 'All Subjects']
       ];
       await Promise.all(definitions.map(async function (definition) {
         const scoped = new URLSearchParams(params);
         scoped.delete(definition[1].name);
         if (definition[0] !== 'subjects') scoped.delete('subject_id');
-        if (definition[0] === 'semesters') scoped.delete('session_id');
+        if (definition[0] === 'semesters') scoped.delete('exam_session_id');
         const rows = await loadFilterOptions(definition[0], scoped);
         if (current === filterRequest) populateSelect(definition[1], rows, definition[2], definition[3], definition[4]);
       }));

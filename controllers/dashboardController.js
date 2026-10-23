@@ -2,7 +2,7 @@ const { Op, fn, col, literal } = require('sequelize');
 const {
     Batch,
     Result,
-    ResultSession,
+    ExamSession,
     Student,
     Subject,
     SubjectResult
@@ -11,7 +11,7 @@ const { POINTS } = require('../services/academicPolicy');
 
 const DASHBOARD_PAGE_STYLES = ['/css/dashboard.css?v=20261016-2'];
 
-// Build a where clause for ResultSession from query params
+// Build a where clause for ExamSession from query params
 function buildSessionFilter(query) {
     const where = {};
     if (query.batch_id) {
@@ -29,12 +29,12 @@ function buildSessionFilter(query) {
 
 // Resolve matching session IDs from the filter
 async function resolveSessionIds(filter) {
-    const sessions = await ResultSession.findAll({
+    const sessions = await ExamSession.findAll({
         where: filter,
-        attributes: ['session_id'],
+        attributes: ['exam_session_id'],
         raw: true
     });
-    return sessions.map(s => s.session_id);
+    return sessions.map(s => s.exam_session_id);
 }
 
 const dashboardController = {
@@ -52,7 +52,7 @@ const dashboardController = {
                 order: [['start_year', 'DESC'], ['batch_name', 'ASC']],
                 raw: true
             });
-            const semesters = await ResultSession.findAll({
+            const semesters = await ExamSession.findAll({
                 attributes: ['batch_id', 'semester'],
                 order: [['semester', 'ASC']],
                 raw: true
@@ -80,9 +80,9 @@ const dashboardController = {
     // GET /dashboard/analytics - statistics + subject-wise averages
     analytics: async (req, res) => {
         try {
-            const sessionIds = await resolveSessionIds(buildSessionFilter(req.query));
-            const resultWhere = { session_id: { [Op.in]: sessionIds } };
-            const subjectWhere = { session_id: { [Op.in]: sessionIds } };
+            const examSessionIds = await resolveSessionIds(buildSessionFilter(req.query));
+            const resultWhere = { exam_session_id: { [Op.in]: examSessionIds } };
+            const subjectWhere = { exam_session_id: { [Op.in]: examSessionIds } };
 
             // Statistics
             const totalStudents = await Result.count({
@@ -182,8 +182,8 @@ const dashboardController = {
     // GET /dashboard/pass-fail - pass/fail counts for charts
     passFail: async (req, res) => {
         try {
-            const sessionIds = await resolveSessionIds(buildSessionFilter(req.query));
-            const resultWhere = { session_id: { [Op.in]: sessionIds } };
+            const examSessionIds = await resolveSessionIds(buildSessionFilter(req.query));
+            const resultWhere = { exam_session_id: { [Op.in]: examSessionIds } };
             const pass = await Result.count({ where: { ...resultWhere, result_status: 'pass' } });
             const fail = await Result.count({ where: { ...resultWhere, result_status: 'fail' } });
             res.json({ success: true, data: { pass, fail } });
@@ -200,11 +200,11 @@ const dashboardController = {
     // several students share the same CGPA/SGPA.
     topScorers: async (req, res) => {
         try {
-            const sessionIds = await resolveSessionIds(buildSessionFilter(req.query));
-            const resultWhere = { session_id: { [Op.in]: sessionIds } };
+            const examSessionIds = await resolveSessionIds(buildSessionFilter(req.query));
+            const resultWhere = { exam_session_id: { [Op.in]: examSessionIds } };
             const topScorers = await Result.findAll({
                 where: { ...resultWhere, result_status: 'pass', cgpa: { [Op.ne]: null } },
-                attributes: ['result_id', 'session_id', 'attempt_no', 'sgpa', 'cgpa', 'result_status'],
+                attributes: ['result_id', 'exam_session_id', 'attempt_no', 'sgpa', 'cgpa', 'result_status'],
                 include: [{ model: Student, attributes: ['student_id', 'batch_id', 'usn', 'student_name'], required: true }],
                 order: [['cgpa', 'DESC'], ['sgpa', 'DESC'], ['result_id', 'ASC']],
                 limit: 10,
@@ -219,7 +219,7 @@ const dashboardController = {
                     usn: r.Student?.usn || 'N/A',
                     student_id: r.Student.student_id,
                     batch_id: r.Student.batch_id,
-                    session_id: r.session_id,
+                    exam_session_id: r.exam_session_id,
                     attempt_no: r.attempt_no,
                     sgpa: r.sgpa,
                     cgpa: r.cgpa,

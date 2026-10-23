@@ -1,4 +1,4 @@
-/* Session Management - SRAAS | Academic Management → Sessions */
+/* Exam Session Management - SRAAS | Academic Management → Exam Sessions */
 document.addEventListener("DOMContentLoaded", function () {
   "use strict";
   var MONTHS = [
@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", function () {
     text("upcomingSessionsCount", upcoming);
     text("currentSessionName", active ? semLabel(active.semester) : "No sessions");
     var currentName = document.getElementById('currentSessionName');
-    text('currentSessionLabel', !active || statusOf(active) === 'active' ? 'Current Session' : statusOf(active) === 'completed' ? 'Latest Session' : 'Next Session');
+    text('currentSessionLabel', !active || statusOf(active) === 'active' ? 'Current Exam Session' : statusOf(active) === 'completed' ? 'Latest Exam Session' : 'Next Exam Session');
     currentName.title = active ? [batchOf(active).batch_name, periodLabel(active)].filter(Boolean).join(' - ') : '';
     text('currentSessionBatch', active ? batchOf(active).batch_name : '');
     var context = document.getElementById('currentSessionContext');
@@ -252,13 +252,13 @@ document.addEventListener("DOMContentLoaded", function () {
       b = batchOf(s),
       title = periodLabel(s);
     var deleteButton = s.deletion && s.deletion.allowed
-      ? ' <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" data-id="' + s.session_id + '" title="Delete unused session"><span class="material-icons action-icon">delete</span></button>'
+      ? ' <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" data-id="' + s.exam_session_id + '" title="Delete unused session"><span class="material-icons action-icon">delete</span></button>'
       : '';
     return (
       '<tr><td><span class="session-name">' +
       escapeHtml(title) +
       '</span><div class="session-meta">ID ' +
-      escapeHtml(s.session_id) +
+      escapeHtml(s.exam_session_id) +
       "</div></td><td>" +
       escapeHtml(b.batch_name || "—") +
       '<div class="session-meta">' +
@@ -278,9 +278,9 @@ document.addEventListener("DOMContentLoaded", function () {
       '</span></td><td class="text-nowrap">' +
       escapeHtml(fmtDate(s.created_at)) +
       '</td><td class="text-center text-nowrap"><button type="button" class="btn btn-sm btn-outline-secondary" data-action="view" data-id="' +
-      s.session_id +
+      s.exam_session_id +
       '" title="View session"><span class="material-icons action-icon">visibility</span></button> <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="' +
-      s.session_id +
+      s.exam_session_id +
       '" title="Edit session"><span class="material-icons action-icon">edit</span></button>' + deleteButton + '</td></tr>'
     );
   }
@@ -336,7 +336,7 @@ document.addEventListener("DOMContentLoaded", function () {
     body.innerHTML =
       '<tr><td colspan="8" class="text-center table-loading"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading sessions...</td></tr>';
     try {
-      var j = await fetchJSON("/sessions?format=json");
+      var j = await fetchJSON("/exam-sessions?format=json");
       sessions = Array.isArray(j.data) ? j.data : [];
       render();
     } catch (e) {
@@ -348,7 +348,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   function findSession(id) {
     return sessions.filter(function (s) {
-      return String(s.session_id) === String(id);
+      return String(s.exam_session_id) === String(id);
     })[0];
   }
   function openCreate() {
@@ -382,14 +382,14 @@ document.addEventListener("DOMContentLoaded", function () {
     var b = document.getElementById("confirmCreateSessionBtn");
     setLoading(b, true, "Creating...");
     try {
-      await fetchJSON("/sessions", {
+      await fetchJSON("/exam-sessions", {
         method: "POST",
         body: JSON.stringify(pendingCreate),
       });
       createConfirmed = true;
       pendingCreate = null;
       hideModal(confirmCreateModal);
-      showToast("success", "Session created successfully.");
+      showToast("success", "Exam Session created successfully.");
       await loadSessions();
     } catch (e) {
       showError("confirmCreateSessionError", friendlyError(e));
@@ -399,22 +399,22 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   function editSession(id) {
     var s = findSession(id);
-    if (!s) return showToast("danger", "Session not found.");
+    if (!s) return showToast("danger", "Exam Session not found.");
     var b = batchOf(s);
-    document.getElementById("editSessionId").value = s.session_id;
+    document.getElementById("editSessionId").value = s.exam_session_id;
     document.getElementById("editSessionBatch").value = b.batch_name || "—";
     semesterOptions('editSessionSemester', b, s.semester);
     document.getElementById('editSessionSemester').disabled = true;
     document.getElementById('editSessionSemesterNote').textContent = 'Checking configured subjects...';
     document.getElementById('editSessionSubmitBtn').disabled = true;
-    fetchJSON('/subjects/session/' + encodeURIComponent(s.session_id)).then(function (response) {
-      if (String(document.getElementById('editSessionId').value) !== String(s.session_id)) return;
+    fetchJSON('/subjects/session/' + encodeURIComponent(s.exam_session_id)).then(function (response) {
+      if (String(document.getElementById('editSessionId').value) !== String(s.exam_session_id)) return;
       var subjects = Array.isArray(response) ? response : response.data || [];
       document.getElementById('editSessionSemester').disabled = subjects.length > 0;
       document.getElementById('editSessionSemesterNote').textContent = subjects.length ? 'Semester is locked because subjects are configured. The examination period remains editable only while no results exist.' : '';
       document.getElementById('editSessionSubmitBtn').disabled = false;
     }).catch(function () {
-      if (String(document.getElementById('editSessionId').value) !== String(s.session_id)) return;
+      if (String(document.getElementById('editSessionId').value) !== String(s.exam_session_id)) return;
       document.getElementById('editSessionSemesterNote').textContent = 'Semester is locked while subject availability cannot be checked.';
       document.getElementById('editSessionSubmitBtn').disabled = false;
     });
@@ -443,7 +443,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!period) valid = false;
     if (!valid) return;
     var s = findSession(document.getElementById("editSessionId").value);
-    if (!s) return showError("editSessionError", "Session not found.");
+    if (!s) return showError("editSessionError", "Exam Session not found.");
     pendingUpdate = Object.assign({}, s, {
       semester: String(sn),
       ...period,
@@ -461,7 +461,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var b = document.getElementById("confirmEditSessionBtn");
     setLoading(b, true, "Saving...");
     try {
-      await fetchJSON("/sessions/" + pendingUpdate.session_id, {
+      await fetchJSON("/exam-sessions/" + pendingUpdate.exam_session_id, {
         method: "PUT",
         body: JSON.stringify({
           semester: pendingUpdate.semester,
@@ -473,7 +473,7 @@ document.addEventListener("DOMContentLoaded", function () {
       updateConfirmed = true;
       pendingUpdate = null;
       hideModal(confirmEditModal);
-      showToast("success", "Session updated successfully.");
+      showToast("success", "Exam Session updated successfully.");
       await loadSessions();
     } catch (e) {
       showError("confirmEditSessionError", friendlyError(e));
@@ -496,7 +496,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var button = document.getElementById('confirmDeleteSessionBtn');
     setLoading(button, true, 'Deleting...');
     try {
-      await fetchJSON('/sessions/' + encodeURIComponent(pendingDelete.session_id), { method: 'DELETE' });
+      await fetchJSON('/exam-sessions/' + encodeURIComponent(pendingDelete.exam_session_id), { method: 'DELETE' });
       pendingDelete = null;
       hideModal(deleteModal);
       showToast('success', 'Unused examination session deleted successfully.');
@@ -513,13 +513,13 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("sessionDetailsList").classList.add("d-none");
     showModal(detailsModal);
     try {
-      var j = await fetchJSON("/sessions/" + id),
+      var j = await fetchJSON("/exam-sessions/" + id),
         s = j.data,
         b = batchOf(s),
         st = statusOf(s),
         values = [
-          ["Session ID", s.session_id],
-          ["Session UUID", s.session_uuid],
+          ["Exam Session ID", s.exam_session_id],
+          ["Exam Session UUID", s.session_uuid],
           ["Batch", b.batch_name],
           ["Department", deptOf(s)],
           ["Semester", semLabel(s.semester)],

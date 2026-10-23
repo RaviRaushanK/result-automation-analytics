@@ -3,8 +3,8 @@
 const batch = { batch_id: 9001, batch_name: 'MCA 2025', start_year: 2025, end_year: 2027,
   department_id: 1, status: 'active', Department: { department_name: 'Master of Computer Applications', department_code: 'MCA' } };
 const departments = [{ department_id: 1, department_name: 'Master of Computer Applications', department_code: 'MCA' }];
-const sessions = [{ session_id: 9100, batch_id: 9001, semester: '1', exam_session: 'Jun', exam_year: 2026, Batch: batch }];
-const subjects = [{ subject_id: 9200, session_id: 9100, course_id: 9300, subject_code: 'MMC101',
+const sessions = [{ exam_session_id: 9100, batch_id: 9001, semester: '1', exam_session: 'Jun', exam_year: 2026, Batch: batch }];
+const subjects = [{ subject_id: 9200, exam_session_id: 9100, course_id: 9300, subject_code: 'MMC101',
   subject_name: 'PROGRAMMING AND PROBLEM SOLVING WITH ADVANCED APPLICATIONS', credits: 4,
   subject_type: 'theory', max_internal: 50, max_external: 50, max_marks: 100, Faculties: [{ faculty_id: 1, faculty_name: 'TEST FACULTY WITH A LONG NAME', status: 'active' }] }];
 const student = { student_id: 9400, batch_id: 9001, usn: '1MV25MC001', student_name: 'TEST STUDENT WITH A LONG COMPOUND FAMILY NAME',
@@ -18,7 +18,7 @@ const roster = { selected: { batch_id: 9001, semester: '1' }, semesterLimit: 4, 
 const pages = {
   dashboard: ['dashboard/index', { batches: [batch, { ...batch, batch_id: 9002, batch_name: 'MCA 2024' }], semesters: ['1', '2', '3', '4'], batchSemesters: [...['1', '2', '3', '4'].map(semester => ({ batch_id: 9001, semester })), { batch_id: 9002, semester: '2' }], pageStyles: ['/css/dashboard.css'] }],
   batches: ['batches/index', {}],
-  sessions: ['sessions/index', { pageStyles: [...base.pageStyles, '/css/sessions.css'] }],
+  sessions: ['exam-sessions/index', { pageStyles: [...base.pageStyles, '/css/exam-sessions.css'] }],
   subjects: ['subjects/index', { pageStyles: [...base.pageStyles, '/css/subjects.css'] }],
   roster: ['subjects/courses', { ...roster, editingRoster: true, courses: [{ ...course, roster_verified: false }] }],
   'roster-verified': ['subjects/courses', { ...roster, editingRoster: false, courses: [{ ...course, roster_verified: true }] }],
@@ -35,7 +35,7 @@ function api(req, res, next) {
   let data;
   if (req.path === '/batches') data = [batch];
   else if (req.path === '/batches/9001') data = batch;
-  else if (req.path === '/sessions') data = sessions;
+  else if (req.path === '/exam-sessions') data = sessions;
   else if (req.path === '/subjects/session/9100') return res.json(subjects);
   else if (req.path === '/faculty/api') data = subjects[0].Faculties;
   else if (req.path === '/faculty/api/departments') data = departments;
@@ -50,7 +50,7 @@ function api(req, res, next) {
     gradeSummary: { graded: 120, missing: 0, total: 120 }
   };
   else if (req.path === '/dashboard/pass-fail') data = { pass: 100, fail: 20 };
-  else if (req.path === '/dashboard/top-scorers') data = [{ ...student, session_id: 9100, attempt_no: 1, sgpa: 9, cgpa: 9, rank: 1, result_status: 'pass' }];
+  else if (req.path === '/dashboard/top-scorers') data = [{ ...student, exam_session_id: 9100, attempt_no: 1, sgpa: 9, cgpa: 9, rank: 1, result_status: 'pass' }];
   else return next();
   if (req.path.startsWith('/dashboard/')) {
     if (req.query.semester === '3') {

@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const period = require('../public/js/exam-period');
 const policy = require('../services/academicPolicy');
-const sessionController = require('../controllers/sessionController');
+const examSessionController = require('../controllers/examSessionController');
 const integrity = require('../services/academicIntegrity');
 
 test('labeled examination periods retain positive contradiction protection', () => {
@@ -51,7 +51,7 @@ test('extracts full examination periods while ignoring announcement dates', () =
 });
 
 test('server validates structured periods and derives legacy compatibility columns', () => {
-  const validate = sessionController._test.validateSessionFields;
+  const validate = examSessionController._test.validateSessionFields;
   const single = validate({ semester: '01', exam_start_month: 'April', exam_start_year: '2026' });
   assert.deepEqual(single.errors, []);
   assert.equal(single.semester, '1');
@@ -64,8 +64,8 @@ test('server validates structured periods and derives legacy compatibility colum
 });
 
 test('session UI parses named month options and keeps modal actions above the page footer', () => {
-  const script = fs.readFileSync(path.join(__dirname, '../public/js/sessions.js'), 'utf8');
-  const sessionCss = fs.readFileSync(path.join(__dirname, '../public/css/sessions.css'), 'utf8');
+  const script = fs.readFileSync(path.join(__dirname, '../public/js/exam-sessions.js'), 'utf8');
+  const sessionCss = fs.readFileSync(path.join(__dirname, '../public/css/exam-sessions.css'), 'utf8');
   const responsiveCss = fs.readFileSync(path.join(__dirname, '../public/css/workspace-responsive.css'), 'utf8');
   assert.match(script, /ExamPeriod\.month\(document\.getElementById\(prefix \+ 'StartMonth'\)\.value\)/);
   assert.match(script, /ExamPeriod\.month\(document\.getElementById\(prefix \+ 'EndMonth'\)\.value\)/);

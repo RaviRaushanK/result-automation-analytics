@@ -5,23 +5,23 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 function fixture(resultCount = 1, subjectCount = 0) {
-  const session = { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025,
+  const session = { exam_session_id: 1, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025,
     exam_start_month: 12, exam_start_year: 2025, exam_end_month: 12, exam_end_year: 2025 };
   const transaction = {}, writes = [], reads = [];
   let committed = false;
   const models = {
     sequelize: { transaction: async run => { const result = await run(transaction); committed = true; return result; } },
-    ResultSession: {
+    ExamSession: {
       findByPk: async (id, options) => { reads.push(options); assert.equal(options.transaction, transaction); return session; },
       findOne: async () => null,
       update: async (data, options) => { assert.equal(options.transaction, transaction); writes.push(data); }
     },
-    Result: { count: async options => { assert.equal(options.where.session_id, 1); assert.equal(options.transaction, transaction); return resultCount; } },
+    Result: { count: async options => { assert.equal(options.where.exam_session_id, 1); assert.equal(options.transaction, transaction); return resultCount; } },
     Subject: { count: async () => subjectCount },
     Batch: { findByPk: async () => ({ start_year: 2025, end_year: 2027 }) }
   };
   const module = { exports: {} };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/sessionController'), 'utf8'), {
+  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/examSessionController'), 'utf8'), {
     module, console, require: name => name === '../database/models' ? models : require(name)
   });
   return { writes, reads, async invoke(changes) {

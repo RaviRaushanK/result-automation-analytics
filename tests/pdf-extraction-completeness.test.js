@@ -30,7 +30,7 @@ for (const examType of ['REGULAR','BACKLOG','SUPPLEMENTARY','REPEAT', undefined,
       }
     });
     let location;
-    await module.exports.processUpload({body:{sessionId:'1',attempt_no:examType === 'BACKLOG' ? '2' : '1',exam_type:examType},file:{path:'staged.pdf',originalname:'card.pdf'},session:{adminId:1}},{redirect:url=>{location=url;}});
+    await module.exports.processUpload({body:{exam_session_id:'1',attempt_no:examType === 'BACKLOG' ? '2' : '1',exam_type:examType},file:{path:'staged.pdf',originalname:'card.pdf'},session:{adminId:1}},{redirect:url=>{location=url;}});
     if (!['REGULAR', 'BACKLOG'].includes(examType)) {
       assert.match(location, /\/results\/upload\?error=/);
       assert.match(decodeURIComponent(location), examType ? /REGULAR, BACKLOG/ : /Exam Type is required/);

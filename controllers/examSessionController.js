@@ -1,19 +1,19 @@
-// Session management dashboard.
-// Reuses the existing ResultSession model and /sessions API.
+// Exam Session management dashboard.
+// Reuses the existing ExamSession model and /exam-sessions API.
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { ResultSession, Batch, Department, Subject, Result, ImportLog, sequelize } = require('../database/models');
+const { ExamSession, Batch, Department, Subject, Result, ImportLog, sequelize } = require('../database/models');
 const { semesterCount } = require('../public/js/academic-form-options');
 const examPeriod = require('../public/js/exam-period');
 
-const SESSION_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'];
+const SESSION_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css', '/css/exam-sessions.css'];
 
 // Deterministic ordering for session lists (exam period then semester sequence)
 const SESSION_ORDER = [['exam_start_year', 'ASC'], ['exam_start_month', 'ASC'], ['exam_end_year', 'ASC'], ['exam_end_month', 'ASC'], ['semester', 'ASC']];
 
 async function attachDeletionEligibility(sessions) {
   await Promise.all(sessions.map(async session => {
-    const where = { session_id: session.session_id };
+    const where = { exam_session_id: session.exam_session_id };
     const [subjects, results, imports] = await Promise.all([
       Subject.count({ where }), Result.count({ where }), ImportLog.count({ where })
     ]);
@@ -83,11 +83,11 @@ function validateSessionFields(body) {
     exam_session: startMonth ? examPeriod.MONTHS[startMonth - 1] : null, exam_year: startYear };
 }
 
-const sessionController = {
+const examSessionController = {
 
   // =========================
   // GET ALL SESSIONS
-  // GET /sessions
+  // GET /exam-sessions
   // =========================
   all: async (req, res) => {
     try {
@@ -108,7 +108,7 @@ const sessionController = {
         if (req.query.batch_id !== undefined && req.query.batch_id !== '') {
           where.batch_id = req.query.batch_id;
         }
-        const data = await ResultSession.findAll({
+        const data = await ExamSession.findAll({
           where,
           include: [includeBatch],
           order: SESSION_ORDER
@@ -118,7 +118,7 @@ const sessionController = {
       }
 
       const [sessions, batches] = await Promise.all([
-        ResultSession.findAll({ include: [includeBatch], order: SESSION_ORDER }),
+        ExamSession.findAll({ include: [includeBatch], order: SESSION_ORDER }),
         Batch.findAll({
           include: [{ model: Department, attributes: ['department_id', 'department_code', 'department_name'] }],
           order: [['start_year', 'DESC'], ['end_year', 'DESC'], ['batch_id', 'DESC']]
@@ -126,19 +126,19 @@ const sessionController = {
       ]);
       await attachDeletionEligibility(sessions);
 
-      return res.render('sessions/index', {
+      return res.render('exam-sessions/index', {
         layout: 'layouts/main',
-        title: 'Session Management - SRAAS',
+        title: 'Exam Session Management - SRAAS',
         pageStyles: SESSION_PAGE_STYLES,
         breadcrumbItems: [
           { href: '#', label: 'Academic Management' },
-          { label: 'Sessions' }
+          { label: 'Exam Sessions' }
         ],
         sessions,
         batches
       });
     } catch (error) {
-      console.error('Sessions dashboard error:', error);
+      console.error('Exam Sessions dashboard error:', error);
       if (req.query.format === 'json') {
         return res.status(500).json({ success: false, message: 'Something went wrong on the server. Please try again.' });
       }
@@ -154,7 +154,7 @@ const sessionController = {
   // =========================
   get: async (req, res) => {
     try {
-      const data = await ResultSession.findByPk(req.params.id, {
+      const data = await ExamSession.findByPk(req.params.id, {
         include: [{
           model: Batch,
           attributes: ['batch_id', 'batch_name', 'start_year', 'end_year', 'status'],
@@ -168,7 +168,7 @@ const sessionController = {
       if (!data) {
         return res.status(404).json({
           success: false,
-          message: 'Session not found'
+          message: 'Exam Session not found'
         });
       }
 
@@ -178,7 +178,7 @@ const sessionController = {
       });
 
     } catch (error) {
-      console.error('Session get error:', error);
+      console.error('Exam Session get error:', error);
       res.status(500).json({
         success: false,
         message: 'Something went wrong on the server. Please try again.'
@@ -209,7 +209,7 @@ const sessionController = {
       if (!semesters || Number(check.semester) > semesters) return res.status(400).json({ success: false, message: semesters ? `Semester must be between 1 and ${semesters} for the selected batch.` : 'The batch must have valid start and end years.' });
 
       // Academic semester is independent of the examination sitting.
-      const duplicateSemester = await ResultSession.findOne({
+      const duplicateSemester = await ExamSession.findOne({
         where: { batch_id: batch.batch_id, semester: String(Number(check.semester)),
           exam_start_month: check.exam_start_month, exam_start_year: check.exam_start_year,
           exam_end_month: check.exam_end_month, exam_end_year: check.exam_end_year }
@@ -221,7 +221,7 @@ const sessionController = {
         });
       }
 
-      const data = await ResultSession.create({
+      const data = await ExamSession.create({
         session_uuid: session_uuid || generateUuid(),
         batch_id: batch.batch_id,
         semester: check.semester,
@@ -235,12 +235,12 @@ const sessionController = {
 
       res.status(201).json({
         success: true,
-        message: 'Session created successfully',
+        message: 'Exam Session created successfully',
         data
       });
 
     } catch (error) {
-      console.error('Session create error:', error);
+      console.error('Exam Session create error:', error);
       if (error && error.name === 'SequelizeUniqueConstraintError') {
         return res.status(409).json({
           success: false,
@@ -261,9 +261,9 @@ const sessionController = {
     try {
       const outcome = await sequelize.transaction(async transaction => {
         const reject = (status, message) => ({ status, body: { success: false, message } });
-        const session = await ResultSession.findByPk(req.params.id, { transaction, lock: true });
+        const session = await ExamSession.findByPk(req.params.id, { transaction, lock: true });
         if (!session) {
-          return reject(404, 'Session not found');
+          return reject(404, 'Exam Session not found');
         }
 
         const check = validateSessionFields(req.body);
@@ -275,12 +275,12 @@ const sessionController = {
           return reject(409, 'A session cannot change batch. Create a new examination session instead.');
         }
         const identityChanged = String(Number(session.semester)) !== check.semester || examPeriod.key(session) !== examPeriod.key(check);
-        if (identityChanged && await Result.count({ where: { session_id: session.session_id }, transaction })) {
+        if (identityChanged && await Result.count({ where: { exam_session_id: session.exam_session_id }, transaction })) {
           return reject(409, 'This examination period cannot be changed because saved results already use it. For a different examination sitting, create a new examination session. If the saved historical period is incorrect, use the controlled historical-correction process so the attached results remain auditable.');
         }
 
         // Duplicate semester within the same batch (excluding this session)
-        const duplicateSemester = await ResultSession.findOne({
+        const duplicateSemester = await ExamSession.findOne({
           where: {
             batch_id: session.batch_id,
             semester: check.semester,
@@ -288,14 +288,14 @@ const sessionController = {
             exam_start_year: check.exam_start_year,
             exam_end_month: check.exam_end_month,
             exam_end_year: check.exam_end_year,
-            session_id: { [Op.ne]: session.session_id }
+            exam_session_id: { [Op.ne]: session.exam_session_id }
           }, transaction
         });
         if (duplicateSemester) {
           return reject(409, 'This examination session already exists for the batch and semester.');
         }
 
-        if (String(Number(session.semester)) !== check.semester && await Subject.count({ where: { session_id: session.session_id }, transaction })) {
+        if (String(Number(session.semester)) !== check.semester && await Subject.count({ where: { exam_session_id: session.exam_session_id }, transaction })) {
           return reject(409, 'A session with configured courses cannot change academic semester. Create the correct examination session instead.');
         }
         if (String(Number(session.semester)) !== check.semester) {
@@ -304,7 +304,7 @@ const sessionController = {
           if (!semesters || Number(check.semester) > semesters) return reject(400, 'Semester is outside the selected batch duration.');
         }
         // Note: the batch association is intentionally not editable here.
-        await ResultSession.update({
+        await ExamSession.update({
           semester: check.semester,
           exam_session: check.exam_session,
           exam_year: check.exam_year,
@@ -312,20 +312,20 @@ const sessionController = {
           exam_start_year: check.exam_start_year,
           exam_end_month: check.exam_end_month,
           exam_end_year: check.exam_end_year
-        }, { where: { session_id: session.session_id }, transaction });
+        }, { where: { exam_session_id: session.exam_session_id }, transaction });
 
-        const data = await ResultSession.findByPk(session.session_id, { transaction });
+        const data = await ExamSession.findByPk(session.exam_session_id, { transaction });
 
         return { status: 200, body: {
           success: true,
-          message: 'Session updated successfully',
+          message: 'Exam Session updated successfully',
           data
         } };
       });
       return res.status(outcome.status).json(outcome.body);
 
     } catch (error) {
-      console.error('Session update error:', error);
+      console.error('Exam Session update error:', error);
       if (error && error.name === 'SequelizeUniqueConstraintError') {
         return res.status(409).json({
           success: false,
@@ -345,9 +345,9 @@ const sessionController = {
   delete: async (req, res) => {
     try {
       const outcome = await sequelize.transaction(async transaction => {
-        const session = await ResultSession.findByPk(req.params.id, { transaction, lock: true });
-        if (!session) return { status: 404, body: { success: false, message: 'Session not found.' } };
-        const where = { session_id: session.session_id };
+        const session = await ExamSession.findByPk(req.params.id, { transaction, lock: true });
+        if (!session) return { status: 404, body: { success: false, message: 'Exam Session not found.' } };
+        const where = { exam_session_id: session.exam_session_id };
         const [subjects, results, imports] = await Promise.all([
           Subject.count({ where, transaction }),
           Result.count({ where, transaction }),
@@ -362,13 +362,13 @@ const sessionController = {
           return { status: 409, body: { success: false,
             message: `This examination session cannot be deleted because it has ${dependencies}. Preserve it for academic history. Only a completely unused session can be deleted.` } };
         }
-        await ResultSession.destroy({ where, transaction });
+        await ExamSession.destroy({ where, transaction });
         return { status: 200, body: { success: true, message: 'Unused examination session deleted successfully.' } };
       });
       return res.status(outcome.status).json(outcome.body);
 
     } catch (error) {
-      console.error('Session delete error:', error);
+      console.error('Exam Session delete error:', error);
       if (error && (error.name === 'SequelizeForeignKeyConstraintError' || error.parent?.code === 'ER_ROW_IS_REFERENCED_2')) {
         return res.status(409).json({ success: false, message: 'This examination session gained dependent academic records and cannot be deleted. Refresh the page and review the session.' });
       }
@@ -380,5 +380,5 @@ const sessionController = {
   }
 };
 
-module.exports = sessionController;
+module.exports = examSessionController;
 module.exports._test = { validateSessionFields, normalizeMonth };

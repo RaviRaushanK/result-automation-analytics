@@ -7,19 +7,19 @@ installed foreign-key actions and migration status must be checked separately.
 erDiagram
     DEPARTMENTS ||--o{ BATCHES : contains
     DEPARTMENTS ||--o{ FACULTY : contains
-    BATCHES ||--o{ RESULT_SESSIONS : schedules
+    BATCHES ||--o{ EXAM_SESSIONS : schedules
     BATCHES ||--o{ ACADEMIC_COURSES : defines
     BATCHES ||--o{ STUDENTS : registers
-    RESULT_SESSIONS ||--o{ SUBJECTS : offers
+    EXAM_SESSIONS ||--o{ SUBJECTS : offers
     ACADEMIC_COURSES o|--o{ SUBJECTS : maps
     SUBJECTS ||--o{ SUBJECT_FACULTY : assigns
     FACULTY ||--o{ SUBJECT_FACULTY : teaches
     STUDENTS ||--o{ RESULTS : has
-    RESULT_SESSIONS ||--o{ RESULTS : records
+    EXAM_SESSIONS ||--o{ RESULTS : records
     RESULTS ||--o{ SUBJECT_RESULTS : contains
     SUBJECTS ||--o{ SUBJECT_RESULTS : evaluates
     SUBJECT_RESULTS ||--o{ REVALUATION_RESULTS : has_events
-    RESULT_SESSIONS ||--o{ IMPORT_LOGS : scopes
+    EXAM_SESSIONS ||--o{ IMPORT_LOGS : scopes
     ADMIN_USERS ||--o{ IMPORT_LOGS : uploads
     IMPORT_LOGS ||--o{ OCR_EXTRACTIONS : stages
     ADMIN_USERS ||--o{ REVALUATION_RESULTS : uploads
@@ -36,7 +36,7 @@ ambiguity is not silently accepted as a verified course equivalence.
 | Account / `admin_users` | admin_id | UUID, username, email |
 | Batch / `batches` | batch_id | UUID |
 | Faculty / `faculty` | faculty_id | UUID, faculty code; optional email |
-| Session / `result_sessions` | session_id | UUID; batch/semester/exam month/year |
+| ExamSession / `exam_sessions` | exam_session_id | UUID; batch/semester/full examination period |
 | AcademicCourse / `academic_courses` | course_id | batch/semester/subject code |
 | Subject / `subjects` | subject_id | UUID; session/subject code |
 | SubjectFaculty / `subject_faculty` | id | subject/faculty pair |

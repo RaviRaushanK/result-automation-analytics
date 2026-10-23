@@ -18,13 +18,13 @@ function fixture() {
   const batches = [{ batch_id: 1, batch_name: 'Older', start_year: 2024, end_year: 2026 }, { batch_id: 9, batch_name: 'BTech', start_year: 2026, end_year: 2030 }, { batch_id: 2, batch_name: 'MCA', start_year: 2025, end_year: 2027 }];
   const writes = [], calls = [];
   const course = { course_id: 11, batch_id: 2, semester: '1', subject_code: 'MCA101', subject_name: 'Course', subject_type: 'theory', credits: 4, max_internal: 50, max_external: 50, max_marks: 100, is_required: true, roster_verified: false, status: 'active', async update(data) { writes.push({ ...data }); Object.assign(this, data); } };
-  const subject = { ...course, subject_id: 101, session_id: 10 };
+  const subject = { ...course, subject_id: 101, exam_session_id: 10 };
   let unmapped = 0;
   const models = {
     Batch: { findAll: async () => { calls.push('batches'); return batches; }, findByPk: async id => batches.find(batch => String(batch.batch_id) === String(id)) },
     AcademicCourse: { findAll: async query => { calls.push({ model: 'AcademicCourse', where: query.where }); return String(query.where.batch_id) === '2' && query.where.semester === '1' ? [course] : []; } },
     Subject: { findAll: async query => { calls.push({ model: 'Subject', query }); return [subject]; }, count: async () => unmapped },
-    ResultSession: {}, sequelize: { transaction: async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }) }
+    ExamSession: {}, sequelize: { transaction: async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }) }
   };
   for (const name of ['Result', 'SubjectResult', 'RevaluationResult']) models[name] = { update() { throw new Error('Historical data must not change'); }, create() { throw new Error('Historical data must not change'); } };
   models.Result.count = async () => 0;
@@ -55,21 +55,21 @@ test('Examination Subjects retains session-specific controls and exposes the ros
   });
 });
 
-test('Semester Roster renders latest cohort with duration-derived options and no ResultSession filter', async () => {
+test('Semester Roster renders latest cohort with duration-derived options and no ExamSession filter', async () => {
   const f = fixture();
   await withServer(f, async request => {
     const latest = await (await request('/subjects?tab=roster')).text();
     assert.match(latest, /id="semester-roster-tab"[^>]*aria-current="page"/);
     assert.match(latest, /option value="9" selected/);
     assert.equal((latest.match(/>Semester \d+<\/option>/g) || []).length, 8);
-    assert.doesNotMatch(latest, /subjectSessionSelect|name="session_id"/);
+    assert.doesNotMatch(latest, /subjectSessionSelect|name="exam_session_id"/);
     const mca = await (await request('/subjects?tab=roster&batch_id=2&semester=1')).text();
     assert.equal((mca.match(/>Semester \d+<\/option>/g) || []).length, 4);
     assert.match(mca, /action="\/subjects\/roster"/); assert.match(mca, /name="required_courses" value="11"/);
     assert.match(mca, /name="confirm" value="1" required/); assert.match(mca, /across examination sittings/);
     assert.equal(f.calls.filter(call => call.model === 'Subject').length, 0);
     const json = await (await request('/subjects?format=json')).json();
-    assert.equal(json[0].session_id, 10); assert.equal(json[0].course_id, 11);
+    assert.equal(json[0].exam_session_id, 10); assert.equal(json[0].course_id, 11);
   });
 });
 
@@ -113,7 +113,7 @@ test('roster confirmation retains stable course identity, review provenance and 
     f.setUnmapped(1); assert.equal((await request('/subjects/roster', post(body))).status, 409); assert.equal(f.writes.length, 0);
     f.setUnmapped(0); const res = await request('/subjects/roster', post(body));
     assert.equal(res.status, 302); assert.match(res.headers.get('location'), /^\/subjects\?tab=roster&batch_id=2&semester=1&saved=1$/);
-    assert.equal(f.course.course_id, 11); assert.equal(f.course.subject_code, 'MCA101'); assert.equal(f.subject.session_id, 10);
+    assert.equal(f.course.course_id, 11); assert.equal(f.course.subject_code, 'MCA101'); assert.equal(f.subject.exam_session_id, 10);
     assert.deepEqual(Object.keys(f.writes[0]).sort(), ['is_required', 'reviewed_at', 'reviewed_by', 'roster_verified']);
     assert.equal(f.writes[0].reviewed_by, 7); assert.equal(f.writes[0].roster_verified, true);
     assert.equal((await request('/subjects/courses', post(body))).status, 302);
@@ -126,7 +126,7 @@ test('verification through the new tab unlocks the unchanged REGULAR import and 
   const inputs = { internal_101: 40, external_101: 40 }, session = { batch_id: 2, semester: '1' };
   const before = await importer._test.buildValidatedPayload(10, { usn: 'TEST', name: 'Test' }, inputs, { session, exam_type: 'REGULAR' });
   assert.equal(before.hasErrors, true); assert.match(before.errors.form, /Confirm the required semester courses/);
-  const result = { result_id: 1, student_id: 1, session_id: 10, semester: '1', exam_session: 'Dec', exam_year: 2025, exam_type: 'REGULAR', attempt_no: 1 };
+  const result = { result_id: 1, student_id: 1, exam_session_id: 10, semester: '1', exam_session: 'Dec', exam_year: 2025, exam_type: 'REGULAR', attempt_no: 1 };
   const data = { courses: [f.course], results: [result], subjects: [{ ...result, course_id: 11, course_id_snapshot: 11, outcome_status: 'pass', grade: 'A+', grade_point: 9, credits_snapshot: 4, grading_scheme_version: policy.SCHEME }] };
   assert.equal(outcomes.semesterOutcome(data, 1, '1').cleared, null); assert.equal(outcomes.cumulative(data, 1, '1'), null);
   await withServer(f, async request => assert.equal((await request('/subjects/roster', post('batch_id=2&semester=1&confirm=1&required_courses=11'))).status, 302));

@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const router = express.Router();
+router.use(require('../middlewares/examSessionParameters'));
 const resultController = require('../controllers/resultController');
 const { marksCardFilter, marksCardUpload } = require('../middlewares/marksCardUpload');
 router.use((req, res, next) => {
@@ -29,13 +30,13 @@ const upload = multer({
  *   GET  /results/upload/:importId/success      → Page 4: import successful
  *
  * Utilities:
- *   GET  /results/session-details/:sessionId    → JSON (subjects of a session)
+ *   GET  /results/session-details/:examSessionId    → JSON (subjects of a session)
  *   GET  /results/logs                          → import logs listing
  */
 
 // ---- Upload flow ----
 router.get('/upload', resultController.showUploadPage);
-router.post('/upload', marksCardUpload(upload, 'resultDocument', '/results/upload', require('../config/uploadLimits').resultPdf), resultController.processUpload);
+router.post('/upload', marksCardUpload(upload, 'resultDocument', '/results/upload', require('../config/uploadLimits').resultPdf), require('../middlewares/examSessionParameters'), resultController.processUpload);
 router.get('/upload/:importId/review', resultController.showReviewPage);
 router.post('/upload/:importId/validate', resultController.validateReview);
 router.get('/upload/:importId/preview', resultController.showPreviewPage);
@@ -43,7 +44,7 @@ router.post('/upload/:importId/import', resultController.confirmImport);
 router.get('/upload/:importId/success', resultController.showSuccessPage);
 
 // ---- Utilities ----
-router.get('/session-details/:sessionId', resultController.getSessionDetails);
+router.get('/session-details/:examSessionId', resultController.getSessionDetails);
 router.get('/logs', resultController.getImportLogs);
 
 // ---- Collection ----

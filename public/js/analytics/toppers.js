@@ -89,7 +89,7 @@
     var att = attemptSel.value.trim(), m = modeSel.value.trim();
     if (s) p.set('semester', s);
     if (b) p.set('batch_id', b);
-    if (ss) p.set('session_id', ss);
+    if (ss) p.set('exam_session_id', ss);
     if (att && att !== 'latest') p.set('attempt', att);
     if (m) p.set('mode', m);
     if (examTypeSel && examTypeSel.value) p.set('exam_type', examTypeSel.value);
@@ -158,18 +158,18 @@
   // Resolves once every option list has been repopulated.
   async function refreshDepends(changed) {
     var children = {
-      batch_id: ['session_id']
+      batch_id: ['exam_session_id']
     };
     (children[changed] || []).forEach(function (name) {
       if (form && form.elements.namedItem(name)) form.elements.namedItem(name).value = '';
     });
     var params = readFilters();
     // [scope, element, valueKey, textKey, paramName, placeholder, autoSelectFirst]
-    ['batch_id', 'semester', 'session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
+    ['batch_id', 'semester', 'exam_session_id'].forEach(function (key) { if (initialQuery.has(key)) params.set(key, initialQuery.get(key)); });
     var definitions = [
       ['semesters', semSel, 'semester', 'semester', 'semester', 'All Semesters', false],
       ['batches', batchSel, 'batchId', 'batchName', 'batch_id', 'All Batches', true],
-      ['sessions', sessionSel, 'sessionId', 'examSession', 'session_id', 'All Sessions', false]
+      ['sessions', sessionSel, 'examSessionId', 'examSession', 'exam_session_id', 'All Sessions', false]
     ];
     await Promise.all(definitions.map(function (definition) {
       var scoped = new URLSearchParams(params);

@@ -5,7 +5,7 @@ const {
   Subject,
   SubjectFaculty,
   SubjectResult,
-  ResultSession,
+  ExamSession,
   Faculty,
   Batch,
   sequelize,
@@ -121,7 +121,7 @@ const subjectController = {
         });
       const data = await Subject.findAll({
         order: [
-          ["session_id", "ASC"],
+          ["exam_session_id", "ASC"],
           ["subject_code", "ASC"],
         ],
       });
@@ -170,15 +170,15 @@ const subjectController = {
   },
   getBySession: async (req, res) => {
     try {
-      const session = await ResultSession.findByPk(req.params.session_id, {
-        attributes: ["session_id"],
+      const session = await ExamSession.findByPk(req.params.exam_session_id, {
+        attributes: ["exam_session_id"],
       });
       if (!session)
         return res
           .status(404)
           .json({ success: false, message: "Session not found." });
       const data = await Subject.findAll({
-        where: { session_id: session.session_id },
+        where: { exam_session_id: session.exam_session_id },
         include: [
           {
             model: Faculty,
@@ -210,7 +210,7 @@ const subjectController = {
   create: async (req, res) => {
     try {
       const check = validateSubject(req.body);
-      if (!req.body.session_id) check.errors.unshift("Session is required.");
+      if (!req.body.exam_session_id) check.errors.unshift("Session is required.");
       if (check.errors.length)
         return res
           .status(400)
@@ -219,8 +219,8 @@ const subjectController = {
             message: check.errors[0],
             errors: check.errors,
           });
-      const session = await ResultSession.findByPk(req.body.session_id, {
-        attributes: ["session_id", "batch_id", "semester", "exam_session", "exam_year", "exam_start_month", "exam_start_year", "exam_end_month", "exam_end_year"],
+      const session = await ExamSession.findByPk(req.body.exam_session_id, {
+        attributes: ["exam_session_id", "batch_id", "semester", "exam_session", "exam_year", "exam_start_month", "exam_start_year", "exam_end_month", "exam_end_year"],
       });
       if (!session)
         return res
@@ -243,7 +243,7 @@ const subjectController = {
       // Subject codes may be repeated across batches and sessions, but not within this batch/session.
       const duplicate = await Subject.findOne({
         where: {
-          session_id: session.session_id,
+          exam_session_id: session.exam_session_id,
           subject_code: check.data.subject_code,
         },
       });
@@ -256,12 +256,12 @@ const subjectController = {
               "This subject code already exists in the selected batch and session.",
           });
       const data = await sequelize.transaction(async transaction => {
-        const currentSession = await ResultSession.findByPk(session.session_id, { transaction, lock: true });
+        const currentSession = await ExamSession.findByPk(session.exam_session_id, { transaction, lock: true });
         if (!currentSession || ['batch_id','semester'].some(field => String(currentSession[field]) !== String(session[field]))
           || require('../services/academicPolicy').periodKey(currentSession) !== require('../services/academicPolicy').periodKey(session)) throw Object.assign(new Error('The selected examination session changed. Reload it before creating the offering.'), { status: 409 });
         if (!await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
         const course = await academicCourses.resolve(session, check.data, transaction);
-        return Subject.create({ ...check.data, session_id: session.session_id, course_id: course.course_id, subject_uuid: generateUuid() }, { transaction });
+        return Subject.create({ ...check.data, exam_session_id: session.exam_session_id, course_id: course.course_id, subject_uuid: generateUuid() }, { transaction });
       });
       res
         .status(201)
@@ -309,7 +309,7 @@ const subjectController = {
       // A subject code is unique only for the subject's existing batch/session context.
       const duplicate = await Subject.findOne({
         where: {
-          session_id: subject.session_id,
+          exam_session_id: subject.exam_session_id,
           subject_code: check.data.subject_code,
           subject_id: { [Op.ne]: subject.subject_id },
         },
@@ -322,9 +322,9 @@ const subjectController = {
             message:
               "This subject code already exists in the selected batch and session.",
           });
-      const session = await ResultSession.findByPk(subject.session_id);
+      const session = await ExamSession.findByPk(subject.exam_session_id);
       await sequelize.transaction(async transaction => {
-        const currentSession = session && await ResultSession.findByPk(session.session_id, { transaction, lock: true });
+        const currentSession = session && await ExamSession.findByPk(session.exam_session_id, { transaction, lock: true });
         if (!currentSession || ['batch_id','semester'].some(field => String(currentSession[field]) !== String(session[field]))
           || require('../services/academicPolicy').periodKey(currentSession) !== require('../services/academicPolicy').periodKey(session)) throw Object.assign(new Error('The examination session changed. Reload the subject before editing.'), { status: 409 });
         if (!session || !await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
@@ -360,7 +360,7 @@ const subjectController = {
     try {
       // Resolve the exact subject being removed (never trust anything else).
       const subject = await Subject.findByPk(req.params.id, {
-        attributes: ["subject_id", "subject_code", "session_id"],
+        attributes: ["subject_id", "subject_code", "exam_session_id"],
       });
       if (!subject)
         return res
@@ -381,7 +381,7 @@ const subjectController = {
       // rows are released together with the subject. Faculty records themselves
       // are never touched. The whole delete runs in one transaction.
       await sequelize.transaction(async (transaction) => {
-        const session = await ResultSession.findByPk(subject.session_id, { transaction, lock: true });
+        const session = await ExamSession.findByPk(subject.exam_session_id, { transaction, lock: true });
         if (!session || !await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
         if (await SubjectResult.count({ where: { subject_id: subject.subject_id }, transaction, lock: true })) throw Object.assign(new Error(SUBJECT_IN_USE_MESSAGE), { status: 409 });
         await SubjectFaculty.destroy({

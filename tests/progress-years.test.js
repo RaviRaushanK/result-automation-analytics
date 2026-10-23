@@ -10,11 +10,11 @@ function history(failedSemester=null,retakeStatus='pass',retakeType='BACKLOG') {
   const courses=[1,2,3,4].map(n=>({course_id:n,semester:String(n),status:'active',is_required:true,roster_verified:true}));
   const results=[],subjects=[];
   for(const semester of [1,2]) {
-    const r={student_id:1,result_id:semester,session_id:semester,semester:String(semester),exam_type:'REGULAR',attempt_no:1,exam_session:semester===1?'Dec':'Jun',exam_year:semester===1?2025:2026};
+    const r={student_id:1,result_id:semester,exam_session_id:semester,semester:String(semester),exam_type:'REGULAR',attempt_no:1,exam_session:semester===1?'Dec':'Jun',exam_year:semester===1?2025:2026};
     results.push(r);subjects.push({...r,course_id:semester,outcome_status:semester===failedSemester?'fail':'pass'});
   }
   if(failedSemester) {
-    const r={student_id:1,result_id:10,session_id:10,semester:String(failedSemester),exam_type:retakeType,attempt_no:1,exam_session:'Dec',exam_year:2026};
+    const r={student_id:1,result_id:10,exam_session_id:10,semester:String(failedSemester),exam_type:retakeType,attempt_no:1,exam_session:'Dec',exam_year:2026};
     results.push(r);subjects.push({...r,course_id:failedSemester,outcome_status:retakeStatus});
   }
   return {courses,results,subjects};
@@ -38,7 +38,7 @@ test('Unverified, incomplete and unknown-status history never invents completion
 test('A later REGULAR pass is not fabricated backlog clearance',()=>{
   assert.deepEqual(year(history(1,'pass','REGULAR')),{withBacklog:'-',withoutBacklog:'-',cleared:true});
   const data=history(1,'pass','REGULAR');
-  const unnecessary={...data.results.at(-1),result_id:11,session_id:11,exam_type:'BACKLOG',exam_session:'Jun',exam_year:2027};
+  const unnecessary={...data.results.at(-1),result_id:11,exam_session_id:11,exam_type:'BACKLOG',exam_session:'Jun',exam_year:2027};
   data.results.push(unnecessary);data.subjects.push({...unnecessary,course_id:1,outcome_status:'pass'});
   assert.equal(year(data).withBacklog,'-','A retake after an accepted regular pass was not required for clearance');
 });

@@ -11,7 +11,7 @@
       "icon": "school",
       "children": [
         { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin", "faculty"] },
-        { "label": "Sessions", "icon": "calendar_today", "route": "/sessions", "roles": ["admin", "faculty"] },
+        { "label": "Exam Sessions", "icon": "calendar_today", "route": "/exam-sessions", "roles": ["admin", "faculty"] },
         { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] },
         { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
       ]

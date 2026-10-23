@@ -45,7 +45,7 @@ directory. The path is printed. It may contain real identity/marks data: protect
 and retain it separately. There is no automatic restore command.
 
 The reset deletes original results, subject results, revaluation events,
-import/OCR staging, assignments, subject offerings, result sessions and academic
+import/OCR staging, assignments, subject offerings, exam sessions and academic
 courses. It force-deletes non-protected student rows. Existing accounts, faculty,
 departments, batches and institution settings are retained subject to validation.
 

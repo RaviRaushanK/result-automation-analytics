@@ -17,7 +17,7 @@ async function batchServer(t, historical = false, name = 'MCA 2025') {
   const record = { ...data, update: async (values, options) => { assert.ok(options.transaction); writes.push(values); Object.assign(data, values); } };
   const models = { Batch: { findByPk: async (id, options) => { assert.equal(options.lock, true); return record; }, destroy: async () => { writes.push('delete'); return 1; } },
     Student: { count: async () => historical ? 1 : 0 }, Result: { count: async () => historical ? 1 : 0 },
-    ResultSession: { count: async () => historical ? 1 : 0 }, AcademicCourse: { count: async () => 0 },
+    ExamSession: { count: async () => historical ? 1 : 0 }, AcademicCourse: { count: async () => 0 },
     Department: { findOne: async () => ({ department_id: 2 }) }, sequelize: { transaction: async callback => callback({}) } };
   const controller = load('controllers/batchController.js', { '../database/models': models });
   const router = load('routes/batchRoutes.js', { '../controllers/batchController': controller });

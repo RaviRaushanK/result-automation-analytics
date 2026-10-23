@@ -19,10 +19,10 @@ test('split batch fields support new names and preserve descriptive legacy names
 
 test('current session prefers current month, otherwise latest past or nearest future, never arbitrary array order', () => {
   const now = new Date(2026, 9, 14);
-  const past = { session_id: 1, exam_session: 'September', exam_year: 2026 };
-  const older = { session_id: 2, exam_session: 'Jun', exam_year: 2026 };
-  const next = { session_id: 3, exam_session: 'Nov', exam_year: 2026 };
-  const current = { session_id: 4, exam_session: 'Oct', exam_year: 2026 };
+  const past = { exam_session_id: 1, exam_session: 'September', exam_year: 2026 };
+  const older = { exam_session_id: 2, exam_session: 'Jun', exam_year: 2026 };
+  const next = { exam_session_id: 3, exam_session: 'Nov', exam_year: 2026 };
+  const current = { exam_session_id: 4, exam_session: 'Oct', exam_year: 2026 };
   assert.equal(options.currentSession([older, next, past], now), past);
   assert.equal(options.currentSession([older, current, next, past], now), current);
   assert.equal(options.currentSession([{ ...next, exam_year: 2027 }, next], now), next);
@@ -34,10 +34,10 @@ function serviceFixture({ results = 0, duplicate = false, linked = true } = {}) 
   const definition = { subject_code: 'MCA101', subject_name: 'Original Course', subject_type: 'theory', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 };
   const writes = [];
   const course = { ...definition, course_id: 10, batch_id: 1, semester: '1', status: 'active', update: async data => writes.push(['course', data]) };
-  const subject = { ...definition, subject_id: 20, session_id: 30, course_id: linked ? 10 : null, update: async data => writes.push(['subject', data]) };
+  const subject = { ...definition, subject_id: 20, exam_session_id: 30, course_id: linked ? 10 : null, update: async data => writes.push(['subject', data]) };
   const models = {
     AcademicCourse: { findByPk: async () => course, findOne: async query => query.where.course_id ? duplicate ? { course_id: 11 } : null : course },
-    Subject: { findAll: async () => [subject, { ...subject, subject_id: 21, session_id: 31 }], findOne: async () => null, update: async data => writes.push(['offerings', data]) },
+    Subject: { findAll: async () => [subject, { ...subject, subject_id: 21, exam_session_id: 31 }], findOne: async () => null, update: async data => writes.push(['offerings', data]) },
     SubjectResult: { count: async () => results }
   };
   const context = { module: { exports: {} }, require: name => name === '../database/models' ? models : name === './academicPolicy' ? { SCHEME: 'TEST' } : require(name) };
@@ -75,10 +75,10 @@ test('subject no-op, legacy link and duplicate code updates do not invent anothe
 
 test('month/year session corrections remain allowed with configured courses when semester is unchanged', async () => {
   const writes = [];
-  const session = { session_id: 1, batch_id: 1, semester: '1', exam_start_month: 12, exam_start_year: 2025, exam_end_month: 12, exam_end_year: 2025 };
-  const models = { sequelize: { transaction: async run => run({}) }, Result: { count: async () => 0 }, ResultSession: { findByPk: async () => session, findOne: async () => null, update: async data => writes.push(data) }, Subject: { count: async () => { throw new Error('Unchanged semester must not be rejected'); } } };
+  const session = { exam_session_id: 1, batch_id: 1, semester: '1', exam_start_month: 12, exam_start_year: 2025, exam_end_month: 12, exam_end_year: 2025 };
+  const models = { sequelize: { transaction: async run => run({}) }, Result: { count: async () => 0 }, ExamSession: { findByPk: async () => session, findOne: async () => null, update: async data => writes.push(data) }, Subject: { count: async () => { throw new Error('Unchanged semester must not be rejected'); } } };
   const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : require(name) };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/sessionController'), 'utf8'), context);
+  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/examSessionController'), 'utf8'), context);
   const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; } };
   await context.module.exports.update({ params: { id: 1 }, body: { semester: '01', exam_start_month: 11, exam_start_year: 2026 } }, res);
   assert.equal(res.statusCode, 200); assert.equal(writes[0].exam_session, 'Nov');
@@ -98,10 +98,10 @@ test('batch update accepts split fields and rejects invalid years before writes'
 });
 
 test('subject update controller edits the linked course instead of invoking create-time resolution', async () => {
-  const subject = { subject_id: 1, session_id: 2, course_id: 3 };
+  const subject = { subject_id: 1, exam_session_id: 2, course_id: 3 };
   const definition = { subject_code: 'MCA101', subject_name: 'Corrected', subject_type: 'project', credits: 0, max_internal: 0, max_external: 100, max_marks: 100 };
   const calls = [];
-  const models = { Batch: { findByPk: async () => ({ batch_id: 1 }) }, Subject: { findByPk: async () => subject, findOne: async () => null }, ResultSession: { findByPk: async () => ({ session_id: 2, batch_id: 1, semester: '1' }) }, sequelize: { transaction: async fn => fn({ fixture: true }) } };
+  const models = { Batch: { findByPk: async () => ({ batch_id: 1 }) }, Subject: { findByPk: async () => subject, findOne: async () => null }, ExamSession: { findByPk: async () => ({ exam_session_id: 2, batch_id: 1, semester: '1' }) }, sequelize: { transaction: async fn => fn({ fixture: true }) } };
   const service = { resolve: async () => { throw new Error('Create-time resolution must not run during editing'); }, updateOffering: async (...args) => calls.push(args) };
   const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : name === '../services/academicCourseService' ? service : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/subjectController'), 'utf8'), context);

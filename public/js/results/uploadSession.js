@@ -1,10 +1,10 @@
 /**
  * SRAAS — Upload Results (Page 1)
- * Handles: result-session dropdown preview, drag & drop marks card,
+ * Handles: exam-session dropdown preview, drag & drop marks card,
  *          extract button enable/disable, submit processing state.
  */
 document.addEventListener('DOMContentLoaded', function () {
-    var sessionSelect = document.getElementById('resultSessionSelect');
+    var sessionSelect = document.getElementById('examSessionSelect');
     var batchSelect = document.getElementById('uploadBatchSelect');
     var sessionOptions = sessionSelect ? Array.from(sessionSelect.options).filter(option => option.value).map(option => option.cloneNode(true)) : [];
     var detailRequest = 0;
@@ -51,20 +51,20 @@ document.addEventListener('DOMContentLoaded', function () {
         sessionSelect.addEventListener('change', async function () {
             var request = ++detailRequest;
             if (sessionSelect.classList) sessionSelect.classList.remove('is-invalid');
-            var sessionId = this.value;
+            var examSessionId = this.value;
             if (detailsCard) detailsCard.style.display = 'none';
             updateExtractButton();
 
-            if (!sessionId) {
+            if (!examSessionId) {
                 if (detailsCard) detailsCard.style.display = 'none';
                 updateExtractButton();
                 return;
             }
 
             try {
-                var response = await fetch('/results/session-details/' + sessionId);
+                var response = await fetch('/results/session-details/' + examSessionId);
                 var data = await response.json();
-                if (request !== detailRequest || sessionSelect.value !== sessionId) return;
+                if (request !== detailRequest || sessionSelect.value !== examSessionId) return;
 
                 if (data.success) {
                     setText('displayAcademicYear', data.session.academic_year);
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function filterSessions() {
         detailRequest++;
         var matches = sessionOptions.filter(option => option.dataset.batchId === batchSelect.value);
-        sessionSelect.replaceChildren(new Option(!batchSelect.value ? 'Select Batch first' : matches.length ? 'Select Result Session' : 'No sessions available for this batch', ''));
+        sessionSelect.replaceChildren(new Option(!batchSelect.value ? 'Select Batch first' : matches.length ? 'Select Exam Session' : 'No sessions available for this batch', ''));
         matches.forEach(option => sessionSelect.appendChild(option.cloneNode(true)));
         sessionSelect.disabled = !batchSelect.value || !matches.length;
         if (detailsCard) detailsCard.style.display = 'none';

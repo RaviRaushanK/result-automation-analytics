@@ -29,14 +29,14 @@ function deferred() {
 function fixture(hasHistory = true) {
   const original = { student_id: 7, student_uuid: 'original-student', batch_id: 1, usn: 'AUDIT001',
     student_name: 'AUDIT STUDENT', email: 'audit.student@gmail.com', category: 'PGCET', status: 'active' };
-  const state = { student: { ...original }, results: hasHistory ? [{ result_id: 10, student_id: 7, session_id: 20,
+  const state = { student: { ...original }, results: hasHistory ? [{ result_id: 10, student_id: 7, exam_session_id: 20,
     attempt_no: 1, exam_type: 'REGULAR', sgpa: 0, cgpa: 0, result_status: 'fail', failed_subject_count: 1 }] : [],
     subjects: hasHistory ? [{ subject_result_id: 11, result_id: 10, subject_id: 1, marks: 40, grade: 'F', result_status: 'fail' }] : [],
     revaluations: hasHistory ? [{ revaluation_id: 12, subject_result_id: 11, revised_marks: 60, is_effective: true }] : [],
     events: [], forbiddenWrites: 0 };
   let lockTail = Promise.resolve();
   const models = {
-    ResultSession: {}, ImportLog: {}, OcrExtraction: {}, Subject: {}, AcademicCourse: {},
+    ExamSession: {}, ImportLog: {}, OcrExtraction: {}, Subject: {}, AcademicCourse: {},
     sequelize: { async transaction(callback) {
       const transaction = { LOCK: { UPDATE: 'UPDATE' }, release: null,
         async commit() { state.events.push('commit'); this.release?.(); this.release = null; },
@@ -68,8 +68,8 @@ function fixture(hasHistory = true) {
         }
         return state.results.find(row => Object.entries(options.where).every(([key, value]) => String(row[key]) === String(value))) || null;
       },
-      findAll: async () => state.results.map(row => ({ ...row, ResultSession: {
-        session_id: row.session_id, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025
+      findAll: async () => state.results.map(row => ({ ...row, ExamSession: {
+        exam_session_id: row.exam_session_id, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025
       } })),
       findByPk: async id => state.results.find(row => String(row.result_id) === String(id)),
       async update() { state.forbiddenWrites++; throw new Error('Generic update must not reach persistence'); },
@@ -170,11 +170,11 @@ test('student GET exposes server-owned history flag for the edit form', async t 
   }
 });
 
-for (const field of ['sgpa', 'cgpa', 'result_status', 'failed_subject_count', 'attempt_no', 'exam_type', 'student_id', 'session_id']) {
+for (const field of ['sgpa', 'cgpa', 'result_status', 'failed_subject_count', 'attempt_no', 'exam_type', 'student_id', 'exam_session_id']) {
   test('legacy HTTP PUT rejects ' + field + ' changes and preserves original rows', async t => {
     const f = fixture(), request = await http(t, f), before = JSON.stringify(f.state);
     const values = { sgpa: 9.99, cgpa: 9.99, result_status: 'pass', failed_subject_count: 0,
-      attempt_no: 2, exam_type: 'BACKLOG', student_id: 999, session_id: 21 };
+      attempt_no: 2, exam_type: 'BACKLOG', student_id: 999, exam_session_id: 21 };
     const res = await request('PUT', '/results/10', { [field]: values[field] });
     assert.equal(res.status, 403); assert.match(res.body.error, /cannot be directly edited.*controlled academic workflow/);
     assert.equal(JSON.stringify(f.state), before);
@@ -204,14 +204,14 @@ test('legacy result reads remain available and controllers reject direct mutatio
 });
 
 function addImport(f) {
-  const session = { session_id: 20, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025, Batch: { batch_name: 'Audit batch' } };
+  const session = { exam_session_id: 20, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025, Batch: { batch_name: 'Audit batch' } };
   const saved = { student: { usn: 'AUDIT001', name: 'AUDIT STUDENT' }, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     subjects: [{ subject_id: 1, internalMarks: 20, externalMarks: 20 }] };
   const subject = { subject_id: 1, course_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4,
     max_internal: 50, max_external: 50, max_marks: 100 };
   const definitions = {
-    ResultSession: { findByPk: async () => session },
-    ImportLog: { findByPk: async () => ({ import_id: 9, ResultSession: session, update: async () => {} }) },
+    ExamSession: { findByPk: async () => session },
+    ImportLog: { findByPk: async () => ({ import_id: 9, ExamSession: session, update: async () => {} }) },
     OcrExtraction: { findOne: async () => ({ extracted_json: saved, validation_status: 'validated' }) },
     Subject: { findAll: async () => [subject] },
     AcademicCourse: { findAll: async () => [{ ...subject, is_required: true, roster_verified: true }] }
@@ -229,7 +229,7 @@ function addImport(f) {
 
 test('direct HTTP generic Result POST is retired without creating incomplete history', async t => {
   const f = fixture(false), request = await http(t, f);
-  const res = await request('POST', '/results', { student_id: 7, session_id: 20, sgpa: 10, result_status: 'pass' });
+  const res = await request('POST', '/results', { student_id: 7, exam_session_id: 20, sgpa: 10, result_status: 'pass' });
   assert.equal(res.status, 403); assert.match(res.body.error, /Generic result creation is disabled/); assert.equal(f.state.results.length, 0);
 });
 test('two simultaneous ordinary confirmations cannot create duplicate original history', async () => {
@@ -242,12 +242,12 @@ test('two simultaneous ordinary confirmations cannot create duplicate original h
 });
 test('two simultaneous Backlog Attempt 2 confirmations preserve one retake and its original Regular history', async () => {
   const f = fixture(true), { saved, session, subject } = addImport(f);
-  f.state.results[0].session_id = 1; f.state.subjects[0].course_id_snapshot = 1;
+  f.state.results[0].exam_session_id = 1; f.state.subjects[0].course_id_snapshot = 1;
   session.exam_session = 'Jun'; session.exam_year = 2026;
   saved.attempt = { attempt_no: 2, exam_type: 'BACKLOG' };
   saved.configuration_snapshot = require('../services/academicConfiguration').snapshot(session, [subject], [{ ...subject, is_required: true, roster_verified: true }]);
   f.models.Result.findAll = async () => f.state.results.map(row => ({ ...row,
-    ResultSession: row.session_id === 1 ? { batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025 } : session,
+    ExamSession: row.exam_session_id === 1 ? { batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025 } : session,
     SubjectResults: f.state.subjects.filter(sr => sr.result_id === row.result_id) }));
   const before = JSON.stringify(f.state.results[0]), one = response(), two = response();
   await Promise.all([f.result.confirmImport({ params: { importId: 9 }, body: { review_token: 'fixture-review', sgpa: 10 } }, one),
@@ -291,10 +291,10 @@ for (const field of ['usn', 'batch_id']) {
 test('controlled revaluation approval creates separate event while preserving original Result/SubjectResult', async () => {
   const subject = { subject_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 };
   const sr = { subject_result_id: 11, result_id: 10, subject_id: 1, marks: 40, grade: 'F', result_status: 'fail', Subject: subject };
-  const result = { result_id: 10, student_id: 7, session_id: 20, attempt_no: 1, exam_type: 'REGULAR', sgpa: 0, cgpa: 0,
-    Student: { student_name: 'AUDIT STUDENT', usn: 'AUDIT001' }, ResultSession: { semester: '1' }, SubjectResults: [sr] };
+  const result = { result_id: 10, student_id: 7, exam_session_id: 20, attempt_no: 1, exam_type: 'REGULAR', sgpa: 0, cgpa: 0,
+    Student: { student_name: 'AUDIT STUDENT', usn: 'AUDIT001' }, ExamSession: { semester: '1' }, SubjectResults: [sr] };
   const before = JSON.stringify(result), events = [];
-  const saved = { result_id: 10, student_id: 7, session_id: 20, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
+  const saved = { result_id: 10, student_id: 7, exam_session_id: 20, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     documents: [{ file_name: 'isolated-card.pdf' }], ocr: { extraction_status: 'extracted',
       student_candidates: { name: 'AUDIT STUDENT', usn: 'AUDIT001' }, subjects: [] },
     review: { submitted_by: 1, baselines: { 11: { marks: 40, status: 'fail' } },

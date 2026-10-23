@@ -26,8 +26,8 @@
     const api = typeof ExamPeriod !== 'undefined' ? ExamPeriod : require('./exam-period');
     const period = s => api.startIndex(s);
     const valid = sessions.filter(s => sessionStatus(s, now));
-    const recent = valid.filter(s => sessionStatus(s, now) !== 'upcoming').sort((a, b) => period(b) - period(a) || Number(b.session_id) - Number(a.session_id));
-    return recent[0] || valid.sort((a, b) => period(a) - period(b) || Number(b.session_id) - Number(a.session_id))[0] || null;
+    const recent = valid.filter(s => sessionStatus(s, now) !== 'upcoming').sort((a, b) => period(b) - period(a) || Number(b.exam_session_id) - Number(a.exam_session_id));
+    return recent[0] || valid.sort((a, b) => period(a) - period(b) || Number(b.exam_session_id) - Number(a.exam_session_id))[0] || null;
   }
   return { sortBatches, semesterCount, sessionStatus, splitBatchName, currentSession };
 });

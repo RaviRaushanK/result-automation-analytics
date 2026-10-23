@@ -7,7 +7,7 @@
     charts: ['semesters-trend-chart', 'semesters-gpa-chart'],
     render: function (result, ui) {
       var rows = result.data || [];
-      // Same axis label for both charts: Batch / Result Session / Semester.
+      // Same axis label for both charts: Batch / Exam Session / Semester.
       function label(r) {
         return [(r.batchName != null ? r.batchName : r.batchId),
           r.examPeriod || [r.examSession, r.examYear].filter(function (v) { return v != null && v !== ''; }).join(' '),

@@ -15,7 +15,7 @@
 
           <form id="uploadForm" action="/results/upload" method="POST" enctype="multipart/form-data" novalidate>
 
-            <!-- 1. Result Session -->
+            <!-- 1. Exam Session -->
             <div class="mb-3">
               <label for="uploadBatchSelect" class="form-label fw-semibold">Batch <span class="text-danger">*</span></label>
               <select class="form-select form-select-lg" id="uploadBatchSelect" name="batch_id" required>
@@ -27,16 +27,16 @@
               <div class="invalid-feedback">Select a batch.</div>
             </div>
             <div class="mb-3">
-              <label for="resultSessionSelect" class="form-label fw-semibold">
-                Result Session <span class="text-danger">*</span>
+              <label for="examSessionSelect" class="form-label fw-semibold">
+                Exam Session <span class="text-danger">*</span>
               </label>
-              <select class="form-select form-select-lg" id="resultSessionSelect" name="sessionId" required>
-                <option value="">Select Result Session</option>
+              <select class="form-select form-select-lg" id="examSessionSelect" name="exam_session_id" required>
+                <option value="">Select Exam Session</option>
                 <% sessions.forEach(function (s) { %>
-                  <option value="<%= s.session_id %>" data-batch-id="<%= s.batch_id %>"><%= s.display_name %></option>
+                  <option value="<%= s.exam_session_id %>" data-batch-id="<%= s.batch_id %>"><%= s.display_name %></option>
                 <% }); %>
               </select>
-              <div class="invalid-feedback">Please select the result session this marks card belongs to.</div>
+              <div class="invalid-feedback">Please select the exam session this marks card belongs to.</div>
             </div>
 
             <!-- 1b. Attempt number + exam type -->
@@ -59,7 +59,7 @@
             <!-- Selected session summary + expected subjects -->
             <div id="sessionDetailsCard" class="card bg-light border-0 mb-4" style="display: none;">
               <div class="card-body">
-                <h6 class="text-primary mb-3">Selected Session</h6>
+                <h6 class="text-primary mb-3">Selected Exam Session</h6>
                 <div class="row g-2 mb-2 small">
                   <div class="col-md-6"><strong>Academic Year:</strong> <span id="displayAcademicYear"></span></div>
                   <div class="col-md-6"><strong>Semester:</strong> <span id="displaySemester"></span></div>
@@ -108,7 +108,7 @@
 
       <!-- Flow hint -->
       <div class="text-center text-muted small mb-4">
-        Select Session &rarr; Upload Card &rarr; OCR Extraction &rarr; Review &amp; Edit &rarr; Validate &rarr; Confirm &amp; Save
+        Select Exam Session &rarr; Upload Card &rarr; OCR Extraction &rarr; Review &amp; Edit &rarr; Validate &rarr; Confirm &amp; Save
       </div>
 
     </div>

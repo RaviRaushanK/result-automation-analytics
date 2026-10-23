@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { Result, SubjectResult, ImportLog, OcrExtraction, Student, Subject, Batch, ResultSession, sequelize } = require('../database/models');
+const { Result, SubjectResult, ImportLog, OcrExtraction, Student, Subject, Batch, ExamSession, sequelize } = require('../database/models');
 const path = require('path');
 const fs = require('fs');
 
@@ -106,7 +106,7 @@ function sanitizeAttempt(rawNo, rawType, defaults = { attempt_no: 1, exam_type: 
 async function loadImportContext(importId) {
   const log = await ImportLog.findByPk(importId, {
     include: [{
-      model: ResultSession,
+      model: ExamSession,
       include: [{ model: Batch, attributes: ['batch_name'] }]
     }]
   });
@@ -129,10 +129,10 @@ async function loadImportContext(importId) {
   return {
     log,
     ocr,
-    session: log.ResultSession,
+    session: log.ExamSession,
     saved,
     fileUrl: '/uploads/results/' + log.file_name,
-    sessionDisplay: `${log.ResultSession.Batch.batch_name} | Sem ${log.ResultSession.semester} | ${academicPolicy.formatExamPeriod(log.ResultSession)}`
+    sessionDisplay: `${log.ExamSession.Batch.batch_name} | Sem ${log.ExamSession.semester} | ${academicPolicy.formatExamPeriod(log.ExamSession)}`
   };
 }
 
@@ -143,7 +143,7 @@ function safeParseJson(str) {
 function studentRegistrationError(student, session, usn) {
   if (student && String(student.batch_id) === String(session.batch_id)) return null;
   const batch = session.Batch?.batch_name || 'batch ' + session.batch_id;
-  return `Student ${usn} is not registered in ${batch}. Add or restore the student in this batch, or correct the USN and selected result session before continuing.`;
+  return `Student ${usn} is not registered in ${batch}. Add or restore the student in this batch, or correct the USN and selected exam session before continuing.`;
 }
 
 function studentNameError(student, name, usn) {
@@ -159,7 +159,7 @@ function studentNameError(student, name, usn) {
 
 async function duplicateResultError(student, session, attempt, transaction) {
   const existing = await Result.findOne({ where: {
-    student_id: student.student_id, session_id: session.session_id, attempt_no: attempt.attempt_no
+    student_id: student.student_id, exam_session_id: session.exam_session_id, attempt_no: attempt.attempt_no
   }, transaction });
   return existing ? 'A result for USN ' + student.usn + ' already exists in this examination session for attempt ' +
     attempt.attempt_no + ' (' + attempt.exam_type + '). Correct the USN or choose the appropriate session and attempt before continuing.' : null;
@@ -167,7 +167,7 @@ async function duplicateResultError(student, session, attempt, transaction) {
 
 // Core validation + computation used by review-validate, preview and import.
 // markInputs: object keyed by `internal_<subject_id>` / `external_<subject_id>`
-async function buildValidatedPayload(sessionId, studentInput, markInputs, options = {}) {
+async function buildValidatedPayload(examSessionId, studentInput, markInputs, options = {}) {
   const errors = {};
   const usn = integrity.usn(studentInput?.usn);
   const name = typeof studentInput?.name === 'string' ? studentInput.name.trim() : '';
@@ -176,14 +176,14 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs, option
   if (!name) errors['student.name'] = 'Student name is required.';
 
   const subjects = await Subject.findAll({
-    where: { session_id: sessionId },
+    where: { exam_session_id: examSessionId },
     order: [['subject_code', 'ASC']],
     raw: true,
     transaction: options.transaction
   });
-  if (subjects.length === 0) errors.form = 'This result session has no subjects configured.';
+  if (subjects.length === 0) errors.form = 'This exam session has no subjects configured.';
   const retake = academicPolicy.isRetakeAttempt(options.exam_type);
-  const session = options.session || await ResultSession.findByPk(sessionId, { transaction: options.transaction });
+  const session = options.session || await ExamSession.findByPk(examSessionId, { transaction: options.transaction });
   const courses = session ? await AcademicCourse.findAll({ where: { batch_id: session.batch_id, semester: String(Number(session.semester)), status: 'active' }, raw: true, transaction: options.transaction }) : [];
   const byCourse = new Map(courses.map(course => [String(course.course_id), course]));
   const required = courses.filter(course => Number(course.is_required));
@@ -319,7 +319,7 @@ const resultController = {
   showUploadPage: async (req, res) => {
     try {
       const batches = sortBatches(await Batch.findAll({ attributes: ['batch_id', 'batch_name', 'start_year', 'end_year'], raw: true }));
-      const sessions = await ResultSession.findAll({
+      const sessions = await ExamSession.findAll({
         include: [{ model: Batch, attributes: ['batch_name'] }],
         order: [['exam_start_year', 'DESC'], ['exam_start_month', 'DESC'], ['semester', 'ASC']]
       });
@@ -332,7 +332,7 @@ const resultController = {
           { label: 'Upload Results', active: true }
         ],
         sessions: sessions.map(s => ({
-          session_id: s.session_id,
+          exam_session_id: s.exam_session_id,
           batch_id: s.batch_id,
           display_name: `${s.Batch.batch_name} | Sem ${s.semester} | ${academicPolicy.formatExamPeriod(s)}`,
           semester: s.semester,
@@ -357,11 +357,11 @@ const resultController = {
 
   // ============================================================
   // API — Session details + expected subjects (for dropdown)
-  // GET /results/session-details/:sessionId
+  // GET /results/session-details/:examSessionId
   // ============================================================
   getSessionDetails: async (req, res) => {
     try {
-      const session = await ResultSession.findByPk(req.params.sessionId, {
+      const session = await ExamSession.findByPk(req.params.examSessionId, {
         include: [
           { model: Batch, attributes: ['batch_name', 'start_year', 'end_year'] },
           { model: Subject, attributes: ['subject_id', 'subject_code', 'subject_name', 'credits'], order: [['subject_code', 'ASC']] }
@@ -369,13 +369,13 @@ const resultController = {
       });
 
       if (!session) {
-        return res.status(404).json({ success: false, message: 'Result Session not found' });
+        return res.status(404).json({ success: false, message: 'Exam Session not found' });
       }
 
       res.json({
         success: true,
         session: {
-          session_id: session.session_id,
+          exam_session_id: session.exam_session_id,
           semester: session.semester,
           exam_session: session.exam_session,
           exam_year: session.exam_year,
@@ -407,7 +407,7 @@ const resultController = {
   processUpload: async (req, res) => {
     let log = null;
     try {
-      const sessionId = req.body.sessionId;
+      const examSessionId = req.body.exam_session_id;
       const resultType = req.body.resultType || 'original';
 
       // Attempt authority for this import (validated server-side, never
@@ -422,14 +422,14 @@ const resultController = {
       if (!req.file) {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Please choose a marks card file.'));
       }
-      if (!sessionId) {
-        return res.redirect('/results/upload?error=' + encodeURIComponent('Please select a result session.'));
+      if (!examSessionId) {
+        return res.redirect('/results/upload?error=' + encodeURIComponent('Please select an exam session.'));
       }
       if (req.body.batch_id !== undefined) {
-        const selectedSession = await ResultSession.findByPk(sessionId, { attributes: ['session_id', 'batch_id'] });
+        const selectedSession = await ExamSession.findByPk(examSessionId, { attributes: ['exam_session_id', 'batch_id'] });
         if (!selectedSession || String(selectedSession.batch_id) !== String(req.body.batch_id)) {
           fs.unlinkSync(req.file.path);
-          return res.redirect('/results/upload?error=' + encodeURIComponent('Select a result session belonging to the selected batch.'));
+          return res.redirect('/results/upload?error=' + encodeURIComponent('Select an exam session belonging to the selected batch.'));
         }
       }
 
@@ -441,7 +441,7 @@ const resultController = {
 
       const ext = path.extname(secureFilename).replace('.', '').toLowerCase();
       log = await ImportLog.create({
-        session_id: sessionId,
+        exam_session_id: examSessionId,
         uploaded_by: req.session.adminId || 1,
         file_name: secureFilename,
         file_path: storedFilePath,
@@ -453,7 +453,7 @@ const resultController = {
       });
 
       const sessionSubjects = await Subject.findAll({
-        where: { session_id: sessionId },
+        where: { exam_session_id: examSessionId },
         order: [['subject_code', 'ASC']],
         raw: true
       });
@@ -541,7 +541,7 @@ const resultController = {
 
       // Merge fresh DB subjects with saved OCR marks so codes/names always come from DB
       const dbSubjects = await Subject.findAll({
-        where: { session_id: ctx.session.session_id },
+        where: { exam_session_id: ctx.session.exam_session_id },
         order: [['subject_code', 'ASC']],
         raw: true
       });
@@ -674,7 +674,7 @@ const resultController = {
 
       const markInputs = extractMarkInputs(req.body);
       const { errors, payload } = await buildValidatedPayload(
-        ctx.session.session_id,
+        ctx.session.exam_session_id,
         { usn: req.body.usn, name: req.body.name },
         markInputs,
         { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
@@ -783,7 +783,7 @@ const resultController = {
       if (Object.keys(errors).length > 0) {
         // Re-render review with inline field errors
         const dbSubjects = await Subject.findAll({
-          where: { session_id: ctx.session.session_id },
+          where: { exam_session_id: ctx.session.exam_session_id },
           order: [['subject_code', 'ASC']],
           raw: true
         });
@@ -860,7 +860,7 @@ const resultController = {
         }
       });
 
-      const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR' });
+      const { errors, payload } = await buildValidatedPayload(ctx.session.exam_session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR' });
 
       if (Object.keys(errors).length > 0) {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
@@ -927,7 +927,7 @@ const resultController = {
       }
 
       // Coordinate with Session Management so its identity cannot change during import.
-      const lockedSession = await ResultSession.findByPk(ctx.session.session_id, { transaction: t, lock: true });
+      const lockedSession = await ExamSession.findByPk(ctx.session.exam_session_id, { transaction: t, lock: true });
       if (!lockedSession || ['batch_id', 'semester'].some(field => String(lockedSession[field]) !== String(ctx.session[field]))
         || academicPolicy.periodKey(lockedSession) !== academicPolicy.periodKey(ctx.session)) {
         await t.rollback();
@@ -959,7 +959,7 @@ const resultController = {
         }
       });
 
-      const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR', transaction: t });
+      const { errors, payload } = await buildValidatedPayload(ctx.session.exam_session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR', transaction: t });
       if (Object.keys(errors).length > 0) {
         await t.rollback();
         return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent('Marks or the subject roster are no longer valid. Review the current marking limits and required courses, then Validate again.'));
@@ -1022,7 +1022,7 @@ const resultController = {
       const existingResult = await Result.findOne({
         where: {
           student_id: student.student_id,
-          session_id: ctx.session.session_id,
+          exam_session_id: ctx.session.exam_session_id,
           attempt_no: attempt.attempt_no
         },
         transaction: t
@@ -1040,7 +1040,7 @@ const resultController = {
       const result = await Result.create({
         result_uuid: crypto.randomUUID(),
         student_id: student.student_id,
-        session_id: ctx.session.session_id,
+        exam_session_id: ctx.session.exam_session_id,
         attempt_no: attempt.attempt_no,
         exam_type: attempt.exam_type,
         sgpa: payload.sgpa,
@@ -1105,7 +1105,7 @@ const resultController = {
       const result = student ? await Result.findOne({
         where: {
           student_id: student.student_id,
-          session_id: ctx.session.session_id,
+          exam_session_id: ctx.session.exam_session_id,
           attempt_no: importedAttemptNo
         },
         include: [{
@@ -1147,7 +1147,7 @@ const resultController = {
     try {
       const logs = await ImportLog.findAll({
         include: [{
-          model: ResultSession,
+          model: ExamSession,
           attributes: ['semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'],
           include: [{ model: Batch, attributes: ['batch_name'] }]
         }],
@@ -1166,8 +1166,8 @@ const resultController = {
           import_id: log.import_id,
           date: log.created_at ? new Date(log.created_at).toLocaleString() : '',
           file_name: log.file_name,
-          session_display: log.ResultSession ?
-            `${log.ResultSession.Batch.batch_name} | Sem ${log.ResultSession.semester} | ${academicPolicy.formatExamPeriod(log.ResultSession)}` : 'N/A',
+          session_display: log.ExamSession ?
+            `${log.ExamSession.Batch.batch_name} | Sem ${log.ExamSession.semester} | ${academicPolicy.formatExamPeriod(log.ExamSession)}` : 'N/A',
           status: log.status,
           import_type: log.import_type,
           imported_records: log.imported_records,

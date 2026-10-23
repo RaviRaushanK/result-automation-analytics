@@ -128,11 +128,11 @@ async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test St
   const restores = [], updates = [];
   let rolledBack = false;
   const replace = (object, name, value) => { const previous = object[name]; object[name] = value; restores.push(() => { object[name] = previous; }); };
-  const session = { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jun', exam_year: 2026, Batch: { batch_name: 'MCA 2025' } };
+  const session = { exam_session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jun', exam_year: 2026, Batch: { batch_name: 'MCA 2025' } };
   const definition = { subject_id: 1, course_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 100, max_marks: 150 };
   const course = { ...definition, semester: '1', status: 'active', is_required: true, roster_verified: true };
-  replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', file_type: 'pdf', ResultSession: session }));
-  replace(db.ResultSession, 'findByPk', async () => session);
+  replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', file_type: 'pdf', ExamSession: session }));
+  replace(db.ExamSession, 'findByPk', async () => session);
   replace(db.Batch, 'findByPk', async () => ({ batch_id: 1 }));
   const ocr = { extracted_json: { student: { ...identity }, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] },
@@ -206,7 +206,7 @@ test('Validate displays the requested registration alert for the submitted OCR U
   await fixture(null, async ({ invoke }) => {
     const response = await invoke('validateReview', { body: { usn: '1IMV25MC074', name: 'Test Student', internal_1: 42, external_1: 34 } });
     assert.equal(response.statusCode, 422);
-    assert.equal(response.locals.formError, 'Student 1IMV25MC074 is not registered in MCA 2025. Add or restore the student in this batch, or correct the USN and selected result session before continuing.');
+    assert.equal(response.locals.formError, 'Student 1IMV25MC074 is not registered in MCA 2025. Add or restore the student in this batch, or correct the USN and selected exam session before continuing.');
     const html = await ejs.renderFile(path.join(__dirname, '../views/results/review.ejs'), response.locals);
     assert.match(html, /<strong>Validation Failed<\/strong>/);
     assert.match(html, /Student 1IMV25MC074 is not registered in MCA 2025/);

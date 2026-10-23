@@ -104,10 +104,10 @@ CREATE TABLE faculty (
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
--- 6. result_sessions
+-- 6. exam_sessions
 -- -------------------------------------------------
-CREATE TABLE result_sessions (
-  session_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE exam_sessions (
+  exam_session_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   session_uuid CHAR(36) NOT NULL UNIQUE,
   batch_id BIGINT NOT NULL,
   semester VARCHAR(20) NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE academic_courses (
 CREATE TABLE subjects (
   subject_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   subject_uuid CHAR(36) NOT NULL UNIQUE,
-  session_id BIGINT NOT NULL,
+  exam_session_id BIGINT NOT NULL,
   course_id BIGINT NULL,
   subject_code VARCHAR(20) NOT NULL,
   subject_name VARCHAR(100) NOT NULL,
@@ -165,7 +165,7 @@ CREATE TABLE subjects (
   credits INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (exam_session_id) REFERENCES exam_sessions(exam_session_id) ON DELETE RESTRICT ON UPDATE CASCADE,
   FOREIGN KEY (course_id) REFERENCES academic_courses(course_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
@@ -207,7 +207,7 @@ CREATE TABLE results (
   result_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   result_uuid CHAR(36) NOT NULL UNIQUE,
   student_id BIGINT NOT NULL,
-  session_id BIGINT NOT NULL,
+  exam_session_id BIGINT NOT NULL,
   sgpa DECIMAL(3,2) NULL,
   cgpa DECIMAL(3,2) NULL,
   sgpa_source VARCHAR(30) NOT NULL DEFAULT 'LEGACY',
@@ -219,7 +219,7 @@ CREATE TABLE results (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE RESTRICT ON UPDATE CASCADE,
-  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE
+  FOREIGN KEY (exam_session_id) REFERENCES exam_sessions(exam_session_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------
@@ -271,7 +271,7 @@ CREATE TABLE revaluation_results (
 -- 13. import_logs-- -------------------------------------------------
 CREATE TABLE import_logs (
   import_id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  session_id BIGINT NOT NULL,
+  exam_session_id BIGINT NOT NULL,
   uploaded_by BIGINT NOT NULL,
   file_name VARCHAR(255) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
@@ -281,7 +281,7 @@ CREATE TABLE import_logs (
   skipped_records INT DEFAULT 0,
   status ENUM('success', 'failed') DEFAULT 'success',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES result_sessions(session_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (exam_session_id) REFERENCES exam_sessions(exam_session_id) ON DELETE RESTRICT ON UPDATE CASCADE,
   FOREIGN KEY (uploaded_by) REFERENCES admin_users(admin_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
@@ -315,14 +315,14 @@ CREATE TABLE system_settings (
 CREATE INDEX idx_department_code ON departments(department_code);
 CREATE INDEX idx_batch_department ON batches(department_id);
 CREATE INDEX idx_faculty_department ON faculty(department_id);
-CREATE INDEX idx_session_batch ON result_sessions(batch_id);
-CREATE INDEX idx_subject_session ON subjects(session_id);
+CREATE INDEX idx_session_batch ON exam_sessions(batch_id);
+CREATE INDEX idx_subject_session ON subjects(exam_session_id);
 CREATE INDEX idx_student_batch ON students(batch_id);
 CREATE INDEX idx_result_student ON results(student_id);
-CREATE INDEX idx_result_session ON results(session_id);
+CREATE INDEX idx_exam_session ON results(exam_session_id);
 CREATE INDEX idx_subject_result_result ON subject_results(result_id);
 CREATE INDEX idx_revaluation_subject_result ON revaluation_results(subject_result_id);
-CREATE INDEX idx_import_session ON import_logs(session_id);
+CREATE INDEX idx_import_session ON import_logs(exam_session_id);
 CREATE INDEX idx_import_uploader ON import_logs(uploaded_by);
 CREATE INDEX idx_ocr_import ON ocr_extractions(import_id);
 CREATE INDEX idx_student_usn ON students(usn);
@@ -333,7 +333,7 @@ CREATE VIEW effective_student_results AS
 SELECT 
   rr.result_id,
   rr.student_id,
-  rr.session_id,
+  rr.exam_session_id,
   srs.subject_id,
   COALESCE(rr_rev.revised_marks, srs.marks) AS effective_marks,
   COALESCE(rr_rev.revised_grade, srs.grade) AS effective_grade,
@@ -375,10 +375,10 @@ DELIMITER ;</arg_value>
 <arg_key>task_progress</arg_key>
 <arg_value>
 - [x] Read Subject model
-- [x] Read ResultSession model
+- [x] Read ExamSession model
 - [x] Read Result model
 - [x] Update Subject model uniqueness
-- [x] Update ResultSession model uniqueness
+- [x] Update ExamSession model uniqueness
 - [x] Make SGPA/CGPA nullable
 - [x] Extend RevaluationResult with metadata
 - [x] Fix effective_student_results view

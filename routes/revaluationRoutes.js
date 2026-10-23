@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+router.use(require('../middlewares/examSessionParameters'));
 const rc = require('../controllers/revaluationController');
 router.use((req, res, next) => {
   res.locals.resultManagementPage = true;
@@ -23,7 +24,7 @@ router.get('/upload', (req, res) => {
 router.get('/', (req, res) => res.redirect('/revaluation/start'));
 
 // ---------------------------------------------------------------
-// PHASE 13A — new primary entry flow: Result Session → Student → Attempt.
+// PHASE 13A — new primary entry flow: Exam Session → Student → Attempt.
 // CONTEXT SELECTION ONLY (no subject pre-selection).
 // NOTE: these must be declared BEFORE the `/:resultId` catch-alls below.
 // ---------------------------------------------------------------
@@ -42,7 +43,7 @@ router.post('/:resultId/upload',
   marksCardUpload(revaluationUpload, 'revalidationDocument',
     req => '/revaluation/' + encodeURIComponent(req.params.resultId) + '/upload',
     require('../config/uploadLimits').revaluationPdf),
-  rc.processUpload);
+  require('../middlewares/examSessionParameters'), rc.processUpload);
 
 // Placeholder for the next (OCR) stage.
 router.get('/pending/:importId', rc.showPending);
