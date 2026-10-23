@@ -14,9 +14,11 @@
   const subjectSel = document.getElementById('filter-subject');
   const attemptSel = document.getElementById('filter-attempt');
   const modeSel = document.getElementById('filter-mode');
+  const examTypeSel = document.getElementById('filter-exam-type');
   var initialQuery = new URLSearchParams(location.search);
   if (['original', 'effective'].includes(initialQuery.get('mode'))) modeSel.value = initialQuery.get('mode');
   if (['latest', 'all'].includes(initialQuery.get('attempt'))) attemptSel.value = initialQuery.get('attempt');
+  if (examTypeSel && ['REGULAR', 'BACKLOG'].includes(initialQuery.get('exam_type'))) examTypeSel.value = initialQuery.get('exam_type');
   const emptyState = document.getElementById('analytics-empty-state');
   const tBodyS = document.getElementById('subjects-table-body');
   const chartElS = document.getElementById('subjects-grade-chart');

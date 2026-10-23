@@ -45,7 +45,12 @@
             </div>
           <% } %>
 
+  <%- include('partials/import-scope') %>
   <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
+    <div class="alert alert-info">
+      <label><input type="checkbox" name="verify_document_context" value="1"> I verified the displayed student, academic semester, examination period and attempt against the original document, including any details OCR could not identify.</label>
+      <% if (typeof excludedSubjects !== 'undefined' && excludedSubjects.length) { %><div><label><input type="checkbox" name="verify_mixed_context" value="1"> This is a mixed document. I verified that only the courses for the selected academic semester/attempt are included; the displayed excluded rows belong to a separate upload.</label></div><% } %>
+    </div>
     <div class="result-review-layout">
       <section class="result-document result-review-document" aria-labelledby="reviewDocumentTitle">
         <div class="result-review-section-heading">
@@ -103,9 +108,13 @@
                         <% } %>
                       </div>
                     </div>
-                    <!-- Hidden manner: attempt authority round-trips through validate;
-                         it is re-sanitized server-side, never trusted at import. -->
-                    <input type="hidden" name="attempt_no" value="<%= attempt.attempt_no %>">
+                    <!-- Attempt edits are checked against semester history on
+                         validation and checked again at final import. -->
+                    <div class="mb-3">
+                      <label for="reviewAttemptNo" class="form-label fw-semibold">Attempt No <span class="text-danger">*</span></label>
+                      <input type="number" class="form-control" id="reviewAttemptNo" name="attempt_no" value="<%= attempt.attempt_no %>" min="<%= attempt.exam_type === 'REGULAR' ? 1 : 2 %>" step="1" required <%= attempt.exam_type === 'REGULAR' ? 'readonly' : '' %>>
+                      <div class="form-text">For this student and semester: Regular 1, Backlog 2, 3 and onward across exam sessions.</div>
+                    </div>
                     <input type="hidden" name="exam_type" value="<%= attempt.exam_type %>">
 
         </section>

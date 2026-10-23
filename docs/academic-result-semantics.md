@@ -1,6 +1,6 @@
 # Academic Result Semantics
 
-Reviewed on 17 October 2026. Source services and applied migrations remain authoritative.
+Reviewed on 23 October 2026. Source services and applied migrations remain authoritative.
 
 ## Stable Identity And Rollout
 
@@ -22,12 +22,52 @@ roster, not a retake subset. Unmapped offerings must be reconciled first. Do not
 confirm ambiguity without institutional evidence. Distinct code families in a
 legacy semester do not automatically replace or clear one another. Verified
 rosters are read-only until explicit Edit Required Courses; accidental selections
-can be corrected without replacing stable course identities.
+can be corrected before saved results depend on the semester. Once Results exist,
+ordinary roster changes are blocked; configure a new cohort's syllabus in its own
+batch. Historical course codes/type/credits/maxima are protected, while descriptive
+name corrections remain allowed. No marks or stored GPA are rewritten.
 
 For later retakes, create another session for the SAME academic semester/batch
 and actual examination period. Add offerings with exact course codes/definitions;
 they resolve to existing courses. Import only subjects actually attempted. A
 configured session cannot change academic semester.
+
+New BACKLOG subjects must have a failed, uncleared earlier course attempt in this
+student's batch and semester. Approved effective revaluation overlays are used for
+eligibility; an earlier effective PASS clears the course. Never-attempted, passed,
+already-cleared and foreign-course subjects are rejected. Partial backlog remains
+supported and its SGPA remains null. This does not change CGPA calculations.
+
+## Administrator Integrity At Confirmation
+
+The generic Result POST/PUT/DELETE mutations are retired with 403 responses.
+Result reads and the controlled upload workflow remain available. Student USN and
+batch are protected once Result history exists; name/email/category/status retain
+their established edit behavior.
+
+Original-result validation stores a configuration fingerprint and a fresh review
+token. Confirmation locks the session, batch, processing state and student,
+re-reads extraction/configuration/history, checks the review token, and rejects
+stale state. Curriculum writers share the batch lock. Stored processing success
+cannot be edited/reconfirmed into unrelated history. Marks use strict integer
+validation; conflicting source rows/readings require a clear re-extraction.
+
+Available document claims are compared with the selected examination context.
+Missing claims require explicit administrator verification, not invented dates or
+attempts. A mixed document still uses separate uploads with visible exclusions;
+overriding a global semester/type header for that scope requires explicit review
+and unambiguous configured course membership in the included/excluded semesters.
+
+Revaluation validation and final approval check exact USN/context and existing
+subject ownership. Contradictions cannot be confirmed away. The current parser's
+old marks/result columns describe external components: stored old external marks
+are compared when available, while an unstored external result status requires
+verification and is not confused with the stored overall status. Approval uses a
+versioned proposal token and authoritative target snapshot, preserves original
+rows/GPA, and serializes demotion/insertion of effective events. Duplicate target
+events are checked using document hashes and explicit printed event references
+where available. Distinct later events and previously unprocessed subjects remain
+possible. Successful source imports/documents cannot be superseded as drafts.
 
 ## Registration and Previous Cards
 
@@ -58,9 +98,40 @@ new original result or backfill missing previous cards. See
 
 ## Participation And Clearance
 
-Result identity remains `(student_id, session_id, attempt_no)`. Attempt numbers
-are session-scoped. REGULAR is regular participation; BACKLOG, SUPPLEMENTARY,
-and REPEAT are retakes. Existing labels are never rewritten.
+Result identity remains `(student_id, session_id, attempt_no)`. New attempt numbers
+continue per student and academic semester across examination sessions: REGULAR 1,
+then BACKLOG 2, 3 and onward. A new semester starts again at REGULAR 1. Legacy
+session-scoped numbers remain unchanged and readable. New backlog numbering
+continues beyond both the highest stored number and the number of recorded sittings.
+Final import locks the student and reads current locked history before assigning
+the new result, preventing competing imports from reusing a semester attempt.
+REGULAR is regular participation; BACKLOG, SUPPLEMENTARY,
+and REPEAT are retakes. Existing labels are never rewritten. New uploads/imports
+accept only REGULAR and BACKLOG; SUPPLEMENTARY and REPEAT remain supported for
+historical reads, course outcomes, and analytics. The database enum is retained.
+New-entry and filter dropdowns offer only Regular and Backlog. Read APIs retain
+exact legacy filters for historical analysis; unfiltered results include all types.
+Exam Type is required on upload. Old extraction drafts with no attempt metadata
+retain the existing REGULAR/1 fallback; drafts explicitly containing legacy types
+cannot be imported and must be uploaded again as REGULAR or BACKLOG.
+
+A new BACKLOG cannot reuse any examination month/year already recorded for that
+student's academic semester, even with a different session ID. Comparison accepts
+the canonical month abbreviation or full month name, ignoring case/outer spaces.
+Existing next-attempt and chronology checks still apply. Validation, preview and
+confirmation all enforce this rule. A new semester's REGULAR attempt remains 1.
+
+Session Management blocks changes to semester, examination month or year once
+any Result exists; batch changes remain disallowed. Session edits and final
+imports lock the session row so concurrent edits cannot change imported context.
+Create another session for the actual later examination period instead.
+
+Mixed-semester cards still require separate uploads. Each extraction maps only
+configured subjects from its selected session; excluded extracted codes are kept
+in the draft and displayed on Review and Preview. Review states that only listed
+subjects with entered marks will be imported. No automatic splitting or document
+examination-period inference is implemented. Old drafts without excluded-subject
+metadata show the general import-scope notice without fabricating excluded codes.
 
 History uses exam year/month, then session attempt and result identity.
 Unrecognized dates, indistinguishable participation, unverified rosters, missing

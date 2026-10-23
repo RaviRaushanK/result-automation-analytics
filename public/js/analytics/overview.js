@@ -16,9 +16,11 @@
   const sessionSel = document.getElementById('filter-session');
   const attemptSel = document.getElementById('filter-attempt');
   const modeSel = document.getElementById('filter-mode');
+  const examTypeSel = document.getElementById('filter-exam-type');
   var initialQuery = new URLSearchParams(location.search);
   if (['original', 'effective'].includes(initialQuery.get('mode'))) modeSel.value = initialQuery.get('mode');
   if (['latest', 'all'].includes(initialQuery.get('attempt'))) attemptSel.value = initialQuery.get('attempt');
+  if (examTypeSel && ['REGULAR', 'BACKLOG'].includes(initialQuery.get('exam_type'))) examTypeSel.value = initialQuery.get('exam_type');
 
   const emptyState = document.getElementById('analytics-empty-state');
 
@@ -263,6 +265,7 @@
     if (ss) p.set('session_id', ss);
     if (att && att !== 'latest') p.set('attempt', att);
     if (m) p.set('mode', m);
+    if (examTypeSel && examTypeSel.value) p.set('exam_type', examTypeSel.value);
     return p;
   }
 

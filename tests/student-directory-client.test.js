@@ -127,6 +127,28 @@ test('opening Student Import defaults to newest batch and active, independently 
   assert.equal(empty.element('importBatch').value, '');
 });
 
+for (const hasHistory of [true, false]) {
+  test('student edit form protects identity only when server reports history: ' + hasHistory, async () => {
+    const f = fixture([{ id: 1, name: 'Audit batch' }]);
+    const opening = f.element('#studentsTable tbody').handlers.click({ target: { closest: () => ({
+      getAttribute: key => key === 'data-act' ? 'edit' : '7'
+    }) } });
+    f.requests[0].respond({ success: true, has_academic_history: hasHistory, data: {
+      student_id: 7, batch_id: 1, usn: 'AUDIT001', student_name: 'AUDIT STUDENT',
+      email: 'audit.student@gmail.com', category: 'PGCET', status: 'active'
+    } });
+    await opening;
+    assert.equal(f.element('studentUsn').readOnly, hasHistory);
+    assert.equal(f.element('studentBatch').disabled, hasHistory);
+    assert.equal(f.element('studentIdentityNotice').hidden, !hasHistory);
+    for (const id of ['studentName', 'studentEmail', 'studentCategory', 'studentStatus']) assert.equal(f.element(id).disabled, false);
+    f.element('addStudentBtn').handlers.click();
+    assert.equal(f.element('studentUsn').readOnly, false);
+    assert.equal(f.element('studentBatch').disabled, false);
+    assert.equal(f.element('studentIdentityNotice').hidden, true);
+  });
+}
+
 test('successful import refreshes categories and suggestions without navigation or losing the filter', async () => {
   const f = fixture([{ id: 9, name: 'Newest' }]);
   f.element('filterCategory').value = 'PGCET';

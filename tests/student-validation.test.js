@@ -28,12 +28,13 @@ const validStudent = { batch_id: '1', usn: '1AB23CS001', student_name: 'Student 
 
 function controllerFixture(saveError) {
   const writes = [];
-  const existing = { student_id: 1, update: async (value) => {
+  const existing = { ...validStudent, student_id: 1, update: async (value) => {
     if (saveError) throw saveError;
     writes.push(value);
   } };
   const models = {
-    sequelize: {},
+    sequelize: { transaction: callback => callback({ LOCK: { UPDATE: 'UPDATE' } }) },
+    Result: { findOne: async () => null },
     Student: {
       findOne: async () => null,
       findByPk: async () => existing,
@@ -463,6 +464,20 @@ test('failed restoration rolls back detail updates and leaves the original delet
 
 test('concurrently restored students are not overwritten by an older import preview', async () => {
   const f = deletedStudentFixture({ changed: true });
+  const response = await importDeleted(f.controller);
+  assert.equal(response.body.data.imported, 0);
+  assert.match(response.body.data.skippedRows[0].reason, /record changed/);
+  assert.deepEqual(f.events, ['begin', 'rollback']);
+});
+
+test('stale restoration cannot rewrite a student whose USN changed after preview', async () => {
+  const f = deletedStudentFixture();
+  const findByPk = f.models.Student.findByPk;
+  f.models.Student.findByPk = async (...args) => {
+    const record = await findByPk(...args);
+    record.usn = 'ANOTHER001';
+    return record;
+  };
   const response = await importDeleted(f.controller);
   assert.equal(response.body.data.imported, 0);
   assert.match(response.body.data.skippedRows[0].reason, /record changed/);

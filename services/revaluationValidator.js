@@ -16,10 +16,7 @@
 'use strict';
 
 function normalizeMark(raw) {
-  if (raw === null || raw === undefined || raw === '') return { present: false, invalid: false, value: null };
-  const n = Number(raw);
-  if (isNaN(n) || !Number.isFinite(n)) return { present: true, invalid: true, value: null };
-  return { present: true, invalid: false, value: Math.floor(n) };
+  return require('./academicIntegrity').mark(raw);
 }
 
 function passThreshold(maxTotal) {
@@ -46,12 +43,12 @@ function validateCardResult(fieldName, rawValue) {
 
 function validateFinalConsistency(finalMarks, finalResult, maxTotal) {
   const errors = [], warnings = [];
-  const threshold = passThreshold(maxTotal);
+  const threshold = Math.ceil((Number(maxTotal) || 100) * 0.5);
   if (finalMarks !== null && finalResult) {
     if (finalResult === 'pass' && finalMarks < threshold)
       errors.push('Final Result is "pass" but Final Marks (' + finalMarks + ') are below the pass threshold (' + threshold + ' for max ' + maxTotal + ').');
     else if (finalResult === 'fail' && finalMarks >= threshold)
-      warnings.push('Final Result is "fail" but Final Marks (' + finalMarks + ') meet the pass threshold (' + threshold + '). Verify the result on the document.');
+      errors.push('Final Result is "fail" but Final Marks (' + finalMarks + ') meet the encoded overall pass threshold (' + threshold + '). Verify the result on the document.');
   }
   return { ok: errors.length === 0, errors, warnings };
 }
@@ -82,8 +79,8 @@ function validateNineCardFields(card, subject) {
   card = card || {};
   subject = subject || {};
   const maxTotal = Number(subject.max_marks) || 100;
-  const maxInt   = Number(subject.max_internal_marks) || Math.ceil(maxTotal * 0.5);
-  const maxExt   = Number(subject.max_external_marks) || maxTotal;
+  const maxInt   = Number(subject.max_internal ?? subject.max_internal_marks ?? Math.ceil(maxTotal * 0.5));
+  const maxExt   = Number(subject.max_external ?? subject.max_external_marks ?? maxTotal);
   const errors = [], warnings = [];
 
   // internalMarks (optional)
@@ -134,6 +131,7 @@ function validateNineCardFields(card, subject) {
 
   // finalResult (REQUIRED)
   const frR = validateCardResult('Final Result', card.card_final_result);
+  if (!card.card_final_result) errors.push('Final Result is required.');
   if (!frR.ok) errors.push(frR.error);
 
   if (fm.present && !fm.invalid && fm.value >= 0 && card.card_final_result) {
@@ -158,85 +156,16 @@ function validateNineCardFields(card, subject) {
  * @param {Object} subject Subject row with mark ceilings
  * @returns {{ok:boolean, errors:string[], warnings:string[]}}
  */
-function validateOcrCardFields(ocrRow, subject) {
-  ocrRow = ocrRow || {};
-  subject = subject || {};
-  const maxTotal = Number(subject.max_marks) || 100;
-  const maxInt   = Number(subject.max_internal_marks) || Math.ceil(maxTotal * 0.5);
-  const maxExt   = Number(subject.max_external_marks) || maxTotal;
-  const errors = [], warnings = [];
-
-  const getNum = (val) => {
-    if (val === null || val === undefined || val === '') return null;
-    const n = Number(val);
-    return isNaN(n) ? null : Math.floor(n);
-  };
-
-  // internalMarks
-  const im = getNum(
-    ocrRow.internalMarks !== undefined ? ocrRow.internalMarks : ocrRow.revised_internal_marks
-  );
-  if (im !== null) {
-    if (im < 0) errors.push('Internal Marks cannot be negative.');
-    else if (im > maxInt) errors.push('Internal Marks must not exceed ' + maxInt + '.');
-  }
-
-  // oldMarks
-  const om = getNum(
-    ocrRow.oldMarks !== undefined ? ocrRow.oldMarks : ocrRow.original_marks
-  );
-  if (om !== null) {
-    if (om < 0) errors.push('Old Marks cannot be negative.');
-    else if (om > maxExt) errors.push('Old Marks must not exceed ' + maxExt + '.');
-  }
-
-  // oldResult
-  const or = ocrRow.oldResult || ocrRow.original_status || null;
-  if (or) {
-    const r = validateCardResult('Old Result', or);
-    if (!r.ok) errors.push(r.error);
-    const oldConsistency = validateOldConsistency(om, or, maxExt);
-    warnings.push(...oldConsistency.warnings);
-  }
-
-  // rvMarks (optional)
-  const rm = getNum(ocrRow.rvMarks);
-  if (rm !== null) {
-    if (rm < 0) errors.push('RV Marks cannot be negative.');
-    else if (rm > maxExt) errors.push('RV Marks must not exceed ' + maxExt + '.');
-  }
-
-  // rvResult (optional)
-  const rr = ocrRow.rvResult || null;
-  if (rr) {
-    const r = validateCardResult('RV Result', rr);
-    if (!r.ok) errors.push(r.error);
-  }
-
-  // finalMarks (REQUIRED)
-  const fm = getNum(
-    ocrRow.finalMarks !== undefined ? ocrRow.finalMarks : ocrRow.revised_marks
-  );
-  if (fm === null) errors.push('Final Marks are required.');
-  else {
-    if (fm < 0) errors.push('Final Marks cannot be negative.');
-    else if (fm > maxTotal) errors.push('Final Marks must not exceed ' + maxTotal + '.');
-  }
-
-  // finalResult (REQUIRED)
-  const fr = ocrRow.finalResult || ocrRow.revised_status_candidate || null;
-  if (!fr) errors.push('Final Result is required.');
-  else {
-    const r = validateCardResult('Final Result', fr);
-    if (!r.ok) errors.push(r.error);
-    if (fm !== null && !errors.some(e => e.indexOf('Final Marks') !== -1)) {
-      const finConsistency = validateFinalConsistency(fm, fr, maxTotal);
-      errors.push(...finConsistency.errors);
-      warnings.push(...finConsistency.warnings);
-    }
-  }
-
-  return { ok: errors.length === 0, errors, warnings };
+function validateOcrCardFields(row = {}, subject = {}) {
+  return validateNineCardFields({
+    card_internal_marks: row.internalMarks ?? row.revised_internal_marks,
+    card_old_marks: row.oldMarks,
+    card_old_result: row.oldResult,
+    card_rv_marks: row.rvMarks ?? row.revised_external_marks,
+    card_rv_result: row.rvResult,
+    card_final_marks: row.finalMarks ?? row.revised_marks,
+    card_final_result: row.finalResult ?? row.revised_status_candidate
+  }, subject);
 }
 
 module.exports = {

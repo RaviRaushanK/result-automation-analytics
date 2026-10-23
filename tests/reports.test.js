@@ -581,7 +581,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.match(csvText, /5,USN2,Student Two,3,SUPPLEMENTARY/);
           }
           if (type === 'result-analysis') {
-            assert.match(csvText, /Subject Code,Name of the Subject,Regular APP,Regular PASS,Regular % PASS,Repeaters APP/);
+            assert.match(csvText, /Subject Code,Name of the Subject,Regular APP,Regular PASS,Regular % PASS,Backlog APP/);
             assert.match(csvText, /Faculty A \/ Faculty B/);
             assert.match(csvText, /\r\nTOTAL APP,5\r\nTOTAL FAIL,3\r\nTOTAL PASS,1\r\nPASS %,20\.00/);
             assert.doesNotMatch(html, /report-pageSize/);
@@ -591,7 +591,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.match(csvText, /Successfully Completed Without Back Log - Second Year/);
             assert.doesNotMatch(csvText, /Sem \d+ (With|Without) Backlog/);
             assert.match(csvText, /Sl\. No\.,USN,Name,Category,Semester 1,,,,,Semester 2,,,,,Semester 4,,,,,Semester 10,,,,,Cumulative CGPA/);
-            assert.match(csvText, /Marks Obt\.,SGPA,CGPA,First Attempt,Pass in Supplementary/);
+            assert.match(csvText, /Marks Obt\.,SGPA,CGPA,First Attempt,Pass in Backlog/);
             assert.match(csvText, /1,USN1,Student One,PGCET,135/);
             assert.match(csvText, /2,USN2,Student Two/);
             assert.doesNotMatch(html, /name="session_id"|name="semester"/);
@@ -616,7 +616,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           if (type === 'result-analysis') {
             assert.match(printText, /RESULTS ANALYSIS CHART OF 1 SEM MCA/);
             assert.match(printText, /reports-analysis-chart/);
-            assert.match(printText, /REGULAR[\s\S]*REPEATERS[\s\S]*TOTAL/);
+            assert.match(printText, /REGULAR[\s\S]*BACKLOG[\s\S]*TOTAL/);
             const data = printText.match(/<script id="reports-analysis-data" type="application\/json">([\s\S]*?)<\/script>/)[1];
             assert.deepEqual(JSON.parse(data).chart.values, [33.33, 50]);
           }

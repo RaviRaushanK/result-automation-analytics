@@ -43,8 +43,11 @@ not additional student/result workflow models.
 - `academic_courses`: unique batch/semester/exact normalized subject code.
 - `subject_faculty`: unique subject/faculty pair; more than two faculty supported.
 - `students`: unique USN/email/UUID; soft deletion does not release those keys.
-- `results`: unique student/session/attempt number; exam type is REGULAR,
-  BACKLOG, SUPPLEMENTARY or REPEAT. Attempt numbering is session-scoped.
+- `results`: unique student/session/attempt number. New entries use REGULAR or
+  BACKLOG; legacy SUPPLEMENTARY/REPEAT remain readable. New attempt numbering
+  continues per student/academic semester across sessions: REGULAR 1, BACKLOG 2,
+  3 and onward. Legacy session-scoped numbers are preserved. Semester numbering
+  is enforced by locked application validation; the existing database index remains.
 - `subject_results`: unique result/subject pair.
 - `revaluation_results`: unique subject-result/event number, with reviewer and
   effective-state provenance. Multiple historical events may exist.

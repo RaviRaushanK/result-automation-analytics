@@ -2,7 +2,7 @@
 // Reuses the existing ResultSession model and /sessions API.
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { ResultSession, Batch, Department, Subject } = require('../database/models');
+const { ResultSession, Batch, Department, Subject, Result, sequelize } = require('../database/models');
 const { semesterCount } = require('../public/js/academic-form-options');
 
 const SESSION_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css', '/css/sessions.css'];
@@ -237,55 +237,65 @@ const sessionController = {
   // =========================
   update: async (req, res) => {
     try {
-      const session = await ResultSession.findByPk(req.params.id);
-      if (!session) {
-        return res.status(404).json({ success: false, message: 'Session not found' });
-      }
+      const outcome = await sequelize.transaction(async transaction => {
+        const reject = (status, message) => ({ status, body: { success: false, message } });
+        const session = await ResultSession.findByPk(req.params.id, { transaction, lock: true });
+        if (!session) {
+          return reject(404, 'Session not found');
+        }
 
-      const check = validateSessionFields(req.body);
-      if (check.errors.length) {
-        return res.status(400).json({ success: false, message: check.errors[0] });
-      }
+        const check = validateSessionFields(req.body);
+        if (check.errors.length) {
+          return reject(400, check.errors[0]);
+        }
 
-      // Duplicate semester within the same batch (excluding this session)
-      const duplicateSemester = await ResultSession.findOne({
-        where: {
-          batch_id: session.batch_id,
+        if (req.body.batch_id !== undefined && String(req.body.batch_id) !== String(session.batch_id)) {
+          return reject(409, 'A session cannot change batch. Create a new examination session instead.');
+        }
+        const identityChanged = String(Number(session.semester)) !== check.semester ||
+          normalizeMonth(session.exam_session) !== check.exam_session || Number(session.exam_year) !== check.exam_year;
+        if (identityChanged && await Result.count({ where: { session_id: session.session_id }, transaction })) {
+          return reject(409, 'Session identity cannot change after results exist. Create a new examination session instead.');
+        }
+
+        // Duplicate semester within the same batch (excluding this session)
+        const duplicateSemester = await ResultSession.findOne({
+          where: {
+            batch_id: session.batch_id,
+            semester: check.semester,
+            exam_session: check.exam_session,
+            exam_year: check.exam_year,
+            session_id: { [Op.ne]: session.session_id }
+          }, transaction
+        });
+        if (duplicateSemester) {
+          return reject(409, 'This examination session already exists for the batch and semester.');
+        }
+
+        if (String(Number(session.semester)) !== check.semester && await Subject.count({ where: { session_id: session.session_id }, transaction })) {
+          return reject(409, 'A session with configured courses cannot change academic semester. Create the correct examination session instead.');
+        }
+        if (String(Number(session.semester)) !== check.semester) {
+          const batch = await Batch.findByPk(session.batch_id, { transaction });
+          const semesters = semesterCount(batch);
+          if (!semesters || Number(check.semester) > semesters) return reject(400, 'Semester is outside the selected batch duration.');
+        }
+        // Note: the batch association is intentionally not editable here.
+        await ResultSession.update({
           semester: check.semester,
           exam_session: check.exam_session,
-          exam_year: check.exam_year,
-          session_id: { [Op.ne]: session.session_id }
-        }
+          exam_year: check.exam_year
+        }, { where: { session_id: session.session_id }, transaction });
+
+        const data = await ResultSession.findByPk(session.session_id, { transaction });
+
+        return { status: 200, body: {
+          success: true,
+          message: 'Session updated successfully',
+          data
+        } };
       });
-      if (duplicateSemester) {
-        return res.status(409).json({
-          success: false,
-          message: 'This examination session already exists for the batch and semester.'
-        });
-      }
-
-      if (String(Number(session.semester)) !== check.semester && await Subject.count({ where: { session_id: session.session_id } })) {
-        return res.status(409).json({ success: false, message: 'A session with configured courses cannot change academic semester. Create the correct examination session instead.' });
-      }
-      if (String(Number(session.semester)) !== check.semester) {
-        const batch = await Batch.findByPk(session.batch_id);
-        const semesters = semesterCount(batch);
-        if (!semesters || Number(check.semester) > semesters) return res.status(400).json({ success: false, message: 'Semester is outside the selected batch duration.' });
-      }
-      // Note: the batch association is intentionally not editable here.
-      await ResultSession.update({
-        semester: check.semester,
-        exam_session: check.exam_session,
-        exam_year: check.exam_year
-      }, { where: { session_id: session.session_id } });
-
-      const data = await ResultSession.findByPk(session.session_id);
-
-      res.status(200).json({
-        success: true,
-        message: 'Session updated successfully',
-        data
-      });
+      return res.status(outcome.status).json(outcome.body);
 
     } catch (error) {
       console.error('Session update error:', error);

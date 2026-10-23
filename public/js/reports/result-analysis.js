@@ -17,7 +17,7 @@
       table.classList.add('reports-analysis-table');
       const top = element('tr'); const bottom = element('tr');
       ['SL NO.', 'SUBJECT CODE', 'NAME OF THE SUBJECT'].forEach(label => { const th = element('th', label); th.rowSpan = 2; th.scope = 'col'; top.append(th); });
-      ['REGULAR', 'REPEATERS', 'TOTAL'].forEach(label => {
+      ['REGULAR', 'BACKLOG', 'TOTAL'].forEach(label => {
         const th = element('th', label); th.colSpan = 3; th.scope = 'colgroup'; top.append(th);
         ['APP', 'PASS', '% PASS'].forEach(text => { const cell = element('th', text); cell.scope = 'col'; bottom.append(cell); });
       });

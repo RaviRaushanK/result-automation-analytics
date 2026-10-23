@@ -49,6 +49,7 @@ function fixture(options = {}) {
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../services/vlmExtractor.js'), 'utf8'), {
         module, exports: module.exports, Buffer, console: { warn() {} },
         require(name) {
+            if (name === './academicIntegrity') return require('../services/academicIntegrity');
             if (name === 'fs') return { existsSync: () => true };
             if (name === 'sharp') return () => chain;
             if (name === 'tesseract.js') return { createWorker: async () => worker };

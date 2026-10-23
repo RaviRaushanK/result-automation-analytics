@@ -157,11 +157,17 @@ test('retake history is checked by course and earlier examination period with a 
 });
 
 test('subject creation passes the academic semester into stable-course resolution and never accepts an invalid session', async () => {
+  const savedBatchLookup = db.Batch.findByPk;
+  db.Batch.findByPk = async () => ({ batch_id: 1 });
   const controller=require('../controllers/subjectController');
   const service=require('../services/academicCourseService');
   const saved=[db.ResultSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve];
   let attributes,identity,created;
-  db.ResultSession.findByPk=async(id,options)=>{attributes=options.attributes;return{session_id:2,batch_id:1,semester:'1'};};
+  db.ResultSession.findByPk=async(id,options)=>{
+    const row={session_id:2,batch_id:1,semester:'1',exam_session:'Dec',exam_year:2025};
+    if(options.attributes){attributes=options.attributes;return Object.fromEntries(options.attributes.map(key=>[key,row[key]]));}
+    return row;
+  };
   db.Subject.findOne=async()=>null;
   db.sequelize.transaction=async fn=>fn({});
   service.resolve=async(session)=>{identity=session;return{course_id:3};};
@@ -171,7 +177,7 @@ test('subject creation passes the academic semester into stable-course resolutio
     await controller.create({body:{session_id:2,batch_id:1,subject_code:'MMC103',subject_name:'Course',subject_type:'theory',credits:4,max_internal:50,max_external:50,max_marks:100}},
       {status:n=>{status=n;return{json(){}};}});
     assert.equal(status,201);assert.ok(attributes.includes('semester'));assert.equal(identity.semester,'1');assert.equal(created.course_id,3);
-  }finally{[db.ResultSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve]=saved;}
+  }finally{[db.ResultSession.findByPk,db.Subject.findOne,db.Subject.create,db.sequelize.transaction,service.resolve]=saved;db.Batch.findByPk=savedBatchLookup;}
   await assert.rejects(()=>service.resolve({batch_id:1},{}),/valid academic semester/);
 });
 
@@ -219,17 +225,20 @@ test('session-scoped attempt numbers order a shared sitting without becoming lif
 
 test('session academic semester cannot change after configuring stable course offerings', async () => {
   const controller=require('../controllers/sessionController');
-  const saved=[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update];let wrote=false,status;
+  const saved=[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update,db.Result.count,db.sequelize.transaction];let wrote=false,status;
+  db.Result.count=async()=>0;db.sequelize.transaction=async run=>run({});
   db.ResultSession.findByPk=async()=>({session_id:1,batch_id:1,semester:'1'});
   db.ResultSession.findOne=async()=>null;db.Subject.count=async()=>1;
   db.ResultSession.update=async()=>{wrote=true;};
   try{
     await controller.update({params:{id:1},body:{semester:'2',exam_session:'Jun',exam_year:2026}},{status:n=>{status=n;return{json(){}};}});
     assert.equal(status,409);assert.equal(wrote,false);
-  }finally{[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update]=saved;}
+  }finally{[db.ResultSession.findByPk,db.ResultSession.findOne,db.Subject.count,db.ResultSession.update,db.Result.count,db.sequelize.transaction]=saved;}
 });
 
 test('explicit semester roster confirmation writes only reviewed course definitions and rejects unmapped offerings', async () => {
+  const savedResultCount = db.Result.count;
+  db.Result.count = async () => 0;
   const controller=require('../controllers/academicCoursesController');
   const saved=[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction,db.Batch.findByPk];const writes=[];let unmapped=0;
   db.Batch.findByPk=async()=>({batch_id:1,start_year:2025,end_year:2027});
@@ -246,7 +255,7 @@ test('explicit semester roster confirmation writes only reviewed course definiti
     writes.length=0;unmapped=1;
     await controller.confirm(request,response,error=>{throw error;});
     assert.equal(status,409);assert.equal(writes.length,0);
-  }finally{[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction,db.Batch.findByPk]=saved;}
+  }finally{[db.AcademicCourse.findAll,db.Subject.count,db.sequelize.transaction,db.Batch.findByPk]=saved;db.Result.count=savedResultCount;}
 });
 
 test('Progress cumulative GPA includes later semesters even when the newest Result is an earlier-semester retake', async () => {

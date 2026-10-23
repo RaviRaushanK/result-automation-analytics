@@ -45,11 +45,12 @@ function serviceFixture({ results = 0, duplicate = false, linked = true } = {}) 
   return { definition, writes, course, subject, update: changes => context.module.exports.updateOffering(subject, { batch_id: 1, semester: '1' }, { ...definition, ...changes }, { LOCK: { UPDATE: 'UPDATE' } }) };
 }
 
-test('subject edits retain course identity and synchronize metadata across examination offerings even with results', async () => {
+test('descriptive subject edits retain historical course identity while code changes are blocked', async () => {
   const f = serviceFixture({ results: 2 });
-  await f.update({ subject_code: 'MCA102', subject_name: 'Corrected name' });
+  await assert.rejects(() => f.update({ subject_code: 'MCA102' }), /cannot change after results exist/);
+  await f.update({ subject_name: 'Corrected name' });
   assert.equal(f.writes.length, 3);
-  for (const [, data] of f.writes) { assert.equal(data.subject_name, 'Corrected name'); assert.equal(data.subject_code, 'MCA102'); assert.equal(data.credits, undefined); }
+  for (const [, data] of f.writes) { assert.equal(data.subject_name, 'Corrected name'); assert.equal(data.subject_code, undefined); assert.equal(data.credits, undefined); }
   assert.equal(f.writes[2][1].course_id, 10);
 });
 
@@ -75,7 +76,7 @@ test('subject no-op, legacy link and duplicate code updates do not invent anothe
 test('month/year session corrections remain allowed with configured courses when semester is unchanged', async () => {
   const writes = [];
   const session = { session_id: 1, batch_id: 1, semester: '1' };
-  const models = { ResultSession: { findByPk: async () => session, findOne: async () => null, update: async data => writes.push(data) }, Subject: { count: async () => { throw new Error('Unchanged semester must not be rejected'); } } };
+  const models = { sequelize: { transaction: async run => run({}) }, Result: { count: async () => 0 }, ResultSession: { findByPk: async () => session, findOne: async () => null, update: async data => writes.push(data) }, Subject: { count: async () => { throw new Error('Unchanged semester must not be rejected'); } } };
   const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/sessionController'), 'utf8'), context);
   const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; } };
@@ -85,7 +86,8 @@ test('month/year session corrections remain allowed with configured courses when
 
 test('batch update accepts split fields and rejects invalid years before writes', async () => {
   const writes = [];
-  const models = { Batch: { update: async data => { writes.push(data); return [1]; }, findByPk: async () => ({ batch_id: 1 }) } };
+  const models = { Batch: { findByPk: async () => ({ batch_id: 1, department_id: 1, batch_name: 'MCA 2024', start_year: 2025, end_year: 2027, status: 'active', update: async data => writes.push(data) }) },
+    Student: { count: async () => 0 }, Result: { count: async () => 0 }, sequelize: { transaction: async callback => callback({}) } };
   const context = { module: { exports: {} }, require: name => name === '../database/models' ? models : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/batchController'), 'utf8'), context);
   async function update(body) { const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; } }; await context.module.exports.update({ params: { id: 1 }, body }, res); return res; }
@@ -99,7 +101,7 @@ test('subject update controller edits the linked course instead of invoking crea
   const subject = { subject_id: 1, session_id: 2, course_id: 3 };
   const definition = { subject_code: 'MCA101', subject_name: 'Corrected', subject_type: 'project', credits: 0, max_internal: 0, max_external: 100, max_marks: 100 };
   const calls = [];
-  const models = { Subject: { findByPk: async () => subject, findOne: async () => null }, ResultSession: { findByPk: async () => ({ session_id: 2, batch_id: 1, semester: '1' }) }, sequelize: { transaction: async fn => fn({ fixture: true }) } };
+  const models = { Batch: { findByPk: async () => ({ batch_id: 1 }) }, Subject: { findByPk: async () => subject, findOne: async () => null }, ResultSession: { findByPk: async () => ({ session_id: 2, batch_id: 1, semester: '1' }) }, sequelize: { transaction: async fn => fn({ fixture: true }) } };
   const service = { resolve: async () => { throw new Error('Create-time resolution must not run during editing'); }, updateOffering: async (...args) => calls.push(args) };
   const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : name === '../services/academicCourseService' ? service : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/subjectController'), 'utf8'), context);

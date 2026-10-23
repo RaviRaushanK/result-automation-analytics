@@ -119,7 +119,10 @@ test('a misread code triggers recovery against the server roster without fuzzy r
 
 test('genuinely conflicting fallback USN never replaces the original identity or rows',async()=>{
   const {extractor,state,primary}=fixture();state.usn='1MV25MC075';
-  assert.equal((await extractor.extract('card.png','revaluation')).extraction,primary);
+  const extraction = (await extractor.extract('card.png','revaluation')).extraction;
+  assert.equal(extraction.student,primary.student);
+  assert.equal(extraction.subjects,primary.subjects);
+  assert.match(extraction.integrity_conflicts[0],/conflicting student USNs/);
   assert.equal(primary.subjects.length,0);
 });
 

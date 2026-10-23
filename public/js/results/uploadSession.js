@@ -18,6 +18,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('uploadForm');
     var extractButton = document.getElementById('extractButton');
     var uploading = false;
+    var examTypeSelect = document.getElementById('examTypeSelect');
+    var attemptInput = document.getElementById('attemptNoInput');
+    function updateAttemptInput() {
+        if (!examTypeSelect || !attemptInput) return;
+        var backlog = examTypeSelect.value === 'BACKLOG';
+        attemptInput.min = backlog ? '2' : '1';
+        attemptInput.readOnly = !backlog;
+        if (!backlog) attemptInput.value = '1';
+        else if (!attemptInput.value || Number(attemptInput.value) < 2) attemptInput.value = '2';
+    }
+    if (examTypeSelect) examTypeSelect.addEventListener('change', updateAttemptInput);
+    if (form) form.addEventListener('reset', function () { setTimeout(updateAttemptInput, 0); });
+    updateAttemptInput();
 
     function selectedFileError() {
         if (fileInput && fileInput.files.length > 1) return 'Choose one marks card at a time.';

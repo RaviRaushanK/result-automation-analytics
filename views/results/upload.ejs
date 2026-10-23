@@ -42,18 +42,16 @@
             <!-- 1b. Attempt number + exam type -->
             <div class="row g-3 mb-3">
               <div class="col-md-4">
-                <label for="attemptNoSelect" class="form-label fw-semibold">Attempt No <span class="text-danger">*</span></label>
+                <label for="attemptNoInput" class="form-label fw-semibold">Attempt No <span class="text-danger">*</span></label>
                 <input type="number" class="form-control form-control-lg" id="attemptNoInput" name="attempt_no"
                        value="1" min="1" step="1" required>
-                <div class="form-text">Participation number within the selected examination session.</div>
+                <div class="form-text">For this student and semester: Regular 1, first Backlog 2, then 3 and onward across exam sessions.</div>
               </div>
               <div class="col-md-8">
                 <label for="examTypeSelect" class="form-label fw-semibold">Exam Type <span class="text-danger">*</span></label>
-                <select class="form-select form-select-lg" id="examTypeSelect" name="exam_type">
-                  <option value="REGULAR" selected>REGULAR</option>
-                  <option value="BACKLOG">BACKLOG</option>
-                  <option value="SUPPLEMENTARY">SUPPLEMENTARY</option>
-                  <option value="REPEAT">REPEAT</option>
+                <select class="form-select form-select-lg" id="examTypeSelect" name="exam_type" required>
+                  <option value="REGULAR" selected>Regular</option>
+                  <option value="BACKLOG">Backlog</option>
                 </select>
               </div>
             </div>

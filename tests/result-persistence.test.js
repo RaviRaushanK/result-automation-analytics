@@ -60,19 +60,23 @@ test('confirmImport persists validated IA/External/Total while preserving academ
     subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34, totalMarks: 999 }, { subject_id: 2, internalMarks: 0, externalMarks: 0 }] };
   replace(db.sequelize, 'transaction', async () => ({ commit: async () => { committed = true; }, rollback: async () => { rolledBack = true; } }));
   replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', ResultSession: { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026, Batch: { batch_name: 'Test Batch' } }, update: async () => {} }));
-  replace(db.OcrExtraction, 'findOne', async () => ({ extracted_json: JSON.stringify(saved) }));
+  replace(db.ResultSession, 'findByPk', async () => ({ session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 }));
+  replace(db.Batch, 'findByPk', async () => ({ batch_id: 1 }));
+  replace(db.OcrExtraction, 'findOne', async () => ({ validation_status: 'validated', extracted_json: JSON.stringify({ ...saved,
+    document_context_verified: true, review_token: 'fixture-review', configuration_snapshot: require('../services/academicConfiguration').snapshot(
+      { batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 }, definitions, definitions.map(subject => ({ ...subject, is_required: true, roster_verified: true }))) }) }));
   const definitions = [1, 2].map(subject_id => ({ subject_id, course_id: subject_id, subject_code: `S${subject_id}`, subject_name: `Subject ${subject_id}`, max_internal: 50, max_external: 100, max_marks: 150, credits: 4 }));
   replace(db.Subject, 'findAll', async () => definitions);
   replace(db.AcademicCourse, 'findAll', async () => definitions.map(subject => ({ ...subject, is_required: true, roster_verified: true })));
   replace(require('../services/academicOutcomeService'), 'calculateCumulative', async () => null);
   replace(db.Student, 'findOne', async () => ({ student_id: 101, batch_id: 1, student_name: 'TEST STUDENT' }));
   replace(db.Result, 'findOne', async () => duplicate ? { result_id: 99 } : null);
-  replace(db.Result, 'findAll', async () => [{ result_id: 6, session_id: 1, attempt_no: 1,
-    ResultSession: { session_id: 1, batch_id: 1, semester: '1', exam_session: 'Jan', exam_year: 2026 },
-    SubjectResults: [{ subject_result_id: 1 }] }]);
+  replace(db.Result, 'findAll', async () => [{ result_id: 6, session_id: 1, attempt_no: 1, exam_type: 'REGULAR',
+    ResultSession: { session_id: 2, batch_id: 1, semester: '1', exam_session: 'Dec', exam_year: 2025 },
+    SubjectResults: [1, 2].map(course_id_snapshot => ({ subject_result_id: course_id_snapshot, course_id_snapshot, result_status: 'fail' })) }]);
   replace(db.Result, 'create', async data => { header = data; return { result_id: 7 }; });
   replace(db.SubjectResult, 'bulkCreate', async data => { subjectRows = data; });
-  const invoke = () => controller.confirmImport({ params: { importId: '9' }, body: { internal_1: 1, external_1: 1 } }, { redirect: url => { redirected = url; } });
+  const invoke = () => controller.confirmImport({ params: { importId: '9' }, body: { internal_1: 1, external_1: 1, review_token: 'fixture-review' } }, { redirect: url => { redirected = url; } });
   try {
     await t.test('new imports retain components, zero marks, validated total and original grade rules', async () => {
       await invoke();
@@ -96,10 +100,12 @@ test('confirmImport persists validated IA/External/Total while preserving academ
       duplicate = false; rolledBack = false; saved.subjects[0].externalMarks = '';
       await invoke();
       assert.equal(subjectRows, undefined); assert.equal(header, undefined); assert.equal(rolledBack, true);
-      assert.match(redirected, /\/review$/);
+      assert.match(redirected, /\/review\?error=/);
     });
     await t.test('only a new verified regular header receives calculated cumulative provenance', async () => {
       saved.attempt.exam_type='REGULAR';saved.subjects[0].externalMarks=34;
+      saved.attempt.attempt_no=1;
+      replace(db.Result, 'findAll', async () => []);
       saved.subjects[1].internalMarks=42;saved.subjects[1].externalMarks=34;
       committed=false;rolledBack=false;
       replace(require('../services/academicOutcomeService'), 'calculateCumulative', async()=>5);

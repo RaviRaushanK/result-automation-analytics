@@ -16,6 +16,7 @@
  * OcrExtraction.extracted_json.ocr without altering the stored context keys.
  */
 const documentExtractor = require('./documentExtractor');
+const integrity = require('./academicIntegrity');
 
 // Documented aggregate mapping (Prompt 4 spec): high=0.9, medium=0.7, low=0.4
 const CONFIDENCE_SCORES = { high: 0.9, medium: 0.7, low: 0.4 };
@@ -60,6 +61,9 @@ async function runEngine(filePath, options = {}) {
     usn_normalized: (ex.student && ex.student.usnNormalized) || null,
     name: (ex.student && ex.student.name) || null,
     semester: (ex.semester === null || ex.semester === undefined) ? null : ex.semester,
+    semesters: ex.semesters || [], usns: ex.usns || [],
+    exam_session: ex.exam_session, exam_year: ex.exam_year, attempt_no: ex.attempt_no, exam_type: ex.exam_type,
+    integrity_conflicts: ex.integrity_conflicts || [],
     subjects: Array.isArray(ex.subjects) ? ex.subjects : [],
     lines: Array.isArray(ex.lines) ? ex.lines : [],
     parser_warnings: Array.isArray(ex.warnings) ? ex.warnings : []
@@ -391,11 +395,15 @@ function buildCandidates(engineOut, serverCtx) {
 
   // Build the OCR output structure
   const ocr = {
+    semesters: engineOut.semesters || [], usns: engineOut.usns || [],
+    integrity_conflicts: [...(engineOut.integrity_conflicts || []), ...integrity.duplicateRows(engineOut.subjects)],
+    exam_session: engineOut.exam_session, exam_year: engineOut.exam_year, attempt_no: engineOut.attempt_no, exam_type: engineOut.exam_type,
     extraction_method: engineOut.extraction_method,
     stages: engineOut.stages || null,
     extracted_at: new Date().toISOString(),
     raw_text: engineOut.raw_text,
     student_candidates: {
+      usn_raw: engineOut.usn_raw || engineOut.usn,
       // Raw OCR USN as captured (e.g. "IMV25MCO074"). Preserved exactly.
       usn: engineOut.usn,
       // Normalized USN for COMPARISON ONLY (I→1, O→0). Never written back

@@ -7,6 +7,7 @@ const {
   SubjectResult,
   ResultSession,
   Faculty,
+  Batch,
   sequelize,
 } = require("../database/models");
 
@@ -44,10 +45,13 @@ function validateSubject(body) {
   )
     .trim()
     .toLowerCase();
-  const credits = Number(body.credits);
-  const max_internal = Number(body.max_internal);
-  const max_external = Number(body.max_external);
-  const max_marks = Number(body.max_marks);
+  const strict = value => { const parsed = require('../services/academicIntegrity').mark(value); return !parsed.present || parsed.invalid ? NaN : parsed.value; };
+  const credits = strict(body.credits);
+  const max_internal = strict(body.max_internal);
+  const max_external = strict(body.max_external);
+  const max_marks = strict(body.max_marks);
+  if (typeof body.subject_code !== 'string' || !/^[A-Z0-9][A-Z0-9/-]*$/.test(subject_code)) errors.push('Enter a valid subject code using letters, numbers, / or -.');
+  if (typeof body.subject_name !== 'string') errors.push('Subject name must be text.');
   if (!subject_code) errors.push("Subject code is required.");
   else if (subject_code.length > 20)
     errors.push("Subject code must be 20 characters or fewer.");
@@ -74,8 +78,8 @@ function validateSubject(body) {
     errors.push(
       "Maximum external marks must be a valid non-negative whole number.",
     );
-  if (!Number.isInteger(max_marks) || max_marks < 0 || max_marks > 20000)
-    errors.push("Maximum marks must be a valid non-negative whole number.");
+  if (!Number.isInteger(max_marks) || max_marks <= 0 || max_marks > 20000)
+    errors.push("Maximum total marks must be a positive whole number within the supported limit.");
   if (
     Number.isInteger(max_internal) &&
     Number.isInteger(max_external) &&
@@ -216,7 +220,7 @@ const subjectController = {
             errors: check.errors,
           });
       const session = await ResultSession.findByPk(req.body.session_id, {
-        attributes: ["session_id", "batch_id", "semester"],
+        attributes: ["session_id", "batch_id", "semester", "exam_session", "exam_year"],
       });
       if (!session)
         return res
@@ -252,6 +256,9 @@ const subjectController = {
               "This subject code already exists in the selected batch and session.",
           });
       const data = await sequelize.transaction(async transaction => {
+        const currentSession = await ResultSession.findByPk(session.session_id, { transaction, lock: true });
+        if (!currentSession || ['batch_id','semester','exam_session','exam_year'].some(field => String(currentSession[field]) !== String(session[field]))) throw Object.assign(new Error('The selected examination session changed. Reload it before creating the offering.'), { status: 409 });
+        if (!await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
         const course = await academicCourses.resolve(session, check.data, transaction);
         return Subject.create({ ...check.data, session_id: session.session_id, course_id: course.course_id, subject_uuid: generateUuid() }, { transaction });
       });
@@ -316,6 +323,9 @@ const subjectController = {
           });
       const session = await ResultSession.findByPk(subject.session_id);
       await sequelize.transaction(async transaction => {
+        const currentSession = session && await ResultSession.findByPk(session.session_id, { transaction, lock: true });
+        if (!currentSession || ['batch_id','semester','exam_session','exam_year'].some(field => String(currentSession[field]) !== String(session[field]))) throw Object.assign(new Error('The examination session changed. Reload the subject before editing.'), { status: 409 });
+        if (!session || !await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
         await academicCourses.updateOffering(subject, session, check.data, transaction);
       });
       const data = await Subject.findByPk(subject.subject_id);
@@ -369,6 +379,9 @@ const subjectController = {
       // rows are released together with the subject. Faculty records themselves
       // are never touched. The whole delete runs in one transaction.
       await sequelize.transaction(async (transaction) => {
+        const session = await ResultSession.findByPk(subject.session_id, { transaction, lock: true });
+        if (!session || !await Batch.findByPk(session.batch_id, { transaction, lock: true })) throw Object.assign(new Error('The academic batch is unavailable.'), { status: 409 });
+        if (await SubjectResult.count({ where: { subject_id: subject.subject_id }, transaction, lock: true })) throw Object.assign(new Error(SUBJECT_IN_USE_MESSAGE), { status: 409 });
         await SubjectFaculty.destroy({
           where: { subject_id: subject.subject_id },
           transaction,

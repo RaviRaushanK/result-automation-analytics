@@ -1,7 +1,7 @@
 // Student Management Dashboard controller.
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { Student, Batch, sequelize } = require('../database/models');
+const { Student, Batch, Result, sequelize } = require('../database/models');
 const directory = require('../services/studentDirectoryService');
 
 const emailValidation = require('../public/js/student-email-validation');
@@ -39,19 +39,19 @@ function normalizeCategory(value) {
   return String(value).trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
-async function resolveBatchId(value) {
+async function resolveBatchId(value, transaction) {
   if (value === undefined || value === null || String(value).trim() === '') {
     return { batch_id: null, error: 'Batch is required' };
   }
   const raw = String(value).trim();
   if (/^\d+$/.test(raw)) {
-    const batch = await Batch.findByPk(raw);
+    const batch = await Batch.findByPk(raw, { transaction });
     if (!batch) return { batch_id: null, error: 'Batch not found: ' + raw };
     return { batch_id: batch.batch_id, batch_name: batch.batch_name };
   }
-  const batch = await Batch.findOne({ where: { batch_name: raw } });
+  const batch = await Batch.findOne({ where: { batch_name: raw }, transaction });
   if (batch) return { batch_id: batch.batch_id, batch_name: batch.batch_name };
-  const all = await Batch.findAll({ attributes: ['batch_id', 'batch_name'] });
+  const all = await Batch.findAll({ attributes: ['batch_id', 'batch_name'], transaction });
   const match = all.find((b) => String(b.batch_name).toLowerCase() === raw.toLowerCase());
   if (match) return { batch_id: match.batch_id, batch_name: match.batch_name };
   return { batch_id: null, error: 'Batch not found: ' + raw };
@@ -63,7 +63,7 @@ async function validateStudentInput(input, opts) {
   const batchRef = (input.batch_id !== undefined && input.batch_id !== null && String(input.batch_id).trim() !== '')
     ? input.batch_id
     : (input.batch !== undefined ? input.batch : input.batch_name);
-  const resolved = await resolveBatchId(batchRef);
+  const resolved = await resolveBatchId(batchRef, opts.transaction);
   if (!resolved.batch_id) errors.push(resolved.error);
   const usn = String(input.usn || '').trim().toUpperCase();
   if (!usn) errors.push('USN is required');
@@ -86,7 +86,7 @@ async function validateStudentInput(input, opts) {
   if (usn) {
     const where = { usn: usn };
     if (opts.ignoreStudentId) where.student_id = { [Op.ne]: opts.ignoreStudentId };
-    const dup = await Student.findOne({ where: where, attributes: ['student_id', 'batch_id', 'deleted_at'], paranoid: false });
+    const dup = await Student.findOne({ where: where, attributes: ['student_id', 'batch_id', 'deleted_at'], paranoid: false, transaction: opts.transaction });
     if (dup) {
       if (opts.allowRestore && dup.deleted_at && String(dup.batch_id) === String(resolved.batch_id)) restoreStudentId = dup.student_id;
       else errors.push('Duplicate USN: ' + usn + ' already exists' + (dup.deleted_at ? ' in a deleted student record; check the original batch before restoring' : ''));
@@ -95,7 +95,7 @@ async function validateStudentInput(input, opts) {
   if (email) {
     const where = { email: email };
     if (opts.ignoreStudentId) where.student_id = { [Op.ne]: opts.ignoreStudentId };
-    const dupMail = await Student.findOne({ where: where, attributes: ['student_id'], paranoid: false });
+    const dupMail = await Student.findOne({ where: where, attributes: ['student_id'], paranoid: false, transaction: opts.transaction });
     if (dupMail && String(dupMail.student_id) !== String(restoreStudentId)) errors.push('Duplicate Email: ' + email + ' already exists');
   }
   return { value: value, errors: errors, restoreStudentId };
@@ -109,7 +109,8 @@ async function createOrRestoreStudent(checked) {
     const student = await Student.findByPk(checked.restoreStudentId, {
       paranoid: false, transaction, lock: transaction.LOCK.UPDATE
     });
-    if (!student || !student.deleted_at || String(student.batch_id) !== String(values.batch_id)) {
+    if (!student || !student.deleted_at || String(student.batch_id) !== String(values.batch_id)
+      || String(student.usn).trim().toUpperCase() !== values.usn) {
       throw Object.assign(new Error('The student record changed. Review the student details again before restoring.'), { status: 409 });
     }
     await student.update(values, { transaction });
@@ -243,7 +244,7 @@ const studentController = {
         group: ['category'], order: [['category', 'ASC']], raw: true });
       res.json({ success: true, data: rows.map((r) => r.category).filter(Boolean) });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(500).json({ success: false, message: 'Unable to load student categories. Please try again.' });
     }
   },
 
@@ -253,9 +254,10 @@ const studentController = {
         include: [{ model: Batch, attributes: ['batch_id', 'batch_name'] }]
       });
       if (!data) return res.status(404).json({ success: false, message: 'Student not found' });
-      res.json({ success: true, data: data });
+      const history = await Result.findOne({ where: { student_id: data.student_id }, attributes: ['result_id'] });
+      res.json({ success: true, data: data, has_academic_history: !!history });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(500).json({ success: false, message: 'Unable to load this student record. Please try again.' });
     }
   },
 
@@ -276,15 +278,34 @@ const studentController = {
 
   update: async (req, res) => {
     try {
-      const existing = await Student.findByPk(req.params.id);
-      if (!existing) return res.status(404).json({ success: false, message: 'Student not found' });
-      const checked = await validateStudentInput(req.body || {}, { ignoreStudentId: existing.student_id });
-      if (checked.errors.length) return res.status(400).json({ success: false, message: checked.errors.join('; ') });
-      const v = checked.value;
-      await existing.update({ batch_id: v.batch_id, usn: v.usn, student_name: v.student_name,
-        email: v.email, category: v.category, status: v.status });
-      res.json({ success: true, message: 'Student updated successfully', data: existing });
+      const data = await sequelize.transaction(async transaction => {
+        // Result confirmation takes this same row lock before inserting history.
+        const existing = await Student.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!existing) throw Object.assign(new Error('Student not found'), { status: 404 });
+        const checked = await validateStudentInput(req.body || {}, { ignoreStudentId: existing.student_id, transaction });
+        if (checked.errors.length) throw Object.assign(new Error(checked.errors.join('; ')), { status: 400 });
+        const v = checked.value;
+        const usnChanged = String(existing.usn).trim().toUpperCase() !== v.usn;
+        const batchChanged = String(existing.batch_id) !== String(v.batch_id);
+        if (usnChanged || batchChanged) {
+          // A locking read sees committed history even under REPEATABLE READ;
+          // validation may already have established an older read snapshot.
+          const history = await Result.findOne({ where: { student_id: existing.student_id },
+            attributes: ['result_id'], transaction, lock: transaction.LOCK.UPDATE });
+          if (history) {
+            const messages = [];
+            if (usnChanged) messages.push('USN cannot be changed because this student already has academic result history.');
+            if (batchChanged) messages.push('Batch cannot be changed because this student already has academic result history.');
+            throw Object.assign(new Error(messages.join(' ')), { status: 409 });
+          }
+        }
+        await existing.update({ batch_id: v.batch_id, usn: v.usn, student_name: v.student_name,
+          email: v.email, category: v.category, status: v.status }, { transaction });
+        return existing;
+      });
+      res.json({ success: true, message: 'Student updated successfully', data });
     } catch (err) {
+      if ([400, 404, 409].includes(err.status)) return res.status(err.status).json({ success: false, message: err.message });
       const error = studentSaveError(err);
       res.status(error.status).json({ success: false, message: error.message });
     }
@@ -296,7 +317,7 @@ const studentController = {
       if (!deleted) return res.status(404).json({ success: false, message: 'Student not found' });
       res.json({ success: true, message: 'Student deleted successfully' });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(500).json({ success: false, message: 'Unable to delete this student record. Please try again.' });
     }
   },
 
@@ -325,7 +346,7 @@ const studentController = {
       res.json({ success: true, data: { total: preview.length, valid: valid,
         invalid: preview.length - valid, rows: preview } });
     } catch (err) {
-      res.status(500).json({ success: false, message: 'Failed to parse file: ' + err.message });
+      res.status(500).json({ success: false, message: 'Unable to read the student file. Check its Excel/CSV format and required columns, then try again.' });
     }
   },
 
@@ -377,7 +398,7 @@ const studentController = {
         message: 'Import completed. Successfully imported: ' + imported + (restored ? ' (including ' + restored + ' restored)' : '') + ', Skipped: ' + skipped.length,
         data: { imported: imported, restored, skipped: skipped.length, skippedRows: skipped } });
     } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
+      res.status(500).json({ success: false, message: 'Student import could not be completed. Review the affected rows and try again.' });
     }
   }
 };

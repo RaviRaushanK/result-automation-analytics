@@ -63,6 +63,8 @@ function buildEventRemarksEx(importId, method, meta) {
     ' | approved ' + new Date().toISOString();
   return JSON.stringify({
     import_id: Number(importId) || null,
+    event_fingerprint: meta && meta.event_fingerprint || null,
+    document_event_reference: meta && meta.document_event_reference || null,
     source: meta && meta.source ? String(meta.source) : 'OCR_DETECTED',
     decision: meta && meta.decision ? String(meta.decision) : 'accept',
     was_manual_correction: !!(meta && meta.was_manual_correction),

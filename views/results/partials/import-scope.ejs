@@ -1,0 +1,10 @@
+<div class="alert alert-info" role="note">
+  <strong>Selected session: <%= sessionDisplay %></strong>
+  <div>Only subjects listed below with entered marks will be imported into this session. Subjects from another academic semester or examination period require a separate upload.</div>
+  <% if (typeof excludedSubjects !== 'undefined' && excludedSubjects.length) { %>
+    <div class="mt-2"><strong>Extracted subjects excluded from this upload:</strong>
+      <%= excludedSubjects.map(subject => subject.subject_code).join(', ') %>.
+      These subjects are not configured in the selected session and will not be imported. Upload them separately under the correct academic semester and examination period.
+    </div>
+  <% } %>
+</div>

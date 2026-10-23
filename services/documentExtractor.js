@@ -130,15 +130,17 @@ const documentExtractor = {
       if (!this.hasUsableSubjectRows(recovered, resultType, options.candidateSubjectCodes)) return primary;
       const primaryUsn = primary?.student?.usn;
       const recoveredUsn = recovered.student?.usn;
-      if (primaryUsn && recoveredUsn && this._normalizeUsn(primaryUsn) !== this._normalizeUsn(recoveredUsn)) {
+      if (primaryUsn && recoveredUsn && String(primaryUsn).trim().toUpperCase() !== String(recoveredUsn).trim().toUpperCase()) {
         console.warn('[documentExtractor] Additional OCR identity conflicts with the first extraction.');
-        return primary;
+        return { ...primary, integrity_conflicts: ['OCR readings identify conflicting student USNs. Re-extract the correct document.'] };
       }
       return {
         ...recovered,
         stages: { ...(primary?.stages || {}), recovery: { status: 'ok', method: recovered.extractionMethod } },
         student: { ...recovered.student, ...primary?.student },
         semester: primary?.semester ?? recovered.semester,
+        integrity_conflicts: [...(primary?.integrity_conflicts || []), ...(recovered.integrity_conflicts || []),
+          ...(primary?.semester && recovered.semester && Number(primary.semester) !== Number(recovered.semester) ? ['OCR readings disagree on the academic semester. Re-extract a clear document.'] : [])],
         warnings: [...(recovered.warnings || []),
           'Please verify the recovered subject marks against the original card before validating.']
       };

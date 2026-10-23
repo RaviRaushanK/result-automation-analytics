@@ -6,6 +6,8 @@ const fs = require('fs');
 // Document extraction service
 const documentExtractor = require('../services/documentExtractor');
 const academicPolicy = require('../services/academicPolicy');
+const integrity = require('../services/academicIntegrity');
+const configuration = require('../services/academicConfiguration');
 const academicOutcomes = require('../services/academicOutcomeService');
 const resultHistory = require('../services/resultHistoryService');
 const { sortBatches } = require('../public/js/academic-form-options');
@@ -45,7 +47,7 @@ const gradeFromPercent = academicPolicy.gradeFromPercent;
 // ============================================
 // Attempt parsing & validation (foundation for multi-attempt results)
 // ============================================
-const ALLOWED_EXAM_TYPES = academicPolicy.EXAM_TYPES;
+const ALLOWED_EXAM_TYPES = academicPolicy.NEW_EXAM_TYPES;
 
 // Sanitize attempt_no / exam_type coming from the browser/form state.
 // - attempt_no: absent (undefined/null omitted) -> default 1. Present but
@@ -75,8 +77,10 @@ function sanitizeAttempt(rawNo, rawType, defaults = { attempt_no: 1, exam_type: 
   }
 
   // exam_type
-  if (rawType === undefined || rawType === null || String(rawType).trim() === '') {
+  if (rawType === undefined) {
     examType = defaults.exam_type;
+  } else if (rawType === null || String(rawType).trim() === '') {
+    return { ok: false, errors: ['Exam Type is required.'] };
   } else {
     const t = String(rawType).trim().toUpperCase();
     if (!ALLOWED_EXAM_TYPES.includes(t)) {
@@ -86,6 +90,13 @@ function sanitizeAttempt(rawNo, rawType, defaults = { attempt_no: 1, exam_type: 
       };
     }
     examType = t;
+  }
+
+  if (examType === 'REGULAR' && attemptNo !== 1) {
+    return { ok: false, errors: ['REGULAR must use attempt 1. Use BACKLOG for a later attempt.'] };
+  }
+  if (examType === 'BACKLOG' && attemptNo < 2) {
+    return { ok: false, errors: ['BACKLOG starts at attempt 2, after REGULAR attempt 1.'] };
   }
 
   return { ok: true, attempt_no: attemptNo, exam_type: examType };
@@ -100,6 +111,7 @@ async function loadImportContext(importId) {
     }]
   });
   if (!log) return null;
+  if (log.import_type && log.import_type !== 'ORIGINAL') return null;
 
   const ocr = await OcrExtraction.findOne({
     where: { import_id: log.import_id },
@@ -157,8 +169,8 @@ async function duplicateResultError(student, session, attempt, transaction) {
 // markInputs: object keyed by `internal_<subject_id>` / `external_<subject_id>`
 async function buildValidatedPayload(sessionId, studentInput, markInputs, options = {}) {
   const errors = {};
-  const usn = ((studentInput && studentInput.usn) || '').trim().toUpperCase();
-  const name = ((studentInput && studentInput.name) || '').trim();
+  const usn = integrity.usn(studentInput?.usn);
+  const name = typeof studentInput?.name === 'string' ? studentInput.name.trim() : '';
 
   if (!usn) errors['student.usn'] = 'USN is required.';
   if (!name) errors['student.name'] = 'Student name is required.';
@@ -200,13 +212,12 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs, option
       || ['subject_name','subject_type','credits','max_internal','max_external','max_marks'].some(field => String(course[field]) !== String(s[field]))) {
       errors.form = 'An attempted subject has no matching academic course. Review its course definition before importing.';
     }
-    // Explicitly check for null/undefined/empty-string BEFORE parseInt so that
-    // "0" is NOT incorrectly treated as missing. parseInt returns NaN for empty
-    // string; we treat that as a required-field error rather than a range error.
+    // Keep genuine zero marks while rejecting malformed or fractional inputs.
     const iMissing = (iRaw === null || iRaw === undefined || iRaw === '');
     const eMissing = (eRaw === null || eRaw === undefined || eRaw === '');
-    const internal = iMissing ? NaN : parseInt(iRaw, 10);
-    const external = eMissing ? NaN : parseInt(eRaw, 10);
+    const parsedInternal = integrity.mark(iRaw), parsedExternal = integrity.mark(eRaw);
+    const internal = parsedInternal.invalid || !parsedInternal.present ? NaN : parsedInternal.value;
+    const external = parsedExternal.invalid || !parsedExternal.present ? NaN : parsedExternal.value;
 
     const fieldErrors = {};
     if (iMissing) {
@@ -264,6 +275,7 @@ async function buildValidatedPayload(sessionId, studentInput, markInputs, option
     errors,
     hasErrors,
     payload: {
+      configuration_snapshot: session ? configuration.snapshot(session, subjects, courses) : null,
       student: { usn, name },
       subjects: list,
       overallResult: (!hasErrors && failedCount === 0) ? 'pass' : 'fail',
@@ -283,6 +295,19 @@ function extractMarkInputs(body) {
     if (/^(internal|external)_\d+$/.test(key)) inputs[key] = body[key];
   });
   return inputs;
+}
+
+async function documentContextErrors(saved, session, payload, attempt, verified, mixedRequested, transaction) {
+  let mixedVerified = false;
+  if (mixedRequested && saved.excluded_subjects?.length) {
+    const courses = await AcademicCourse.findAll({ where: { batch_id: session.batch_id, status: 'active' }, raw: true, transaction });
+    const inSemester = course => Number(course.semester) === Number(session.semester);
+    const sameCode = (course, code) => String(course.subject_code).trim().toUpperCase() === String(code).trim().toUpperCase();
+    mixedVerified = saved.excluded_subjects.every(row => courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)))
+      && payload.subjects.every(row => courses.some(course => inSemester(course) && String(course.course_id) === String(row.course_id))
+        && !courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)));
+  }
+  return integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified);
 }
 
 const resultController = {
@@ -363,7 +388,7 @@ const resultController = {
       });
     } catch (err) {
       console.error('getSessionDetails error:', err);
-      res.status(500).json({ success: false, message: err.message });
+      res.status(500).json({ success: false, message: 'Unable to load the examination subjects. Reload and try again.' });
     }
   },
 
@@ -379,7 +404,9 @@ const resultController = {
 
       // Attempt authority for this import (validated server-side, never
       // trusted blindly at import time; persisted into the OCR payload).
-      const attempt = sanitizeAttempt(req.body.attempt_no, req.body.exam_type);
+      const attempt = req.body.exam_type === undefined
+        ? { ok: false, errors: ['Exam Type is required.'] }
+        : sanitizeAttempt(req.body.attempt_no, req.body.exam_type);
       if (!attempt.ok) {
         return res.redirect('/results/upload?error=' + encodeURIComponent(attempt.errors.join(' ')));
       }
@@ -430,12 +457,17 @@ const resultController = {
         expectedSubjectCodes, candidateSubjectCodes: sessionSubjects.map(subject => subject.subject_code)
       });
       const ex = extraction.extraction;
+      const conflicts = [...integrity.duplicateRows(ex.subjects), ...(ex.integrity_conflicts || [])];
+      const excludedSubjects = (ex.subjects || []).filter(row => row.subjectCode &&
+        !sessionSubjects.some(subject => subject.subject_code.toUpperCase() === String(row.subjectCode).trim().toUpperCase()))
+        .map(row => ({ subject_code: String(row.subjectCode).trim().toUpperCase(), subject_name: row.subjectName || '' }));
 
       // Subject identities always come from the database; extraction only proposes marks.
       const mappedSubjects = sessionSubjects.map(dbSub => {
-        const ocrSub = (ex.subjects || []).find(o =>
-          o.subjectCode && String(o.subjectCode).toUpperCase() === dbSub.subject_code.toUpperCase()
+        const matches = (ex.subjects || []).filter(o =>
+          o.subjectCode && String(o.subjectCode).trim().toUpperCase() === dbSub.subject_code.toUpperCase()
         );
+        const ocrSub = matches.length === 1 ? matches[0] : null;
         const hasMarks = ocrSub &&
           ocrSub.internalMarks !== null && ocrSub.internalMarks !== undefined &&
           ocrSub.externalMarks !== null && ocrSub.externalMarks !== undefined;
@@ -459,6 +491,8 @@ const resultController = {
         import_id: log.import_id,
         raw_text: String(ex.rawText || '').substring(0, 60000),
         extracted_json: {
+          document_evidence: { ...integrity.claims(ex), raw_text: ex.rawText || '', semester: ex.semester },
+          integrity_conflicts: conflicts,
           student: {
             usn: (ex.student && ex.student.usn) || '',
             name: (ex.student && ex.student.name) || ''
@@ -468,7 +502,8 @@ const resultController = {
             exam_type: attempt.exam_type
           },
           subjects: mappedSubjects,
-          warnings: ex.warnings || []
+          excluded_subjects: excludedSubjects,
+          warnings: [...(ex.warnings || []), ...conflicts]
         },
         validation_status: 'pending'
       });
@@ -481,7 +516,7 @@ const resultController = {
       if (log) {
         try { await log.update({ status: 'failed' }); } catch (e) { /* ignore */ }
       }
-      return res.redirect('/results/upload?error=' + encodeURIComponent('Extraction failed: ' + err.message));
+      return res.redirect('/results/upload?error=' + encodeURIComponent('The document could not be extracted. Upload a clear supported marks card and try again.'));
     }
   },
 
@@ -564,7 +599,7 @@ const resultController = {
       );
       const attemptInfo = savedAttempt.ok
         ? { attempt_no: savedAttempt.attempt_no, exam_type: savedAttempt.exam_type }
-        : { attempt_no: 1, exam_type: 'REGULAR' };
+        : { attempt_no: ctx.saved.attempt?.attempt_no || 1, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR' };
       let duplicateStudent = false;
       let registrationError = null;
       let nameError = null;
@@ -589,10 +624,11 @@ const resultController = {
         sessionDisplay: ctx.sessionDisplay,
         student: ctx.saved.student || { usn: '', name: '' },
         attempt: attemptInfo,
+        excludedSubjects: ctx.saved.excluded_subjects || [],
         subjects,
         warnings,
         extractionWarning,
-        formError: nameError || reviewError,
+        formError: nameError || reviewError || (!savedAttempt.ok ? savedAttempt.errors.join(' ') : null),
         registrationBlocked: !!registrationError,
         errors: nameError ? { 'student.name': nameError } : {},
         duplicateStudent,
@@ -617,6 +653,7 @@ const resultController = {
       if (!ctx || !ctx.ocr) {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Import record not found.'));
       }
+      if (ctx.log.status === 'success') return res.redirect('/results/upload/' + ctx.log.import_id + '/success');
 
       const markInputs = extractMarkInputs(req.body);
       const { errors, payload } = await buildValidatedPayload(
@@ -625,6 +662,7 @@ const resultController = {
         markInputs,
         { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
+      if (ctx.saved.integrity_conflicts?.length) errors.form = ctx.saved.integrity_conflicts.join(' ');
       let registrationError = null;
       let nameError = null;
       let registeredStudent = null;
@@ -657,9 +695,8 @@ const resultController = {
         confidence: 'edited'
       }));
 
-      // Attempt preservation: the review UI does not submit attempt fields.
-      // Only overwrite the persisted attempt when a trusted workflow explicitly
-      // submits them; otherwise preserve the attempt recorded at upload time.
+      // Review can correct the semester attempt number. Validate all submitted
+      // attempt fields; otherwise preserve the attempt recorded at upload time.
       // Legacy OCR payloads with no attempt info at all still fall back to
       // 1 / REGULAR (sanitizeAttempt's historical defaults) for compatibility.
       let attemptNo, examType;
@@ -671,7 +708,7 @@ const resultController = {
         // Explicit submission — validated with the existing sanitizeAttempt
         // (arbitrary client values are never trusted blindly). On failure,
         // fall back to the persisted values exactly as before.
-        const attempt = sanitizeAttempt(req.body.attempt_no, req.body.exam_type);
+        const attempt = sanitizeAttempt(req.body.attempt_no, req.body.exam_type ?? '');
         if (!attempt.ok) {
           if (!errors.form) errors.form = [];
           errors.form = errors.form.concat(attempt.errors);
@@ -692,25 +729,36 @@ const resultController = {
           attemptNo = persisted.attempt_no;
           examType = persisted.exam_type;
         } else {
-          attemptNo = 1;
-          examType = 'REGULAR';
+          if (!errors.form) errors.form = [];
+          errors.form = [].concat(errors.form, persisted.errors);
+          attemptNo = ctx.saved.attempt?.attempt_no || 1;
+          examType = ctx.saved.attempt?.exam_type || 'REGULAR';
         }
       }
 
       if (!registrationError && !nameError && registeredStudent) {
         const duplicateError = await duplicateResultError(registeredStudent, ctx.session, { attempt_no: attemptNo, exam_type: examType });
         if (duplicateError) errors.form = [errors.form, duplicateError].filter(Boolean).join(' ');
-        const historyError = await resultHistory.validationError(ctx.session, registeredStudent, { attempt_no: attemptNo, exam_type: examType });
+        const historyError = await resultHistory.validationError(ctx.session, registeredStudent, { attempt_no: attemptNo, exam_type: examType }, undefined, payload.subjects);
         if (historyError) errors.form = [errors.form, historyError].filter(Boolean).join(' ');
       }
       const historyWarnings = academicPolicy.isRetakeAttempt(examType)
         ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, attemptNo) : [];
+      const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, { exam_type: examType, attempt_no: attemptNo }, req.body.verify_document_context === '1', req.body.verify_mixed_context === '1');
+      if (documentErrors.length) errors.form = [errors.form, ...documentErrors].filter(Boolean).join(' ');
       await ctx.ocr.update({
         extracted_json: {
+          configuration_snapshot: payload.configuration_snapshot,
+          review_token: Object.keys(errors).length ? null : crypto.randomUUID(),
+          document_context_verified: req.body.verify_document_context === '1',
+          mixed_context_verified: req.body.verify_mixed_context === '1',
+          document_evidence: ctx.saved.document_evidence,
+          integrity_conflicts: ctx.saved.integrity_conflicts || [],
           student: payload.student,
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects: mergedSubjects,
-          warnings: historyWarnings
+          excluded_subjects: ctx.saved.excluded_subjects || [],
+          warnings: [...historyWarnings, ...(ctx.saved.integrity_conflicts || [])]
         },
         validation_status: Object.keys(errors).length > 0 ? 'pending' : 'validated'
       });
@@ -749,6 +797,7 @@ const resultController = {
           sessionDisplay: ctx.sessionDisplay,
           student: payload.student,
           attempt: { attempt_no: attemptNo, exam_type: examType },
+          excludedSubjects: ctx.saved.excluded_subjects || [],
           subjects,
           warnings: historyWarnings,
           extractionWarning: Object.keys(errors).some(key => key !== 'form' && !(nameError && key === 'student.name'))
@@ -809,7 +858,7 @@ const resultController = {
         if (duplicateError) return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(duplicateError));
       }
       const historyError = previewAttempt.ok
-        ? await resultHistory.validationError(ctx.session, student, previewAttempt) : previewAttempt.errors.join(' ');
+        ? await resultHistory.validationError(ctx.session, student, previewAttempt, undefined, payload.subjects) : previewAttempt.errors.join(' ');
       if (historyError) return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(historyError));
       if (previewAttempt.ok) {
         const history = await academicOutcomes.load(ctx.session.batch_id, [student.student_id], 'original');
@@ -818,6 +867,7 @@ const resultController = {
       }
 
       res.render('results/preview', {
+        reviewToken: ctx.saved.review_token,
         title: 'Validated Preview - SRAAS',
         breadcrumbItems: [
           { label: 'Result Management' },
@@ -831,6 +881,7 @@ const resultController = {
           exam_type: (ctx.saved.attempt && ctx.saved.attempt.exam_type) || 'REGULAR'
         },
         data: payload,
+        excludedSubjects: ctx.saved.excluded_subjects || [],
         warnings: academicPolicy.isRetakeAttempt(ctx.saved.attempt?.exam_type)
           ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, ctx.saved.attempt?.attempt_no) : [],
         fileUrl: ctx.fileUrl,
@@ -856,6 +907,28 @@ const resultController = {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Import record not found.'));
       }
 
+      // Coordinate with Session Management so its identity cannot change during import.
+      const lockedSession = await ResultSession.findByPk(ctx.session.session_id, { transaction: t, lock: true });
+      if (!lockedSession || ['batch_id', 'semester', 'exam_session', 'exam_year'].some(field => String(lockedSession[field]) !== String(ctx.session[field]))) {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent('The examination session changed. Review its semester and examination period before importing.'));
+      }
+      // All curriculum writers take this batch lock before changing definitions.
+      const lockedBatch = await Batch.findByPk(lockedSession.batch_id, { transaction: t, lock: true });
+      if (!lockedBatch) throw new Error('Academic batch is unavailable.');
+      const currentLog = await ImportLog.findByPk(ctx.log.import_id, { transaction: t, lock: true });
+      if (!currentLog || currentLog.import_type && currentLog.import_type !== 'ORIGINAL') throw new Error('Invalid import type.');
+      if (currentLog.status === 'success') {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/success');
+      }
+      const currentOcr = await OcrExtraction.findOne({ where: { import_id: ctx.log.import_id }, order: [['extraction_id','DESC']], transaction: t, lock: true });
+      const currentSaved = typeof currentOcr?.extracted_json === 'string' ? safeParseJson(currentOcr.extracted_json) : currentOcr?.extracted_json;
+      if (!currentOcr || integrity.digest(currentSaved) !== integrity.digest(ctx.saved)) {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent('The reviewed document or decisions changed. Reload and Validate the current review before confirming.'));
+      }
+
       const markInputs = {};
       ctx.saved.subjects.forEach(s => {
         if (s.internalMarks !== '' && s.internalMarks !== null && s.internalMarks !== undefined) {
@@ -869,13 +942,14 @@ const resultController = {
       const { errors, payload } = await buildValidatedPayload(ctx.session.session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR', transaction: t });
       if (Object.keys(errors).length > 0) {
         await t.rollback();
-        return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
+        return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent('Marks or the subject roster are no longer valid. Review the current marking limits and required courses, then Validate again.'));
       }
 
       // Student registration is required; result imports never provision students.
       const student = await Student.findOne({
         where: { usn: payload.student.usn },
-        transaction: t
+        transaction: t,
+        lock: true // Serialize semester attempt numbering for this student.
       });
 
       const registrationError = studentRegistrationError(student, ctx.session, payload.student.usn);
@@ -901,10 +975,25 @@ const resultController = {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
       }
 
-      const historyError = await resultHistory.validationError(ctx.session, student, attempt, t);
+      if (ctx.saved.integrity_conflicts?.length) {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(ctx.saved.integrity_conflicts.join(' ')));
+      }
+      const historyError = await resultHistory.validationError(ctx.session, student, attempt, t, payload.subjects);
       if (historyError) {
         await t.rollback();
         return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(historyError));
+      }
+      const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, attempt, ctx.saved.document_context_verified === true, ctx.saved.mixed_context_verified === true, t);
+      if (documentErrors.length) {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(documentErrors.join(' ')));
+      }
+      if (ctx.ocr.validation_status !== 'validated' || !ctx.saved.configuration_snapshot
+        || ctx.saved.configuration_snapshot !== payload.configuration_snapshot || !ctx.saved.review_token
+        || req.body?.review_token !== ctx.saved.review_token) {
+        await t.rollback();
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent('This result was reviewed against older or unvalidated academic data. Review and Validate the current student, session, roster and marks again before confirmation.'));
       }
 
       // 2) Duplicate guard: block if this exact attempt already exists for
@@ -923,7 +1012,7 @@ const resultController = {
         return res.redirect('/results/logs?error=' + encodeURIComponent(
           'Duplicate blocked: ' + payload.student.usn + ' already has attempt ' +
           attempt.attempt_no + ' (' + attempt.exam_type + ') in this session. ' +
-          'Choose a different attempt number to create a new attempt.'
+          'Use the next semester attempt number for a new BACKLOG sitting.'
         ));
       }
 
@@ -975,7 +1064,7 @@ const resultController = {
         const failedLog = await ImportLog.findByPk(req.params.importId);
         if (failedLog) await failedLog.update({ status: 'failed' });
       } catch (e) { /* ignore */ }
-      return res.redirect('/results/logs?error=' + encodeURIComponent('Import failed: ' + err.message));
+      return res.redirect('/results/logs?error=' + encodeURIComponent('Import could not be completed. Review the current academic data and try again.'));
     }
   },
 
@@ -1076,7 +1165,7 @@ const resultController = {
   // ========================
   all: async (req, res) => {
     try { res.json(await Result.findAll()); }
-    catch (err) { res.status(500).json({ error: err.message }); }
+    catch (err) { res.status(500).json({ error: 'Unable to load saved results. Please try again.' }); }
   },
 
   getById: async (req, res) => {
@@ -1084,80 +1173,25 @@ const resultController = {
       const data = await Result.findByPk(req.params.id);
       if (!data) return res.status(404).json({ error: 'Result not found' });
       res.json(data);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: 'Unable to load this result. Please try again.' }); }
   },
 
   getByStudent: async (req, res) => {
     try { res.json(await Result.findAll({ where: { student_id: req.params.student_id } })); }
-    catch (err) { res.status(500).json({ error: err.message }); }
+    catch (err) { res.status(500).json({ error: 'Unable to load this student result history. Please try again.' }); }
   },
 
   create: async (req, res) => {
-    const t = await sequelize.transaction();
-    try {
-      // LEGACY JSON endpoint (intentionally NOT an attempt-authoring surface).
-      // attempt_no / exam_type are always server-controlled: first sitting /
-      // REGULAR. Any client-supplied attempt_no, exam_type or result_uuid in
-      // req.body is silently ignored (explicit allowlist, no mass assignment).
-      const {
-        student_id,
-        session_id,
-        sgpa,
-        cgpa,
-        result_status,
-        failed_subject_count
-      } = req.body;
-
-      const session = await ResultSession.findByPk(session_id, { transaction: t });
-      const student = await Student.findByPk(student_id, { transaction: t });
-      const historyError = await resultHistory.validationError(session, student, { attempt_no: 1, exam_type: 'REGULAR' }, t);
-      if (historyError) {
-        await t.rollback();
-        return res.status(422).json({ error: historyError });
-      }
-      const result = await Result.create({
-        result_uuid: crypto.randomUUID(), // server-generated, never client-controlled
-        student_id,
-        session_id,
-        attempt_no: 1,                    // forced — disallow client control
-        exam_type: 'REGULAR',             // forced — disallow client control
-        sgpa_source: 'UNKNOWN', cgpa_source: 'UNKNOWN', cgpa_is_cumulative: false,
-        sgpa,
-        cgpa,
-        result_status,
-        failed_subject_count
-      }, { transaction: t });
-      await t.commit();
-      res.status(201).json(result);
-    } catch (err) {
-      await t.rollback();
-      // DB-level UNIQUE(student_id, session_id, attempt_no) remains the backstop.
-      res.status(500).json({ error: err.message });
-    }
+    return res.status(403).json({ error: 'Academic results must be created through Upload, Review, Validate and Confirm. Generic result creation is disabled to prevent incomplete academic history.' });
   },
 
   update: async (req, res) => {
-    try {
-      // LEGACY JSON endpoint — only the mutable academic snapshot fields can be
-      // updated here. identity (result_id/student_id/session_id), attempt
-      // (attempt_no/exam_type) and result_uuid are immutable via this route.
-      const { sgpa, cgpa, result_status, failed_subject_count } = req.body;
-
-      const [updated] = await Result.update(
-        { sgpa, cgpa, result_status, failed_subject_count, sgpa_source: 'UNKNOWN', cgpa_source: 'UNKNOWN', cgpa_is_cumulative: false, grading_scheme_version: null },
-        { where: { result_id: req.params.id } }
-      );
-      if (!updated) return res.status(404).json({ error: 'Result not found' });
-      res.json({ message: 'Updated successfully' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    // Retired legacy mutation: original history is not a generic CRUD resource.
+    return res.status(403).json({ error: 'Imported academic results cannot be directly edited. Use the appropriate controlled academic workflow.' });
   },
 
   delete: async (req, res) => {
-    try {
-      const deleted = await Result.destroy({ where: { result_id: req.params.id } });
-      if (!deleted) return res.status(404).json({ error: 'Result not found' });
-      res.json({ message: 'Deleted successfully' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    return res.status(403).json({ error: "Imported academic results cannot be deleted because they form part of the student's permanent academic history." });
   }
 };
 

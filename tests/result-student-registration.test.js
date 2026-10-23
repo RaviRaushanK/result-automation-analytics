@@ -132,6 +132,8 @@ async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test St
   const definition = { subject_id: 1, course_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 100, max_marks: 150 };
   const course = { ...definition, semester: '1', status: 'active', is_required: true, roster_verified: true };
   replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', file_type: 'pdf', ResultSession: session }));
+  replace(db.ResultSession, 'findByPk', async () => session);
+  replace(db.Batch, 'findByPk', async () => ({ batch_id: 1 }));
   const ocr = { extracted_json: { student: { ...identity }, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] },
     update: async data => { updates.push(data); Object.assign(ocr, data); } };
@@ -140,6 +142,7 @@ async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test St
   replace(db.AcademicCourse, 'findAll', async () => [course]);
   replace(db.Student, 'findOne', async options => { assert.notEqual(options.paranoid, false); return student; });
   replace(db.Result, 'findOne', async () => null);
+  replace(db.Result, 'findAll', async () => []);
   replace(outcomes, 'load', async () => ({ courses: [course], results: [], subjects: [] }));
   for (const [object, method] of [[db.Student, 'create'], [db.Student, 'update'], [db.Result, 'create'], [db.SubjectResult, 'bulkCreate']]) {
     replace(object, method, () => { assert.fail('No student or academic result may be written'); });
@@ -147,7 +150,7 @@ async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test St
   replace(db.sequelize, 'transaction', async () => ({ rollback: async () => { rolledBack = true; }, commit: async () => assert.fail('Must not commit a blocked import') }));
   const invoke = async (method, options = {}) => {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, render(view, locals) { this.view = view; this.locals = locals; }, redirect(url) { this.url = url; } };
-    await controller[method]({ params: { importId: '9' }, query: {}, body: { usn: identity.usn.toLowerCase(), name: identity.name, internal_1: 42, external_1: 34 }, ...options }, response);
+    await controller[method]({ params: { importId: '9' }, query: {}, ...options, body: { usn: identity.usn.toLowerCase(), name: identity.name, internal_1: 42, external_1: 34, verify_document_context: '1', ...options.body } }, response);
     return response;
   };
   try { await run({ invoke, updates, ocr, isRolledBack: () => rolledBack }); }

@@ -125,6 +125,7 @@ async function runTesseractOcr(imageBuffer) {
 // ------------------------------------------------------------
 function toMark(v) {
     if (v === null || v === undefined || v === '') return null;
+    if (!['string','number'].includes(typeof v)) return null;
     const text = String(v).trim();
     if (!/^\d{1,3}$/.test(text)) return null;
     const n = Number(text);
@@ -281,6 +282,7 @@ function buildExtraction({ filePath, resultType, merged, rawText, extractionMeth
     if (subjects.length === 0) warnings.push('No subjects could be extracted from the result document.');
 
     return {
+        integrity_conflicts: require('./academicIntegrity').duplicateRows(merged.subjects),
         documentType: path.extname(filePath).replace('.', ''),
         extractionMethod,
         rawText: rawText || '',
@@ -404,6 +406,9 @@ const vlmExtractor = {
         }
 
         const warningCount = stageWarnings.length;
+        const reconciliationConflicts = require('./academicIntegrity').duplicateRows(merged?.subjects || []);
+        if (merged?.usn && mergedVision.usn && String(merged.usn).trim().toUpperCase() !== String(mergedVision.usn).trim().toUpperCase()) reconciliationConflicts.push('AI readings identify conflicting student USNs. Re-extract the correct document.');
+        if (merged?.semester && mergedVision.semester && Number(merged.semester) !== Number(mergedVision.semester)) reconciliationConflicts.push('AI readings disagree on the academic semester. Re-extract the correct document.');
         merged = reconcileReadings(mergedVision, merged, resultType, stageWarnings);
         if (stageWarnings.length > warningCount && stages.llm.status === 'ok') stages.llm.status = 'partial';
 
@@ -415,6 +420,12 @@ const vlmExtractor = {
             pageCount: pageImages.length
         });
         extraction.stages = stages;
+        extraction.semesters = [...new Set(visionPerPage.filter(Boolean).map(page => page.semester).filter(value => value !== null && value !== undefined))];
+        extraction.usns = [...new Set(visionPerPage.filter(Boolean).map(page => page.usn).filter(Boolean))];
+        extraction.integrity_conflicts.push(...reconciliationConflicts);
+        extraction.integrity_conflicts.push(...require('./academicIntegrity').duplicateRows(mergedVision.subjects));
+        if (new Set(visionPerPage.filter(Boolean).map(page => page.usn).filter(Boolean).map(value => String(value).toUpperCase())).size > 1) extraction.integrity_conflicts.push('Document pages identify conflicting student USNs. Upload the correct student document.');
+        extraction.integrity_conflicts.push(...stageWarnings.filter(warning => /disagree|Duplicate/i.test(warning)));
         extraction.warnings.push(...stageWarnings);
 
         return {

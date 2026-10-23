@@ -1,5 +1,5 @@
 'use strict';
-const { AcademicCourse, Subject, SubjectResult } = require('../database/models');
+const { AcademicCourse, Subject, SubjectResult, Result, ResultSession } = require('../database/models');
 const { Op } = require('sequelize');
 const { SCHEME } = require('./academicPolicy');
 const fields = ['subject_code','subject_name','subject_type','credits','max_internal','max_external','max_marks'];
@@ -8,7 +8,8 @@ async function resolve(session, definition, transaction) {
     throw Object.assign(new Error('The examination session has no valid academic semester.'), { status: 409 });
   }
   const identity = { batch_id: session.batch_id, semester: String(Number(session.semester)), subject_code: definition.subject_code.trim().toUpperCase() };
-  const [course] = await AcademicCourse.findOrCreate({ where: identity, defaults: { ...definition, ...identity, grading_scheme_version: SCHEME, roster_verified: false }, transaction });
+  const [course, created] = await AcademicCourse.findOrCreate({ where: identity, defaults: { ...definition, ...identity, grading_scheme_version: SCHEME, roster_verified: false }, transaction });
+  if (created && await Result.count({ include: [{ model: ResultSession, required: true, where: { batch_id: session.batch_id, semester: identity.semester } }], transaction, lock: true })) throw Object.assign(new Error('A new academic course cannot be added to a semester with saved results. Reuse the original course for a backlog offering, or configure the new syllabus in its own batch.'), { status: 409 });
   if (course.status !== 'active' || fields.some(field => String(course[field]) !== String(definition[field]))) {
     const error = new Error('The course definition conflicts with this semester\'s existing course. Review the academic course roster before saving.'); error.status = 409; throw error;
   }
@@ -30,8 +31,8 @@ async function updateOffering(subject, session, definition, transaction) {
   const offerings = await Subject.findAll({ where: { course_id: course.course_id }, transaction, lock: transaction.LOCK?.UPDATE });
   const ids = [...new Set([...offerings.map(row => row.subject_id), subject.subject_id])];
   const structural = ['subject_type', 'credits', 'max_internal', 'max_external', 'max_marks'].some(field => Object.hasOwn(changes, field));
-  if (structural && await SubjectResult.count({ where: { [Op.or]: [{ subject_id: { [Op.in]: ids } }, { course_id_snapshot: course.course_id }] }, transaction })) {
-    throw Object.assign(new Error('Credits, subject type and marking limits cannot change after results exist for this course. Subject code and name can still be corrected.'), { status: 409 });
+  if ((structural || Object.hasOwn(changes, 'subject_code')) && await SubjectResult.count({ where: { [Op.or]: [{ subject_id: { [Op.in]: ids } }, { course_id_snapshot: course.course_id }] }, transaction, lock: true })) {
+    throw Object.assign(new Error('Course code, credits, subject type and marking limits cannot change after results exist for this course. The descriptive name can still be corrected.'), { status: 409 });
   }
   const duplicate = await AcademicCourse.findOne({ where: { ...scope, subject_code: updated.subject_code, course_id: { [Op.ne]: course.course_id } }, transaction });
   if (duplicate) throw Object.assign(new Error('Another academic course already uses this subject code in the selected batch and semester.'), { status: 409 });

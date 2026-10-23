@@ -23,7 +23,7 @@
           <label class="form-label" for="report-exam_type">Exam Type (Optional)</label>
           <select class="form-select" id="report-exam_type" name="exam_type">
             <option value="">All Exam Types</option>
-            <% ['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'].forEach(type => { %><option value="<%= type %>"><%= type %></option><% }); %>
+            <% ['REGULAR', 'BACKLOG'].forEach(type => { %><option value="<%= type %>"><%= type === 'REGULAR' ? 'Regular' : 'Backlog' %></option><% }); %>
           </select>
         </div>
       <% } %>

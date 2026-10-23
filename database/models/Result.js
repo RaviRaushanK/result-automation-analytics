@@ -42,7 +42,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
-      comment: 'Attempt number for this student+session; 1 = first sitting. No schema-level cap.'
+      comment: 'Student semester attempt across sessions: REGULAR 1, BACKLOG 2 onward. Historical numbers are preserved.'
     },
     exam_type: {
       type: DataTypes.ENUM('REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT'),

@@ -25,12 +25,14 @@ const {
 const marksCardValidation = require('../public/js/marks-card-validation');
 const revaluationValidator = require('../services/revaluationValidator');
 const revaluationPersistence = require('../services/revaluationPersistence');
+const revaluationIntegrity = require('../services/revaluationIntegrity');
+const academicIntegrity = require('../services/academicIntegrity');
 
 const REVAL_PENDING_SECONDS = 15 * 60;
 
 function resolveAdminId(req) {
   return (req.user && req.user.adminId) ||
-         (req.session && req.session.adminId) || 1;
+         (req.session && req.session.adminId) || null;
 }
 
 function safeJson(v) {
@@ -595,6 +597,7 @@ exports.processUpload = async (req, res) => {
         session_id: Number(result.session_id),
         attempt: { attempt_no: Number(result.attempt_no), exam_type: result.exam_type },
         documents: [{
+          sha256: academicIntegrity.digest(fs.readFileSync(storedPath)),
           file_name: secureName, file_path: storedPath, file_url: fileUrl,
           file_type: ext.replace(/^\./, ''), uploaded_by: adminId
         }],
@@ -643,7 +646,7 @@ exports.processUpload = async (req, res) => {
         encodeURIComponent('Could not replace the previous document. Please try again.'));
     }
     return res.redirect(`/revaluation/${result.result_id}/upload?error=` +
-      encodeURIComponent('Failed to register revaluation: ' + (err.message || 'server error')));
+      encodeURIComponent('The revaluation upload could not be registered. Verify the selected examination attempt and try again.'));
   }
 
   return extractRevaluationImport(importLog.import_id, res);
@@ -798,7 +801,7 @@ async function extractRevaluationImport(importId, res) {
       ocr: {
         extraction_status: 'failed',
         failed_reason: 'EXTRACTION_ERROR',
-        error: err.message || 'OCR extraction failed.',
+        error: 'The document could not be extracted. Try a clear supported marks card.',
         warnings: []
       }
     };
@@ -878,7 +881,7 @@ function checkOcrIdentity(ocrCandidates, serverStudent) {
   const nameMatch = serverNameOk && ocrNameOk && normText(serverName) === normText(ocrName);
   // I/O-tolerant USN comparison (I→1, O→0) so OCR I↔1 / O↔0 drift
   // does not produce false mismatches. Mirrors normalizeUsnForCompare.
-  const normUsn = v => String(v || '').toUpperCase().replace(/I/g, '1').replace(/O/g, '0').replace(/[^A-Z0-9]/g, '');
+  const normUsn = academicIntegrity.usn;
   const usnMatch  = serverUsnOk  && ocrUsnOk  && normUsn(serverUsn)  === normUsn(ocrUsn);
 
   const bothMatch    = nameMatch && usnMatch;
@@ -900,8 +903,9 @@ function checkOcrIdentity(ocrCandidates, serverStudent) {
     requiresConfirmation = true;
     message = 'Both student name and USN on the marks card differ from the selected student. Please confirm this marks card belongs to the selected student.';
   } else if (nameMatch && !usnMatch) {
-    severity = 'warning';
-    message = 'Student name matches but USN differs (' + (ocrUsnOk ? '"' + ocrUsn + '"' : 'not extracted') + ' vs "' + serverUsn + '"). You may continue.';
+    severity = 'mismatch';
+    requiresConfirmation = true;
+    message = 'Document USN differs from the selected student. A conflicting USN cannot be overridden; select the correct attempt or replace the document.';
   } else if (!nameMatch && usnMatch) {
     severity = 'warning';
     message = 'USN matches but student name differs ("' + (ocrNameOk ? ocrName : '(not extracted)') + '" vs "' + serverName + '"). You may continue.';
@@ -1010,11 +1014,15 @@ async function hasApprovedRevaluationForResult(resultId, t) {
   }
 }
 
-async function duplicateRevaluationError(result, transaction) {
-  const guard = await hasApprovedRevaluationForResult(result.result_id, transaction);
-  if (!guard.ok) return 'Could not verify existing revaluation results. Please try validation again.';
-  return guard.approved ? 'A revaluation result for USN ' + (result.Student?.usn || 'in this attempt') +
-    ' already exists for this examination session and attempt. Another revaluation result cannot be saved.' : null;
+async function duplicateRevaluationError(result, transaction, saved, targets) {
+  try {
+    const rows = await RevaluationResult.findAll({ where: { revaluation_status: 'approved',
+      subject_result_id: targets }, transaction });
+    return rows.some(row => targets.map(Number).includes(Number(row.subject_result_id)) && (safeJson(row.remarks).event_fingerprint === revaluationIntegrity.eventFingerprint(saved, row.subject_result_id)
+      || revaluationIntegrity.eventReference(saved) && safeJson(row.remarks).document_event_reference === revaluationIntegrity.eventReference(saved)
+      || saved.documents?.[0]?.sha256 && row.file_path && fs.existsSync(row.file_path) && academicIntegrity.digest(fs.readFileSync(row.file_path)) === saved.documents[0].sha256))
+      ? 'This revaluation document has already been approved for this subject and attempt. Open its saved outcome; uploading the same document under another name cannot create another event.' : null;
+  } catch (error) { console.error('Revaluation duplicate lookup failed:', error); return 'Could not verify existing revaluation results. Please try validation again.'; }
 }
 
 /**
@@ -1037,11 +1045,12 @@ async function supersedeRevaluationImport(resultId, t) {
          FROM import_logs i
          JOIN ocr_extractions x ON x.import_id = i.import_id
         WHERE i.import_type = 'REVALUATION'
-          AND i.status != 'approved'
+          AND i.status NOT IN ('approved', 'success')
         ORDER BY i.import_id ASC`,
       { type: require('sequelize').QueryTypes.SELECT, transaction: t || undefined }
     );
     for (const row of Array.isArray(rows) ? rows : []) {
+      if (['success', 'approved'].includes(String(row.status).toLowerCase())) continue;
       let j = row && row.extracted_json;
       if (j === null || j === undefined) continue;
       try {
@@ -1216,12 +1225,7 @@ function canonicalLetter(raw) {
 
 /** Strict integer-field parse: absent -> present:false; garbage -> invalid:true. */
 function normalizeIntInput(v) {
-  if (v === undefined || v === null || String(v).trim() === '') {
-    return { present: false, value: null };
-  }
-  const s = String(v).trim();
-  if (!/^-?[0-9]+$/.test(s)) return { present: true, value: null, invalid: true };
-  return { present: true, value: parseInt(s, 10) };
+  return academicIntegrity.mark(v);
 }
 
 /** Server-side bounds ladder, mirroring buildValidatedPayload fallbacks. */
@@ -1385,14 +1389,14 @@ const enc = encodeURIComponent;
 function loadResultContextFull(resultId, t, lock) {
   const opts = {
     include: [
-      { model: Student, attributes: ['student_name', 'usn'] },
-      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year'] },
+      { model: Student, attributes: ['student_name', 'usn', 'batch_id'] },
+      { model: ResultSession, attributes: ['semester', 'exam_session', 'exam_year', 'batch_id'] },
       {
         model: SubjectResult,
-        attributes: ['subject_result_id', 'result_id', 'subject_id', 'marks', 'grade', 'result_status'],
+        attributes: ['subject_result_id', 'result_id', 'subject_id', 'internal_marks', 'external_marks', 'marks', 'grade', 'result_status'],
         include: [{
           model: Subject,
-          attributes: ['subject_code', 'subject_name', 'credits',
+          attributes: ['subject_code', 'subject_name', 'credits', 'session_id', 'course_id',
                        'max_internal', 'max_external', 'max_marks']
         }]
       }
@@ -1446,6 +1450,7 @@ exports.confirmIdentity = async (req, res) => {
     } catch (_) {}
   }
   const identityCheck = checkOcrIdentity(ocrCandidates, serverStudent || {});
+  if (ocrCandidates.usn && academicIntegrity.usn(ocrCandidates.usn_raw || ocrCandidates.usn) !== academicIntegrity.usn(serverStudent?.usn)) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('Document USN conflicts with the selected student. This mismatch cannot be confirmed away. Replace the document or select the correct student attempt.'));
   if (!identityCheck.requiresConfirmation) {
     return res.redirect('/revaluation/review/' + importId);
   }
@@ -1684,6 +1689,9 @@ async function loadReviewState(importId, optsIn) {
     result, srById, rows,
     meta: {
       importId: Number(log.import_id),
+      sourceToken: revaluationIntegrity.digest(saved),
+      reviewToken: review ? revaluationIntegrity.digest(review) : '',
+      documentChecks: revaluationIntegrity.checks(saved, result),
       resultId: Number(result.result_id),
       studentName: result.Student ? result.Student.student_name : '',
       studentUsn: result.Student ? result.Student.usn : '',
@@ -1848,6 +1856,8 @@ exports.submitReview = async (req, res) => {
   // Authority: server-side student from the Result row (not browser-supplied values).
   // identity_confirmed is set only by confirmIdentity (admin POST on /confirm-identity).
   if (st.saved && st.saved.ocr) {
+    const contradictions = revaluationIntegrity.verify(st.saved, st.result, [], true).errors;
+    if (contradictions.length) return res.redirect('/revaluation/review/' + importId + '?error=' + enc(contradictions.join(' ')));
     const ocrCandidates = st.saved.ocr.student_candidates || {};
     const resultStudent = (st.result && st.result.Student)
       ? { student_name: st.result.Student.student_name, usn: st.result.Student.usn }
@@ -1862,11 +1872,10 @@ exports.submitReview = async (req, res) => {
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
 
   const body = req.body || {};
+  if (body.source_token !== revaluationIntegrity.digest(st.saved)) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('The review changed. Reload and review the current document and decisions before validating.'));
   const attempts = [];       // { sourceSrid, targetSrid, dup?, proposal }
   const fieldErrors = {};    // srid -> [messages]
   const enteredVals = {};
-  const duplicateError = await duplicateRevaluationError(st.result);
-  if (duplicateError) return failRender(duplicateError);
 
   for (const row of st.rows) {
     const srid = row.srid;
@@ -2008,6 +2017,10 @@ exports.submitReview = async (req, res) => {
   if (accepts.length === 0) {
     return failRender('No subjects were accepted. Accept at least one subject or reject the revaluation from the extraction stage.');
   }
+  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, accepts.map(a => a.proposal), body.verify_missing_context === '1').errors;
+  if (identityErrors.length) return failRender(identityErrors.join(' '));
+  const duplicateError = await duplicateRevaluationError(st.result, undefined, st.saved, accepts.map(a => a.targetSrid));
+  if (duplicateError) return failRender(duplicateError);
 
   // Per-TARGET baselines snapshot from CURRENT DB values + D6 display preview.
   const baselines = {};
@@ -2036,10 +2049,13 @@ exports.submitReview = async (req, res) => {
         { transaction: t, lock: t.LOCK.UPDATE });
       if (!freshOcr) throw new Error('OcrExtraction record disappeared during submission.');
       const currentJson = safeJson(freshOcr.extracted_json);
+      if (revaluationIntegrity.digest(currentJson) !== body.source_token) throw new StaleState('The extraction or review changed. Reload and review it again.');
 
       const nextJson = Object.assign({}, currentJson, {
         review: {
-          version: 1,
+          version: Number(currentJson.review?.version || 0) + 1,
+          identity_verified: body.verify_missing_context === '1',
+          target_snapshot: revaluationIntegrity.snapshot(st.result),
           submitted_at: new Date().toISOString(),
           submitted_by: resolveAdminId(req),
           proposal: parsed.map(a => Object.assign({}, a.proposal))
@@ -2057,7 +2073,7 @@ exports.submitReview = async (req, res) => {
     return res.redirect(`/revaluation/review/${importId}`);
   } catch (err) {
     return res.redirect(`/revaluation/review/${importId}?error=` +
-      enc('Could not save decisions: ' + (err.message || 'server error')));
+      enc(err instanceof StaleState ? err.message : 'Could not save decisions. Reload the current review, verify the document and try again.'));
   }
 };
 
@@ -2079,6 +2095,7 @@ exports.addMissing = async (req, res) => {
   }
   if (!st.ok) return res.redirect(st.redirect);
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
+  if (req.body?.source_token !== revaluationIntegrity.digest(st.saved)) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('The review changed. Reload it before adding a subject.'));
 
   const body = req.body || {};
   const srid = Number(body.subject_result_id);
@@ -2170,6 +2187,8 @@ exports.addMissing = async (req, res) => {
   const entry = {
     subject_result_id: srid,
     source: 'MISSING_MANUAL',
+    proposed_revised_internal_marks: im.value,
+    proposed_revised_external_marks: em.value,
     decision: 'accept',
     was_manual_correction: true,
     // Values from auto-calculation
@@ -2199,18 +2218,24 @@ exports.addMissing = async (req, res) => {
   }
 
   // Merge into existing review proposal
+  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, [entry], req.body.verify_missing_context === '1').errors;
+  if (identityErrors.length) return res.redirect('/revaluation/review/' + importId + '?error=' + enc(identityErrors.join(' ')));
   const t = await sequelize.transaction();
   try {
     const freshOcr = await OcrExtraction.findByPk(st.ocrRow.extraction_id,
       { transaction: t, lock: t.LOCK.UPDATE });
     if (!freshOcr) throw new Error('OcrExtraction record disappeared.');
     const currentJson = safeJson(freshOcr.extracted_json);
+    if (revaluationIntegrity.digest(currentJson) !== req.body.source_token) throw new StaleState('The extraction or review changed. Reload it before adding a subject.');
     const existingProposal = (currentJson.review && Array.isArray(currentJson.review.proposal))
       ? currentJson.review.proposal : [];
     const nextProposal = existingProposal.concat(entry);
     const nextJson = Object.assign({}, currentJson, {
       review: Object.assign({}, currentJson.review || {}, {
         version: ((currentJson.review && currentJson.review.version) || 0) + 1,
+        target_snapshot: revaluationIntegrity.snapshot(st.result),
+        identity_verified: req.body.verify_missing_context === '1',
+        baselines: { ...(currentJson.review?.baselines || {}), [srid]: { marks: Number(sr.marks), status: sr.result_status } },
         proposal: nextProposal
       })
     });
@@ -2222,7 +2247,7 @@ exports.addMissing = async (req, res) => {
     if (!t.finished) await t.rollback();
     console.error('[revaluation] addMissing tx error:', err);
     return res.redirect(`/revaluation/review/${importId}?error=` +
-      enc('Could not save: ' + (err.message || 'server error')));
+      enc(err instanceof StaleState ? err.message : 'Could not save the subject. Reload the current review and verify its document.'));
   }
 };
 
@@ -2290,6 +2315,7 @@ exports.approveReview = async (req, res) => {
     if (!review || !Array.isArray(review.proposal) || !review.baselines) {
       throw new StaleState('Stored review proposal missing — re-run the review.');
     }
+    if (req.body?.review_token !== revaluationIntegrity.digest(review)) throw new StaleState('The validated review changed. Reload the current review before approval.');
 
     const accepts = review.proposal
       .filter(p => p && p.decision === 'accept')
@@ -2310,8 +2336,11 @@ exports.approveReview = async (req, res) => {
 
     const result = await loadResultContextFull(saved.result_id, t, t.LOCK.UPDATE);
     if (!result) throw new BadState('The selected Result no longer exists.');
-    const duplicateError = await duplicateRevaluationError(result, t);
+    const duplicateError = await duplicateRevaluationError(result, t, saved, accepts.map(a => a.tgt));
     if (duplicateError) throw new BadState(duplicateError);
+    if (revaluationIntegrity.digest(review.target_snapshot) !== revaluationIntegrity.digest(revaluationIntegrity.snapshot(result))) throw new StaleState('The original student, attempt or subject configuration changed. Review the document against the current original record again.');
+    const identityErrors = revaluationIntegrity.verify(saved, result, review.proposal, review.identity_verified === true).errors;
+    if (identityErrors.length) throw new BadState(identityErrors.join(' '));
     if (Number(result.student_id) !== Number(saved.student_id) ||
         Number(result.session_id) !== Number(saved.session_id) ||
         (saved.attempt && Number(result.attempt_no) !== Number(saved.attempt.attempt_no)) ||
@@ -2324,8 +2353,9 @@ exports.approveReview = async (req, res) => {
     }
 
     const approverId = resolveAdminId(req);
+    if (!Number.isSafeInteger(Number(approverId)) || Number(approverId) <= 0) throw new AuthzError('An active administrator reviewer is required for approval.');
     const approver = await AdminUser.findByPk(approverId, { transaction: t });
-    if (!approver || approver.status !== 'active') {
+    if (!approver || approver.status !== 'active' || approver.role !== 'admin' || approver.deleted_at) {
       throw new AuthzError('Only an active administrator account can approve revaluations.');
     }
 
@@ -2472,7 +2502,9 @@ exports.approveReview = async (req, res) => {
           source: source,
           decision: 'accept',
           was_manual_correction: !!a.p.was_manual_correction,
-          event_ids: []  // filled in after the loop, see below
+          event_ids: [], // filled in after the loop, see below
+          event_fingerprint: revaluationIntegrity.eventFingerprint(saved, a.tgt),
+          document_event_reference: revaluationIntegrity.eventReference(saved)
         })
       }, { transaction: t });
       createdEvents.push(createdEvent.revaluation_id);
@@ -2545,7 +2577,7 @@ exports.approveReview = async (req, res) => {
   const back = (lastErr instanceof StaleState)
     ? `/revaluation/review/${importId}`
     : `/revaluation/extraction/${importId}`;
-  return res.redirect(back + '?error=' + enc(lastErr.message || 'Approval failed.'));
+  return res.redirect(back + '?error=' + enc(lastErr instanceof BadState || lastErr instanceof StaleState || lastErr instanceof AuthzError ? lastErr.message : 'Approval could not be completed. Review the document and retry.'));
 };
 
 /**

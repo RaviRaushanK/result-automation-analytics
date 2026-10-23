@@ -6,8 +6,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 
-for (const examType of ['REGULAR','BACKLOG','SUPPLEMENTARY','REPEAT']) {
-  test(examType+' upload supplies the appropriate completeness scope without academic writes',async()=>{
+for (const examType of ['REGULAR','BACKLOG','SUPPLEMENTARY','REPEAT', undefined, '', null]) {
+  test(String(examType) + (['REGULAR', 'BACKLOG'].includes(examType) ? ' upload supplies the appropriate completeness scope without academic writes' : ' upload rejects an unavailable or missing exam type before extraction'),async()=>{
     let options,staged;
     const subjects=[{subject_id:1,subject_code:'MMC101',subject_name:'COURSE',credits:4},{subject_id:2,subject_code:'MMCL106',subject_name:'LAB',credits:2}];
     const forbidden=()=>assert.fail('Academic results must not be written during extraction');
@@ -24,18 +24,27 @@ for (const examType of ['REGULAR','BACKLOG','SUPPLEMENTARY','REPEAT']) {
         if(name==='fs')return {existsSync:()=>true,renameSync(){}};
         if(name==='../services/documentExtractor')return {extract:async(file,type,opts)=>{
           options=opts;
-          return {extraction:{student:{usn:'1MV25MC061',name:'TEST STUDENT'},subjects:[{subjectCode:'MMCL106',internalMarks:48,externalMarks:49,marksConfidence:'high'}]}};
+          return {extraction:{student:{usn:'1MV25MC061',name:'TEST STUDENT'},subjects:[{subjectCode:'MMCL106',internalMarks:48,externalMarks:49,marksConfidence:'high'}, {subjectCode:'MMC201',internalMarks:40,externalMarks:30}]}};
         }};
         return require(name);
       }
     });
     let location;
-    await module.exports.processUpload({body:{sessionId:'1',attempt_no:'1',exam_type:examType},file:{path:'staged.pdf',originalname:'card.pdf'},session:{adminId:1}},{redirect:url=>{location=url;}});
+    await module.exports.processUpload({body:{sessionId:'1',attempt_no:examType === 'BACKLOG' ? '2' : '1',exam_type:examType},file:{path:'staged.pdf',originalname:'card.pdf'},session:{adminId:1}},{redirect:url=>{location=url;}});
+    if (!['REGULAR', 'BACKLOG'].includes(examType)) {
+      assert.match(location, /\/results\/upload\?error=/);
+      assert.match(decodeURIComponent(location), examType ? /REGULAR, BACKLOG/ : /Exam Type is required/);
+      assert.equal(staged, undefined);
+      assert.equal(options, undefined);
+      return;
+    }
     assert.equal(location,'/results/upload/9/review');
     assert.equal(JSON.stringify(options.expectedSubjectCodes),JSON.stringify(examType==='REGULAR'?['MMC101','MMCL106']:[]));
     const lab=staged.extracted_json.subjects.find(row=>row.subject_code==='MMCL106');
     assert.equal(lab.internalMarks,48);assert.equal(lab.externalMarks,49);
     assert.equal(staged.validation_status,'pending');
+    assert.equal(JSON.stringify(staged.extracted_json.excluded_subjects), JSON.stringify([{subject_code:'MMC201',subject_name:''}]));
+    assert.ok(!staged.extracted_json.subjects.some(row=>row.subject_code==='MMC201'));
   });
 }
 const identity = ['University Seat Number : 1MV25MC061','Student Name : TEST STUDENT','Semester : 1'];

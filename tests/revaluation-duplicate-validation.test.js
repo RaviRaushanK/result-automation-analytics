@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const ejs = require('ejs');
 const root = path.resolve(__dirname, '..');
 const policy = require('../services/academicPolicy');
+const integrity = require('../services/revaluationIntegrity');
 
 function fixture(approved = true) {
   const state = { approved, countCalls: [], writes: 0, staged: 0, rolledBack: false, lookupFails: false, extractions: 0, extractionFails: false };
@@ -32,7 +33,13 @@ function fixture(approved = true) {
     SubjectResult: { bulkCreate: forbidden }, ResultSession: { findByPk: async () => result.ResultSession },
     ImportLog: { findByPk: async () => log, create: async values => { state.staged++; Object.assign(log, values); return log; } },
     OcrExtraction: { findByPk: async () => ocr, create: async values => { state.staged++; Object.assign(ocr, values); return ocr; } },
-    RevaluationResult: { findAll: async () => [], count: async options => {
+    RevaluationResult: { findAll: async options => {
+      if (!options.where.subject_result_id) return [];
+      state.countCalls.push(options);
+      if (state.lookupFails) throw new Error('Test lookup failure');
+      return state.approved ? [{ subject_result_id: 1, remarks: JSON.stringify({ event_fingerprint:
+        state.differentDocument ? 'a-different-document' : integrity.eventFingerprint(ocr.extracted_json, 1) }) }] : [];
+    }, count: async options => {
       state.countCalls.push(options);
       assert.equal(options.include[0].where.result_id, 7);
       if (state.lookupFails) throw new Error('Test lookup failure');
@@ -48,7 +55,7 @@ function fixture(approved = true) {
     module, exports: module.exports, console: { error() {}, warn() {}, log() {} }, setTimeout,
     require(name) {
       if (name === '../database/models') return db;
-      if (name === 'fs') return { renameSync() {}, unlinkSync() {}, existsSync: () => true };
+      if (name === 'fs') return { renameSync() {}, unlinkSync() {}, existsSync: () => true, readFileSync: () => Buffer.from('isolated document') };
       if (name === '../middlewares/upload') return { ensureRevalDir() {}, generateSecureFilename: name => 'test' + path.extname(name).toLowerCase(), REVAL_DIR: '/test', REVAL_ALLOWED_EXT: ['.pdf'] };
       if (name === '../services/revaluationValidator' || name === '../services/revaluationPersistence') return {};
       if (name === '../services/revaluationExtractor') return { STATUS_MAP: { P: 'PASS', F: 'FAIL' },
@@ -69,7 +76,8 @@ function fixture(approved = true) {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; },
       redirect(url) { this.url = url; }, render(view, locals) { this.view = view; this.locals = locals; } };
     await module.exports[method]({ params: { importId: '9', resultId: '7' }, query: {}, session,
-      body: { session: 20, student: 7, result: 7, decision_1: 'accept', internal_1: '40', external_1: '40' }, ...overrides }, response);
+      body: { session: 20, student: 7, result: 7, decision_1: 'accept', internal_1: '40', external_1: '40',
+        source_token: integrity.digest(ocr.extracted_json), review_token: integrity.digest(ocr.extracted_json.review), verify_missing_context: '1' }, ...overrides }, response);
     return response;
   }
   return { state, invoke, ocr, log, result, transaction, controller: module.exports, session };
@@ -281,7 +289,7 @@ test('revaluation duplicate is reported by Save decisions and validate without f
   const response = await invoke('submitReview');
   assert.equal(response.statusCode, 422);
   assert.equal(response.view, 'revaluation/review');
-  assert.match(response.locals.error, /revaluation result for USN 1MV25MC027 already exists/);
+  assert.match(response.locals.error, /document has already been approved/);
   assert.equal(response.locals.validationFailed, true);
   assert.equal(ocr.validation_status, 'pending');
   const html = await ejs.renderFile(path.join(root, 'views/revaluation/review.ejs'), response.locals);
@@ -309,7 +317,7 @@ test('final approval rejects a duplicate that appeared after validation under th
   assert.equal((await invoke('submitReview')).url, '/revaluation/review/9');
   state.approved = true;
   const response = await invoke('approveReview');
-  assert.match(decodeURIComponent(response.url), /revaluation result for USN 1MV25MC027 already exists/);
+  assert.match(decodeURIComponent(response.url), /document has already been approved/);
   assert.equal(state.countCalls.at(-1).transaction, transaction);
   assert.equal(state.rolledBack, true);
   assert.equal(state.writes, 0);
@@ -325,3 +333,11 @@ test('attempt picker allows approved duplicates to reach validation but still pr
   locals.attempts[0].reval_state = 'IN_PROGRESS';
   assert.match(await ejs.renderFile(file, locals), /disabled title="A revaluation submission/);
 });
+for (const value of ['50abc', '35.9', '1e3', [], [40], {}, null, Infinity, -1, 51]) {
+  test('direct review submission rejects malformed revised marks ' + JSON.stringify(value), async () => {
+    const f = fixture(false);
+    const response = await f.invoke('submitReview', { body: { source_token: integrity.digest(f.ocr.extracted_json), verify_missing_context: '1',
+      decision_1: 'accept', internal_1: value, external_1: '40', is_effective: true, revaluation_status: 'approved' } });
+    assert.equal(response.statusCode, 422); assert.equal(f.ocr.validation_status, 'pending'); assert.equal(f.state.writes, 0);
+  });
+}

@@ -252,7 +252,7 @@ function resultOrder(a, b) {
     || String(a.exam_session).localeCompare(String(b.exam_session)) || Number(a.session_id) - Number(b.session_id)
     || Number(a.attempt_no) - Number(b.attempt_no) || Number(a.result_id) - Number(b.result_id);
 }
-const PROGRESS_FIELDS = [['marks', 'Marks Obt.'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['first_attempt', 'First Attempt'], ['supplementary_pass', 'Pass in Supplementary']];
+const PROGRESS_FIELDS = [['marks', 'Marks Obt.'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['first_attempt', 'First Attempt'], ['supplementary_pass', 'Pass in Backlog']];
 function progressKey(term, field) { return `semester_${term}_${field}`; }
 function progressYearKey(year, field) { return `year_${year}_${field}`; }
 
@@ -357,7 +357,7 @@ async function resultAnalysisReport(filters) {
   const overall = { appeared: Number(summary.total_rows) || 0, passed: Number(summary.passed) || 0,
     failed: Number(summary.failed) || 0, unavailable: Number(summary.unavailable) || 0 };
   overall.passPercentage = passPercentage(overall.passed, overall.appeared);
-  const groups = ['regular', 'repeaters', 'total'].flatMap(group => [['appeared', 'APP'], ['passed', 'PASS'], ['pass_percentage', '% PASS']].map(([key, label]) => ({ key: `${group}_${key}`, label: `${group === 'repeaters' ? 'Repeaters' : group === 'regular' ? 'Regular' : 'Total'} ${label}` })));
+  const groups = ['regular', 'repeaters', 'total'].flatMap(group => [['appeared', 'APP'], ['passed', 'PASS'], ['pass_percentage', '% PASS']].map(([key, label]) => ({ key: `${group}_${key}`, label: `${group === 'repeaters' ? 'Backlog' : group === 'regular' ? 'Regular' : 'Total'} ${label}` })));
   const report = { type: 'result-analysis', title: TITLES['result-analysis'], filters, meta, rows, subjects: rows, overall,
     formalHeader: { title: `RESULTS ANALYSIS CHART OF ${meta.session.semester} SEM MCA`, examination: `${meta.session.exam_session} ${meta.session.exam_year} EXAMINATION` },
     columns: [{ key: 'subject_code', label: 'Subject Code' }, { key: 'subject_name', label: 'Name of the Subject' }, ...groups, { key: 'staff', label: 'Name of the Staff' }],
@@ -425,7 +425,7 @@ function contextLines(report) {
   if (report.type === 'toppers') lines.push(['Ranking Basis', 'Stored original CGPA, descending'], ['Eligibility', 'Stored passing result, non-NULL CGPA, no failed original subject rows'], ['Tie Order', 'USN, attempt number, result ID']);
   if (['student','class','toppers','consolidated'].includes(report.type)) lines.push(['GPA Basis', 'Stored original result values. Legacy GPA is not certified cumulative GPA.']);
   if (report.type === 'consolidated' && report.filters.mode === 'effective') lines.push(['SGPA Basis', 'Stored original academic header; not recalculated after revaluation']);
-  if (report.type === 'result-analysis') lines.push(['Participation Basis', 'Exact Result attempts; REGULAR vs BACKLOG / SUPPLEMENTARY / REPEAT']);
+  if (report.type === 'result-analysis') lines.push(['Participation Basis', 'Exact Result attempts; REGULAR vs BACKLOG (including historical SUPPLEMENTARY / REPEAT)']);
   if (report.filters.exam_type) lines.push(['Exam Type', report.filters.exam_type]);
   if (report.filters.result_status) lines.push(['Result Status', report.filters.result_status.toUpperCase()]);
   if (report.filters.revaluation_status) lines.push(['Revaluation Status', report.filters.revaluation_status.toUpperCase()]);

@@ -249,10 +249,16 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   studentEmail.addEventListener('blur', function () { emailTouched = true; validateStudentEmail(true); });
   studentEmail.addEventListener('input', function () { validateStudentEmail(emailTouched); });
+  function protectAcademicIdentity(hasHistory) {
+    document.getElementById('studentUsn').readOnly = hasHistory;
+    document.getElementById('studentBatch').disabled = hasHistory;
+    document.getElementById('studentIdentityNotice').hidden = !hasHistory;
+  }
   addBtn.addEventListener('click', function () {
     document.getElementById('studentFormTitle').textContent = 'Add Student';
     document.getElementById('studentId').value = '';
     document.getElementById('studentForm').reset();
+    protectAcademicIdentity(false);
     document.getElementById('studentBatch').value = batches.length ? String(batches[0].id) : '';
     document.getElementById('studentStatus').value = 'active';
     resetEmailValidation();
@@ -276,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('studentEmail').value = s.email || '';
         document.getElementById('studentCategory').value = s.category || '';
         document.getElementById('studentStatus').value = s.status || 'active';
+        protectAcademicIdentity(json.has_academic_history === true);
         resetEmailValidation();
         showFormError('');
         formModal.show();

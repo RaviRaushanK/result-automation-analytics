@@ -140,6 +140,9 @@
       <div class="modal-body">
         <form id="studentForm" onsubmit="return false;">
           <input type="hidden" id="studentId" />
+          <div class="alert alert-info" id="studentIdentityNotice" role="note" hidden>
+            USN and batch cannot be changed because this student already has academic result history. Name, email, category and status can still be edited.
+          </div>
           <div class="mb-3">
             <label class="form-label" for="studentBatch">Batch *</label>
             <select id="studentBatch" class="form-select" required>
@@ -286,5 +289,5 @@
 
 <div id="batchesData" data-batches="<%= JSON.stringify((batches || []).map(function(b){ return { id: b.batch_id, name: b.batch_name }; })) %>" class="d-none"></div>
 <script src="/js/student-email-validation.js?v=20261004-4"></script>
-<script src="/js/students.js?v=20261015-1"></script>
+<script src="/js/students.js?v=20261023-1"></script>
 </div>

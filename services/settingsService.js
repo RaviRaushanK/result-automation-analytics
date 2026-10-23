@@ -176,7 +176,7 @@ async function academicPolicy() {
     return { grade, points, band: percentages.length ? upper > 100 ? `${lower}% and above` : `${lower}% to below ${upper}%` : '-' };
   });
   const reference = (await fs.readFile(path.join(__dirname, '../docs/academic-result-semantics.md'), 'utf8')).split('## File Manifest')[0];
-  return { scheme: policy.SCHEME, examTypes: policy.EXAM_TYPES, grades, reference };
+  return { scheme: policy.SCHEME, examTypes: policy.NEW_EXAM_TYPES, grades, reference };
 }
 async function systemInformation() {
   return { application: metadata.description, version: metadata.version, node: process.version,

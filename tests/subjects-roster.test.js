@@ -27,6 +27,7 @@ function fixture() {
     ResultSession: {}, sequelize: { transaction: async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }) }
   };
   for (const name of ['Result', 'SubjectResult', 'RevaluationResult']) models[name] = { update() { throw new Error('Historical data must not change'); }, create() { throw new Error('Historical data must not change'); } };
+  models.Result.count = async () => 0;
   const courses = loadModule('../controllers/academicCoursesController', { '../database/models': models });
   const subjects = loadModule('../controllers/subjectController', { '../database/models': models });
   const router = loadModule('../routes/subjectRoutes', { '../controllers/academicCoursesController': courses, '../controllers/subjectController': subjects });
@@ -212,5 +213,14 @@ test('actual Edit Required Courses link opens the dedicated edit endpoint with t
     assert.match(edit, /id="reviewRosterBtn"/); assert.match(edit, /id="cancelRosterEdit"/);
     assert.equal((await request('/subjects/roster/edit?batch_id=2&semester=5')).status, 400);
     assert.deepEqual(f.writes, []);
+  });
+});
+
+test('required-course changes with saved Result history are rejected without rewriting roster or marks', async () => {
+  const f = fixture(); f.course.is_required = false; f.models.Result.count = async () => 1;
+  await withServer(f, async request => {
+    const response = await request('/subjects/courses', post('batch_id=2&semester=1&confirm=1&required_courses=11'));
+    assert.equal(response.status, 409); assert.match(await response.text(), /cannot change after this semester has saved results/);
+    assert.equal(f.writes.length, 0); assert.equal(f.course.is_required, false);
   });
 });

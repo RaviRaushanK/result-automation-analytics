@@ -1,6 +1,8 @@
 'use strict';
 
 const EXAM_TYPES = Object.freeze(['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT']);
+// New entries use these types; EXAM_TYPES retains historical participation labels.
+const NEW_EXAM_TYPES = Object.freeze(['REGULAR', 'BACKLOG']);
 const RETAKE_TYPES = Object.freeze(EXAM_TYPES.slice(1));
 const SCHEME = 'PG_2022_2024_V1';
 const POINTS = Object.freeze({ O: 10, 'A+': 9, A: 8, 'B+': 7, B: 6, C: 5, F: 0 });
@@ -22,7 +24,9 @@ function gradeFromPercent(pct) {
   return { grade: 'F', point: 0, status: 'fail' };
 }
 function period(result) {
-  const month = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(String(result.exam_session).toLowerCase());
+  const value = String(result.exam_session).trim().toLowerCase();
+  const month = ['january','february','march','april','may','june','july','august','september','october','november','december']
+    .findIndex(name => value === name || value === name.slice(0, 3));
   const year = Number(result.exam_year);
   return month < 0 || !Number.isInteger(year) || year < 1900 || year > 2200 ? null : year * 12 + month;
 }
@@ -34,4 +38,4 @@ function legacySeedGrade(total) {
   for (const [minimum, grade] of [[90,'S'],[80,'A'],[70,'B'],[60,'C'],[50,'D'],[45,'E']]) if (total >= minimum) return grade;
   return 'F';
 }
-module.exports = { EXAM_TYPES, RETAKE_TYPES, SCHEME, POINTS, LEGACY_POINTS, legacySeedGrade, isRegularAttempt, isRetakeAttempt, academicYearGroups, gradeFromPercent, period, order };
+module.exports = { EXAM_TYPES, NEW_EXAM_TYPES, RETAKE_TYPES, SCHEME, POINTS, LEGACY_POINTS, legacySeedGrade, isRegularAttempt, isRetakeAttempt, academicYearGroups, gradeFromPercent, period, order };
