@@ -1,8 +1,16 @@
+<% const needsValidation = typeof requiresRevalidation === 'undefined' || requiresRevalidation; %>
 <div class="container-fluid result-management-page result-preview-page">
   <div class="row justify-content-center">
     <div class="col-12 col-xl-9">
 
-      <!-- Validation successful banner -->
+      <% if (needsValidation) { %>
+      <div class="alert alert-info" role="status" id="previewValidationNotice">
+        <strong>Validate again before saving.</strong>
+        Preview values are calculated using the current academic rules. This draft must be validated again before it can be saved.
+        Opening Preview does not update or validate the draft.
+        <a href="/results/upload/<%= importId %>/review" class="alert-link">Return to Review &amp; Edit and select Validate.</a>
+      </div>
+      <% } else { %>
       <div class="alert alert-success d-flex align-items-center shadow-sm" role="alert">
         <i class="material-icons me-2">check_circle</i>
         <div>
@@ -10,6 +18,7 @@
           All result data passed validation. Please review everything below before importing.
         </div>
       </div>
+      <% } %>
 
       <% if (typeof warnings !== 'undefined' && warnings.length) { %>
       <div class="alert alert-warning" role="alert"><% warnings.forEach(function (warning) { %><div><%= warning %></div><% }); %></div>
@@ -18,7 +27,7 @@
       <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div>
-            <h4 class="mb-0">Validated Preview</h4>
+            <h4 class="mb-0"><%= needsValidation ? 'Preview - Validate again' : 'Validated Preview' %></h4>
             <small class="text-muted"><%= sessionDisplay %></small>
           </div>
           <div class="d-flex align-items-center gap-2">
@@ -116,7 +125,7 @@
           </a>
           <form action="/results/upload/<%= importId %>/import" method="POST" id="confirmForm">
             <input type="hidden" name="review_token" value="<%= typeof reviewToken !== 'undefined' ? reviewToken : '' %>">
-            <button type="submit" class="btn btn-success btn-lg">
+            <button type="submit" class="btn btn-success btn-lg" <% if (needsValidation) { %>disabled aria-describedby="previewValidationNotice"<% } %>>
               <i class="material-icons align-middle me-1" style="font-size:18px;">save</i> Confirm &amp; Save
             </button>
           </form>

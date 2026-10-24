@@ -207,6 +207,80 @@ test('stale confirmation token and unvalidated staging cannot bypass final reval
   assert.match(decodeURIComponent((await f.invoke('confirmImport')).url), /older or unvalidated/);
   assert.equal(f.state.results.length, 0);
 });
+
+for (const exam_type of ['REGULAR', 'BACKLOG']) {
+  test(`${exam_type}: stale Preview labels current calculations without updating validation or academic records`, async () => {
+    const history = exam_type === 'BACKLOG' ? [card(1, { sgpa: 5.5, cgpa: 5.5 })] : [];
+    const f = fixture({ semester: 1, history, attempt: { exam_type, attempt_no: exam_type === 'REGULAR' ? 1 : 2 } });
+    await f.invoke('validateReview', { body: { internal_1: '37', external_1: '14' } });
+    f.ocr.extracted_json.configuration_snapshot = 'validated-under-previous-passing-rules';
+    f.ocr.created_at = '2026-10-01T00:00:00.000Z';
+    const beforeDraft = JSON.stringify(f.ocr), beforeHistory = JSON.stringify(history);
+    const beforeUpdates = f.state.updates.length;
+    f.db.sequelize.transaction = () => { throw new Error('Preview must not start a write transaction'); };
+    const response = await f.invoke('showPreviewPage');
+    assert.equal(response.locals.requiresRevalidation, true);
+    assert.equal(response.locals.data.subjects[0].result_status, 'fail');
+    assert.equal(response.locals.data.subjects[0].grade, 'F');
+    assert.equal(response.locals.data.subjects[0].grade_point, 0);
+    assert.equal(response.locals.title, 'Preview - Validate again - SRAAS');
+    assert.equal(response.locals.breadcrumbItems.at(-1).label, 'Preview - Validate again');
+    const html = await ejs.renderFile(path.join(root, 'views/results/preview.ejs'), response.locals);
+    assert.match(html, /Preview values are calculated using the current academic rules/);
+    assert.match(html, /must be validated again before it can be saved/);
+    assert.match(html, /Opening Preview does not update or validate the draft/);
+    assert.doesNotMatch(html, /Validation Successful!|Validated Preview/);
+    assert.match(html, /<button[^>]*disabled aria-describedby="previewValidationNotice"/);
+    assert.match(html, /Return to Review &amp; Edit and select Validate/);
+    assert.equal(JSON.stringify(f.ocr), beforeDraft);
+    assert.equal(JSON.stringify(history), beforeHistory);
+    assert.equal(f.state.updates.length, beforeUpdates);
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.subjects.length, 0);
+    f.db.sequelize.transaction = async () => f.transaction;
+    assert.match(decodeURIComponent((await f.invoke('confirmImport')).url), /older or unvalidated academic data/);
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.subjects.length, 0);
+    assert.equal(JSON.stringify(f.ocr), beforeDraft);
+    assert.equal(JSON.stringify(history), beforeHistory);
+
+    assert.equal((await f.invoke('validateReview', { body: { internal_1: '37', external_1: '14' } })).url, '/results/upload/9/preview');
+    const freshDraft = JSON.stringify(f.ocr), freshUpdates = f.state.updates.length;
+    const fresh = await f.invoke('showPreviewPage');
+    assert.equal(fresh.locals.requiresRevalidation, false);
+    const freshHtml = await ejs.renderFile(path.join(root, 'views/results/preview.ejs'), fresh.locals);
+    assert.doesNotMatch(freshHtml, /previewValidationNotice|must be validated again/);
+    assert.match(freshHtml, /Validation Successful!/);
+    assert.match(freshHtml, /Validated Preview/);
+    assert.equal(JSON.stringify(f.ocr), freshDraft);
+    assert.equal(f.state.updates.length, freshUpdates);
+    assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+    assert.equal(f.state.results.length, 1);
+    assert.equal(f.state.subjects[0].result_status, 'fail');
+    assert.equal(JSON.stringify(history), beforeHistory);
+  });
+}
+
+for (const change of ['subject configuration', 'period', 'pending validation', 'missing snapshot', 'missing token']) {
+  test('Preview requires fresh validation after ' + change, async () => {
+    const f = fixture({ semester: 1 });
+    await f.invoke('validateReview');
+    if (change === 'subject configuration') f.definition.credits = 3;
+    else if (change === 'period') f.session.exam_year = 2027;
+    else if (change === 'pending validation') f.ocr.validation_status = 'pending';
+    else if (change === 'missing snapshot') delete f.ocr.extracted_json.configuration_snapshot;
+    else delete f.ocr.extracted_json.review_token;
+    const before = JSON.stringify(f.ocr), updates = f.state.updates.length;
+    const response = await f.invoke('showPreviewPage');
+    assert.equal(response.locals.requiresRevalidation, true);
+    assert.equal(JSON.stringify(f.ocr), before);
+    assert.equal(f.state.updates.length, updates);
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.subjects.length, 0);
+    assert.match(decodeURIComponent((await f.invoke('confirmImport')).url), /older or unvalidated academic data/);
+    assert.equal(f.state.results.length, 0);
+  });
+}
 test('retired redirect messages are recomputed rather than echoed', async () => {
   const f = fixture({ semester: 1 });
   f.ocr.extracted_json.document_evidence = { usns: ['1MV25MC027'], semesters: [1] };
@@ -277,17 +351,63 @@ test('mixed card can contain multiple other semesters while importing only the s
   assert.deepEqual(f.state.subjects.map(row => row.subject_id), [1]);
 });
 
-test('unknown excluded course blocks mixed-scope confirmation with an actionable message', async () => {
-  const f = fixture({ semester: 2 });
+test('intentionally unconfigured excluded course allows selected roster only after scope confirmation', async () => {
+  const f = fixture({ semester: 1 });
   f.ocr.extracted_json.document_evidence = { semesters: [2, 1], usns: ['1MV25MC027'] };
   f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'UNCONFIGURED' }];
+  assert.equal((await f.invoke('validateReview')).statusCode, 422);
+  const response = await f.invoke('validateReview', { body: { verify_mixed_context: '1' } });
+  assert.equal(response.url, '/results/upload/9/preview');
+  assert.equal(f.ocr.extracted_json.excluded_subjects[0].subject_code, 'UNCONFIGURED');
+  assert.equal((await f.invoke('showPreviewPage')).view, 'results/preview');
+  assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+  assert.deepEqual(f.state.subjects.map(row => row.subject_id), [1]);
+});
+
+test('scope acknowledgment is required even when document semester matches exactly', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { semesters: [1] };
+  f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'OUTSIDE_ROSTER' }];
+  assert.equal((await f.invoke('validateReview')).statusCode, 422);
+  assert.equal((await f.invoke('validateReview', { body: { verify_mixed_context: '1' } })).url, '/results/upload/9/preview');
+  f.ocr.extracted_json.mixed_context_verified = false;
+  assert.match(decodeURIComponent((await f.invoke('confirmImport')).url), /select the mixed-document confirmation/);
+  assert.equal(f.state.results.length, 0);
+});
+
+test('unknown exclusions cannot excuse an absent selected semester or identity/period mismatch', async () => {
+  for (const evidence of [{ semesters: [2] }, { semesters: [1], usns: ['OTHER001'] },
+    { semesters: [1], periods: [{ exam_session: 'Dec', exam_year: 2025 }] }]) {
+    const f = fixture({ semester: 1 });
+    f.ocr.extracted_json.document_evidence = evidence;
+    f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'OUTSIDE_ROSTER' }];
+    assert.equal((await f.invoke('validateReview', { body: { verify_mixed_context: '1' } })).statusCode, 422);
+    assert.match((await f.invoke('confirmImport')).url, /review/);
+    assert.equal(f.state.results.length, 0);
+  }
+});
+
+test('configured selected-semester course cannot be acknowledged as an unrelated exclusion', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { semesters: [1] };
+  f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'C1' }];
   const response = await f.invoke('validateReview', { body: { verify_mixed_context: '1' } });
   assert.equal(response.statusCode, 422);
-  assert.match(response.locals.formError, /UNCONFIGURED/);
-  assert.match(response.locals.formError, /not confirmed as other-semester courses/);
-  assert.match(response.locals.formError, /will not be imported/);
-  assert.equal(response.locals.mixedContextVerified, true);
+  assert.match(response.locals.formError, /required or already included for the selected semester/);
   assert.equal(f.state.results.length, 0);
+});
+
+test('non-required course outside selected offerings can be intentionally excluded in the same semester', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { semesters: [1] };
+  f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'OPTIONAL' }];
+  f.db.AcademicCourse.findAll = async () => [
+    { ...f.definition, semester: '1', status: 'active', is_required: true, roster_verified: true },
+    { ...f.definition, course_id: 2, subject_code: 'OPTIONAL', semester: '1', status: 'active', is_required: false, roster_verified: true }
+  ];
+  assert.equal((await f.invoke('validateReview', { body: { verify_mixed_context: '1' } })).url, '/results/upload/9/preview');
+  assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+  assert.deepEqual(f.state.subjects.map(row => row.subject_id), [1]);
 });
 test('a review changed after initial confirmation load is rejected by the transactional OCR re-read', async () => {
   const f = fixture({ semester: 1 }); await f.invoke('validateReview');
@@ -529,11 +649,12 @@ test('an identity edit while opening an import is detected before academic write
 
 test('excluded mixed-card subjects remain visible through Review, failed validation, successful validation and Preview', async () => {
   const { invoke, ocr } = fixture({ semester: 1 });
+  ocr.extracted_json.document_evidence = { semesters: [1, 2] };
   ocr.extracted_json.excluded_subjects = [{ subject_code: 'MMC201<script>', subject_name: 'Another semester' }];
   const initial = await invoke('showReviewPage');
   const failed = await invoke('validateReview', { body: { usn: '1MV25MC027', name: 'TEST STUDENT', internal_1: -1, external_1: 40 } });
   assert.equal(failed.statusCode, 422);
-  assert.equal((await invoke('validateReview')).url, '/results/upload/9/preview');
+  assert.equal((await invoke('validateReview', { body: { verify_mixed_context: '1' } })).url, '/results/upload/9/preview');
   const preview = await invoke('showPreviewPage');
   for (const response of [initial, failed, preview]) {
     assert.equal(response.locals.excludedSubjects[0].subject_code, 'MMC201<script>');

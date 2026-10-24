@@ -47,6 +47,13 @@ For 50+50 theory/lab courses, pass minima are 25/20/50. Failing a component give
 F and zero points regardless of total. Review, validation, Preview and final save
 share these checks for Regular/Backlog, and revaluation repeats them at approval.
 Old validated drafts require validation again; no academic backfill is performed.
+Result Preview compares the saved validation status, configuration/rule snapshot
+and review token with current validation prerequisites. Stale or unvalidated
+drafts show an informational current-rules notice, use a "Preview - Validate
+again" heading and disable Confirm & Save. Display calculations remain read-only:
+opening Preview does not refresh validation, change timestamps or persist marks,
+SGPA or CGPA. Return to Review & Edit and select Validate to refresh the draft;
+final confirmation independently rechecks stale-validation protection.
 Unchanged original/revised stored outcomes are used for historical outcome display.
 The existing GPA aggregation rules and grade bands are preserved; the document's
 separate project reference to grade E does not add an unsupported grade/point.
@@ -63,12 +70,17 @@ final-import checks on the server.
 Mixed-semester cards remain separate uploads per academic semester/attempt. A
 document identifying the selected semester alongside others displays a mixed-scope
 notice, not an unconditional wrong-semester message. The administrator confirms
-the included/excluded scope; the server still verifies all excluded codes as
-other-semester courses in the selected batch and all included courses as belonging
-unambiguously to the selected semester, again at final import. Multiple other
-semesters are supported. Unknown or wrongly configured exclusions produce a
-message naming those codes and remain blocked; acknowledgment cannot assign a
-semester to an unknown course. Identity/period contradictions remain blocked.
+the included/excluded scope. When the document explicitly identifies the selected
+semester, unconfigured rows can be intentionally excluded without inventing a
+course or assigning those rows to another semester. Excluded rows never enter the
+import payload. Required-course completeness and unambiguous included-course
+membership remain enforced on the server, again at final import. A required or already
+included selected-semester course cannot be treated as an unrelated exclusion.
+Non-required same-semester courses outside the selected offerings may be excluded. When the
+selected semester is absent, unknown exclusions cannot excuse a semester mismatch;
+the existing verified other-semester scope path still supports separate backlog
+uploads. Multiple other semesters are supported. Identity/period contradictions
+remain blocked. No subject-code-specific exceptions are used.
 
 ### Review warning clarification (24 October 2026)
 

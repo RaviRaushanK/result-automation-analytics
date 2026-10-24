@@ -321,21 +321,30 @@ function extractMarkInputs(body) {
 async function documentContextErrors(saved, session, payload, attempt, verified, mixedRequested, transaction) {
   let mixedVerified = false;
   let scopeError = saved.excluded_subjects?.length
-    ? 'This document contains multiple academic semesters. Verify the included and excluded subjects, then select the mixed-document confirmation before validating. Each semester requires a separate upload.' : null;
+    ? 'Verify the included and excluded subjects, then select the mixed-document confirmation before validating. Excluded rows will not be imported.' : null;
   if (mixedRequested && saved.excluded_subjects?.length) {
     const courses = await AcademicCourse.findAll({ where: { batch_id: session.batch_id, status: 'active' }, raw: true, transaction });
     const inSemester = course => Number(course.semester) === Number(session.semester);
     const sameCode = (course, code) => String(course.subject_code).trim().toUpperCase() === String(code).trim().toUpperCase();
-    const unresolved = saved.excluded_subjects.filter(row => !courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)));
-    mixedVerified = saved.excluded_subjects.every(row => courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)))
+    const selectedSemesterPresent = (saved.document_evidence?.semesters || []).some(value => Number(value) === Number(session.semester));
+    const allExcludedOtherSemester = saved.excluded_subjects.every(row => courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)));
+    // Unconfigured rows may be intentionally outside the import roster. They
+    // cannot establish another semester or excuse a wrong-semester document.
+    const selectedCourseExclusions = saved.excluded_subjects.filter(row => courses.some(course => inSemester(course) && sameCode(course, row.subject_code)
+      && (Number(course.is_required) === 1 || payload.subjects.some(included => String(included.course_id) === String(course.course_id)))));
+    mixedVerified = (selectedSemesterPresent || allExcludedOtherSemester) && !selectedCourseExclusions.length
       && payload.subjects.every(row => courses.some(course => inSemester(course) && String(course.course_id) === String(row.course_id))
         && !courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)));
-    if (!mixedVerified) scopeError = unresolved.length
-      ? 'Mixed-document scope could not be verified. These excluded subject codes are not confirmed as other-semester courses in the selected batch: ' + unresolved.map(row => row.subject_code).join(', ') + '. Check the original card and course roster: correct extraction errors or configure any legitimate missing course in its actual semester before retrying. These rows will not be imported.'
+    if (!mixedVerified) scopeError = selectedCourseExclusions.length
+      ? 'These excluded subjects are required or already included for the selected semester: ' + selectedCourseExclusions.map(row => row.subject_code).join(', ') + '. Check the course roster and extraction before validating. Excluded rows will not be imported.'
+      : !selectedSemesterPresent && !allExcludedOtherSemester
+      ? 'Mixed-document scope could not be verified. The selected semester is not identified in the document, and these exclusions cannot all be confirmed as other-semester courses: ' + saved.excluded_subjects.map(row => row.subject_code).join(', ') + '. Check the document and selected semester. Excluded rows will not be imported.'
       : 'Mixed-document scope could not be verified. Included subjects must belong unambiguously to the selected semester. Check the original card and course roster before retrying.';
   }
-  return integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified)
+  const errors = integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified)
     .map(error => scopeError && error.startsWith('Document Semester ') ? scopeError : error);
+  if (scopeError && !mixedVerified && !errors.includes(scopeError)) errors.push(scopeError);
+  return errors;
 }
 
 const resultController = {
@@ -946,13 +955,21 @@ const resultController = {
           previewAttempt, payload.subjects);
       }
 
+      // Presentation only: Preview never refreshes the saved validation state.
+      // Match the saved-validation prerequisites enforced again at final save.
+      const requiresRevalidation = ctx.ocr.validation_status !== 'validated'
+        || !ctx.saved.configuration_snapshot
+        || ctx.saved.configuration_snapshot !== payload.configuration_snapshot
+        || !ctx.saved.review_token;
+      const previewLabel = requiresRevalidation ? 'Preview - Validate again' : 'Validated Preview';
       res.render('results/preview', {
+        requiresRevalidation,
         reviewToken: ctx.saved.review_token,
-        title: 'Validated Preview - SRAAS',
+        title: previewLabel + ' - SRAAS',
         breadcrumbItems: [
           { label: 'Result Management' },
           { label: 'Upload Results', route: '/results/upload' },
-          { label: 'Validated Preview', active: true }
+          { label: previewLabel, active: true }
         ],
         importId: ctx.log.import_id,
         sessionDisplay: ctx.sessionDisplay,
