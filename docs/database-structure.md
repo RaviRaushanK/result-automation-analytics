@@ -82,6 +82,11 @@ Result SGPA/CGPA are nullable `DECIMAL(4,2)` values. `sgpa_source`, `cgpa_source
 `cgpa_is_cumulative` and scheme metadata distinguish certified calculation from
 legacy/unknown provenance. Missing evidence is not stored as a fabricated zero.
 Snapshots are not rewritten merely because a later retake or revaluation exists.
+GPA presentation uses `public/js/gpa-format.js`: valid values display exactly two
+decimal places, while missing/invalid values retain an unavailable marker. This
+formatter is not used for database writes, numeric API values or calculations.
+MySQL/Sequelize may return DECIMAL values as decimal strings to avoid precision
+loss; that driver representation does not change the numeric SQL column type.
 
 REGULAR imports require reviewed course rosters and previous original cards as
 defined by the workflow. These application-level checks supplement database

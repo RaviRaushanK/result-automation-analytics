@@ -73,6 +73,7 @@ app.use(themeMiddleware);
 app.use(menuMiddleware);
 
 // Shared variables for all EJS views.
+app.locals.formatGpa = require('./public/js/gpa-format').format;
 app.use((req, res, next) => {
   res.locals.flash = res.locals.flash || [];
   res.locals.breadcrumbItems = res.locals.breadcrumbItems || [];

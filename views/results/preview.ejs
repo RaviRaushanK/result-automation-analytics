@@ -60,14 +60,14 @@
             <div class="col-sm-6 col-xl-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">SGPA</h6>
-                <span class="fs-4 fw-bold"><%= data.sgpa === null ? '-' : data.sgpa %></span>
-                <div class="small text-muted"><%= ['BACKLOG', 'SUPPLEMENTARY', 'REPEAT'].includes(attempt.exam_type) ? 'Not calculated for backlog/retake attempts.' : 'all courses incl. F' %></div>
+                <span class="fs-4 fw-bold"><%= formatGpa(data.sgpa, '-') %></span>
+                <div class="small text-muted"><%= attempt.exam_type !== 'REGULAR' ? 'Not calculated for backlog/retake attempts.' : 'all courses incl. F' %></div>
               </div>
             </div>
             <div class="col-sm-6 col-xl-3">
               <div class="border rounded p-3 h-100">
                 <h6 class="text-primary mb-2">Cumulative CGPA</h6>
-                <span class="fs-4 fw-bold" id="previewCumulativeCgpa"><%= data.cgpa == null ? 'Unavailable' : Number(data.cgpa).toFixed(2) %></span>
+                <span class="fs-4 fw-bold" id="previewCumulativeCgpa"><%= formatGpa(data.cgpa, 'Unavailable') %></span>
                 <div class="small text-muted"><%= data.cgpa == null ? 'Complete verified course and grading history is required.' : 'Calculated from verified course history and these marks; checked again on save.' %></div>
               </div>
             </div>

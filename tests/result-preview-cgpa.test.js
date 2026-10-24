@@ -74,7 +74,7 @@ test('preview controller renders calculated CGPA without starting transactions o
     let locals;
     await controller.showPreviewPage({ params: { importId: 9 } }, { render(view, data) { assert.equal(view, 'results/preview'); locals = data; }, redirect(url) { assert.fail(url); } });
     assert.equal(locals.data.cgpa, 5);
-    const html = await ejs.renderFile(path.join(__dirname, '../views/results/preview.ejs'), locals);
+    const html = await ejs.renderFile(path.join(__dirname, '../views/results/preview.ejs'), { formatGpa: require('../public/js/gpa-format').format, ...locals });
     assert.match(html, /id="previewCumulativeCgpa">5\.00/);
     assert.match(html, /checked again on save/);
   } finally { restores.reverse().forEach(restore => restore()); }

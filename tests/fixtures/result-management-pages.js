@@ -12,6 +12,7 @@ const subject = {
   oldMarks: 40, rvMarks: 80, finalMarks: 80, oldResult: 'FAIL', finalResult: 'PASS'
 };
 const base = {
+  formatGpa: require('../../public/js/gpa-format').format,
   title: 'Result Management responsive verification', resultManagementPage: true,
   pageStyles: ['/css/result-success.css', '/css/result-upload.css'],
   student, sessionDisplay, attempt: { attempt_no: 1, exam_type: 'REGULAR' },

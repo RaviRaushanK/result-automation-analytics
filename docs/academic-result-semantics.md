@@ -181,6 +181,21 @@ Original IA/EX are never inferred from revised totals.
 
 ## GPA
 
+### Display and storage
+
+The current workflows are REGULAR and BACKLOG result imports, and REVALUATION
+of an existing result. All GPA displays share `public/js/gpa-format.js`, exposed
+to EJS as `formatGpa` and browsers as `GpaFormat`. Valid GPA values display exactly
+two decimals (7 becomes 7.00); null, undefined, blank and invalid values remain
+unavailable. A legitimate zero displays as 0.00. Numeric calculation/API values
+and nullable DECIMAL storage are unchanged; formatting does not trigger historical
+recalculation or writes. Backlog SGPA remains null where required. Revaluation's
+stored-original and existing derived-attempt GPA remain distinct and retain their
+existing meanings. Review & Edit does not gain a new GPA input/extraction field.
+Reports use this formatter for cells, summary metrics, print/PDF and GPA CSV
+exports. Existing numeric-only CSV display constants preserve trailing decimals
+in spreadsheet readers and are not used for database persistence.
+
 ### MCA 2022 passing requirements
 
 The MCA regulations, clauses 22OMC9.1/9.8 and 22OMC10.2, require theory and lab

@@ -5,6 +5,7 @@
     page: 'semesters',
     columns: 10,
     charts: ['semesters-trend-chart', 'semesters-gpa-chart'],
+    gpaCharts: ['semesters-gpa-chart'],
     render: function (result, ui) {
       var rows = result.data || [];
       // Same axis label for both charts: Batch / Exam Session / Semester.
@@ -21,7 +22,7 @@
           ui.number(r.resultCount, 0), ui.number(r.subjectAttempts, 0),
           ui.number(r.subjectPassed, 0), ui.number(r.subjectFailed, 0),
           r.subjectPassPercentage == null ? '\u2014' : ui.number(r.subjectPassPercentage, 1) + '%',
-          ui.number(r.avgSgpa), ui.number(r.avgCgpa)
+          GpaFormat.format(r.avgSgpa), GpaFormat.format(r.avgCgpa)
         ]);
       });
       ui.chart('semesters-trend-chart', rows.map(label), [{

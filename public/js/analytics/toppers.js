@@ -211,8 +211,8 @@
       '<td>' + esc(row.studentName) + '</td>' +
       '<td>' + esc(row.semester) + '</td>' +
       '<td>' + (row.attemptNo != null ? esc(row.attemptNo) : '—') + '</td>' +
-      '<td>' + (row.sgpa != null ? fmt(row.sgpa, 2) : '—') + '</td>' +
-      '<td>' + (row.cgpa != null ? fmt(row.cgpa, 2) : '—') + '</td>' +
+      '<td>' + (GpaFormat.format(row.sgpa)) + '</td>' +
+      '<td>' + (GpaFormat.format(row.cgpa)) + '</td>' +
       '<td>' + statusBadge(row.parentStatus || row.resultStatus) + '</td>';
     return tr;
   }

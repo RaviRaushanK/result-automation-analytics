@@ -28,8 +28,8 @@
           <td><strong>Attempt #<%= a.attempt_no %></strong></td>
           <td><span class="badge bg-info text-dark"><%= a.exam_type %></span></td>
           <td class="text-center"><span class="badge bg-<%= passClass %>"><%= a.result_status %></span></td>
-          <td class="text-end"><%= a.sgpa !== null && a.sgpa !== undefined ? a.sgpa : '—' %></td>
-          <td class="text-end"><%= a.cgpa !== null && a.cgpa !== undefined ? a.cgpa : '—' %></td>
+          <td class="text-end"><%= formatGpa(a.sgpa) %></td>
+          <td class="text-end"><%= formatGpa(a.cgpa) %></td>
           <td>
             <% if (st === 'APPROVED') { %>
               <span class="badge bg-success">Already submitted</span>

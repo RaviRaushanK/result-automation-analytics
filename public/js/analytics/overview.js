@@ -370,7 +370,8 @@
         [cardAvgSgpa, parent.avgSgpa, 2], [cardAvgCgpa, parent.avgCgpa, 2]
       ].forEach(function (entry) {
         if (!entry[0]) return;
-        entry[0].textContent = fmt(entry[1], entry[2]);
+        entry[0].textContent = entry[0] === cardAvgSgpa || entry[0] === cardAvgCgpa
+          ? GpaFormat.format(entry[1]) : fmt(entry[1], entry[2]);
         entry[0].removeAttribute('aria-hidden');
         entry[0].classList.remove('analytics-value-placeholder');
       });

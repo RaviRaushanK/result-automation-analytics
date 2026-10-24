@@ -113,7 +113,7 @@ function fixture({ semester = 2, examSessionId = 20, history = [], student = tru
       reviewInitialized = true;
     }
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; },
-      render(view, locals) { this.view = view; this.locals = locals; }, redirect(url) { this.url = url; }, json(data) { this.data = data; } };
+      render(view, locals) { this.view = view; this.locals = { formatGpa: require('../public/js/gpa-format').format, ...locals }; }, redirect(url) { this.url = url; }, json(data) { this.data = data; } };
     await module.exports[method]({ params: { importId: '9' }, query: {},
       ...overrides, body: { usn: '1MV25MC027', name: 'TEST STUDENT', internal_1: '40', external_1: '40', student_id: 7, exam_session_id: 20,
         verify_usn: '1', verify_semester: '1', verify_period: '1', review_token: ocr.extracted_json.review_token, ...overrides.body } }, response);

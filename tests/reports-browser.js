@@ -17,6 +17,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
   const app = express();
   app.set('view engine', 'ejs');
+  app.locals.formatGpa = require('../public/js/gpa-format').format;
   app.set('views', path.join(__dirname, '../views'));
   app.use(layouts);
   app.set('layout', 'layouts/main');

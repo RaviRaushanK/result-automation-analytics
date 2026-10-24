@@ -112,8 +112,15 @@
       host.style.minWidth = stripWidth + 'px';
       host.style.width = '100%';
       var canvas = document.createElement('canvas'); target.appendChild(canvas);
+      var options = { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } };
+      if ((config.gpaCharts || []).indexOf(id) !== -1) {
+        options.scales.y.ticks = { callback: function (value) { return GpaFormat.format(value); } };
+        options.plugins = { tooltip: { callbacks: { label: function (context) {
+          return context.dataset.label + ': ' + GpaFormat.format(context.parsed.y);
+        } } } };
+      }
       charts.push(new Chart(canvas, { type: 'bar', data: { labels: labels, datasets: datasets },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } }));
+        options: options }));
     }
     async function load() {
       if (config.searchField) clearTimeout(searchTimer);

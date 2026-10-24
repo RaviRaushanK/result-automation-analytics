@@ -69,7 +69,7 @@ test('Overview starts and renders the service response', async () => {
   const requests = [];
   vm.runInNewContext(fs.readFileSync(path.join(root, 'public/js/analytics/overview.js'), 'utf8'), {
     document: { getElementById: element, querySelector: element, querySelectorAll: () => [], createElement: () => element(Symbol()), documentElement: { getAttribute: () => 'light' } },
-    location: { search: '' }, URLSearchParams, console, setTimeout,
+    location: { search: '' }, URLSearchParams, console, setTimeout, GpaFormat: require('../public/js/gpa-format'),
     fetch: async (url) => {
       requests.push(url);
       return { ok: true, json: async () => url.includes('/filter-options/') ? { data: [] } : response };

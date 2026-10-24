@@ -74,7 +74,7 @@ function fixture(approved = true) {
   const session = { adminId: 1, revaluationDraft: { resultId: 7 } };
   async function invoke(method, overrides = {}) {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; },
-      redirect(url) { this.url = url; }, render(view, locals) { this.view = view; this.locals = locals; } };
+      redirect(url) { this.url = url; }, render(view, locals) { this.view = view; this.locals = { formatGpa: require('../public/js/gpa-format').format, ...locals }; } };
     await module.exports[method]({ params: { importId: '9', resultId: '7' }, query: {}, session,
       body: { exam_session_id: 20, student: 7, result: 7, decision_1: 'accept', internal_1: '40', external_1: '40',
         source_token: integrity.digest(ocr.extracted_json), review_token: integrity.digest(ocr.extracted_json.review), verify_usn: '1', verify_semester: '1', verify_period: '1', verify_old_marks: '1', verify_old_status: '1' }, ...overrides }, response);
@@ -135,6 +135,7 @@ for (const scenario of ['available', 'in_progress', 'lookup_failed']) {
     });
     const express = require('express');
     const app = express();
+    app.locals.formatGpa = require('../public/js/gpa-format').format;
     app.set('view engine', 'ejs');
     app.set('views', path.join(root, 'views'));
     app.use(express.urlencoded({ extended: false }));
@@ -324,7 +325,7 @@ test('final approval rejects a duplicate that appeared after validation under th
 });
 
 test('attempt picker allows approved duplicates to reach validation but still protects active drafts', async () => {
-  const locals = { studentName: 'TEST', sessionDisplay: 'Jan 2026', examSessionId: 20, studentId: 7, error: null,
+  const locals = { formatGpa: require('../public/js/gpa-format').format, studentName: 'TEST', sessionDisplay: 'Jan 2026', examSessionId: 20, studentId: 7, error: null,
     attempts: [{ result_id: 7, attempt_no: 1, exam_type: 'REGULAR', result_status: 'pass', reval_state: 'APPROVED' }] };
   const file = path.join(root, 'views/revaluation/result-attempt-picker.ejs');
   const approved = await ejs.renderFile(file, locals);

@@ -3,6 +3,7 @@
 const repository = require('../repositories/reportsRepository');
 const academicOutcomes = require('./academicOutcomeService');
 const academicPolicy = require('./academicPolicy');
+const gpaFormat = require('../public/js/gpa-format');
 const TYPES = ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress'];
 const TITLES = { student: 'Student Result Report', class: 'Class Result Report', subject: 'Subject Result Report', revaluation: 'Revaluation Report', toppers: 'Toppers Report', consolidated: 'Consolidated Result Report', 'result-analysis': 'Result Analysis Report' };
 TITLES['student-progress'] = 'All Students Progress Report';
@@ -386,8 +387,8 @@ async function pivotConsolidated(report, rows) {
 }
 
 function display(key, value) {
+  if (gpaFormat.isKey(key)) return gpaFormat.format(value, '-');
   if (value === null || value === undefined || value === '') return '-';
-  if (/(^|_)(sgpa|cgpa)$/.test(key) && Number.isFinite(Number(value))) return Number(value).toFixed(2);
   if (key.endsWith('_pass_percentage')) return String(Math.round(Number(value)));
   if (key === 'percentage') return Number(value).toFixed(2);
   if (key === 'is_effective' || key === 'revaluated') return Number(value) ? 'Yes' : 'No';
@@ -451,7 +452,11 @@ function csvValue(key, value) {
 }
 
 function csvReportCell(key, value) {
-  if ((/(^|_)(sgpa|cgpa)$/.test(key) || key === 'percentage' || key.endsWith('_pass_percentage')) && /^\d+(\.\d+)?$/.test(String(value))) {
+  if (gpaFormat.isKey(key)) {
+    const formatted = gpaFormat.format(value, '-');
+    return formatted === '-' ? '-' : `"=""${formatted}"""`;
+  }
+  if ((key === 'percentage' || key.endsWith('_pass_percentage')) && /^\d+(\.\d+)?$/.test(String(value))) {
     const number = Number(value);
     if (Number.isFinite(number) && number < 1e21) {
       // Excel discards CSV number formatting; a numeric-only constant keeps two decimals.

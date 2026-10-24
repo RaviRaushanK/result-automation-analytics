@@ -394,8 +394,8 @@
         <% if (review.aggregate_preview) { %>
           <p class="mb-1"><strong>Derived effective preview:</strong>
             overall <%= review.aggregate_preview.overall_result %> &middot;
-            SGPA <%= review.aggregate_preview.sgpa %> &middot;
-            CGPA <%= review.aggregate_preview.cgpa === null ? '—' : review.aggregate_preview.cgpa %> &middot;
+            SGPA <%= formatGpa(review.aggregate_preview.sgpa) %> &middot;
+            CGPA <%= formatGpa(review.aggregate_preview.cgpa) %> &middot;
             failed <%= review.aggregate_preview.failed_subject_count %>
             <small class="text-muted">(display analytics — Result rows are never written)</small></p>
         <% } %>

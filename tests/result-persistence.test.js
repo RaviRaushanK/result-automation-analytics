@@ -113,6 +113,7 @@ test('confirmImport persists validated IA/External/Total while preserving academ
       await invoke();
       assert.equal(committed,true);assert.equal(rolledBack,false);
       assert.equal(header.sgpa,5);assert.equal(header.cgpa,5);
+      assert.equal(typeof header.sgpa, 'number'); assert.equal(typeof header.cgpa, 'number');
       assert.equal(header.sgpa_source,'CALCULATED');assert.equal(header.cgpa_source,'CALCULATED');assert.equal(header.cgpa_is_cumulative,true);
       assert.equal(header.grading_scheme_version,'PG_2022_2024_V1');
     });

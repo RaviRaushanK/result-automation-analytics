@@ -149,7 +149,7 @@
 
   function display(key, value) {
     if (value === null || value === undefined || value === '') return '-';
-    if (/(^|_)(sgpa|cgpa)$/.test(key) && Number.isFinite(Number(value))) return Number(value).toFixed(2);
+    if (GpaFormat.isKey(key)) return GpaFormat.format(value, '-');
     if (key.endsWith('_pass_percentage')) return String(Math.round(Number(value)));
     if (key === 'percentage') return Number(value).toFixed(2);
     if (key === 'revaluated' || key === 'is_effective') return Number(value) ? 'Yes' : 'No';
@@ -193,7 +193,7 @@
 
   function summary(metrics) {
     return metrics.map(([label, value]) => {
-      const metric = node('div'); metric.append(node('span', label), node('strong', display(label === 'Overall Result' ? 'result_status' : '', value))); return metric;
+      const metric = node('div'); metric.append(node('span', label), node('strong', display(GpaFormat.isKey(label) ? label : label === 'Overall Result' ? 'result_status' : '', value))); return metric;
     });
   }
 

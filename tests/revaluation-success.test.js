@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const ejs = require('ejs');
 const path = require('node:path');
 const template = path.join(__dirname, '../views/revaluation/outcome.ejs');
-const values = { logStatus: 'success', events: [{ id: 1, srid: 2, no: 1, originalMarks: 40, revisedMarks: 60, originalStatus: 'fail', revisedStatus: 'pass', revisedGrade: 'B', isEffective: true, remarks: '' }],
+const values = { formatGpa: require('../public/js/gpa-format').format, logStatus: 'success', events: [{ id: 1, srid: 2, no: 1, originalMarks: 40, revisedMarks: 60, originalStatus: 'fail', revisedStatus: 'pass', revisedGrade: 'B', isEffective: true, remarks: '' }],
   meta: { importId: 1, resultId: 2, studentName: 'TEST STUDENT', studentUsn: 'TEST001', sessionDisplay: 'June 2026', attemptNo: 1, examType: 'REGULAR', docUrl: null, examSessionId: 1 },
   rows: [], aggregates: { overall_result: 'pass', sgpa: 7, cgpa: 7, failed_subject_count: 0 }, origResult: { sgpa: 4, cgpa: 4, result_status: 'fail', failed_subject_count: 1 },
   reviewedAt: null, reviewPresent: true, notice: null, error: null };
@@ -81,7 +81,7 @@ test('outcome controller passes code and name from the event association and pre
   assert.equal(output.events[0].id, 2); assert.equal(output.events[0].srid, 60);
   assert.equal(output.events[0].originalMarks, 45); assert.equal(output.events[0].revisedMarks, 50);
   assert.equal(output.events[1].subjectName, ''); assert.equal(output.events[2].subjectName, '');
-  const html = await ejs.renderFile(template, output);
+  const html = await ejs.renderFile(template, { formatGpa: require('../public/js/gpa-format').format, ...output });
   assert.match(html, /<strong>MMC105 — WEB TECHNOLOGIES<\/strong>\s*<div>Revaluation record ID: 2<\/div>\s*<div>Original result record ID: 60<\/div>/);
   assert.match(html, /<strong>Subject name unavailable<\/strong>\s*<div>Revaluation record ID: 3<\/div>\s*<div>Original result record ID: 61<\/div>/);
   assert.match(html, /<strong>Subject name unavailable<\/strong>\s*<div>Revaluation record ID: 4<\/div>\s*<div>Original result record ID: 62<\/div>/);

@@ -57,8 +57,8 @@ test('CSV escaping, spreadsheet safety, and nullable data', () => {
     assert.equal(service.csvReportCell(key, '9.5'), '"=""9.50"""');
     assert.equal(service.csvReportCell(key, 0), '"=""0.00"""');
     assert.equal(service.csvReportCell(key, null), '-');
-    assert.equal(service.csvReportCell(key, '=1+1'), "'=1+1");
-    assert.equal(service.csvReportCell(key, '9"&HYPERLINK("x")'), service.csvCell('9"&HYPERLINK("x")'));
+    assert.equal(service.csvReportCell(key, '=1+1'), key === 'percentage' ? "'=1+1" : '-');
+    assert.equal(service.csvReportCell(key, '9"&HYPERLINK("x")'), key === 'percentage' ? service.csvCell('9"&HYPERLINK("x")') : '-');
   }
   assert.equal(service.csvReportCell('student_name', '=1+1'), "'=1+1");
   assert.equal(service.csvReportCell('total_marks', 9), '9');

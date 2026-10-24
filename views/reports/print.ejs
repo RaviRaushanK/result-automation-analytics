@@ -16,7 +16,7 @@
     <% context.forEach(([label, value]) => { %><div class="<%= /Basis|Eligibility|Tie Order/.test(label) ? 'reports-context-note' : '' %>"><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
   </dl>
   <% if (report.type !== 'result-analysis') { %><div class="reports-summary">
-    <% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %>
+    <% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= display(label, value) %></strong></div><% }); %>
   </div><% } %>
   <% if (['student', 'subject'].includes(report.type) && report.filters.mode === 'effective' && report.rows.some(row => Number(row.revaluated))) { %>
     <p class="reports-component-note">IA and External are original stored components; Total, Grade and Result may reflect approved revaluation.</p>
@@ -33,7 +33,7 @@
             <% sitting.attempts.forEach(attempt => { %>
               <section class="reports-student-attempt">
                 <div class="reports-attempt-heading"><h2>Semester <%= term.semester %> &middot; <%= sitting.session.exam_period || [sitting.session.exam_session, sitting.session.exam_year].filter(Boolean).join(' ') %> &middot; Attempt <%= attempt.result.attempt_no %> - <%= attempt.result.exam_type %></h2>
-                <% if (attemptCount > 1) { %><div class="reports-summary"><% attempt.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %></div><% } %></div>
+                <% if (attemptCount > 1) { %><div class="reports-summary"><% attempt.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= display(label, value) %></strong></div><% }); %></div><% } %></div>
                 <%- include('partials/table', { columns: report.columns, rows: attempt.subjects, display }) %>
               </section>
             <% }); %>
@@ -49,7 +49,7 @@
     <%- include('partials/result-analysis-table', { report, display }) %>
     <section class="reports-analysis-bottom">
       <div class="reports-analysis-chart"><h2>SUBJECT-WISE PASS PERCENTAGE</h2><div class="reports-analysis-canvas"><canvas id="reports-analysis-chart" role="img" aria-label="Subject-wise total pass percentage"></canvas></div><p id="reports-chart-error" hidden></p></div>
-      <div class="reports-summary"><% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= value %></strong></div><% }); %></div>
+      <div class="reports-summary"><% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= display(label, value) %></strong></div><% }); %></div>
     </section>
     <script id="reports-analysis-data" type="application/json"><%- JSON.stringify(report).replace(/</g, String.fromCharCode(92) + 'u003c') %></script>
     <script src="/js/reports/chart.umd.min.js" defer></script>

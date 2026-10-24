@@ -32,8 +32,8 @@
         <% } %>
       </p>
       <% if (origResult) { %>
-        <p class="mb-0 text-muted small">Historical Result row: SGPA <%= origResult.sgpa === null ? '—' : origResult.sgpa %> &middot;
-          CGPA <%= origResult.cgpa === null ? '—' : origResult.cgpa %> &middot;
+        <p class="mb-0 text-muted small">Historical Result row: SGPA <%= formatGpa(origResult.sgpa) %> &middot;
+          CGPA <%= formatGpa(origResult.cgpa) %> &middot;
           status <%= origResult.result_status %> &middot;
           failed <%= origResult.failed_subject_count %> &middot; (unchanged by revaluation)</p>
       <% } %>
@@ -89,8 +89,8 @@
     <div class="card-body d-flex gap-4 flex-wrap">
       <div><small class="text-muted d-block">Overall</small>
         <span class="fs-5 badge bg-<%= aggregates.overall_result === 'pass' ? 'success' : 'danger' %>"><%= aggregates.overall_result %></span></div>
-      <div><small class="text-muted d-block">Effective Calculated Attempt SGPA</small><span class="fs-5 "><%= aggregates.sgpa %></span></div>
-      <div><small class="text-muted d-block">Effective Attempt GPA (passed courses)</small><span class="fs-5"><%= aggregates.cgpa === null ? '—' : aggregates.cgpa %></span></div>
+      <div><small class="text-muted d-block">Effective Calculated Attempt SGPA</small><span class="fs-5 "><%= formatGpa(aggregates.sgpa) %></span></div>
+      <div><small class="text-muted d-block">Effective Attempt GPA (passed courses)</small><span class="fs-5"><%= formatGpa(aggregates.cgpa) %></span></div>
       <div><small class="text-muted d-block">Failed subjects</small><span class="fs-5"><%= aggregates.failed_subject_count %></span></div>
     </div>
   </div>
