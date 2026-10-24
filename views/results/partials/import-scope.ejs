@@ -4,7 +4,7 @@
   <% if (typeof excludedSubjects !== 'undefined' && excludedSubjects.length) { %>
     <div class="mt-2"><strong>Extracted subjects excluded from this upload:</strong>
       <%= excludedSubjects.map(subject => subject.subject_code).join(', ') %>.
-      These subjects are not configured in the selected session and will not be imported. Upload them separately under the correct academic semester and examination period.
+      These subjects are not configured in the selected session and will not be imported. If they are intentionally outside the required roster, confirm their exclusion below. If they should be imported, configure them in the correct semester and examination period before a separate upload.
     </div>
   <% } %>
 </div>

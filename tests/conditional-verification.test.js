@@ -169,7 +169,8 @@ test('mixed-semester review explains selected scope without disguising a genuine
   });
   const mixed = render([1, 2, 3]);
   assert.match(mixed, /MIXED DOCUMENT — scope verification required/);
-  assert.match(mixed, /server must verify the excluded subjects/);
+  assert.match(mixed, /Excluded rows will not be imported; required courses are still checked/);
+  assert.match(mixed, /displayed excluded rows must not be imported/);
   assert.match(mixed, /name="verify_mixed_context" value="1"[^>]* checked/);
   const wrong = render([2, 3]);
   assert.doesNotMatch(wrong, /MIXED DOCUMENT — scope verification required/);
