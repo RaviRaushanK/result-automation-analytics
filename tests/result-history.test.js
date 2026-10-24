@@ -93,12 +93,12 @@ function fixture({ semester = 2, examSessionId = 20, history = [], student = tru
     module: historyModule, exports: historyModule.exports,
     require(name) { if (name === '../database/models') return db; if (name === './academicPolicy') return policy; throw new Error(name); }
   });
-  const module = { exports: {} };
+  const module = { exports: {} }, extractor = {};
   vm.runInNewContext(fs.readFileSync(path.join(root, 'controllers/resultController.js'), 'utf8'), {
     module, exports: module.exports, console, __dirname: path.join(root, 'controllers'),
     require(name) {
       if (name === '../database/models') return db;
-      if (name === '../services/documentExtractor') return {};
+      if (name === '../services/documentExtractor') return extractor;
       if (name === '../services/academicPolicy') return policy;
       if (name === '../services/resultHistoryService') return historyModule.exports;
       if (name === '../public/js/academic-form-options') return { sortBatches: values => values };
@@ -119,8 +119,73 @@ function fixture({ semester = 2, examSessionId = 20, history = [], student = tru
         verify_usn: '1', verify_semester: '1', verify_period: '1', review_token: ocr.extracted_json.review_token, ...overrides.body } }, response);
     return response;
   }
-  return { state, session, ocr, transaction, invoke, db, definition };
+  return { state, session, ocr, transaction, invoke, db, definition, extractor };
 }
+
+test('printed FAIL above the total pass band survives Validate, Preview and save with zero grade points', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.subjects[0].document_result_status = 'fail';
+  const result = await f.invoke('validateReview', { body: { internal_1: '37', external_1: '14', document_result_status: 'pass', result_status: 'pass' } });
+  assert.equal(result.url, '/results/upload/9/preview');
+  assert.equal(f.ocr.extracted_json.subjects[0].document_result_status, 'fail');
+  const preview = await f.invoke('showPreviewPage');
+  assert.equal(preview.locals.data.subjects[0].result_status, 'fail');
+  assert.equal(preview.locals.data.subjects[0].grade, 'F');
+  assert.equal(preview.locals.data.subjects[0].grade_point, 0);
+  assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+  assert.equal(f.state.subjects[0].marks, 51);
+  assert.equal(f.state.subjects[0].result_status, 'fail');
+  assert.equal(f.state.subjects[0].grade, 'F');
+  assert.equal(f.state.subjects[0].grade_point, 0);
+  assert.equal(f.state.results[0].failed_subject_count, 1);
+  assert.equal(f.state.results[0].sgpa, 0);
+});
+
+for (const exam_type of ['REGULAR', 'BACKLOG']) {
+  test(`${exam_type}: MCA component failures persist F/zero points without depending on printed FAIL`, async () => {
+    for (const [internal, external] of [[37,14],[24,50],[50,19]]) {
+      const history = exam_type === 'BACKLOG' ? [card(1)] : [];
+      const f = fixture({ semester:1, history, attempt: { exam_type, attempt_no: exam_type === 'REGULAR' ? 1 : 2 } });
+      const original = JSON.stringify(history);
+      assert.equal((await f.invoke('validateReview', { body: { internal_1:String(internal),external_1:String(external) } })).url, '/results/upload/9/preview');
+      const preview = await f.invoke('showPreviewPage');
+      assert.equal(preview.locals.data.subjects[0].result_status,'fail');
+      assert.equal((await f.invoke('confirmImport')).url,'/results/upload/9/success');
+      assert.equal(f.state.subjects[0].result_status,'fail');
+      assert.equal(f.state.subjects[0].grade,'F'); assert.equal(f.state.subjects[0].grade_point,0);
+      assert.equal(f.state.results[0].failed_subject_count,1);
+      assert.equal(f.state.results[0].sgpa,exam_type === 'BACKLOG' ? null : 0);
+      assert.equal(JSON.stringify(history),original);
+    }
+  });
+}
+
+test('printed PASS with marks below the total pass band is blocked for review instead of silently rewritten', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.subjects[0].document_result_status = 'pass';
+  const result = await f.invoke('validateReview', { body: { internal_1: '30', external_1: '10' } });
+  assert.equal(result.statusCode, 422);
+  assert.match(result.locals.formError, /document reports PASS/);
+  assert.equal(f.state.results.length, 0);
+  assert.match((await f.invoke('confirmImport')).url, /review/);
+});
+
+test('legacy draft recovers printed status only from its own unique matching code and component marks', async () => {
+  for (const [rows, expected] of [
+    [[{ subjectCode: 'C1', internalMarks: 40, externalMarks: 40, result: 'F' }], 'fail'],
+    [[{ subjectCode: 'OTHER', internalMarks: 40, externalMarks: 40, result: 'F' }], null],
+    [[{ subjectCode: 'C1', internalMarks: 40, externalMarks: 41, result: 'F' }], null],
+    [[{ subjectCode: 'C1', internalMarks: 40, externalMarks: 40, result: 'F' }, { subjectCode: 'C1', internalMarks: 40, externalMarks: 40, result: 'P' }], null]
+  ]) {
+    const f = fixture({ semester: 1 }); f.ocr.raw_text = 'saved original card text';
+    f.ocr.extracted_json.subjects[0].subject_code = 'C1';
+    f.extractor.parseProductionData = () => ({ student: { usn: '1MV25MC027' }, subjects: rows });
+    const result = await f.invoke('showReviewPage');
+    assert.equal(result.locals.subjects[0].document_result_status, expected);
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.updates.length, 0);
+  }
+});
 
 for (const field of ['exam_session','exam_year','subject_name','roster']) {
   test('final confirmation rejects stale reviewed configuration: ' + field, async () => {
@@ -194,6 +259,35 @@ test('old student backlog uses old batch course even when next batch reuses its 
   assert.equal((await f.invoke('validateReview')).url, '/results/upload/9/preview');
   assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
   assert.equal(f.state.subjects[0].course_id_snapshot, 1); assert.notEqual(f.state.subjects[0].course_id_snapshot, 2026);
+});
+
+test('mixed card can contain multiple other semesters while importing only the selected regular roster', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { semesters: [2, 1, 3], usns: ['1MV25MC027'] };
+  f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'C201' }, { subject_code: 'C301' }];
+  f.db.AcademicCourse.findAll = async options => [{ ...f.definition, semester: '1', status: 'active', is_required: true, roster_verified: true },
+    ...(!options.where.semester ? [{ ...f.definition, course_id: 201, subject_code: 'C201', semester: '2', status: 'active' },
+      { ...f.definition, course_id: 301, subject_code: 'C301', semester: '3', status: 'active' }] : [])];
+  const initial = await f.invoke('validateReview');
+  assert.equal(initial.statusCode, 422);
+  assert.match(initial.locals.formError, /select the mixed-document confirmation/);
+  const validated = await f.invoke('validateReview', { body: { verify_mixed_context: '1' } });
+  assert.equal(validated.url, '/results/upload/9/preview', JSON.stringify(validated.locals?.errors));
+  assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+  assert.deepEqual(f.state.subjects.map(row => row.subject_id), [1]);
+});
+
+test('unknown excluded course blocks mixed-scope confirmation with an actionable message', async () => {
+  const f = fixture({ semester: 2 });
+  f.ocr.extracted_json.document_evidence = { semesters: [2, 1], usns: ['1MV25MC027'] };
+  f.ocr.extracted_json.excluded_subjects = [{ subject_code: 'UNCONFIGURED' }];
+  const response = await f.invoke('validateReview', { body: { verify_mixed_context: '1' } });
+  assert.equal(response.statusCode, 422);
+  assert.match(response.locals.formError, /UNCONFIGURED/);
+  assert.match(response.locals.formError, /not confirmed as other-semester courses/);
+  assert.match(response.locals.formError, /will not be imported/);
+  assert.equal(response.locals.mixedContextVerified, true);
+  assert.equal(f.state.results.length, 0);
 });
 test('a review changed after initial confirmation load is rejected by the transactional OCR re-read', async () => {
   const f = fixture({ semester: 1 }); await f.invoke('validateReview');

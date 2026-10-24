@@ -166,6 +166,9 @@ test('vision failure or invalid schema is visible while OCR-fed LLM remains usab
         assert.equal(extraction.stages.llm.status, 'ok');
         assert.equal(extraction.subjects.length, 1);
         assert.match(extraction.warnings.join(' '), /Vision reading/);
+        assert.match(extraction.warnings.join(' '), /Other extraction stages may still have recovered usable data/);
+        assert.match(extraction.warnings.join(' '), /does not mean the displayed values are incorrect/);
+        assert.match(extraction.warnings.join(' '), /Compare the extracted subject rows and marks/);
     }
 });
 

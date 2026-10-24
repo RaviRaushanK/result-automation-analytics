@@ -1221,6 +1221,7 @@ if (!rcInternals || typeof rcInternals.gradeFromPercent !== 'function') {
   throw new Error('PROMPT 5 requires resultController._test.gradeFromPercent (the shared P.G. 2022/2024 scale).');
 }
 const gradeFromPercent = rcInternals.gradeFromPercent;
+const mcaPolicy = require('../services/academicPolicy');
 const { STATUS_MAP } = require('../services/revaluationExtractor');
 
 // Card letters that cannot exist in the ('pass','fail') status enums.
@@ -1292,7 +1293,7 @@ function validateAndComputeRevised(a) {
     return { ok: false, errors, warnings, proposal: null };
   }
   const pct = limits.maxTotal > 0 ? Math.floor((total / limits.maxTotal) * 100) : 0;
-  const g = gradeFromPercent(pct);            // shared P.G. 2022/2024 scale
+  const g = mcaPolicy.gradeFromComponents(i.value, e.value, { subject_type: a.subject?.subject_type, max_internal: limits.maxInt, max_external: limits.maxExt, max_marks: limits.maxTotal });
 
   const ocr = a.ocrRow || null;
   const acknowledged = !!a.ackRaw;
@@ -1375,7 +1376,10 @@ function computeOverlayAggregates(mix) {
   for (const m of mix) {
     const maxTotal = m.max_marks || 100;
     const pct = maxTotal > 0 ? Math.floor((m.effective_marks / maxTotal) * 100) : 0;
-    const g = gradeFromPercent(pct);
+    const band = gradeFromPercent(pct);
+    const g = m.status === 'fail' ? { grade: 'F', point: 0, status: 'fail' }
+      : m.grade && mcaPolicy.POINTS[m.grade] !== undefined
+        ? { grade: m.grade, point: mcaPolicy.POINTS[m.grade], status: m.status || band.status } : band;
     const credits = m.credits || 0;
     allPoints += g.point * credits;
     allCredits += credits;
@@ -1404,7 +1408,7 @@ function loadResultContextFull(resultId, t, lock) {
         attributes: ['subject_result_id', 'result_id', 'subject_id', 'internal_marks', 'external_marks', 'marks', 'grade', 'result_status'],
         include: [{
           model: Subject,
-          attributes: ['subject_code', 'subject_name', 'credits', 'exam_session_id', 'course_id',
+          attributes: ['subject_code', 'subject_name', 'subject_type', 'credits', 'exam_session_id', 'course_id',
                        'max_internal', 'max_external', 'max_marks']
         }]
       }
@@ -1651,6 +1655,7 @@ async function loadReviewState(importId, optsIn) {
       credits: (subj && subj.credits) || sv.credits || 0,
       maxInternal: limits.maxInt,
       maxExternal: limits.maxExt,
+      passMinimums: mcaPolicy.passRules.thresholds({ subject_type: subj?.subject_type, max_internal: limits.maxInt, max_external: limits.maxExt, max_marks: limits.maxTotal }),
       maxMarks: limits.maxTotal,
       origMarks: sr ? Number(sr.marks) : null,
       origStatus: sr ? sr.result_status : null,
@@ -2043,6 +2048,7 @@ exports.submitReview = async (req, res) => {
     previewMix.push({
       credits: (subj && subj.credits) || 0,
       max_marks: subjectLimits(subj).maxTotal,
+      status: a.proposal.proposed_revised_status, grade: a.proposal.proposed_revised_grade,
       effective_marks: a.proposal.proposed_revised_total_marks
     });
   }
@@ -2160,9 +2166,9 @@ exports.addMissing = async (req, res) => {
     errors.push('Final Marks (Internal + RV) exceed the subject maximum of ' + limits.maxTotal + '.');
   }
 
-  // Auto-calculate Final Result from Final Marks against 50% threshold.
+  // Recompute using the MCA component requirements, never the total alone.
   const fr = fm.present && fm.value !== null
-    ? (fm.value >= limits.maxTotal * 0.5 ? 'pass' : 'fail')
+    ? mcaPolicy.gradeFromComponents(im.value, em.value, { subject_type: subj?.subject_type, max_internal: limits.maxInt, max_external: limits.maxExt, max_marks: limits.maxTotal }).status
     : null;
 
   // PHASE 5: Server-side validation of all nine card fields.
@@ -2190,7 +2196,7 @@ exports.addMissing = async (req, res) => {
 
   // Authoritative values: finalMarks and finalResult
   const pct = limits.maxTotal > 0 ? Math.floor((fm.value / limits.maxTotal) * 100) : 0;
-  const g = gradeFromPercent(pct);
+  const g = mcaPolicy.gradeFromComponents(im.value, em.value, { subject_type: subj?.subject_type, max_internal: limits.maxInt, max_external: limits.maxExt, max_marks: limits.maxTotal });
 
   const entry = {
     subject_result_id: srid,
@@ -2346,7 +2352,8 @@ exports.approveReview = async (req, res) => {
     if (!result) throw new BadState('The selected Result no longer exists.');
     const duplicateError = await duplicateRevaluationError(result, t, saved, accepts.map(a => a.tgt));
     if (duplicateError) throw new BadState(duplicateError);
-    if (revaluationIntegrity.digest(review.target_snapshot) !== revaluationIntegrity.digest(revaluationIntegrity.snapshot(result))) throw new StaleState('The original student, attempt or subject configuration changed. Review the document against the current original record again.');
+    if (review.target_snapshot?.pass_rules_version !== mcaPolicy.passRules.version) throw new StaleState('MCA passing requirements changed. Open Edit decisions, review the component marks and select Validate again before approval.');
+    if (revaluationIntegrity.snapshotDigest(review.target_snapshot) !== revaluationIntegrity.snapshotDigest(revaluationIntegrity.snapshot(result))) throw new StaleState('The original student, attempt or subject configuration changed. Review the document against the current original record again.');
     const identityErrors = revaluationIntegrity.verify(saved, result, review.proposal, typeof review.identity_verified === 'object' ? review.identity_verified : {}).errors;
     if (identityErrors.length) throw new BadState(identityErrors.join(' '));
     if (Number(result.student_id) !== Number(saved.student_id) ||
@@ -2622,16 +2629,14 @@ exports.showOutcome = async (req, res) => {
     const eff = effBySrid.get(r.srid) || null;
     const marks = eff ? Number(eff.revised_marks) : r.origMarks;
     const grade = eff ? (eff.revised_grade || r.origGrade) : r.origGrade;
-    const pct = r.maxMarks > 0 ? Math.floor((marks / r.maxMarks) * 100) : 0;
-    const g = gradeFromPercent(pct);
     return Object.assign({}, r, {
-      effective: { marks, grade, status: g.status, derivedGrade: g.grade },
+      effective: { marks, grade, status: eff ? eff.revised_status : r.origStatus, derivedGrade: grade },
       changed: !!eff
     });
   });
 
   const aggregates = computeOverlayAggregates(overlayRows.map(r => ({
-    credits: r.credits, max_marks: r.maxMarks, effective_marks: r.effective.marks
+    credits: r.credits, max_marks: r.maxMarks, effective_marks: r.effective.marks, status: r.effective.status, grade: r.effective.grade
   })));
 
   return res.render('revaluation/outcome', {
@@ -2649,6 +2654,8 @@ exports.showOutcome = async (req, res) => {
     reviewPresent: !!saved.review,
     events: events.map(e => ({
       id: e.revaluation_id, srid: e.subject_result_id, no: e.revaluation_no,
+      subjectCode: e.SubjectResult?.Subject?.subject_code || '',
+      subjectName: e.SubjectResult?.Subject?.subject_name || '',
       originalMarks: e.original_marks, revisedMarks: e.revised_marks,
       originalStatus: e.original_status, revisedStatus: e.revised_status,
       revisedGrade: e.revised_grade, isEffective: e.is_effective,

@@ -135,7 +135,7 @@ async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test St
   replace(db.ExamSession, 'findByPk', async () => session);
   replace(db.Batch, 'findByPk', async () => ({ batch_id: 1 }));
   const ocr = { extracted_json: { student: { ...identity }, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
-    subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] },
+    subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 40 }] },
     update: async data => { updates.push(data); Object.assign(ocr, data); } };
   replace(db.OcrExtraction, 'findOne', async () => ocr);
   replace(db.Subject, 'findAll', async () => [definition]);
@@ -150,7 +150,7 @@ async function fixture(student, run, identity = { usn: 'TEST001', name: 'Test St
   replace(db.sequelize, 'transaction', async () => ({ rollback: async () => { rolledBack = true; }, commit: async () => assert.fail('Must not commit a blocked import') }));
   const invoke = async (method, options = {}) => {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, render(view, locals) { this.view = view; this.locals = locals; }, redirect(url) { this.url = url; } };
-    await controller[method]({ params: { importId: '9' }, query: {}, ...options, body: { usn: identity.usn.toLowerCase(), name: identity.name, internal_1: 42, external_1: 34, verify_usn: '1', verify_semester: '1', verify_period: '1', ...options.body } }, response);
+    await controller[method]({ params: { importId: '9' }, query: {}, ...options, body: { usn: identity.usn.toLowerCase(), name: identity.name, internal_1: 42, external_1: 40, verify_usn: '1', verify_semester: '1', verify_period: '1', ...options.body } }, response);
     return response;
   };
   try { await run({ invoke, updates, ocr, isRolledBack: () => rolledBack }); }

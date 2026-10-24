@@ -75,6 +75,81 @@ test('stale proposal token and changed original target cannot be approved', asyn
   assert.match(await f.approve(9), /original student, attempt or subject configuration changed/);
   assert.equal(f.events.length, 0);
 });
+
+function reorderJsonKeys(value) {
+  if (Array.isArray(value)) return value.map(reorderJsonKeys);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().reverse().map(key => [key, reorderJsonKeys(value[key])]));
+}
+
+test('database JSON key reordering cannot falsely block an unchanged validated target', async () => {
+  const f = fixture(), saved = f.draft(9), original = JSON.stringify(f.result);
+  saved.review.target_snapshot = reorderJsonKeys(JSON.parse(JSON.stringify(saved.review.target_snapshot)));
+  assert.notEqual(integrity.digest(saved.review.target_snapshot), integrity.digest(integrity.snapshot(f.result)));
+  assert.equal(integrity.snapshotDigest(saved.review.target_snapshot), integrity.snapshotDigest(integrity.snapshot(f.result)));
+  assert.match(await f.approve(9), /outcome/);
+  assert.equal(f.events.length, 1);
+  assert.equal(JSON.stringify(f.result), original);
+});
+
+test('canonical snapshot comparison preserves values, types, missing fields and array ordering', () => {
+  const snapshot = { attempt: 1, subjects: [{ id: 1, marks: 0 }, { id: 2, marks: 20 }], note: null };
+  const before = JSON.stringify(snapshot);
+  assert.equal(integrity.snapshotDigest(snapshot), integrity.snapshotDigest(reorderJsonKeys(snapshot)));
+  for (const changed of [
+    { ...snapshot, attempt: '1' }, { ...snapshot, extra: true },
+    { ...snapshot, note: '' }, { ...snapshot, subjects: snapshot.subjects.slice().reverse() },
+    { ...snapshot, subjects: [{ id: 1, marks: 1 }, snapshot.subjects[1]] }
+  ]) assert.notEqual(integrity.snapshotDigest(snapshot), integrity.snapshotDigest(changed));
+  const missing = { ...snapshot }; delete missing.note;
+  assert.notEqual(integrity.snapshotDigest(snapshot), integrity.snapshotDigest(missing));
+  assert.equal(JSON.stringify(snapshot), before);
+});
+
+test('revaluation approval rechecks MCA component failures and preserves originals', async () => {
+  for (const [internal, external, status, grade] of [[37,14,'fail','F'],[24,50,'fail','F'],[30,20,'pass','C']]) {
+    const f = fixture(), saved = f.draft(9), before = JSON.stringify(f.result);
+    Object.assign(saved.review.proposal[0], { proposed_revised_internal_marks:internal,
+      proposed_revised_external_marks:external, proposed_revised_total_marks:internal+external });
+    assert.match(await f.approve(9),/outcome/);
+    assert.equal(f.events[0].revised_status,status);
+    assert.equal(f.events[0].revised_grade,grade);
+    assert.equal(JSON.stringify(f.result),before);
+  }
+});
+
+test('revaluation validated under previous passing rules requires a fresh review', async () => {
+  const f = fixture(), saved = f.draft(9);
+  delete saved.review.target_snapshot.pass_rules_version;
+  assert.match(await f.approve(9),/MCA passing requirements changed/);
+  assert.equal(f.events.length,0);
+});
+
+test('revaluation project SEE requirement works for model getter attributes, not just plain fixtures', async () => {
+  const f = fixture();
+  Object.defineProperty(f.sr.Subject,'subject_type',{get:()=> 'project'});
+  const saved = f.draft(9);
+  Object.assign(saved.review.proposal[0],{proposed_revised_internal_marks:30,proposed_revised_external_marks:20,proposed_revised_total_marks:50});
+  assert.match(await f.approve(9),/outcome/);
+  assert.equal(f.events[0].revised_status,'fail');
+  assert.equal(f.events[0].revised_grade,'F');
+});
+
+test('real academic changes still block approval after database JSON key reordering', async () => {
+  for (const change of [
+    f => { f.result.Student.usn = 'OTHER001'; },
+    f => { f.result.attempt_no = 2; },
+    f => { f.sr.marks = 41; },
+    f => { f.sr.Subject.credits = 5; },
+    f => { f.sr.Subject.max_external = 60; }
+  ]) {
+    const f = fixture(), saved = f.draft(9);
+    saved.review.target_snapshot = reorderJsonKeys(JSON.parse(JSON.stringify(saved.review.target_snapshot)));
+    change(f);
+    assert.match(await f.approve(9), /original student, attempt or subject configuration changed/);
+    assert.equal(f.events.length, 0);
+  }
+});
 test('concurrent legitimate later documents keep both events and exactly one approved effective outcome', async () => {
   const f = fixture(); f.draft(9); f.draft(10); const original = JSON.stringify(f.result);
   const urls = await Promise.all([f.approve(9), f.approve(10)]);

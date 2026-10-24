@@ -125,6 +125,22 @@ async function loadImportContext(importId) {
       : ocr.extracted_json;
     if (parsed) saved = parsed;
   }
+  // Older drafts omitted the printed result. Recover only an unambiguous row
+  // from their own stored text with matching code and both component marks.
+  if (ocr?.raw_text && typeof documentExtractor.parseProductionData === 'function'
+    && saved.subjects?.some(row => !row.document_result_status)) {
+    const evidence = documentExtractor.parseProductionData(ocr.raw_text, [], 'regular');
+    if (!evidence.student?.usn || integrity.usn(evidence.student.usn) === integrity.usn(saved.student?.usn)) {
+      saved.subjects = saved.subjects.map(row => {
+        if (row.document_result_status) return row;
+        const matches = (evidence.subjects || []).filter(item => integrity.code(item.subjectCode) === integrity.code(row.subject_code)
+          && integrity.present(item.internalMarks) && integrity.present(item.externalMarks)
+          && Number(item.internalMarks) === Number(row.internalMarks) && Number(item.externalMarks) === Number(row.externalMarks));
+        return matches.length === 1 && integrity.documentStatus(matches[0].result)
+          ? { ...row, document_result_status: integrity.documentStatus(matches[0].result) } : row;
+      });
+    }
+  }
 
   return {
     log,
@@ -238,7 +254,12 @@ async function buildValidatedPayload(examSessionId, studentInput, markInputs, op
 
     // Grade bands are on Score Range (%) per P.G. 2022/2024
     const pct = maxTotal > 0 ? Math.floor((total / maxTotal) * 100) : 0;
-    const gradeInfo = gradeFromPercent(pct);
+    const documentResult = integrity.documentStatus((options.documentSubjects || []).find(row => String(row.subject_id) === String(s.subject_id))?.document_result_status);
+    const gradeInfo = documentResult === 'fail' ? { grade: 'F', point: 0, status: 'fail' }
+      : academicPolicy.gradeFromComponents(internal, external, { ...s, max_internal: maxInt, max_external: maxExt, max_marks: maxTotal });
+    if (documentResult === 'pass' && gradeInfo.status === 'fail') {
+      errors.form = 'The document reports PASS for ' + s.subject_code + ', but the entered marks do not meet the MCA CIE, SEE or combined passing requirements. Verify the marks and subject configuration against the original card before validating.';
+    }
 
     allPoints += gradeInfo.point * credits;
     allCredits += credits;
@@ -299,15 +320,22 @@ function extractMarkInputs(body) {
 
 async function documentContextErrors(saved, session, payload, attempt, verified, mixedRequested, transaction) {
   let mixedVerified = false;
+  let scopeError = saved.excluded_subjects?.length
+    ? 'This document contains multiple academic semesters. Verify the included and excluded subjects, then select the mixed-document confirmation before validating. Each semester requires a separate upload.' : null;
   if (mixedRequested && saved.excluded_subjects?.length) {
     const courses = await AcademicCourse.findAll({ where: { batch_id: session.batch_id, status: 'active' }, raw: true, transaction });
     const inSemester = course => Number(course.semester) === Number(session.semester);
     const sameCode = (course, code) => String(course.subject_code).trim().toUpperCase() === String(code).trim().toUpperCase();
+    const unresolved = saved.excluded_subjects.filter(row => !courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)));
     mixedVerified = saved.excluded_subjects.every(row => courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)))
       && payload.subjects.every(row => courses.some(course => inSemester(course) && String(course.course_id) === String(row.course_id))
         && !courses.some(course => !inSemester(course) && sameCode(course, row.subject_code)));
+    if (!mixedVerified) scopeError = unresolved.length
+      ? 'Mixed-document scope could not be verified. These excluded subject codes are not confirmed as other-semester courses in the selected batch: ' + unresolved.map(row => row.subject_code).join(', ') + '. Check the original card and course roster: correct extraction errors or configure any legitimate missing course in its actual semester before retrying. These rows will not be imported.'
+      : 'Mixed-document scope could not be verified. Included subjects must belong unambiguously to the selected semester. Check the original card and course roster before retrying.';
   }
-  return integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified);
+  return integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified)
+    .map(error => scopeError && error.startsWith('Document Semester ') ? scopeError : error);
 }
 
 const resultController = {
@@ -488,8 +516,11 @@ const resultController = {
           max_internal: dbSub.max_internal,
           max_external: dbSub.max_external,
           max_marks: dbSub.max_marks,
+          subject_type: dbSub.subject_type,
+          pass_minimums: academicPolicy.passRules.thresholds(dbSub),
           internalMarks: hasMarks ? ocrSub.internalMarks : '',
           externalMarks: hasMarks ? ocrSub.externalMarks : '',
+          document_result_status: ocrSub ? integrity.documentStatus(ocrSub.result) : null,
           found_on_card: !!ocrSub,
           confidence: ocrSub ? ocrSub.marksConfidence : 'none'
         };
@@ -511,6 +542,7 @@ const resultController = {
           },
           subjects: mappedSubjects,
           excluded_subjects: excludedSubjects,
+          extraction_diagnostics: require('../services/extractionReviewDiagnostics').capture(ex),
           warnings: [...(ex.warnings || []), ...conflicts]
         },
         validation_status: 'pending'
@@ -558,7 +590,12 @@ const resultController = {
           max_external: dbSub.max_external,
           max_marks: dbSub.max_marks,
           internalMarks: savedSub ? savedSub.internalMarks : '',
-          externalMarks: savedSub ? savedSub.externalMarks : ''
+          externalMarks: savedSub ? savedSub.externalMarks : '',
+          subject_type: dbSub.subject_type,
+          pass_minimums: academicPolicy.passRules.thresholds(dbSub),
+          document_result_status: savedSub?.document_result_status || null,
+          result_status: savedSub?.document_result_status === 'fail' ? 'fail'
+            : academicPolicy.gradeFromComponents(Number(savedSub?.internalMarks), Number(savedSub?.externalMarks), dbSub).status
         };
       });
 
@@ -598,6 +635,15 @@ const resultController = {
       const extractionWarning = extractionWarningParts.length > 0
         ? extractionWarningParts.join(' ')
         : null;
+      const documentChecks = integrity.summary(ctx.saved.document_evidence || {}, {
+        ...ctx.session.toJSON?.() || ctx.session, usn: ctx.saved.student?.usn,
+        attempt_no: ctx.saved.attempt?.attempt_no, exam_type: ctx.saved.attempt?.exam_type
+      });
+      const extractionReview = require('../services/extractionReviewDiagnostics').classify({
+        saved: ctx.saved, subjects, warnings,
+        retake: academicPolicy.isRetakeAttempt(ctx.saved.attempt?.exam_type),
+        hasUnresolvedFields: !!extractionWarning, documentChecks
+      });
 
       // Initial extraction remains editable; duplicate checks run on Validate.
       const usn = (ctx.saved.student && ctx.saved.student.usn) || '';
@@ -642,8 +688,10 @@ const resultController = {
         documentChecks: integrity.summary(ctx.saved.document_evidence || {}, { ...ctx.session.toJSON?.() || ctx.session,
           usn: ctx.saved.student?.usn, attempt_no: attemptInfo.attempt_no, exam_type: attemptInfo.exam_type }),
         excludedSubjects: ctx.saved.excluded_subjects || [],
+        mixedContextVerified: ctx.saved.mixed_context_verified === true,
         subjects,
-        warnings,
+        warnings: extractionReview.warnings,
+        extractionDiagnostics: extractionReview.diagnostics,
         extractionWarning,
         formError: nameError || reviewError || (!savedAttempt.ok ? savedAttempt.errors.join(' ') : null),
         registrationBlocked: !!registrationError,
@@ -677,7 +725,7 @@ const resultController = {
         ctx.session.exam_session_id,
         { usn: req.body.usn, name: req.body.name },
         markInputs,
-        { session: ctx.session, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
+        { session: ctx.session, documentSubjects: ctx.saved.subjects, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
       if (ctx.saved.integrity_conflicts?.length) errors.form = ctx.saved.integrity_conflicts.join(' ');
       let registrationError = null;
@@ -709,7 +757,8 @@ const resultController = {
         internalMarks: s.internalMarks === null ? '' : s.internalMarks,
         externalMarks: s.externalMarks === null ? '' : s.externalMarks,
         found_on_card: true,
-        confidence: 'edited'
+        confidence: 'edited',
+        document_result_status: ctx.saved.subjects.find(row => String(row.subject_id) === String(s.subject_id))?.document_result_status || null
       }));
 
       // Review can correct the semester attempt number. Validate all submitted
@@ -770,12 +819,14 @@ const resultController = {
           document_context_verified: integrity.acknowledgments(req.body),
           mixed_context_verified: req.body.verify_mixed_context === '1',
           document_evidence: ctx.saved.document_evidence,
+          extraction_diagnostics: ctx.saved.extraction_diagnostics,
           integrity_conflicts: ctx.saved.integrity_conflicts || [],
           student: payload.student,
           attempt: { attempt_no: attemptNo, exam_type: examType },
           subjects: mergedSubjects,
           excluded_subjects: ctx.saved.excluded_subjects || [],
-          warnings: [...historyWarnings, ...(ctx.saved.integrity_conflicts || [])]
+          warnings: [...new Set([...historyWarnings, ...(ctx.saved.integrity_conflicts || []),
+            ...(ctx.saved.warnings || []).filter(require('../services/extractionReviewDiagnostics').isIntermediateWarning)])]
         },
         validation_status: Object.keys(errors).length > 0 ? 'pending' : 'validated'
       });
@@ -798,11 +849,19 @@ const resultController = {
             max_internal: dbSub.max_internal,
             max_external: dbSub.max_external,
             max_marks: dbSub.max_marks,
+            subject_type: dbSub.subject_type,
+            pass_minimums: academicPolicy.passRules.thresholds(dbSub),
             internalMarks: p && p.internalMarks !== null ? p.internalMarks : '',
-            externalMarks: p && p.externalMarks !== null ? p.externalMarks : ''
+            externalMarks: p && p.externalMarks !== null ? p.externalMarks : '',
+            document_result_status: ctx.saved.subjects.find(row => String(row.subject_id) === String(dbSub.subject_id))?.document_result_status || null,
+            result_status: p?.result_status || 'fail'
           };
         });
 
+        const extractionReview = require('../services/extractionReviewDiagnostics').classify({
+          saved: ctx.saved, subjects, warnings: historyWarnings,
+          retake: academicPolicy.isRetakeAttempt(examType), hasUnresolvedFields: true
+        });
         return res.status(422).render('results/review', {
           title: 'Review & Edit - SRAAS',
           breadcrumbItems: [
@@ -817,8 +876,10 @@ const resultController = {
           documentChecks: integrity.summary(ctx.saved.document_evidence || {}, { ...(ctx.session.toJSON?.() || ctx.session),
             usn: payload.student.usn, attempt_no: attemptNo, exam_type: examType }),
           excludedSubjects: ctx.saved.excluded_subjects || [],
+          mixedContextVerified: req.body.verify_mixed_context === '1',
           subjects,
-          warnings: historyWarnings,
+          warnings: extractionReview.warnings,
+          extractionDiagnostics: extractionReview.diagnostics,
           extractionWarning: Object.keys(errors).some(key => key !== 'form' && !(nameError && key === 'student.name'))
             ? 'Some required fields are missing or invalid. Please correct the highlighted fields below.' : null,
           errors,
@@ -860,7 +921,7 @@ const resultController = {
         }
       });
 
-      const { errors, payload } = await buildValidatedPayload(ctx.session.exam_session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR' });
+      const { errors, payload } = await buildValidatedPayload(ctx.session.exam_session_id, ctx.saved.student, markInputs, { session: ctx.session, documentSubjects: ctx.saved.subjects, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR' });
 
       if (Object.keys(errors).length > 0) {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
@@ -959,7 +1020,7 @@ const resultController = {
         }
       });
 
-      const { errors, payload } = await buildValidatedPayload(ctx.session.exam_session_id, ctx.saved.student, markInputs, { session: ctx.session, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR', transaction: t });
+      const { errors, payload } = await buildValidatedPayload(ctx.session.exam_session_id, ctx.saved.student, markInputs, { session: ctx.session, documentSubjects: ctx.saved.subjects, exam_type: ctx.saved.attempt?.exam_type || 'REGULAR', transaction: t });
       if (Object.keys(errors).length > 0) {
         await t.rollback();
         return res.redirect(`/results/upload/${ctx.log.import_id}/review?error=` + encodeURIComponent('Marks or the subject roster are no longer valid. Review the current marking limits and required courses, then Validate again.'));

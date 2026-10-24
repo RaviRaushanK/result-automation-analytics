@@ -10,6 +10,21 @@
   var form = document.getElementById('reviewForm');
   if (!form) return;
 
+  // Presentation only: UNVERIFIED and the acknowledgment remain authoritative
+  // on the server. Manual confirmation must never be presented as a MATCH.
+  var oldResultCheckbox = form.querySelector('input[name="verify_old_status"]');
+  var oldResultStatus = document.getElementById('oldExternalResultVerificationStatus');
+  if (oldResultCheckbox && oldResultStatus) {
+    function refreshOldResultStatus() {
+      oldResultStatus.textContent = oldResultCheckbox.checked
+        ? 'Manually confirmed' : 'Manual verification required';
+      oldResultStatus.classList.toggle('is-required', !oldResultCheckbox.checked);
+      oldResultStatus.classList.toggle('is-confirmed', oldResultCheckbox.checked);
+    }
+    oldResultCheckbox.addEventListener('change', refreshOldResultStatus);
+    refreshOldResultStatus();
+  }
+
   function rowInputs(srid) {
     return {
       intEl: document.getElementById('int_' + srid),
@@ -44,7 +59,10 @@
     [els.intEl, els.extEl].forEach(function (el) {
       if (!el) return;
       el.disabled = !accepting;
+      el.required = accepting;
       if (!accepting) {
+        el.setCustomValidity('');
+        el.removeAttribute('aria-invalid');
         el.classList.remove('is-invalid');
         el.setAttribute('tabindex', '-1');
       } else {
@@ -54,7 +72,46 @@
         // are enabled (no longer disabled) so the admin can type in them.
       }
     });
+    ['pick_', 'ack_'].forEach(function (prefix) {
+      var field = document.getElementById(prefix + srid);
+      if (field) {
+        field.required = accepting;
+        if (!accepting) {
+          field.classList.remove('is-invalid');
+          field.removeAttribute('aria-invalid');
+        }
+      }
+    });
     refreshRow(srid);
+  }
+
+  function validateRow(srid) {
+    var els = rowInputs(srid);
+    [els.intEl, els.extEl].forEach(function (field) {
+      if (!field || field.disabled) return;
+      var value = toInt(field.value);
+      var error = value === null || value < 0 || value > Number(field.max)
+        ? 'Enter a whole number from 0 to ' + field.max + '.' : '';
+      field.setCustomValidity(error);
+      var feedback = document.getElementById(field.id + '_feedback');
+      if (feedback) feedback.textContent = error || 'Enter a whole number from 0 to ' + field.max + '.';
+    });
+    if (!els.intEl || !els.extEl || els.intEl.disabled || els.extEl.disabled) return;
+    var row = els.extEl.closest('tr');
+    if (row && els.intEl.validity.valid && els.extEl.validity.valid
+      && Number(els.intEl.value) + Number(els.extEl.value) > Number(row.dataset.maxMarks)) {
+      var error = 'Internal plus revised external marks must not exceed ' + row.dataset.maxMarks + '.';
+      els.extEl.setCustomValidity(error);
+      var feedback = document.getElementById(els.extEl.id + '_feedback');
+      if (feedback) feedback.textContent = error;
+    }
+  }
+
+  function markValidity(field) {
+    var invalid = !field.disabled && !field.validity.valid;
+    field.classList.toggle('is-invalid', invalid);
+    if (invalid) field.setAttribute('aria-invalid', 'true');
+    else field.removeAttribute('aria-invalid');
   }
 
   // Wire every decision radio + mark input present in EDIT mode.
@@ -62,6 +119,10 @@
     .forEach(function (radio) {
       radio.addEventListener('change', function () {
         syncDisabled(radio.getAttribute('data-srid'));
+        validateRow(radio.getAttribute('data-srid'));
+        if (form.classList.contains('was-validated')) {
+          Array.prototype.forEach.call(form.querySelectorAll('input, select'), markValidity);
+        }
       });
       if (radio.checked) syncDisabled(radio.getAttribute('data-srid'));
     });
@@ -118,22 +179,35 @@
     });
 
 
-  // Client-side nicety only: block obvious empty-int/ext submits early.
+  // Bootstrap feedback is a convenience; the server repeats every integrity check.
+  Array.prototype.forEach.call(form.querySelectorAll('input, select'), function (field) {
+    field.addEventListener(field.type === 'checkbox' || field.tagName === 'SELECT' ? 'change' : 'input', function () {
+      if (field.classList.contains('rev-int') || field.classList.contains('rev-ext')) {
+        validateRow(field.getAttribute('data-srid'));
+      }
+      if (form.classList.contains('was-validated')) {
+        Array.prototype.forEach.call(form.querySelectorAll('input, select'), markValidity);
+      }
+    });
+  });
   form.addEventListener('submit', function (ev) {
-    var ok = true;
     Array.prototype.slice.call(document.querySelectorAll('#reviewTable tbody tr'))
       .forEach(function (tr) {
         var radio = tr.querySelector('input.rev-decision:checked');
         if (!radio || radio.value !== 'accept') return;
-        var srid = radio.getAttribute('data-srid');
-        var els = rowInputs(srid);
-        if (!els.intEl || !els.extEl) return;
-        if (toInt(els.intEl.value) === null || toInt(els.extEl.value) === null) {
-          ok = false;
-          els.intEl.classList.add('is-invalid');
-          els.extEl.classList.add('is-invalid');
-        }
+        validateRow(radio.getAttribute('data-srid'));
       });
-    if (!ok) ev.preventDefault();
+    form.classList.add('was-validated');
+    if (!form.checkValidity()) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      Array.prototype.forEach.call(form.querySelectorAll('input, select'), markValidity);
+      var firstInvalid = form.querySelector(':invalid');
+      if (firstInvalid) {
+        var details = firstInvalid.closest('details');
+        if (details) details.open = true;
+        firstInvalid.focus();
+      }
+    }
   });
 })();

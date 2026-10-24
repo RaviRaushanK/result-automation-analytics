@@ -157,16 +157,27 @@
       </div>
     </section>
   <form method="POST" action="/revaluation/review/<%= meta.importId %>" id="reviewForm"
-        class="revaluation-preview-editor <%= mode === 'edit' ? '' : 'review-frozen' %>">
+        class="revaluation-preview-editor needs-validation <%= mode === 'edit' ? '' : 'review-frozen' %>" novalidate>
     <input type="hidden" name="source_token" value="<%= meta.sourceToken || '' %>">
     <% if (meta.documentChecks) { %>
       <div class="alert alert-info">
-        <% meta.documentChecks.filter(check => !check.derived).forEach(check => { %><div><strong><%= check.field %>:</strong> <%= check.status %><% if (check.document) { %> — <%= check.document %><% } %></div><% }) %>
+        <% meta.documentChecks.filter(check => !check.derived).forEach(check => { %><div><strong><%= check.field %>:</strong>
+          <% if (check.key === 'old_status' && check.status === 'UNVERIFIED') { %>
+            <span id="oldExternalResultVerificationStatus" class="manual-verification-status <%= review?.identity_verified?.old_status === true ? 'is-confirmed' : 'is-required' %>" role="status" aria-live="polite" aria-atomic="true"><%= review?.identity_verified?.old_status === true ? 'Manually confirmed' : 'Manual verification required' %></span>
+          <% } else { %><%= check.status %><% } %>
+          <% if (check.document) { %> — <%= check.documentLabel || check.document %><% } %></div><% }) %>
         <% meta.documentChecks.filter(check => check.derived).forEach(check => { %><div><strong><%= check.field %>: <%= check.expected %></strong> — Derived from stored history</div><% }); %>
         <% meta.documentChecks.filter(check => !check.derived && ['NOT PRESENT IN DOCUMENT','UNVERIFIED'].includes(check.status)).forEach(check => { %>
-          <div><label><input type="checkbox" name="verify_<%= check.key %>" value="1" <%= review?.identity_verified?.[check.key] === true ? 'checked' : '' %>> I verified the <%= check.field %> against the original card because authoritative comparison is unavailable.</label></div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="verify_<%= check.key %>" name="verify_<%= check.key %>" value="1" required aria-describedby="verify_<%= check.key %>_feedback<%= check.key === 'old_status' ? ' oldExternalResultVerificationHelp oldExternalResultSaveHelp' : '' %>" <%= review?.identity_verified?.[check.key] === true ? 'checked' : '' %>>
+            <label class="form-check-label" for="verify_<%= check.key %>"><%= check.key === 'old_status' ? 'I verified the old external PASS/FAIL status against the original marks card.' : 'I verified the ' + check.field + ' against the original card because authoritative comparison is unavailable.' %></label>
+            <div class="invalid-feedback" id="verify_<%= check.key %>_feedback">Confirm <%= check.field.toLowerCase() %> against the original marks card before validating.</div>
+          </div>
         <% }); %>
-        <div class="small mt-1">Printed old marks/result are external-component fields. Old external marks are checked when stored; the original external result status is not stored separately and needs verification against the card. It must not replace the stored overall outcome.</div>
+        <% if (meta.documentChecks.some(check => check.key === 'old_status' && check.status === 'UNVERIFIED')) { %>
+        <div class="small mt-1" id="oldExternalResultVerificationHelp">The original external PASS/FAIL status is not stored separately, so this field must be checked manually.</div>
+        <div class="small mt-1" id="oldExternalResultSaveHelp">Select Validate to save this confirmation. Approval remains a separate step.</div>
+        <% } %>
       </div>
     <% } %>
     <div class="card mb-3">
@@ -218,11 +229,12 @@
   const rowErrs = (errors && errors[r.srid]) ? errors[r.srid] : [];
   const prop = propBySrid[r.srid] || null;
 %>
-            <tr class="<%= prop && prop.decision === 'reject' ? 'table-light text-muted' : '' %>">
+            <tr data-max-marks="<%= r.maxMarks %>" class="<%= prop && prop.decision === 'reject' ? 'table-light text-muted' : '' %>">
               <td>
                 <strong><%= r.code %></strong><br>
                 <small class="text-muted"><%= r.name %></small><br>
                 <small>credits <%= r.credits %> &middot; max I/E/T: <%= r.maxInternal %>/<%= r.maxExternal %>/<%= r.maxMarks %></small>
+                <% if (r.passMinimums) { %><small class="d-block text-muted">Pass minimum CIE/SEE/total: <%= r.passMinimums.internal %>/<%= r.passMinimums.external %>/<%= r.passMinimums.total %></small><% } %>
                 <details class="mt-1"><summary>OCR evidence</summary>
                 <span class="badge bg-<%= ev.match_state === 'MATCHED' ? 'success' : (ev.match_state === 'AMBIGUOUS' ? 'warning text-dark' : 'secondary') %>">
                   <%= ev.match_state %>
@@ -245,7 +257,7 @@
                 <% if (editable && ev.ambiguous && r.pickOptions.length) { %>
                   <div class="mt-1">
                     <label class="form-label small mb-0" for="pick_<%= r.srid %>">Bind this doc row to:</label>
-                    <select id="pick_<%= r.srid %>" name="ambiguous_pick_<%= r.srid %>" class="form-select form-select-sm">
+                    <select id="pick_<%= r.srid %>" name="ambiguous_pick_<%= r.srid %>" class="form-select form-select-sm" aria-describedby="pick_<%= r.srid %>_feedback">
                       <option value="">— choose subject —</option>
                       <% r.pickOptions.forEach(o => { %>
                         <option value="<%= o.id %>" <%= (entered && entered.pick === String(o.id)) ? 'selected' : '' %>>
@@ -253,6 +265,7 @@
                         </option>
                       <% }) %>
                     </select>
+                    <div class="invalid-feedback" id="pick_<%= r.srid %>_feedback">Choose the original subject for this accepted document row.</div>
                   </div>
                 <% } %>
                 </details>
@@ -288,14 +301,16 @@
                 <input type="number" min="0" max="<%= r.maxInternal %>" step="1"
                        name="internal_<%= r.srid %>" id="int_<%= r.srid %>" aria-label="Internal marks for <%= r.code %>"
                        value="<%= preInt %>" class="form-control form-control-sm rev-int"
-                       data-srid="<%= r.srid %>"
+                       data-srid="<%= r.srid %>" aria-describedby="int_<%= r.srid %>_feedback"
                        <%= editable ? '' : 'disabled' %>>
+                <div class="invalid-feedback" id="int_<%= r.srid %>_feedback">Enter whole-number internal marks from 0 to <%= r.maxInternal %>.</div>
               </td>
               <td class="text-center">
                 <input type="number" min="0" max="<%= r.maxExternal %>" step="1"
                        name="external_<%= r.srid %>" id="ext_<%= r.srid %>" aria-label="Revised external marks for <%= r.code %>"
                        value="<%= preExt %>" class="form-control form-control-sm rev-ext"
-                       data-srid="<%= r.srid %>" <%= editable ? '' : 'disabled' %>>
+                       data-srid="<%= r.srid %>" aria-describedby="ext_<%= r.srid %>_feedback" <%= editable ? '' : 'disabled' %>>
+                <div class="invalid-feedback" id="ext_<%= r.srid %>_feedback">Enter whole-number revised external marks from 0 to <%= r.maxExternal %>.</div>
               </td>
               <td class="text-center">
                 <span id="tot_<%= r.srid %>" class="fw-bold text-primary">—</span>
@@ -319,10 +334,12 @@
                   <% if (needAck) { %>
                     <div class="form-check mt-1 text-start">
                       <input class="form-check-input" type="checkbox" name="ack_<%= r.srid %>" id="ack_<%= r.srid %>" value="on"
+                             aria-describedby="ack_<%= r.srid %>_feedback"
                              <%= (entered && entered.ack) ? 'checked' : '' %>>
                       <label class="form-check-label small text-wrap" for="ack_<%= r.srid %>" style="max-width:150px;">
                         I acknowledge the unrepresentable document letter
                       </label>
+                      <div class="invalid-feedback" id="ack_<%= r.srid %>_feedback">Confirm the document status for this accepted subject.</div>
                     </div>
                   <% } %>
                 <%# In locked/confirm mode: prop === null means the frozen proposal

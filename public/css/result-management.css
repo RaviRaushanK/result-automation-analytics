@@ -93,6 +93,34 @@
 .revaluation-document-frame { position: absolute; inset: .5rem; width: calc(100% - 1rem); height: calc(100% - 1rem); border: 0; }
 .revaluation-preview-editor { margin: 0; }
 .revaluation-ui .revaluation-preview-editor .card { border-radius: 8px; }
+.revaluation-ui .revaluation-event-ledger .badge { white-space: nowrap; }
+
+/* Accept/Reject are decisions, not fields needing success/error colors. */
+.revaluation-ui #reviewForm.was-validated .rev-decision ~ .form-check-label {
+  color: var(--text-primary);
+}
+.revaluation-ui #reviewForm.was-validated .rev-decision {
+  border-color: var(--bs-border-color, #dee2e6);
+}
+.revaluation-ui #reviewForm.was-validated .rev-decision:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+.revaluation-ui #reviewForm.was-validated .rev-decision:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+}
+
+/* Manual acknowledgment is distinct from an automatic database match. */
+.revaluation-ui .manual-verification-status {
+  color: inherit;
+}
+.revaluation-ui .manual-verification-status.is-required {
+  color: #92400e;
+}
+:root[data-theme="dark"] .revaluation-ui .manual-verification-status.is-required {
+  color: #fbbf24;
+}
 .revaluation-ocr-evidence summary { cursor: pointer; color: var(--primary-brand); }
 .revaluation-preview-grid #reviewTable { font-size: .875rem; }
 .revaluation-preview-grid #reviewTable th, .revaluation-preview-grid #reviewTable td { padding: .5rem; }

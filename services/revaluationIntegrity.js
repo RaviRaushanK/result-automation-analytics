@@ -20,7 +20,8 @@ function checks(saved, result) {
   return list;
 }
 function snapshot(result) {
-  return { student_id: result.student_id, usn: result.Student?.usn, exam_session_id: result.exam_session_id,
+  return { pass_rules_version: require('./academicPolicy').passRules.version,
+    student_id: result.student_id, usn: result.Student?.usn, exam_session_id: result.exam_session_id,
     semester: result.ExamSession?.semester,
     exam_start_month: result.ExamSession?.exam_start_month, exam_start_year: result.ExamSession?.exam_start_year,
     exam_end_month: result.ExamSession?.exam_end_month, exam_end_year: result.ExamSession?.exam_end_year,
@@ -30,13 +31,21 @@ function snapshot(result) {
       internal: sr.internal_marks, external: sr.external_marks,
       status: sr.result_status, grade: sr.grade, subject: sr.Subject?.toJSON ? sr.Subject.toJSON() : sr.Subject })).sort((a, b) => a.id - b.id) };
 }
+// MySQL JSON storage may reorder object keys. Compare the saved academic
+// snapshot by value, while preserving array order, types and every field.
+function snapshotDigest(value) {
+  return integrity.digest(JSON.stringify(value, (key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.keys(item).sort().map(field => [field, item[field]]))
+      : item));
+}
 function verify(saved, result, proposals = [], acknowledged = false) {
   const errors = [], documentChecks = checks(saved, result);
   if (!result.Student || !integrity.usn(result.Student.usn) || !result.ExamSession) errors.push('The authoritative original student or examination context is unavailable. Restore or verify the registered student and select the correct existing attempt before revaluation.');
   if (result.Student?.batch_id !== undefined && result.ExamSession?.batch_id !== undefined
     && String(result.Student.batch_id) !== String(result.ExamSession.batch_id)) errors.push('The original student and examination batch do not match. Resolve the historical association through a controlled academic workflow before revaluation.');
   for (const check of documentChecks.filter(check => check.status === 'MISMATCH')) errors.push(
-    `The revaluation document identifies ${check.field} ${check.document}, but the selected result identifies ${check.expected}. Approval is blocked. Select the correct attempt or replace the document.`);
+    `The revaluation document identifies ${check.field} ${check.documentLabel || check.document}, but the selected result identifies ${check.expectedLabel || check.expected}. Approval is blocked. Select the correct attempt or replace the document.`);
   for (const check of documentChecks.filter(check => !check.derived)) {
     if (['NOT PRESENT IN DOCUMENT','UNVERIFIED'].includes(check.status) && !integrity.acknowledged(acknowledged, check.field)) errors.push(`Verify ${check.field} against the original card because authoritative comparison is unavailable.`);
   }
@@ -81,4 +90,4 @@ function eventReferences(saved) {
   return [...new Set([...String(saved.ocr?.raw_text || '').matchAll(/\bREVALUATION\s+(?:NO\.?|NUMBER|ROUND)\s*[:=#-]\s*([A-Z0-9/-]+)/gi)].map(match => match[1].toUpperCase()))];
 }
 const eventReference = saved => eventReferences(saved).length === 1 ? eventReferences(saved)[0] : null;
-module.exports = { checks, snapshot, verify, eventFingerprint, eventReference, digest: integrity.digest };
+module.exports = { checks, snapshot, snapshotDigest, verify, eventFingerprint, eventReference, digest: integrity.digest };

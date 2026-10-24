@@ -367,7 +367,7 @@ const vlmExtractor = {
                 : pages.some(page => ['ok', 'partial'].includes(page.status)) ? 'partial' : 'failed';
             if (stages[stage].status !== 'ok') {
                 stageWarnings.push((stage === 'ocr' ? 'Text OCR' : 'Vision reading') +
-                    ' was incomplete or unavailable on some pages. Verify the extracted rows against the card.');
+                    ' was incomplete or unavailable on some pages. Other extraction stages may still have recovered usable data; this warning does not mean the displayed values are incorrect. Compare the extracted subject rows and marks with the original card.');
             }
         }
 

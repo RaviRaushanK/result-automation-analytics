@@ -12,6 +12,10 @@ function mark(value) {
 }
 const code = value => String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 const usn = value => typeof value === 'string' ? value.trim().toUpperCase() : '';
+function documentStatus(value) {
+  const token = String(value || '').trim().toUpperCase();
+  return ['F', 'FAIL'].includes(token) ? 'fail' : ['P', 'PASS'].includes(token) ? 'pass' : null;
+}
 function claims(ex = {}) {
   const text = ex.raw_text || ex.rawText || '';
   const unique = values => [...new Set(values.filter(present).map(value => String(value).trim().toUpperCase()))];
@@ -36,6 +40,9 @@ function contextChecks(ex, target) {
   check('USN', evidence.usns, target.usn, usn);
   check('Semester', evidence.semesters, target.semester, value => String(Number(value)));
   check('Examination period', evidence.periods.map(policy.periodKey), policy.periodKey(target));
+  const periodCheck = checks[checks.length - 1];
+  periodCheck.documentLabel = evidence.periods.map(policy.formatExamPeriod).join(', ');
+  periodCheck.expectedLabel = policy.formatExamPeriod(target);
   check('Attempt', evidence.attempts, target.attempt_no, value => String(Number(value)));
   check('Exam type', evidence.types, target.exam_type);
   return checks;
@@ -57,7 +64,7 @@ function originalDocumentErrors(saved, session, student, attempt, verified, mixe
     usn: student.usn, attempt_no: attempt.attempt_no, exam_type: attempt.exam_type });
   const mixed = saved.excluded_subjects?.length && mixedVerified;
   const mismatches = checks.filter(check => check.status === 'MISMATCH' && !(mixed && ['Semester','Attempt','Exam type'].includes(check.field)));
-  const errors = mismatches.map(check => `Document ${check.field} ${check.document} does not match selected ${check.expected}. Select the correct student/examination session or replace the document.`);
+  const errors = mismatches.map(check => `Document ${check.field} ${check.documentLabel || check.document} does not match selected ${check.expectedLabel || check.expected}. Select the correct student/examination session or replace the document.`);
   for (const check of checks.filter(check => !['Attempt','Exam type'].includes(check.field))) {
     if (check.status === 'NOT PRESENT IN DOCUMENT' && !acknowledged(verified, check.field)) errors.push(missingVerificationMessage(check.field));
   }
@@ -72,4 +79,4 @@ function acknowledged(values, field) { return values === true || values?.[verifi
 function acknowledgments(body = {}) { return Object.fromEntries(Object.values(verificationKeys).map(key => [key, body['verify_' + key] === '1'])); }
 function summary(ex, target) { return contextChecks(ex, target).map(check => ({ ...check,
   key: verificationKeys[check.field], derived: ['Attempt','Exam type'].includes(check.field) && check.status === 'NOT PRESENT IN DOCUMENT' })); }
-module.exports = { digest, present, mark, code, usn, claims, contextChecks, duplicateRows, originalDocumentErrors, acknowledged, acknowledgments, summary };
+module.exports = { digest, present, mark, code, usn, documentStatus, claims, contextChecks, duplicateRows, originalDocumentErrors, acknowledged, acknowledgments, summary };

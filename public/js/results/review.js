@@ -7,8 +7,8 @@
  */
 document.addEventListener('DOMContentLoaded', function () {
     var rows = document.querySelectorAll('#reviewForm tbody tr[data-max-marks]');
-    var PASS_PERCENT = 50; // P.G. 2022/2024: C (50-54%) is the minimum pass band
     var form = document.getElementById('reviewForm');
+    var validationAttempted = false;
 
     /**
      * collectMissingFields
@@ -41,11 +41,22 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        var typeField = form && form.querySelector ? form.querySelector('[name="exam_type"]') : null;
+        var retake = typeField && typeField.value !== 'REGULAR';
+        var attemptEl = document.getElementById('reviewAttemptNo');
+        if (attemptEl) {
+            var attempt = String(attemptEl.value).trim();
+            if (!/^\d+$/.test(attempt) || !Number.isSafeInteger(Number(attempt))
+                || (retake ? Number(attempt) < 2 : Number(attempt) !== 1)) {
+                missing.push({ field: 'attempt_no', message: retake ? 'Enter a whole-number attempt of 2 or later.' : 'Regular results must use Attempt 1.', el: attemptEl });
+            }
+        }
+        var attemptedRows = 0;
         rows.forEach(function (row) {
             var internalInput = row.querySelector('.internal-input');
             var externalInput = row.querySelector('.external-input');
-            var retake = form.querySelector('[name="exam_type"]').value !== 'REGULAR';
             if (retake && internalInput.value === '' && externalInput.value === '') return;
+            attemptedRows++;
             var subjectId = row.dataset.subjectId;
 
             [internalInput, externalInput].forEach(function (input) {
@@ -65,9 +76,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         message: 'Marks are required.',
                         el: input
                     });
+                } else if (!/^\d+$/.test(String(raw).trim()) || !Number.isSafeInteger(Number(raw))
+                    || Number(raw) < 0 || Number(raw) > Number(input.max)) {
+                    missing.push({ field: input.name, message: 'Enter a whole number from 0 to ' + input.max + '.', el: input });
                 }
             });
+            if ([internalInput, externalInput].every(function (input) { return /^\d+$/.test(input.value); })
+                && Number(internalInput.value) + Number(externalInput.value) > Number(row.dataset.maxMarks)) {
+                missing.push({ field: 'subjects[' + subjectId + '].total', message: 'Total marks must not exceed ' + row.dataset.maxMarks + '.', el: externalInput, totalRow: row });
+            }
         });
+        if (retake && !attemptedRows && rows.length) missing.push({ field: 'subjects', message: 'Enter marks for at least one attempted subject.', el: rows[0].querySelector('.internal-input') });
+        if (validationAttempted && form && form.querySelectorAll) {
+            form.querySelectorAll('input[type="checkbox"][required]').forEach(function (input) {
+                if (!input.checked) missing.push({ field: input.name, message: 'Confirm this document detail against the original marks card before validating.', el: input });
+            });
+        }
 
         return missing;
     }
@@ -91,13 +115,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Clear is-invalid class only on inputs that were not server-flagged.
         document.querySelectorAll('#reviewForm .is-invalid').forEach(function (el) {
-            if (!el.dataset.serverInvalid) el.classList.remove('is-invalid');
+            if (!el.dataset.serverInvalid) {
+                el.classList.remove('is-invalid');
+                el.removeAttribute('aria-invalid');
+            }
         });
 
+        rows.forEach(function (row) {
+            var feedback = document.getElementById('total_' + row.dataset.subjectId + '_feedback');
+            if (feedback) { feedback.hidden = true; feedback.textContent = ''; feedback.classList.remove('d-block'); }
+            var cell = row.querySelector('.total-cell');
+            if (cell) cell.classList.remove('text-danger');
+        });
         var missing = collectMissingFields();
 
         missing.forEach(function (m) {
-            if (m.el && m.el.classList) m.el.classList.add('is-invalid');
+            if (!m.totalRow && m.el && m.el.classList) {
+                m.el.classList.add('is-invalid');
+                m.el.setAttribute('aria-invalid', 'true');
+            }
         });
 
         // Append a single field-level warning message under each affected input
@@ -105,16 +141,28 @@ document.addEventListener('DOMContentLoaded', function () {
         var seen = {};
         missing.forEach(function (m) {
             if (!m.el) return;
-            if (seen[m.field]) return;
-            seen[m.field] = true;
+            if (m.totalRow) {
+                var totalFeedback = document.getElementById('total_' + m.totalRow.dataset.subjectId + '_feedback');
+                if (totalFeedback) { totalFeedback.textContent = m.message; totalFeedback.hidden = false; totalFeedback.classList.add('d-block'); }
+                m.totalRow.querySelector('.total-cell').classList.add('text-danger');
+                return;
+            }
+            if (seen[m.el.id]) return;
+            seen[m.el.id] = true;
+
+            var feedback = m.el.parentNode.querySelector('.invalid-feedback');
+            if (feedback) { feedback.textContent = m.message; return; }
 
             var existing = m.el.parentNode.querySelector('.field-error-message');
             if (existing) return; // already server-rendered, leave it
 
             var msg = document.createElement('div');
-            msg.className = 'field-error-message text-danger small mt-1';
+            msg.className = 'field-error-message invalid-feedback d-block';
+            msg.id = m.el.id + '_feedback';
             msg.textContent = m.message;
             m.el.parentNode.appendChild(msg);
+            var describedBy = m.el.getAttribute('aria-describedby') || '';
+            if (describedBy.split(' ').indexOf(msg.id) < 0) m.el.setAttribute('aria-describedby', (describedBy + ' ' + msg.id).trim());
         });
 
         if (missing.length === 0) {
@@ -124,7 +172,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var count = missing.length;
         var noun = (count === 1) ? 'field needs' : 'fields need';
-        var text = 'Some required fields could not be extracted. Please review and correct the highlighted fields before submitting the result. (' + count + ' ' + noun + ' attention.)';
+        var text = 'Please review and correct the highlighted fields before validating the result. (' + count + ' ' + noun + ' attention.)';
         if (msgEl) msgEl.textContent = text;
         if (alertEl) alertEl.style.display = '';
     }
@@ -132,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function () {
     rows.forEach(function (row) {
         var internalInput = row.querySelector('.internal-input');
         var externalInput = row.querySelector('.external-input');
-        var totalCell = row.querySelector('.total-cell');
+        var totalCell = row.querySelector('.total-value');
         var statusCell = row.querySelector('.status-cell');
 
         if (!internalInput || !externalInput || !totalCell || !statusCell) return;
@@ -151,11 +199,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             totalCell.textContent = total;
 
-            // Score Range (%) against this subject's max_marks
-            var pct = maxMarks > 0 ? Math.floor((total / maxMarks) * 100) : 0;
-            
-
-            if (pct >= PASS_PERCENT) {
+            var pass = typeof McaPassRules !== 'undefined' && McaPassRules.evaluate(Number(internalInput.value), Number(externalInput.value), {
+                subject_type: row.dataset.subjectType, max_internal: Number(row.dataset.maxInternal),
+                max_external: Number(row.dataset.maxExternal), max_marks: maxMarks
+            }).status === 'pass';
+            if (internalInput.value !== '' && externalInput.value !== '' && pass && row.dataset.documentStatus !== 'fail') {
                 statusCell.innerHTML = '<span class="badge bg-success">PASS</span>';
             } else {
                 statusCell.innerHTML = '<span class="badge bg-danger">FAIL</span>';
@@ -165,12 +213,10 @@ document.addEventListener('DOMContentLoaded', function () {
         internalInput.addEventListener('input', function () {
             update();
             updateExtractionWarning();
-            this.classList.remove('is-invalid');
         });
         externalInput.addEventListener('input', function () {
             update();
             updateExtractionWarning();
-            this.classList.remove('is-invalid');
         });
 
         update();
@@ -205,6 +251,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initial render: show extraction warning if fields are missing on page load.
     updateExtractionWarning();
+    if (form && form.querySelectorAll) {
+        form.querySelectorAll('input[type="checkbox"][required], #reviewAttemptNo').forEach(function (input) {
+            input.addEventListener(input.type === 'checkbox' ? 'change' : 'input', updateExtractionWarning);
+        });
+    }
 
     // Submit-time guard: same validation, never trust the browser submit.
     if (form) {
@@ -215,6 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (registrationAlert) registrationAlert.scrollIntoView({ block: 'center' });
                 return false;
             }
+            validationAttempted = true;
             var missing = collectMissingFields();
             if (missing.length > 0) {
                 e.preventDefault();

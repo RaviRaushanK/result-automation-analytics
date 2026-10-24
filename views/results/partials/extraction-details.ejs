@@ -1,0 +1,11 @@
+<% if (typeof extractionDiagnostics !== 'undefined' && extractionDiagnostics.length) { %>
+<details class="border rounded p-3 mb-3 small" id="extractionDetails">
+  <summary>Extraction details</summary>
+  <ul class="mb-0 mt-2">
+    <% extractionDiagnostics.forEach(diagnostic => { %>
+    <li><strong><%= diagnostic.stage %> — Recovered:</strong> <%= diagnostic.message %></li>
+    <% }); %>
+  </ul>
+  <p class="mb-0 mt-2 text-muted">Review the subject rows and marks against the original card. USN, Semester and Examination period MATCH apply only to those identity fields.</p>
+</details>
+<% } %>

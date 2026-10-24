@@ -62,7 +62,7 @@ test('preview controller renders calculated CGPA without starting transactions o
   const definition = { subject_id: 1, course_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 100, max_marks: 150 };
   const course = { ...definition, semester: '1', status: 'active', is_required: true, roster_verified: true };
   replace(db.ImportLog, 'findByPk', async () => ({ import_id: 9, file_name: 'test.pdf', ExamSession: current }));
-  replace(db.OcrExtraction, 'findOne', async () => ({ extracted_json: { student: { usn: 'TEST001', name: 'Test Student' }, attempt, subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 34 }] } }));
+  replace(db.OcrExtraction, 'findOne', async () => ({ extracted_json: { student: { usn: 'TEST001', name: 'Test Student' }, attempt, subjects: [{ subject_id: 1, internalMarks: 42, externalMarks: 40 }] } }));
   replace(db.Subject, 'findAll', async () => [definition]);
   replace(db.AcademicCourse, 'findAll', async () => [course]);
   replace(db.Student, 'findOne', async () => ({ student_id: 1, batch_id: 1, student_name: 'TEST STUDENT' }));

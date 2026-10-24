@@ -181,6 +181,28 @@ Original IA/EX are never inferred from revised totals.
 
 ## GPA
 
+### MCA 2022 passing requirements
+
+The MCA regulations, clauses 22OMC9.1/9.8 and 22OMC10.2, require theory and lab
+courses to satisfy CIE >= 50%, SEE >= 40%, and aggregate >= 50%. For 50+50 marks
+this means CIE >= 25, SEE >= 20, total >= 50. Project courses use the separate
+22OMC10.3 SEE minimum of 50%, retaining CIE eligibility where configured. The
+grade table in 22OMC7.1 remains O/A+/A/B+/B/C/F; no new E grade is fabricated from
+the inconsistent reference to E in 22OMC10.3.
+
+One shared passing module serves original Regular/Backlog and revaluation review,
+preview and final persistence. Any failed component produces F/zero points even
+when the total is above 50. Browser hints show passing minima but still allow
+entry/import of legitimate failing marks. Failures are results, not invalid mark
+entries. Existing printed-FAIL evidence is preserved; a printed PASS contradicting
+the encoded requirements blocks original-result validation for review.
+
+Passing-rule versioning invalidates previously validated drafts. Historical
+results, marks, grades and stored GPA are not rewritten. Revaluation outcomes
+display persisted original/revised statuses instead of re-inferring PASS from
+their totals; derived attempt GPA respects those statuses. GPA aggregation policy
+and the backlog SGPA=NULL rule are unchanged by this passing-rule update.
+
 Production grading is `PG_2022_2024_V1`: O=10, A+=9, A=8, B+=7, B=6, C=5,
 F=0, using existing percentage bands. New subject results snapshot grade points,
 credits, course identity, and scheme. Legacy seed S/A/B/C/D/E grading is separately

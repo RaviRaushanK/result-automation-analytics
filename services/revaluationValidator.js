@@ -41,21 +41,25 @@ function validateCardResult(fieldName, rawValue) {
   return { ok: true, error: null };
 }
 
-function validateFinalConsistency(finalMarks, finalResult, maxTotal) {
+function validateFinalConsistency(finalMarks, finalResult, maxTotal, components) {
   const errors = [], warnings = [];
   const threshold = Math.ceil((Number(maxTotal) || 100) * 0.5);
   if (finalMarks !== null && finalResult) {
     if (finalResult === 'pass' && finalMarks < threshold)
       errors.push('Final Result is "pass" but Final Marks (' + finalMarks + ') are below the pass threshold (' + threshold + ' for max ' + maxTotal + ').');
-    else if (finalResult === 'fail' && finalMarks >= threshold)
-      errors.push('Final Result is "fail" but Final Marks (' + finalMarks + ') meet the encoded overall pass threshold (' + threshold + '). Verify the result on the document.');
+    // A total above 50% can still FAIL a component. Never infer PASS from it.
+    if (components) {
+      const policy = require('./academicPolicy');
+      const outcome = policy.gradeFromComponents(components.internal, components.external, components.subject);
+      if (outcome.status !== finalResult) errors.push('Final Result does not match the MCA CIE, SEE and combined passing requirements. Verify the component marks and document result.');
+    }
   }
   return { ok: errors.length === 0, errors, warnings };
 }
 
-function validateOldConsistency(oldMarks, oldResult, maxExt) {
+function validateOldConsistency(oldMarks, oldResult, maxExt, subjectType) {
   const errors = [], warnings = [];
-  const threshold = passThreshold(maxExt || 100);
+  const threshold = require('./academicPolicy').passRules.thresholds({ subject_type: subjectType, max_external: maxExt || 100 }).external;
   if (oldMarks !== null && oldResult) {
     if (oldResult === 'pass' && oldMarks < threshold)
       warnings.push('Old Result is "pass" but Old Marks (' + oldMarks + ') are below the pass threshold (' + threshold + ' for max ' + maxExt + '). Verify the document.');
@@ -106,7 +110,7 @@ function validateNineCardFields(card, subject) {
   const oldConsistency = validateOldConsistency(
     om.present ? om.value : null,
     card.card_old_result ? String(card.card_old_result).trim().toLowerCase() : null,
-    maxExt
+    maxExt, subject.subject_type
   );
   warnings.push(...oldConsistency.warnings);
 
@@ -138,7 +142,9 @@ function validateNineCardFields(card, subject) {
     const finConsistency = validateFinalConsistency(
       fm.value,
       String(card.card_final_result).trim().toLowerCase(),
-      maxTotal
+      maxTotal,
+      im.present && !im.invalid && rm.present && !rm.invalid ? { internal: im.value, external: rm.value,
+        subject: { subject_type: subject.subject_type, max_internal: maxInt, max_external: maxExt, max_marks: maxTotal } } : null
     );
     errors.push(...finConsistency.errors);
     warnings.push(...finConsistency.warnings);

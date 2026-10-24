@@ -78,14 +78,14 @@ test('confirmImport persists validated IA/External/Total while preserving academ
   replace(db.SubjectResult, 'bulkCreate', async data => { subjectRows = data; });
   const invoke = () => controller.confirmImport({ params: { importId: '9' }, body: { internal_1: 1, external_1: 1, review_token: 'fixture-review' } }, { redirect: url => { redirected = url; } });
   try {
-    await t.test('new imports retain components, zero marks, validated total and original grade rules', async () => {
+    await t.test('new imports retain components, zero marks and MCA component failures above the total pass band', async () => {
       await invoke();
       assert.deepEqual(subjectRows, [
-        { result_id: 7, subject_id: 1, internal_marks: 42, external_marks: 34, marks: 76, grade: 'C', result_status: 'pass', grading_scheme_version: 'PG_2022_2024_V1', grade_point: 5, credits_snapshot: 4, course_id_snapshot: 1 },
+        { result_id: 7, subject_id: 1, internal_marks: 42, external_marks: 34, marks: 76, grade: 'F', result_status: 'fail', grading_scheme_version: 'PG_2022_2024_V1', grade_point: 0, credits_snapshot: 4, course_id_snapshot: 1 },
         { result_id: 7, subject_id: 2, internal_marks: 0, external_marks: 0, marks: 0, grade: 'F', result_status: 'fail', grading_scheme_version: 'PG_2022_2024_V1', grade_point: 0, credits_snapshot: 4, course_id_snapshot: 2 }
       ]);
       assert.equal(header.attempt_no, 2); assert.equal(header.exam_type, 'BACKLOG');
-      assert.equal(header.sgpa, null); assert.equal(header.cgpa, null); assert.equal(header.failed_subject_count, 1);
+      assert.equal(header.sgpa, null); assert.equal(header.cgpa, null); assert.equal(header.failed_subject_count, 2);
       assert.equal(header.cgpa_source, 'UNKNOWN'); assert.equal(header.cgpa_is_cumulative, false);
       assert.equal(header.result_status, 'fail'); assert.equal(committed, true);
       assert.match(redirected, /\/success$/);
@@ -103,10 +103,10 @@ test('confirmImport persists validated IA/External/Total while preserving academ
       assert.match(redirected, /\/review\?error=/);
     });
     await t.test('only a new verified regular header receives calculated cumulative provenance', async () => {
-      saved.attempt.exam_type='REGULAR';saved.subjects[0].externalMarks=34;
+      saved.attempt.exam_type='REGULAR';saved.subjects[0].externalMarks=40;
       saved.attempt.attempt_no=1;
       replace(db.Result, 'findAll', async () => []);
-      saved.subjects[1].internalMarks=42;saved.subjects[1].externalMarks=34;
+      saved.subjects[1].internalMarks=42;saved.subjects[1].externalMarks=40;
       committed=false;rolledBack=false;
       replace(require('../services/academicOutcomeService'), 'calculateCumulative', async()=>5);
       replace(db.Result, 'create', async data=>{header=data;return{result_id:7,update:async values=>Object.assign(header,values)};});

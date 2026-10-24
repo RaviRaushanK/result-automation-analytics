@@ -4,6 +4,7 @@ const EXAM_TYPES = Object.freeze(['REGULAR', 'BACKLOG', 'SUPPLEMENTARY', 'REPEAT
 // New entries use these types; EXAM_TYPES retains historical participation labels.
 const NEW_EXAM_TYPES = Object.freeze(['REGULAR', 'BACKLOG']);
 const examPeriod = require('../public/js/exam-period');
+const passRules = require('../public/js/mca-pass-rules');
 const RETAKE_TYPES = Object.freeze(EXAM_TYPES.slice(1));
 const SCHEME = 'PG_2022_2024_V1';
 const POINTS = Object.freeze({ O: 10, 'A+': 9, A: 8, 'B+': 7, B: 6, C: 5, F: 0 });
@@ -24,6 +25,11 @@ function gradeFromPercent(pct) {
   }
   return { grade: 'F', point: 0, status: 'fail' };
 }
+function gradeFromComponents(internal, external, subject) {
+  const outcome = passRules.evaluate(internal, external, subject);
+  if (outcome.status === 'fail') return { grade: 'F', point: 0, status: 'fail' };
+  return gradeFromPercent(Math.floor((internal + external) / outcome.limits.maxTotal * 100));
+}
 function period(result) {
   return examPeriod.startIndex(result);
 }
@@ -38,4 +44,4 @@ function legacySeedGrade(total) {
   for (const [minimum, grade] of [[90,'S'],[80,'A'],[70,'B'],[60,'C'],[50,'D'],[45,'E']]) if (total >= minimum) return grade;
   return 'F';
 }
-module.exports = { EXAM_TYPES, NEW_EXAM_TYPES, RETAKE_TYPES, SCHEME, POINTS, LEGACY_POINTS, legacySeedGrade, isRegularAttempt, isRetakeAttempt, academicYearGroups, gradeFromPercent, period, periodEnd, periodKey, formatExamPeriod, order };
+module.exports = { EXAM_TYPES, NEW_EXAM_TYPES, RETAKE_TYPES, SCHEME, POINTS, LEGACY_POINTS, legacySeedGrade, isRegularAttempt, isRetakeAttempt, academicYearGroups, gradeFromPercent, gradeFromComponents, passRules, period, periodEnd, periodKey, formatExamPeriod, order };

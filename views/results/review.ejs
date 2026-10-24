@@ -2,7 +2,12 @@
 <div class="container-fluid result-management-page result-review-page">
       <% if (typeof warnings !== 'undefined' && warnings.length) { %>
       <div class="alert alert-warning" role="alert">
-        <% warnings.forEach(function (warning) { %><div><%= warning %></div><% }); %>
+        <% warnings.forEach(function (warning) {
+          // Explain legacy stage warnings in existing drafts without rewriting saved evidence.
+          const displayWarning = /^(Text OCR|Vision reading) was incomplete or unavailable on some pages\. Verify the extracted rows against the card\.$/.test(warning)
+            ? warning.replace('Verify the extracted rows against the card.', 'Other extraction stages may still have recovered usable data; this warning does not mean the displayed values are incorrect. Compare the extracted subject rows and marks with the original card.')
+            : warning;
+        %><div><%= displayWarning %></div><% }); %>
       </div>
       <% } %>
       <% if (typeof extractionWarning !== 'undefined' && extractionWarning) { %>
@@ -14,6 +19,8 @@
         </div>
       </div>
       <% } %>
+
+      <%- include('partials/extraction-details') %>
 
       <% if (typeof formError !== 'undefined' && formError) { %>
       <div class="alert alert-danger extraction-alert d-flex align-items-start mb-3" role="alert" id="resultValidationAlert">
@@ -46,17 +53,22 @@
           <% } %>
 
   <%- include('partials/import-scope') %>
-  <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
+  <form action="/results/upload/<%= importId %>/validate" method="POST" id="reviewForm" class="needs-validation" data-registration-blocked="<%= registrationIsBlocked %>" novalidate>
     <div class="alert alert-info">
       <strong>Document Verification</strong>
-      <% if (typeof documentChecks !== 'undefined') { documentChecks.forEach(check => { %>
-        <div class="mt-2"><strong><%= check.field %>:</strong> <%= check.derived ? check.expected : check.status %>
+      <% if (typeof documentChecks !== 'undefined') { documentChecks.forEach(check => {
+        const mixedSemester = check.field === 'Semester' && check.status === 'MISMATCH'
+          && typeof excludedSubjects !== 'undefined' && excludedSubjects.length
+          && check.document.split(',').some(value => Number(value.trim()) === Number(check.expected));
+      %>
+        <div class="mt-2"><strong><%= check.field %>:</strong> <%= mixedSemester ? 'MIXED DOCUMENT — scope verification required' : (check.derived ? check.expected : check.status) %>
           <% if (check.derived) { %><span class="text-muted">Derived from academic history</span>
-          <% } else if (check.status === 'MISMATCH') { %><div class="text-danger">Document: <%= check.document %> — Selected: <%= check.expected %>. Confirmation is blocked.</div>
-          <% } else if (check.status === 'NOT PRESENT IN DOCUMENT') { %><div><label><input type="checkbox" name="verify_<%= check.key %>" value="1"> I verified the <%= check.field %> against the original marks card.</label></div><% } %>
+          <% } else if (mixedSemester) { %><div>Document semesters: <%= check.document %>. Only Semester <%= check.expected %> subjects belong in this upload. Confirm the scope below; the server must verify the excluded subjects against the course roster.</div>
+          <% } else if (check.status === 'MISMATCH') { %><div class="text-danger">Document: <%= check.documentLabel || check.document %> — Selected: <%= check.expectedLabel || check.expected %>. Confirmation is blocked.</div>
+          <% } else if (check.status === 'NOT PRESENT IN DOCUMENT') { %><div class="form-check"><input class="form-check-input" type="checkbox" id="verify_<%= check.key %>" name="verify_<%= check.key %>" value="1" required aria-describedby="verify_<%= check.key %>_feedback"><label class="form-check-label" for="verify_<%= check.key %>">I verified the <%= check.field %> against the original marks card.</label><div class="invalid-feedback" id="verify_<%= check.key %>_feedback">Confirm <%= check.field.toLowerCase() %> against the original card.</div></div><% } %>
         </div>
       <% }); } %>
-      <% if (typeof excludedSubjects !== 'undefined' && excludedSubjects.length) { %><div><label><input type="checkbox" name="verify_mixed_context" value="1"> This is a mixed document. I verified that only the courses for the selected academic semester/attempt are included; the displayed excluded rows belong to a separate upload.</label></div><% } %>
+      <% if (typeof excludedSubjects !== 'undefined' && excludedSubjects.length) { %><div class="form-check"><input class="form-check-input" type="checkbox" id="verify_mixed_context" name="verify_mixed_context" value="1" required aria-describedby="verify_mixed_context_feedback" <%= typeof mixedContextVerified !== 'undefined' && mixedContextVerified ? 'checked' : '' %>><label class="form-check-label" for="verify_mixed_context">This is a mixed document. I verified that only the courses for the selected academic semester/attempt are included; the displayed excluded rows belong to a separate upload.</label><div class="invalid-feedback" id="verify_mixed_context_feedback">Verify the included/excluded subject scope and confirm it before validating.</div></div><% } %>
     </div>
     <div class="result-review-layout">
       <section class="result-document result-review-document" aria-labelledby="reviewDocumentTitle">
@@ -141,7 +153,7 @@
                             <% var total = (iVal !== "" && xVal !== "") ? (parseInt(iVal,10) + parseInt(xVal,10)) : ""; %>
                             <% var sid = String(s.subject_id); %>
                             <% var rowErrors = (typeof errors !== 'undefined' && errors['subjects[' + sid + ']']) ? errors['subjects[' + sid + ']'] : null; %>
-                            <tr data-max-marks="<%= maxM %>" data-max-internal="<%= maxI %>" data-max-external="<%= maxE %>" data-subject-id="<%= sid %>" class="<%= rowErrors ? 'table-danger' : '' %>">
+                            <tr data-subject-type="<%= s.subject_type || 'theory' %>" data-document-status="<%= s.document_result_status || '' %>" data-max-marks="<%= maxM %>" data-max-internal="<%= maxI %>" data-max-external="<%= maxE %>" data-subject-id="<%= sid %>" class="<%= rowErrors ? 'table-danger' : '' %>">
                               <td><code><%= s.subject_code %></code></td>
                               <td class="review-subject"><%= s.subject_name %></td>
                               <td>
@@ -153,8 +165,8 @@
                                        name="internal_<%= sid %>"
                                        value="<%= iVal %>"
                                        <%= attempt.exam_type === 'REGULAR' ? 'required' : '' %>
-                                       placeholder="0-<%= maxI %>" aria-label="<%= s.subject_code %> internal marks" aria-describedby="internalLimit_<%= sid %>">
-                                <div class="small text-muted" id="internalLimit_<%= sid %>">max <%= maxI %></div>
+                                       placeholder="0-<%= maxI %>" aria-label="<%= s.subject_code %> internal marks" aria-describedby="internalLimit_<%= sid %> total_<%= sid %>_feedback">
+                                <div class="small text-muted" id="internalLimit_<%= sid %>">max <%= maxI %><% if (s.pass_minimums) { %> · pass min <%= s.pass_minimums.internal %><% } %></div>
                                 <% if (rowErrors && rowErrors.internalMarks) { %>
                                   <div class="field-error-message text-danger small mt-1"><%= rowErrors.internalMarks %></div>
                                 <% } %>
@@ -168,14 +180,14 @@
                                        name="external_<%= sid %>"
                                        value="<%= xVal %>"
                                        <%= attempt.exam_type === 'REGULAR' ? 'required' : '' %>
-                                       placeholder="0-<%= maxE %>" aria-label="<%= s.subject_code %> external marks" aria-describedby="externalLimit_<%= sid %>">
-                                <div class="small text-muted" id="externalLimit_<%= sid %>">max <%= maxE %></div>
+                                       placeholder="0-<%= maxE %>" aria-label="<%= s.subject_code %> external marks" aria-describedby="externalLimit_<%= sid %> total_<%= sid %>_feedback">
+                                <div class="small text-muted" id="externalLimit_<%= sid %>">max <%= maxE %><% if (s.pass_minimums) { %> · pass min <%= s.pass_minimums.external %><% } %></div>
                                 <% if (rowErrors && rowErrors.externalMarks) { %>
                                   <div class="field-error-message text-danger small mt-1"><%= rowErrors.externalMarks %></div>
                                 <% } %>
                               </td>
-                              <td class="fw-bold total-cell"><%= total !== "" ? total : "—" %></td>
-                              <td class="status-cell text-center"><% if (total !== "") { %><% var pct = Math.floor((total/maxM)*100); %><% if (pct >= 50) { %><span class="badge bg-success">PASS</span><% } else { %><span class="badge bg-danger">FAIL</span><% } %><% } else { %><span class="badge bg-secondary">N/A</span><% } %></td>
+                              <td class="fw-bold total-cell"><span class="total-value"><%= total !== "" ? total : "—" %></span><div class="invalid-feedback fw-normal" id="total_<%= sid %>_feedback" aria-live="polite" hidden></div></td>
+                              <td class="status-cell text-center"><% if (total !== "") { %><% if (s.result_status === 'pass') { %><span class="badge bg-success">PASS</span><% } else { %><span class="badge bg-danger">FAIL</span><% } %><% } else { %><span class="badge bg-secondary">N/A</span><% } %></td>
                             </tr>
                           <% }); %>
 
@@ -196,4 +208,5 @@
     </div>
   </form>
 </div>
-<script src="/js/results/review.js?v=20261016-1"></script>
+<script src="/js/mca-pass-rules.js"></script>
+<script src="/js/results/review.js?v=20261024"></script>

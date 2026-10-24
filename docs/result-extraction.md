@@ -23,6 +23,132 @@ or revaluation upload routes. Legacy `MAX_UPLOAD_SIZE`, `UPLOAD_PATH` and
 
 ## Extraction Order
 
+Original-result drafts retain each extracted subject's printed PASS/FAIL as
+document evidence. A printed FAIL is not promoted to PASS merely because its
+component total reaches 50: Review, Validate, Preview and final import preserve
+FAIL with grade F and zero grade points. A printed PASS with marks below the
+configured total pass band blocks validation for review. This does not invent
+an external-component pass threshold from that evidence or alter historical records. The browser
+cannot supply or override authoritative document-result evidence.
+
+For older drafts that omitted this evidence, Review can recover it from their
+own saved OCR text only when subject code and both marks identify a unique row
+and the parsed student identity does not contradict the draft. This read-time
+recovery does not rewrite uploaded files or saved academic results. Unknown or
+ambiguous evidence is not guessed. Subjects without usable printed-result
+evidence use the shared MCA component passing requirements described below.
+
+### MCA component requirements (24 October 2026)
+
+The authoritative source for this implementation is the MCA 2022 regulations,
+not the engineering circular. Theory/lab courses require 50% CIE, 40% SEE and 50%
+aggregate. Project SEE requires 50%; CIE eligibility remains 50% where CIE exists.
+For 50+50 theory/lab courses, pass minima are 25/20/50. Failing a component gives
+F and zero points regardless of total. Review, validation, Preview and final save
+share these checks for Regular/Backlog, and revaluation repeats them at approval.
+Old validated drafts require validation again; no academic backfill is performed.
+Unchanged original/revised stored outcomes are used for historical outcome display.
+The existing GPA aggregation rules and grade bands are preserved; the document's
+separate project reference to grade E does not add an unsupported grade/point.
+
+Result Review & Edit uses Bootstrap invalid-field feedback for missing student
+details, invalid attempt numbers, whole-number component marks and total ceilings.
+Only displayed missing-document acknowledgments and mixed-scope confirmations
+are required. Checkbox feedback appears after a validation attempt and clears
+when corrected. Backlog subjects may remain completely blank; attempted subjects
+require both marks and at least one subject must be attempted. The frontend does
+not impose an attempt maximum or override registration, mismatch, roster or
+final-import checks on the server.
+
+Mixed-semester cards remain separate uploads per academic semester/attempt. A
+document identifying the selected semester alongside others displays a mixed-scope
+notice, not an unconditional wrong-semester message. The administrator confirms
+the included/excluded scope; the server still verifies all excluded codes as
+other-semester courses in the selected batch and all included courses as belonging
+unambiguously to the selected semester, again at final import. Multiple other
+semesters are supported. Unknown or wrongly configured exclusions produce a
+message naming those codes and remain blocked; acknowledgment cannot assign a
+semester to an unknown course. Identity/period contradictions remain blocked.
+
+### Review warning clarification (24 October 2026)
+
+A hybrid-stage diagnostic reports an incomplete/unavailable OCR or vision stage;
+it does not establish that the final extracted values are incorrect. Result Review
+classifies known intermediate-stage messages as recovered information only when
+all selected subjects have found-on-card evidence, high confidence, valid complete
+component marks within configured limits, and no conflicts, excluded rows,
+identity mismatches, missing identity fields, or other warnings. It rechecks the
+current configured subject roster. Partial retakes additionally require recorded
+source coverage; a legacy retake draft cannot assume complete coverage.
+
+Recovered information appears under a collapsed **Extraction details** section,
+not a yellow warning. Missing marks/subjects, conflicting readings, unknown
+warnings, and unresolved failures stay prominent. Review still asks administrators
+to compare subject rows and marks with the original card; identity MATCH does not
+verify every mark. Validation and mismatch blocking remain unchanged.
+
+New extraction drafts retain available stage/per-page diagnostics and source
+coverage metadata in their existing JSON payload, preserved across review saves.
+Existing drafts are classified at display time without rewriting their saved
+evidence, and do not claim a particular failed page when none was recorded.
+Canonical period keys remain unchanged; display labels use the shared formatter.
+
+Verification: 106 focused extraction/review, conditional-verification,
+examination-period, preview-GPA and revaluation-integrity tests passed (zero
+failed/skipped). A read-only classification of upload 20 produced zero prominent
+warnings and one recovered informational diagnostic for six subjects, without
+stored per-page diagnostics or any academic writes.
+
+Revaluation Review formats document examination periods with the shared formatter
+(for example, `Dec 2025 / Jan 2026`). A printed old external PASS/FAIL status
+remains internally `UNVERIFIED` when it cannot be compared with a separately
+stored original component status. Review displays **Manual verification required**
+when its acknowledgment is unchecked and **Manually confirmed** when checked,
+including when reopening a saved review. The label updates immediately and is
+announced accessibly; it never becomes **MATCH**. Only the required state's text
+is highlighted in amber, with no background, border or icon. The confirmed state
+uses the surrounding text color. Both support light and dark themes. The checkbox explicitly asks
+the administrator to compare that field with the original marks card. Its selection
+is persisted through **Validate**, not merely by checking it, and does not approve
+the review. Final approval still rechecks the saved acknowledgment and original
+target. This is distinct from missing
+OCR data and from the stored overall subject outcome. Matching identity fields
+require no acknowledgment; a mismatch cannot be overridden by any checkbox.
+
+Revaluation Review & Validate uses Bootstrap client-side validation feedback.
+Only displayed document-verification acknowledgments are required. Accepted rows
+require whole-number internal/revised external marks within their configured
+component and total ceilings, plus an ambiguous-subject pick or exceptional-status
+acknowledgment where those controls are present. Rejected rows do not require
+marks or those row-specific confirmations. Invalid submission shows field feedback,
+opens a collapsed invalid subject selector when necessary and focuses the first
+invalid control. Corrections clear the feedback. Browser validation does not
+replace server validation, final approval checks or mismatch blocking, and does
+not save data until a valid form is submitted through the existing workflow.
+
+Revaluation approval compares saved/current original-target snapshots using a
+key-order-independent digest. MySQL may reorder JSON object keys during storage;
+that alone must not trigger a stale-review error after Validate. The comparison
+still preserves field values/types and array order, and rejects real changes to
+the original student, attempt, marks or subject configuration. Review/source-token
+checks remain unchanged. Existing snapshots need no data migration.
+
+The revaluation completion page shows saved subject changes with original/revised
+marks, status changes, revised grade and whether the change is currently applied.
+Technical record IDs are available under collapsed **Audit references**.
+Each subject heading is followed by separately labelled **Revaluation record ID**
+and **Original result record ID** lines. A note explains that these references
+identify saved records and are not marks. The import reference is labelled
+**Import record ID**.
+Subject labels come only from each event's linked SubjectResult/Subject and show
+the code and name when available. Missing relations show **Subject name unavailable**
+with the original audit identifiers; labels are never borrowed from nearby rows.
+Raw fingerprints and JSON remarks are not rendered; their stored audit data is
+preserved. This is a presentation change only, with no outcome/GPA calculation
+or persistence changes.
+
+### Processing stages
+
 1. **Embedded PDF text:** `documentExtractor` reads text and word coordinates,
    keeping PDF pages separate. A complete, consistent table can be used directly.
    Full REGULAR result uploads supply expected session subject codes; retake and
