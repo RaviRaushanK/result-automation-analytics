@@ -1,6 +1,7 @@
 <% const confirmed = typeof savedConfirmed === 'undefined' || savedConfirmed;
 const resultStatus = String(overallResult || '').toLowerCase();
-const gpa = value => formatGpa(value, 'Unavailable'); %>
+const gpa = value => formatGpa(value, 'Unavailable');
+const backlogWithoutSgpa = String(examType || '').toUpperCase() === 'BACKLOG' && gpa(sgpa) === 'Unavailable'; %>
 <section class="import-success-page result-management-page" aria-labelledby="importSuccessTitle">
   <%- include('partials/success-header', { confirmed, headingId: 'importSuccessTitle', eyebrow: confirmed ? 'Import complete' : 'Import record', heading: confirmed ? 'Result imported successfully' : 'Saved result unavailable', description: confirmed ? 'Saved and ready for your academic reports.' : 'No saved result was found for this import. Review the import log before trying again.' }) %>
   <div class="import-student-overview"><span class="material-icons" aria-hidden="true">person</span><div><div class="import-success-student"><%= studentName || 'Unavailable' %></div><div class="import-success-usn"><%= usn %></div></div></div>
@@ -11,7 +12,7 @@ const gpa = value => formatGpa(value, 'Unavailable'); %>
   </dl>
   <div class="import-success-metrics">
     <div><div class="import-success-label">Result</div><div class="import-success-value <%= resultStatus === 'pass' ? 'is-pass' : resultStatus === 'fail' ? 'is-fail' : '' %>"><%= resultStatus === 'pass' ? 'PASS' : resultStatus === 'fail' ? 'FAIL' : 'Unavailable' %></div></div>
-    <div><div class="import-success-label">Stored SGPA</div><div class="import-success-value"><%= gpa(sgpa) %></div><p>Saved semester grade point average</p></div>
+    <div><div class="import-success-label">Stored SGPA</div><div class="import-success-value"><%= backlogWithoutSgpa ? 'Not applicable' : gpa(sgpa) %></div><p><%= backlogWithoutSgpa ? 'SGPA is not calculated for a backlog attempt. The original Regular SGPA remains unchanged.' : 'Saved semester grade point average' %></p></div>
     <div><div class="import-success-label">Cumulative CGPA</div><div class="import-success-value"><%= gpa(typeof cgpa === 'undefined' ? null : cgpa) %></div><p><%= gpa(typeof cgpa === 'undefined' ? null : cgpa) === 'Unavailable' ? 'Complete verified course and grading history is required.' : 'Saved cumulative grade point average' %></p></div>
   </div>
   <nav class="import-success-actions" aria-label="Import actions">

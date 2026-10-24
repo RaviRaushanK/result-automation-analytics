@@ -23,6 +23,20 @@ test('missing GPA stays unavailable and zero remains a valid saved metric', asyn
   assert.match(html, /Complete verified course and grading history/);
   assert.doesNotMatch(html, /NaN/);
 });
+
+test('backlog without SGPA explains the retake policy without hiding valid GPA', async () => {
+  const html = await ejs.renderFile(template, { ...values, examType: 'BACKLOG', sgpa: null, cgpa: 2.5 });
+  assert.match(html, /Not applicable/);
+  assert.match(html, /SGPA is not calculated for a backlog attempt/);
+  assert.match(html, /original Regular SGPA remains unchanged/);
+  assert.match(html, /2\.50/);
+  const withValue = await ejs.renderFile(template, { ...values, examType: 'BACKLOG', sgpa: 7 });
+  assert.match(withValue, /7\.00/);
+  assert.doesNotMatch(withValue, /Not applicable/);
+  const regular = await ejs.renderFile(template, { ...values, sgpa: null });
+  assert.match(regular, /Unavailable/);
+  assert.doesNotMatch(regular, /Not applicable/);
+});
 test('missing persisted result does not falsely claim success or failure', async () => {
   const html = await ejs.renderFile(template, { ...values, savedConfirmed: false, overallResult: null, cgpa: null, sgpa: null });
   assert.match(html, /Saved result unavailable/);

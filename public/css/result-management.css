@@ -1,4 +1,35 @@
 /* Keep wide academic tables inside their own scroll area. */
+/* Informational scope/verification panels use paired theme colors, including
+   labels and secondary text that otherwise inherit unrelated form colors. */
+:is(.result-management-page, .revaluation-ui) {
+  --review-info-bg: #eef2ff;
+  --review-info-text: #243b73;
+  --review-info-secondary: #405580;
+  --review-info-border: #bbc9ed;
+  --review-info-error: #b42318;
+}
+:root[data-theme="dark"] :is(.result-management-page, .revaluation-ui) {
+  --review-info-bg: #202e49;
+  --review-info-text: #e2eaff;
+  --review-info-secondary: #bdcbea;
+  --review-info-border: #536c9e;
+  --review-info-error: #ffb4ab;
+}
+:is(.result-management-page, .revaluation-ui) .alert.alert-info {
+  color: var(--review-info-text);
+  background-color: var(--review-info-bg);
+  border-color: var(--review-info-border);
+  border-left-width: 4px;
+}
+:is(.result-management-page, .revaluation-ui) .alert.alert-info .form-check-label {
+  color: var(--review-info-text) !important;
+}
+:is(.result-management-page, .revaluation-ui) .alert.alert-info .text-muted {
+  color: var(--review-info-secondary) !important;
+}
+:is(.result-management-page, .revaluation-ui) .alert.alert-info :is(.text-danger, .invalid-feedback) {
+  color: var(--review-info-error) !important;
+}
 :is(.result-management-page, .revaluation-ui) {
   min-width: 0;
   max-width: 100%;
