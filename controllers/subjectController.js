@@ -271,7 +271,6 @@ const subjectController = {
           data,
         });
     } catch (error) {
-      console.error("Subject create error:", error);
       if (error.status) return res.status(error.status).json({ success: false, message: error.message });
       if (error.name === "SequelizeUniqueConstraintError")
         return res
@@ -281,6 +280,7 @@ const subjectController = {
             message:
               "This subject code already exists in the selected session.",
           });
+      console.error("Subject create error:", error);
       res
         .status(500)
         .json({

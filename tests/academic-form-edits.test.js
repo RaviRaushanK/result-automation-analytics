@@ -134,3 +134,39 @@ test('subject creation sends uppercase names to both course resolution and offer
   assert.ok(writes.every(row => row.subject_name === 'MATH'));
   assert.ok(definitions.every(row => row.subject_name === 'MATH'));
 });
+
+test('subject creation handles expected conflicts quietly but logs unexpected failures', async () => {
+  const logs = [], writes = [];
+  const session = { exam_session_id: 2, batch_id: 1, semester: '1' };
+  let failure;
+  const models = {
+    Batch: { findByPk: async () => ({ batch_id: 1 }) },
+    Subject: { findOne: async () => null, create: async data => writes.push(data) },
+    ExamSession: { findByPk: async () => session },
+    sequelize: { transaction: async fn => fn({}) }
+  };
+  const service = { resolve: async () => { throw failure; } };
+  const context = { module: { exports: {} }, console: { error: (...args) => logs.push(args) }, require: name => name === '../database/models' ? models : name === '../services/academicCourseService' ? service : require(name) };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/subjectController'), 'utf8'), context);
+  async function create() {
+    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; } };
+    await context.module.exports.create({ body: { exam_session_id: 2, subject_code: 'MATH101', subject_name: 'Math', subject_type: 'theory', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 } }, res);
+    return res;
+  }
+  failure = Object.assign(new Error('Choose Use Existing Subjects.'), { status: 409 });
+  const conflict = await create();
+  assert.equal(conflict.statusCode, 409);
+  assert.equal(conflict.body.message, failure.message);
+  assert.equal(conflict.body.success, false);
+  assert.equal(logs.length, 0);
+  failure = Object.assign(new Error('Duplicate'), { name: 'SequelizeUniqueConstraintError' });
+  assert.equal((await create()).statusCode, 409);
+  assert.equal(logs.length, 0);
+  failure = new Error('Database unavailable');
+  const unexpected = await create();
+  assert.equal(unexpected.statusCode, 500);
+  assert.equal(unexpected.body.message, 'Unable to create the subject. Please try again.');
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0][1], failure);
+  assert.equal(writes.length, 0);
+});

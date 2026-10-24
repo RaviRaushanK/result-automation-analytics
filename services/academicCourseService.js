@@ -9,7 +9,7 @@ async function resolve(session, definition, transaction) {
   }
   const identity = { batch_id: session.batch_id, semester: String(Number(session.semester)), subject_code: definition.subject_code.trim().toUpperCase() };
   const [course, created] = await AcademicCourse.findOrCreate({ where: identity, defaults: { ...definition, ...identity, grading_scheme_version: SCHEME, roster_verified: false }, transaction });
-  if (created && await Result.count({ include: [{ model: ExamSession, required: true, where: { batch_id: session.batch_id, semester: identity.semester } }], transaction, lock: true })) throw Object.assign(new Error('A new academic course cannot be added to a semester with saved results. Reuse the original course for a backlog offering, or configure the new syllabus in its own batch.'), { status: 409 });
+  if (created && await Result.count({ include: [{ model: ExamSession, required: true, where: { batch_id: session.batch_id, semester: identity.semester } }], transaction, lock: true })) throw Object.assign(new Error('This batch and semester already have saved results, so a new academic course cannot be added here. For a backlog examination session, close this dialog and choose Use Existing Subjects to add the saved course definition. If the course is missing or the code is incorrect, check the Semester Roster before retrying.'), { status: 409 });
   if (course.status !== 'active' || fields.some(field => String(course[field]) !== String(definition[field]))) {
     const error = new Error('The course definition conflicts with this semester\'s existing course. Choose Use Existing Subjects to add its saved definition to this examination session, or review the Semester Roster before making corrections.'); error.status = 409; throw error;
   }
