@@ -20,7 +20,9 @@ nonempty, default to masked, and return to masked when cleared.
 | GET /settings?section=institution | Administrator branding form, preview, logo and recent configuration audit |
 | GET /settings?section=academic-policy | Read-only policy for administrators and faculty |
 | GET /settings?section=system | Administrator-only runtime and upload information |
-| POST /settings/account | Own email update |
+| POST /settings/account | Legacy direct email update rejected; use OTP verification |
+| POST /settings/account/change-email/request | Validate new email and send OTP |
+| POST /settings/account/change-email/verify | Verify OTP before saving new email |
 | POST /settings/institution | Administrator branding update |
 | POST /settings/logo | Administrator logo upload or removal |
 | GET /profile | Redirect to /settings?section=account |
@@ -55,6 +57,17 @@ behavior. Its POST rejects unexpected fields. Successful changes redirect to a
 login message explaining that the password changed. Passwords are neither stored
 in plaintext nor logged. Successful Settings saves use POST/303 redirect/GET;
 validation errors preserve bounded, escaped input and show associated errors.
+
+## Academic Policy Guidance
+
+The read-only Academic Policy section shows component and combined passing
+minimums derived from the shared MCA passing-rule helper. Theory/lab require
+50% internal, 40% external and 50% combined; the existing project, internship,
+seminar, dissertation and viva types use 50% external. A component failure means
+FAIL, grade F and zero points regardless of the combined grade band.
+The section also explains backlog SGPA absence, two-decimal GPA presentation,
+and original result/GPA preservation during revaluation. No policy settings or
+academic records can be edited here. Guidance and tables use theme colors.
 
 ## Appearance
 

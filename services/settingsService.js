@@ -176,7 +176,16 @@ async function academicPolicy() {
     return { grade, points, band: percentages.length ? upper > 100 ? `${lower}% and above` : `${lower}% to below ${upper}%` : '-' };
   });
   const reference = (await fs.readFile(path.join(__dirname, '../docs/academic-result-semantics.md'), 'utf8')).split('## File Manifest')[0];
-  return { scheme: policy.SCHEME, examTypes: policy.NEW_EXAM_TYPES, grades, reference };
+  // Normalize each maximum to 100 to describe percentages using the same
+  // thresholds helper used by result validation, without evaluating any marks.
+  const passingRequirements = [
+    { label: 'Theory and laboratory', subjectType: 'theory' },
+    ...['project', 'internship', 'seminar', 'dissertation', 'viva'].map(subjectType => ({ label: subjectType[0].toUpperCase() + subjectType.slice(1), subjectType }))
+  ].map(({ label, subjectType }) => {
+    const limits = policy.passRules.thresholds({ subject_type: subjectType, max_internal: 100, max_external: 100, max_marks: 100 });
+    return { label, internal: limits.internal, external: limits.external, combined: limits.total };
+  });
+  return { scheme: policy.SCHEME, examTypes: policy.NEW_EXAM_TYPES, grades, reference, passingRequirements };
 }
 async function systemInformation() {
   return { application: metadata.description, version: metadata.version, node: process.version,

@@ -28,6 +28,22 @@ test('branding defaults, allowed values, persistence and CSV fallback', async ()
     assert.deepEqual(service.brandingMetadata(branding), [['Institution', 'Example College']]);
   } finally { repository.values = saved; }
 });
+test('academic policy guidance derives percentages from the shared passing helper', async () => {
+  const policy = require('../services/academicPolicy');
+  const original = policy.passRules.thresholds;
+  const seen = [];
+  policy.passRules.thresholds = subject => { seen.push(subject.subject_type); return { internal: 51, external: 41, total: 52 }; };
+  try {
+    const academic = await service.academicPolicy();
+    assert.deepEqual(academic.examTypes, ['REGULAR', 'BACKLOG']);
+    assert.deepEqual(seen, ['theory', 'project', 'internship', 'seminar', 'dissertation', 'viva']);
+    assert.ok(academic.passingRequirements.every(row => row.internal === 51 && row.external === 41 && row.combined === 52));
+  } finally { policy.passRules.thresholds = original; }
+  const academic = await service.academicPolicy();
+  assert.deepEqual(academic.passingRequirements[0], { label: 'Theory and laboratory', internal: 50, external: 40, combined: 50 });
+  assert.ok(academic.passingRequirements.slice(1).every(row => row.internal === 50 && row.external === 50 && row.combined === 50));
+});
+
 test('institution validation rejects arbitrary keys, oversized values and invalid email', () => {
   const fields = Object.fromEntries(service.FIELDS.map(f => [f.key, service.DEFAULTS[f.key]]));
   assert.equal(service.validateInstitution({ ...fields, institution_name: ' College ' }).institution_name, 'College');
@@ -141,6 +157,11 @@ test('Settings routes enforce account ownership, CSRF, admin authority, PRG and 
     assert.equal((await post('/settings/institution', { ...fields, institution_name: '<script>window.injected=true</script>', _csrf: admin.token }, admin)).status, 303);
     const escaped = await get('1', 'institution'); assert.ok(escaped.html.includes('&lt;script&gt;')); assert.ok(!escaped.html.includes('<script>window.injected=true</script>'));
     const policy = await get('1', 'academic-policy'); assert.match(policy.html, /PG_2022_2024_V1/); assert.match(policy.html, /50% to below 55%/); assert.ok(!policy.html.includes('<form')); assert.equal((await post('/settings/academic-policy', { _csrf: admin.token }, admin)).status, 404);
+    for (const text of ['MCA Passing Requirements', 'Theory and laboratory', '40%', 'Project', 'Failing a component minimum means FAIL, grade F and zero grade points', 'BACKLOG does not calculate a new semester SGPA', 'two decimal places', 'Original saved results and stored SGPA/CGPA remain unchanged']) assert.ok(policy.html.includes(text), text);
+    const facultyPolicy = await get('2', 'academic-policy');
+    assert.equal(facultyPolicy.response.status, 200);
+    assert.match(facultyPolicy.html, /MCA Passing Requirements/);
+    assert.doesNotMatch(facultyPolicy.html, /<form/);
     const system = await get('1', 'system'); assert.match(system.html, /15 MB/); assert.match(system.html, /10 MB/); assert.ok(!system.html.includes('DB_PASSWORD')); assert.ok(!system.html.includes('SESSION_SECRET'));
     const security = await get('1', 'security'); assert.match(security.html, /action="\/account-security"/);
     assert.equal((await post('/account-security', { _csrf: admin.token, role: 'admin', currentPassword: 'current-password', newPassword: 'new-password', confirmPassword: 'new-password' }, admin)).status, 400);
