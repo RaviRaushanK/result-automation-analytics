@@ -97,7 +97,7 @@
     <div class="analytics-card">
       <h2 id="revaluation-table-heading" class="h6 p-2 analytics-card-title">Revaluation Outcomes</h2>
       <p class="analytics-note px-2">
-        Aggregate outcome metrics for the selected filters. Delta compares final marks with original marks.
+        Applied revaluations for the selected filters. Increase/decrease counts show how many results changed. Change in marks means effective total minus original total.
       </p>
       <div class="table-responsive">
         <table class="table analytics-table" id="revaluation-table">
@@ -110,7 +110,11 @@
           </tbody>
         </table>
       </div>
-      <p id="revaluation-integrity" class="analytics-note px-2" role="status"></p>
+      <details class="analytics-calculation-details analytics-note px-2">
+        <summary>System-wide integrity checks</summary>
+        <p>These checks cover all saved revaluations, regardless of the filters above. More than one approved revaluation marked as applied for the same student subject result requires investigation.</p>
+        <p id="revaluation-integrity" role="status"></p>
+      </details>
     </div>
   </section>
 
@@ -167,16 +171,16 @@
           <thead>
             <tr>
               <th scope="col">Subject</th>
-              <th scope="col">Cases</th>
+              <th scope="col">Applied revaluations</th>
               <th scope="col">Status Changes</th>
               <th scope="col">Fail to Pass</th>
               <th scope="col">Pass to Fail</th>
-              <th scope="col">Positive Delta</th>
-              <th scope="col">Unchanged</th>
-              <th scope="col">Negative Delta</th>
-              <th scope="col">Avg Delta</th>
-              <th scope="col">Max Delta</th>
-              <th scope="col">Min Delta</th>
+              <th scope="col" title="Number of results with increased marks">Marks increased</th>
+              <th scope="col" title="Number of results with unchanged marks">Marks unchanged</th>
+              <th scope="col" title="Number of results with decreased marks">Marks decreased</th>
+              <th scope="col" title="Average change in marks">Average change</th>
+              <th scope="col" title="Maximum change in marks">Maximum change</th>
+              <th scope="col" title="Minimum change in marks">Minimum change</th>
             </tr>
           </thead>
           <tbody id="revaluation-by-subject-body">
@@ -191,13 +195,13 @@
 
   <section aria-labelledby="revaluation-detail-heading" class="mt-4">
     <div class="analytics-card">
-      <h2 id="revaluation-detail-heading" class="h6 p-2 analytics-card-title">Effective Revaluation Event Detail</h2>
-      <p class="analytics-note px-2">Approved effective revaluation events for the selected filters.</p>
+      <h2 id="revaluation-detail-heading" class="h6 p-2 analytics-card-title">Applied Revaluation Changes</h2>
+      <p class="analytics-note px-2">Approved changes currently used for effective results. Original totals remain unchanged. Select View references to see the saved record references.</p>
       <div class="analytics-toolbar">
         <label class="analytics-search-wrap" for="revaluation-detail-search">
           <span class="material-icons" aria-hidden="true">search</span>
           <input type="search" id="revaluation-detail-search" class="analytics-search"
-                 placeholder="Search student, case, subject, remarks..." autocomplete="off">
+                 placeholder="Search student, subject or reference..." autocomplete="off">
         </label>
         <div class="d-flex align-items-center gap-2">
           <span class="analytics-toolbar-hint d-none d-md-inline">Click a column header to sort</span>
@@ -210,29 +214,39 @@
           <thead>
             <tr>
               <th scope="col">Subject</th>
-              <th scope="col">Student (USN)</th>
-              <th scope="col">Student Name</th>
-              <th scope="col">Case ID</th>
-              <th scope="col">Old Marks</th>
-              <th scope="col">Final Marks</th>
-              <th scope="col">Delta</th>
-              <th scope="col">Old Status</th>
-              <th scope="col">Final Status</th>
-              <th scope="col">Validation</th>
-              <th scope="col">Remark Type</th>
-              <th scope="col">Remarks</th>
-              <th scope="col">Source</th>
+              <th scope="col">Student</th>
+              <th scope="col">Original total</th>
+              <th scope="col">Effective total</th>
+              <th scope="col">Change</th>
+              <th scope="col">Result change</th>
+              <th scope="col" data-nosort>References</th>
             </tr>
           </thead>
           <tbody id="revaluation-detail-body">
             <tr class="analytics-table-empty-row">
-              <td colspan="13" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
+              <td colspan="7" class="analytics-table-empty">Select filters and apply them to view analytics.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
   </section>
+  <div class="modal fade" id="revaluation-audit-modal" tabindex="-1" aria-labelledby="revaluation-audit-title" aria-describedby="revaluation-audit-help" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content revaluation-audit-modal">
+        <div class="modal-header">
+          <h2 class="modal-title h5" id="revaluation-audit-title">Audit references</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="revaluation-audit-help" class="analytics-note">These IDs identify saved records; they are not marks. Use them to find the related upload or revaluation.</p>
+          <div id="revaluation-audit-identity" class="revaluation-audit-identity"></div>
+          <div id="revaluation-audit-content"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/js/reports/chart.umd.min.js"></script>

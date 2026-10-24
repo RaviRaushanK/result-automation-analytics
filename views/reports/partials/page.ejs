@@ -78,16 +78,15 @@
       </div>
     </div>
     <% if (reportType === 'result-analysis') { %><header class="reports-analysis-header" id="reports-analysis-header"></header><% } %>
-    <% if (reportType === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h2 id="reports-progress-title"></h2></header><ul class="reports-progress-notes reports-muted" id="reports-progress-notes"></ul><% } %>
+    <% if (reportType === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h2 id="reports-progress-title"></h2></header><% } %>
     <dl id="reports-context" class="reports-context"></dl>
+    <details class="reports-calculation-details reports-muted" id="reports-calculation-details">
+      <summary>Calculation details</summary>
+      <ul id="reports-calculation-notes"></ul>
+      <% if (reportType === 'student-progress') { %><ul class="reports-progress-notes" id="reports-progress-notes"></ul><% } %>
+    </details>
     <div id="reports-summary" class="reports-summary" aria-label="Report Summary"></div>
-    <% if (['student', 'subject'].includes(reportType)) { %>
-      <p class="reports-component-note reports-muted" id="reports-component-note" hidden>IA and External are original stored components; Total, Grade and Result may reflect approved revaluation.</p>
-    <% } %>
     <div id="reports-semesters" class="reports-semesters" aria-label="Completed Semester Results" hidden></div>
-    <% if (reportType === 'consolidated') { %>
-      <p class="reports-component-note reports-muted" id="reports-component-note" hidden>IA and EX show stored original components. T may reflect an approved effective revaluation.</p>
-    <% } %>
     <div class="table-responsive reports-table-wrap" id="reports-flat-table">
       <table class="table table-hover align-middle reports-table" id="reports-table">
         <caption class="visually-hidden"><%= reportTitle %></caption><thead></thead><tbody></tbody>
@@ -114,4 +113,5 @@
 <script src="/js/reports/result-analysis.js" defer></script>
 <% } %>
 <script src="/js/reports/branding.js" defer></script>
+<script src="/js/reports/wording.js" defer></script>
 <script src="/js/reports/common.js" defer></script>

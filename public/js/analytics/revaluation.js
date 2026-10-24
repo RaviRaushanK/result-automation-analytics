@@ -111,7 +111,58 @@
 
   function statusText(value) {
     if (!value) return '\u2014';
-    return String(value).replace(/_/g, ' ');
+    return String(value).replace(/_/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
+  }
+
+  function textNode(tag, text, className) {
+    var node = document.createElement(tag);
+    node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+
+  function identity(primary, secondary) {
+    var box = document.createElement('div');
+    box.appendChild(textNode('span', primary || '\u2014', 'revaluation-identity'));
+    if (secondary && secondary !== primary) box.appendChild(textNode('small', secondary, 'revaluation-secondary'));
+    return box;
+  }
+
+  function auditDetails(row) {
+    var action = document.createElement('div');
+    var button = textNode('button', 'View references', 'btn btn-sm btn-outline-secondary analytics-audit-button');
+    button.type = 'button';
+    button.setAttribute('data-bs-toggle', 'modal');
+    button.setAttribute('data-bs-target', '#revaluation-audit-modal');
+    button.setAttribute('aria-label', 'View audit references for ' + (row.studentName || row.usn || 'student') + ', ' + (row.subjectName || row.subjectLabel || row.subjectCode || 'subject'));
+    var list = document.createElement('dl');
+    function item(label, value) {
+      if (value == null || value === '') return;
+      list.appendChild(textNode('dt', label));
+      list.appendChild(textNode('dd', String(value)));
+    }
+    item('Revaluation record ID', row.caseId);
+    item('Approval status', statusText(row.validationStatus));
+    var raw = String(row.remarkSummary || '').trim(), metadata;
+    if (/^[{\[]/.test(raw)) {
+      try { metadata = JSON.parse(raw); } catch (e) { /* Keep unreadable metadata out of the main table. */ }
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) item('Additional references', 'Unavailable for this record.');
+      else {
+        if (Number.isSafeInteger(metadata.import_id) && metadata.import_id > 0) item('Import record ID', metadata.import_id);
+        if (metadata.decision === 'accept' || metadata.decision === 'reject') item('Review decision', metadata.decision === 'accept' ? 'Accepted' : 'Rejected');
+        if (metadata.was_manual_correction === true) item('Review', 'Manually corrected');
+      }
+    } else if (raw) item('Remarks', raw);
+    if (row.sourceFile) item('Source document', String(row.sourceFile).split(/[\\/]/).pop());
+    button.addEventListener('click', function () {
+      document.getElementById('revaluation-audit-identity').replaceChildren(
+        identity(row.studentName || row.studentLabel, row.usn), identity(row.subjectName || row.subjectLabel, row.subjectCode));
+      document.getElementById('revaluation-audit-content').replaceChildren(list);
+    });
+    action.appendChild(button);
+    // Keep the existing reference search useful without expanding the table.
+    action.appendChild(textNode('span', list.textContent, 'visually-hidden'));
+    return action;
   }
 
   function renderDetail(result, ui, tbody) {
@@ -121,7 +172,7 @@
       empty.className = 'analytics-table-empty-row';
       var td = document.createElement('td');
       td.className = 'analytics-table-empty';
-      td.colSpan = 13;
+      td.colSpan = 7;
       td.textContent = 'No individual revaluation event rows match the current filters.';
       empty.appendChild(td);
       tbody.appendChild(empty);
@@ -131,23 +182,19 @@
     rows.forEach(function (row) {
       var tr = document.createElement('tr');
       var cells = [
-        row.subjectLabel || '\u2014',
-        row.studentLabel || '\u2014',
-        row.studentName || '\u2014',
-        row.caseId || '\u2014',
+        identity(row.subjectName || row.subjectLabel, row.subjectCode),
+        identity(row.studentName || row.studentLabel, row.usn),
         fmtNum(row.originalMarks),
         fmtNum(row.revisedMarks),
         fmtDelta(row.delta),
-        statusText(row.originalStatus),
-        statusText(row.revisedStatus),
-        statusText(row.validationStatus),
-        statusText(row.remarkType),
-        row.remarkSummary || '\u2014',
-        row.sourceFile || row.eventProvenance || '\u2014'
+        statusText(row.originalStatus) + ' \u2192 ' + statusText(row.revisedStatus),
+        auditDetails(row)
       ];
       cells.forEach(function (val) {
         var cell = document.createElement('td');
-        cell.textContent = val;
+        if (val && typeof val === 'object') cell.appendChild(val);
+        else cell.textContent = val;
+        if ([2, 3, 4].includes(tr.children.length)) cell.setAttribute('data-sort-value', String(val));
         tr.appendChild(cell);
       });
       tbody.appendChild(tr);
@@ -173,7 +220,7 @@
       type: 'doughnut',
       labels: statusOrder.map(function (entry) { return entry[1]; }),
       datasets: [{
-        label: 'Rows',
+        label: 'Revaluation records',
         type: 'doughnut',
         colors: statusOrder.map(function (entry) { return entry[2]; }),
         data: pipelineValues
@@ -185,9 +232,9 @@
     var outcomes = result.outcomes || {};
     api.render('revaluation-delta-chart', {
       type: 'bar',
-      labels: ['Positive', 'Unchanged', 'Negative', 'Fail to Pass', 'Pass to Fail'],
+      labels: ['Marks increased', 'Marks unchanged', 'Marks decreased', 'Fail to Pass', 'Pass to Fail'],
       datasets: [{
-        label: 'Cases',
+        label: 'Applied revaluations',
         palette: true,
         data: [
           outcomes.positiveDelta,
@@ -223,7 +270,7 @@
       ['pending', 'approved', 'rejected'].forEach(function (name) { metric(name, '\u2014'); });
       document.getElementById('revaluation-integrity').textContent = '';
       clearTable('revaluation-by-subject-body', 11);
-      clearTable('revaluation-detail-body', 13);
+      clearTable('revaluation-detail-body', 7);
       resetCharts();
       refreshTable('revaluation-by-subject-table');
       refreshTable('revaluation-detail-table');
@@ -236,17 +283,17 @@
       });
       var outcomes = result.outcomes || {};
       [
-        ['cases', 'Cases'], ['subjectsWithRevaluation', 'Subjects with revaluation'],
-        ['statusChanges', 'Status changes'], ['failToPass', 'Fail to pass'],
-        ['passToFail', 'Pass to fail'], ['positiveDelta', 'Positive mark delta'],
-        ['unchanged', 'Unchanged marks'], ['negativeDelta', 'Negative mark delta'],
-        ['averageDelta', 'Average mark delta'], ['maxDelta', 'Maximum mark delta'],
-        ['minDelta', 'Minimum mark delta']
+        ['cases', 'Applied revaluations'], ['subjectsWithRevaluation', 'Student subject results affected'],
+        ['statusChanges', 'Results with a changed status'], ['failToPass', 'Results changed from fail to pass'],
+        ['passToFail', 'Results changed from pass to fail'], ['positiveDelta', 'Results with increased marks'],
+        ['unchanged', 'Results with unchanged marks'], ['negativeDelta', 'Results with decreased marks'],
+        ['averageDelta', 'Average change in marks'], ['maxDelta', 'Maximum change in marks'],
+        ['minDelta', 'Minimum change in marks']
       ].forEach(function (field) { ui.row([field[1], ui.number(outcomes[field[0]])]); });
       var integrity = result.effectiveIntegrity || {};
       document.getElementById('revaluation-integrity').textContent =
-        'Effective overlay subjects: ' + ui.number(integrity.effectiveOverlaySubjects, 0) +
-        '. Multiple-effective-row anomalies: ' + ui.number(integrity.anomalies, 0) + '.';
+        'Student subject results with an applied revaluation: ' + ui.number(integrity.effectiveOverlaySubjects, 0) +
+        '. Student subject results with more than one approved revaluation marked as applied: ' + ui.number(integrity.anomalies, 0) + '.';
       renderCharts(result);
       return 11;
     },
@@ -260,7 +307,7 @@
       var detailBody = document.getElementById('revaluation-detail-body');
       if (!bySubjBody && !detailBody) return;
       if (bySubjBody) { clearTable('revaluation-by-subject-body', 11); }
-      if (detailBody) { clearTable('revaluation-detail-body', 13); }
+      if (detailBody) { clearTable('revaluation-detail-body', 7); }
       refreshTable('revaluation-by-subject-table');
       refreshTable('revaluation-detail-table');
       Promise.all([

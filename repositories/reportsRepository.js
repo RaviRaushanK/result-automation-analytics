@@ -7,10 +7,10 @@ const { RETAKE_TYPES } = require('../services/academicPolicy');
 const select = (sql, replacements = {}) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
 
 // Same approved-effective, highest-event-number selection as Analytics.
-const EFFECTIVE_EVENT_JOIN = `
+function effectiveEventJoin(components = false) { return `
   LEFT JOIN (
     SELECT e.revaluation_id, e.subject_result_id, e.revised_marks,
-           e.revised_status, e.revised_grade
+           e.revised_status, e.revised_grade${components ? ', e.revised_internal_marks, e.revised_external_marks' : ''}
     FROM revaluation_results e
     INNER JOIN (
       SELECT subject_result_id, MAX(revaluation_no) AS max_no
@@ -20,7 +20,8 @@ const EFFECTIVE_EVENT_JOIN = `
     ) pick ON pick.subject_result_id = e.subject_result_id AND pick.max_no = e.revaluation_no
     WHERE e.is_effective = 1 AND e.revaluation_status = 'approved'
   ) eff ON eff.subject_result_id = sr.subject_result_id
-`;
+`; }
+const EFFECTIVE_EVENT_JOIN = effectiveEventJoin();
 
 async function batch(batchId) {
   return (await select('SELECT batch_id, batch_name, start_year, end_year FROM batches WHERE batch_id = :batchId AND deleted_at IS NULL', { batchId }))[0];
@@ -74,11 +75,13 @@ async function options(scope, f) {
   }
 }
 
-function subjectRows(f) {
+function subjectRows(f, components = false) {
   const effective = f.mode === 'effective';
   return `SELECT sr.subject_result_id, r.result_id, r.student_id, st.usn, st.student_name,
     rs.exam_session_id, rs.semester, rs.exam_session, rs.exam_year, rs.exam_start_month, rs.exam_start_year, rs.exam_end_month, rs.exam_end_year, sr.internal_marks, sr.external_marks,
     r.attempt_no, r.exam_type, sub.subject_id, sub.subject_code, sub.subject_name, sub.credits, sub.max_marks,
+    sr.marks AS original_marks,
+    ${components ? `${effective ? 'eff.revised_internal_marks' : 'NULL'} AS revised_internal_marks, ${effective ? 'eff.revised_external_marks' : 'NULL'} AS revised_external_marks,` : ''}
     ${effective ? 'COALESCE(eff.revised_marks, sr.marks)' : 'sr.marks'} AS marks,
     ${effective ? 'COALESCE(eff.revised_grade, sr.grade)' : 'sr.grade'} AS grade,
     ${effective ? 'COALESCE(eff.revised_status, sr.result_status)' : 'sr.result_status'} AS result_status,
@@ -89,7 +92,7 @@ function subjectRows(f) {
     INNER JOIN exam_sessions rs ON rs.exam_session_id = r.exam_session_id AND rs.batch_id = st.batch_id
     INNER JOIN batches b ON b.batch_id = rs.batch_id AND b.deleted_at IS NULL
     INNER JOIN subjects sub ON sub.subject_id = sr.subject_id AND sub.exam_session_id = rs.exam_session_id
-    ${effective ? EFFECTIVE_EVENT_JOIN : ''}
+    ${effective ? effectiveEventJoin(components) : ''}
     WHERE rs.batch_id = :batch_id
     ${f.exam_session_id ? 'AND rs.exam_session_id = :exam_session_id' : ''}
     ${f.semester !== undefined ? 'AND rs.semester = :semester' : ''}
@@ -202,7 +205,7 @@ async function sessionSubjects(f) {
 
 async function consolidatedSubjects(f, resultIds) {
   if (!resultIds.length) return [];
-  return select(`SELECT q.* FROM (${subjectRows(f)}) q WHERE q.result_id IN (:result_ids)
+  return select(`SELECT q.* FROM (${subjectRows(f, true)}) q WHERE q.result_id IN (:result_ids)
     ORDER BY q.result_id, q.subject_code, q.subject_result_id`, { ...f, result_ids: resultIds });
 }
 

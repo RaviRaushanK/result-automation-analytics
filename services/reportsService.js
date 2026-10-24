@@ -4,6 +4,7 @@ const repository = require('../repositories/reportsRepository');
 const academicOutcomes = require('./academicOutcomeService');
 const academicPolicy = require('./academicPolicy');
 const gpaFormat = require('../public/js/gpa-format');
+const reportWording = require('../public/js/reports/wording');
 const TYPES = ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress'];
 const TITLES = { student: 'Student Result Report', class: 'Class Result Report', subject: 'Subject Result Report', revaluation: 'Revaluation Report', toppers: 'Toppers Report', consolidated: 'Consolidated Result Report', 'result-analysis': 'Result Analysis Report' };
 TITLES['student-progress'] = 'All Students Progress Report';
@@ -376,12 +377,20 @@ function subjectKey(id, component) { return `subject_${id}_${component}`; }
 
 async function pivotConsolidated(report, rows) {
   const cells = await repository.consolidatedSubjects(report.filters, rows.map(row => row.result_id));
-  const byResult = new Map(rows.map(row => [String(row.result_id), { ...row, subject_marks: {},
+  const byResult = new Map(rows.map(row => [String(row.result_id), { ...row, subject_marks: {}, consolidated_display: {},
     ...Object.fromEntries(report.subjects.flatMap(subject => ['EX', 'IA', 'T'].map(component => [subjectKey(subject.subject_id, component), null]))) }]));
   for (const cell of cells) {
     const row = byResult.get(String(cell.result_id));
-    row.subject_marks[cell.subject_id] = { external: cell.external_marks, internal: cell.internal_marks, total: cell.marks, effective: Boolean(Number(cell.revaluated)) };
-    for (const [component, value] of [['EX', cell.external_marks], ['IA', cell.internal_marks], ['T', cell.marks]]) row[subjectKey(cell.subject_id, component)] = value;
+    const effective = report.filters.mode === 'effective' && Number(cell.revaluated);
+    let internal = effective ? cell.revised_internal_marks ?? cell.internal_marks : cell.internal_marks;
+    let external = effective ? cell.revised_external_marks ?? cell.external_marks : cell.external_marks;
+    const reconciled = [internal, external, cell.marks].every(value => value != null && Number.isFinite(Number(value)))
+      && Number(internal) + Number(external) === Number(cell.marks);
+    // Numeric-only cells must not present original components as components of
+    // a different approved total. Never manufacture the missing revision.
+    if (effective && !reconciled) { internal = null; external = null; }
+    row.subject_marks[cell.subject_id] = { external, internal, total: cell.marks, effective: Boolean(Number(cell.revaluated)) };
+    for (const [component, value] of [['EX', external], ['IA', internal], ['T', cell.marks]]) row[subjectKey(cell.subject_id, component)] = value;
   }
   return rows.map(row => byResult.get(String(row.result_id)));
 }
@@ -421,19 +430,20 @@ function filename(report) {
 function contextLines(report) {
   const { batch, session, student, subject, result } = report.meta;
   if (report.type === 'student-progress') return [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Admission Year', batch.start_year], ['Result View', `${report.filters.mode === 'effective' ? 'Effective' : 'Original'} Result`], ['Generated At', report.generatedAt]];
-  const lines = [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Semester', session?.semester || report.filters.semester || 'All Completed Semesters'], ['Exam Session', session ? academicPolicy.formatExamPeriod(session) : 'All Exam Sessions']];
+  const lines = [['Programme', 'MCA'], ['Batch', batch.batch_name], ['Semester', session?.semester || report.filters.semester || 'All Recorded Semesters'], ['Exam Session', session ? academicPolicy.formatExamPeriod(session) : 'All Exam Sessions']];
   if (student) lines.push(['USN', student.usn], ['Student Name', student.student_name]);
   if (student && result) lines.push(['Attempt', `${result.attempt_no} - ${result.exam_type}`]);
   if (subject) lines.push(['Subject', `${subject.subject_code} - ${subject.subject_name}`], ['Credits', subject.credits], ['Max Marks', subject.max_marks]);
   if (report.type !== 'revaluation') lines.push(['Result View', `${report.filters.mode === 'effective' ? 'Effective' : 'Original'} Result`]);
   if (report.type === 'toppers') lines.push(['Ranking Basis', 'Stored original CGPA, descending'], ['Eligibility', 'Stored passing result, non-NULL CGPA, no failed original subject rows'], ['Tie Order', 'USN, attempt number, result ID']);
-  if (['student','class','toppers','consolidated'].includes(report.type)) lines.push(['GPA Basis', 'Stored original result values. Legacy GPA is not certified cumulative GPA.']);
-  if (report.type === 'consolidated' && report.filters.mode === 'effective') lines.push(['SGPA Basis', 'Stored original academic header; not recalculated after revaluation']);
+  if (['student','class','toppers','consolidated'].includes(report.type)) lines.push(['GPA Basis', reportWording.gpa]);
+  if (report.type === 'consolidated' && report.filters.mode === 'effective') lines.push(['Marks Basis', reportWording.marks]);
   if (report.type === 'result-analysis') lines.push(['Participation Basis', 'Exact Result attempts; REGULAR vs BACKLOG (including historical SUPPLEMENTARY / REPEAT)']);
   if (report.filters.exam_type) lines.push(['Exam Type', report.filters.exam_type]);
   if (report.filters.result_status) lines.push(['Result Status', report.filters.result_status.toUpperCase()]);
   if (report.filters.revaluation_status) lines.push(['Revaluation Status', report.filters.revaluation_status.toUpperCase()]);
   lines.push(['Generated At', report.generatedAt]);
+  for (const detail of reportWording.details({ ...report, context: lines })) lines.push(['Calculation details', detail]);
   return lines;
 }
 
@@ -477,6 +487,7 @@ function* studentCsvLines(report) {
   yield ['USN', report.meta.student.usn];
   yield ['Student Name', report.meta.student.student_name];
   yield ['Result View', view];
+  for (const detail of reportWording.details(report)) yield ['Calculation details', detail];
   if (report.filters.mode === 'effective' && report.rows.some(row => Number(row.revaluated))) {
     yield ['Marks Basis', 'IA and External are original stored components; Total, Grade and Result may reflect approved revaluation.'];
   }

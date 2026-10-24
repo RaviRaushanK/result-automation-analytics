@@ -125,6 +125,9 @@
 .revaluation-preview-editor { margin: 0; }
 .revaluation-ui .revaluation-preview-editor .card { border-radius: 8px; }
 .revaluation-ui .revaluation-event-ledger .badge { white-space: nowrap; }
+.revaluation-ui .revaluation-event-ledger details,
+.revaluation-ui .revaluation-event-ledger summary { color: var(--text-primary); }
+.revaluation-ui .revaluation-event-ledger summary { cursor: pointer; }
 
 /* Accept/Reject are decisions, not fields needing success/error colors. */
 .revaluation-ui #reviewForm.was-validated .rev-decision ~ .form-check-label {
@@ -211,3 +214,6 @@
   .result-review-document, .result-review-student, .result-review-subjects, .result-review-actions { grid-column: 1; grid-row: auto; }
   .result-review-document-body { flex: 0 0 auto; height: clamp(280px, 45vh, 460px); min-height: 0; }
 }
+.revaluation-ui .revaluation-effective-summary .card-body { color: var(--text-primary); }
+.revaluation-ui .revaluation-effective-summary .card-body .fs-5:not(.badge) { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.revaluation-ui .revaluation-effective-summary .text-muted { color: var(--text-secondary) !important; }

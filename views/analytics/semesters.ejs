@@ -64,13 +64,13 @@
               <th scope="col">Batch</th>
               <th scope="col">Exam Session</th>
               <th scope="col">Semester</th>
-              <th scope="col">Students</th>
+              <th scope="col">Result attempts</th>
               <th scope="col">Subject Results</th>
               <th scope="col">Passed</th>
               <th scope="col">Failed</th>
               <th scope="col">Pass %</th>
-              <th scope="col">Average SGPA</th>
-              <th scope="col">Average CGPA</th>
+              <th scope="col">Average stored SGPA</th>
+              <th scope="col">Average stored CGPA</th>
             </tr>
           </thead>
           <tbody id="semesters-table-body">
@@ -98,11 +98,14 @@
         </div>
       </div>
       <div class="analytics-card analytics-chart-card">
-        <h3 class="h6 p-2 analytics-card-title">GPA Trends</h3>
-        <p class="analytics-note px-2">Stored Average SGPA / Average CGPA per exam session.</p>
+        <h3 class="h6 p-2 analytics-card-title">Stored GPA by Exam Session</h3>
+        <details class="analytics-calculation-details analytics-note px-2">
+          <summary>About these averages</summary>
+          <p id="semesters-gpa-note">Session averages describe different result groups, not one student's progression. Missing GPA is not plotted. Backlog results do not calculate a new semester SGPA; an available stored CGPA is still shown.</p>
+        </details>
         <div class="analytics-chart-body">
           <div class="analytics-chart-container">
-            <div class="analytics-chart-placeholder" id="semesters-gpa-chart">
+            <div class="analytics-chart-placeholder" id="semesters-gpa-chart" aria-describedby="semesters-gpa-note">
               Chart will appear here
             </div>
           </div>

@@ -17,6 +17,8 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+    revised_internal_marks: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null, validate: { isInt: true, min: 0 } },
+    revised_external_marks: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null, validate: { isInt: true, min: 0 } },
     original_status: {
       type: DataTypes.ENUM('pass', 'fail'),
       allowNull: false

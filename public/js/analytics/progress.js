@@ -6,7 +6,8 @@
   let version = 0, firstRequest = true;
   const el = key => document.getElementById('progress-' + key);
   const categories = ['withoutBacklog', 'withBacklog', 'uncleared', 'unknown'];
-  const labels = ['Cleared Without Backlog', 'Cleared With Backlog', 'Currently Uncleared', 'Unknown / Insufficient Evidence'];
+  const labels = ['Cleared Without Backlog', 'Cleared With Backlog', 'Currently Uncleared', 'Not determined'];
+  const colors = ['green', 'teal', 'red', 'purple'];
   const number = value => value == null ? '-' : Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
   async function json(url) {
     const response = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -33,6 +34,7 @@
     ['status', 'trend'].forEach(key => { AnalyticsCharts.destroy('progress-' + key + '-chart'); el(key + '-chart').textContent = ''; el(key + '-description').textContent = ''; });
     table('courses-body', [], 'Loading course history...'); table('attention-body', [], 'Loading student history...');
     el('attention-note').textContent = '';
+    el('clearance-counts').textContent = '';
   }
   async function load(resetScope) {
     const request = ++version;
@@ -66,13 +68,17 @@
       el('status-heading').textContent = data.label + ' Completion Status';
       el('status-chart').setAttribute('aria-label', data.label + ' Completion Status');
       el('clearance-heading').textContent = 'Clearance Status (' + (data.mode === 'effective' ? 'Effective' : 'Original') + ')';
-      el('state').textContent = data.summary.total ? `${data.summary.unknown} students have insufficient verified history for ${data.label}.` : 'No students found for the selected batch.';
+      el('state').textContent = !data.summary.total ? 'No students found for the selected batch.'
+        : data.summary.unknown === 0 ? `Completion is determined for all ${data.summary.total} students in this scope.`
+        : `Completion not determined for ${number(data.summary.unknown)} of ${data.summary.total} students in this scope.`;
+      el('clearance-counts').textContent = data.summary.backlogStudents == null ? 'Eligible backlog history is unavailable.'
+        : `${number(data.summary.backlogCleared)} retake-cleared students / ${number(data.summary.backlogStudents)} eligible students with verified backlog.`;
       el('report-link').href = '/reports/student-progress?' + new URLSearchParams({ batch_id: data.filters.batch_id, mode: data.mode });
-      AnalyticsCharts.render('progress-status-chart', { type: 'bar', scroll: false, labels: data.summary.total ? labels : [], datasets: [{ label: 'Students', data: categories.map(key => data.summary[key]) }], decimals: 0, legend: false, emptyMessage: 'No students found for this selection.' });
-      AnalyticsCharts.render('progress-trend-chart', { type: 'bar', stacked: true, labels: data.trends.map(t => t.label), datasets: categories.map((key, i) => ({ label: labels[i], data: data.trends.map(t => t[key]) })), decimals: 0, emptyMessage: 'No recorded semester history is available.' });
+      AnalyticsCharts.render('progress-status-chart', { type: 'bar', scroll: false, labels: data.summary.total ? labels : [], datasets: [{ label: 'Students', palette: true, colors, data: categories.map(key => data.summary[key]) }], decimals: 0, legend: false, emptyMessage: 'No students found for this selection.' });
+      AnalyticsCharts.render('progress-trend-chart', { type: 'bar', stacked: true, labels: data.trends.map(t => t.label), datasets: categories.map((key, i) => ({ label: labels[i], color: colors[i], data: data.trends.map(t => t[key]) })), decimals: 0, emptyMessage: 'No recorded semester history is available.' });
       el('status-description').textContent = labels.map((label, i) => label + ': ' + data.summary[categories[i]]).join('; ');
       el('trend-description').textContent = 'Each bar includes its own recorded participants, through the end of the selected scope. Future semesters without participation are omitted. ' + data.trends.map(t => t.label + ': ' + categories.map((key, i) => labels[i] + ' ' + t[key]).join(', ')).join('; ');
-      table('courses-body', data.courses.map(c => [c.semester, c.code, c.name, c.backlog, c.cleared, c.uncleared, number(c.clearanceRate) + '%']), 'No verified backlog history is available for this selection.');
+      table('courses-body', data.courses.map(c => [c.semester, c.code, c.name, c.backlog, c.cleared, c.uncleared, number(c.clearanceRate) + (c.clearanceRate == null ? '' : '%')]), 'No verified backlog history is available for this selection.');
       table('attention-body', data.attention.map(s => {
         const link = document.createElement('a');
         link.className = 'btn btn-sm btn-outline-primary analytics-report-action';

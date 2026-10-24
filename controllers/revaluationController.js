@@ -2480,6 +2480,8 @@ exports.approveReview = async (req, res) => {
         throw new BadState('Recomputed total mismatch for ' + codeOf + '.');
       }
       const P = rec.proposal;
+      const revisedComponents = require('../services/revaluationComponentEvidence').fromApprovedReview(evRaw,
+        { ...P, was_manual_correction: !!a.p.was_manual_correction }, subj, ocr.raw_text || '');
 
       // PHASE 6: Re-validate all nine canonical card fields under the lock.
       // If the proposal came from MISSING_MANUAL (Phase 4 manual add), the
@@ -2524,6 +2526,7 @@ exports.approveReview = async (req, res) => {
         subject_result_id: a.tgt,
         original_marks: Number(sr.marks),
         revised_marks: P.proposed_revised_total_marks,
+        ...revisedComponents,
         original_status: sr.result_status,
         revised_status: P.proposed_revised_status,
         revised_grade: P.proposed_revised_grade,

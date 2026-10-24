@@ -22,6 +22,9 @@
  *                                          [from locked SubjectResult row — NOT from OCR]
  * RevaluationResult.revised_marks   ← P.proposed_revised_total_marks
  *                                          [server-computed: internal + external, never from browser]
+ * RevaluationResult.revised_internal_marks / revised_external_marks
+ *                                  ← explicit source evidence verified against the validated review, else NULL
+ *                                    [ordinary carried Internal is not revised IA; no subtraction from total]
  * RevaluationResult.revised_status  ← P.proposed_revised_status
  *                                          [server-derived from gradeFromPercent(pct)]
  * RevaluationResult.revised_grade   ← P.proposed_revised_grade

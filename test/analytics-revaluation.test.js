@@ -77,13 +77,28 @@ test('Revaluation renders aggregate outcomes, ledger counts and integrity', asyn
   assert.deepEqual(urls, ['/analytics/api/revaluation?']);
   const rows = nodes['revaluation-table-body'].children;
   assert.equal(rows.length, 11);
-  assert.deepEqual(rows[0].children.map(cell => cell.textContent), ['Cases', '4']);
-  assert.deepEqual(rows[10].children.map(cell => cell.textContent), ['Minimum mark delta', '-3']);
+  assert.deepEqual(rows[0].children.map(cell => cell.textContent), ['Applied revaluations', '4']);
+  assert.deepEqual(rows[10].children.map(cell => cell.textContent), ['Minimum change in marks', '-3']);
+  assert.deepEqual(rows.map(row => row.children[1].textContent), ['4','3','1','1','0','2','1','1','2.5','8','-3']);
+  assert.deepEqual(rows.slice(1, 10).map(row => row.children[0].textContent), [
+    'Student subject results affected', 'Results with a changed status', 'Results changed from fail to pass',
+    'Results changed from pass to fail', 'Results with increased marks', 'Results with unchanged marks',
+    'Results with decreased marks', 'Average change in marks', 'Maximum change in marks'
+  ]);
   assert.equal(cards.approved.textContent, '4');
   assert.equal(cards.pending.textContent, '0');
-  assert.match(nodes['revaluation-integrity'].textContent, /subjects: 3/);
-  assert.match(nodes['revaluation-integrity'].textContent, /anomalies: 1/);
+  assert.match(nodes['revaluation-integrity'].textContent, /with an applied revaluation: 3/);
+  assert.match(nodes['revaluation-integrity'].textContent, /with more than one approved revaluation marked as applied: 1/);
   assert.equal(nodes['revaluation-table-body'].attributes['aria-busy'], 'false');
+});
+
+test('revaluation explanations distinguish filtered outcomes from collapsed system-wide checks', () => {
+  const template = fs.readFileSync(path.join(root, 'views/analytics/revaluation.ejs'), 'utf8');
+  assert.match(template, /Increase\/decrease counts show how many results changed/);
+  assert.match(template, /effective total minus original total/);
+  assert.match(template, /<details[^>]*>\s*<summary>System-wide integrity checks<\/summary>/);
+  assert.match(template, /regardless of the filters above/);
+  assert.match(template, /<p id="revaluation-integrity" role="status"><\/p>\s*<\/details>/);
 });
 
 test('Revaluation handles request failure without presenting stale counts', async () => {

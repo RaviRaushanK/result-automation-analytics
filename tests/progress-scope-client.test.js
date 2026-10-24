@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function browser(search = '?batch_id=1&semester=1') {
+function browser(search = '?batch_id=1&semester=1', overrides = {}) {
   class Element {
     constructor(tag = 'div', value = '') { this.tagName = tag.toUpperCase(); this.children = []; this.handlers = {}; this.attributes = {}; this._value = String(value); }
     append(...children) { this.children.push(...children); }
@@ -35,8 +35,9 @@ function browser(search = '?batch_id=1&semester=1') {
       const query = new URL(url, 'http://localhost').searchParams;
       const scope = query.get('analysis_scope') || (query.has('academic_year') ? 'year:' + query.get('academic_year') : 'semester:' + (query.get('semester') || 2));
       const label = scope === 'year:1' ? 'First Year' : 'Semester ' + scope.split(':')[1];
-      const summary = scope === 'year:1' ? { total: 4, withoutBacklog: 1, withBacklog: 1, uncleared: 1, unknown: 1, clearanceRate: 50 }
-        : { total: 4, withoutBacklog: 2, withBacklog: 0, uncleared: 1, unknown: 1, clearanceRate: 0 };
+      const summary = scope === 'year:1' ? { total: 4, withoutBacklog: 1, withBacklog: 1, uncleared: 1, unknown: 1, backlogStudents: 2, backlogCleared: 1, clearanceRate: 50 }
+        : { total: 4, withoutBacklog: 2, withBacklog: 0, uncleared: 1, unknown: 1, backlogStudents: 1, backlogCleared: 0, clearanceRate: 0 };
+      Object.assign(summary, overrides);
       return { ok: true, json: async () => ({ success: true, label, summary, mode: query.get('mode'),
         description: 'Verified scope: ' + label, semesters: [1, 2], years: [{ year: 1, label: 'First Year' }],
         filters: { batch_id: 1, analysis_scope: scope }, attention: [{ studentId: 1, usn: 'TEST1', name: 'Student', period: label, unclearedCourses: 'C1', latestAttempt: 'Dec 2025 / REGULAR / Attempt 1' }], attentionTotal: 1, courses: [],
@@ -75,7 +76,7 @@ test('grouped scope selector, cards, status chart title/ARIA and trend bars foll
   assert.equal(f.get('progress-attention-body').children[0].children[2].textContent, 'First Year');
   assert.deepEqual(Array.from(f.charts.get('progress-status-chart').datasets[0].data), [1, 1, 1, 1]);
   assert.deepEqual(Array.from(f.charts.get('progress-trend-chart').labels), ['Semester 1', 'Semester 2']);
-  assert.match(f.charts.get('progress-status-chart').labels[3], /Insufficient Evidence/);
+  assert.match(f.charts.get('progress-status-chart').labels[3], /Not determined/);
 });
 
 test('page template uses Analysis Scope consistently without introducing another filter', () => {
@@ -85,4 +86,30 @@ test('page template uses Analysis Scope consistently without introducing another
   assert.match(template, /Semester Completion Trends/);
   assert.match(template, /<th scope="col">Semester<\/th>/);
   assert.doesNotMatch(template, /name="academic_year"/);
+});
+
+
+test('Progress disclosures preserve separate completion categories, counts and semantic colors', async () => {
+  const f = browser(); await f.idle();
+  assert.equal(f.get('progress-clearanceRate').textContent, '0%');
+  assert.equal(f.get('progress-withBacklog').textContent, '0');
+  assert.equal(f.get('progress-unknown').textContent, '1');
+  assert.match(f.get('progress-clearance-counts').textContent, /0 retake-cleared students \/ 1 eligible/);
+  const chart = f.charts.get('progress-status-chart');
+  assert.deepEqual(Array.from(chart.datasets[0].data), [2,0,1,1]);
+  assert.deepEqual(Array.from(chart.datasets[0].colors), ['green','teal','red','purple']);
+  assert.deepEqual(Array.from(f.charts.get('progress-trend-chart').datasets, d => d.color), ['green','teal','red','purple']);
+  assert.match(f.get('progress-status-description').textContent, /Not determined: 1/);
+  const template = fs.readFileSync(require.resolve('../views/analytics/progress.ejs'), 'utf8');
+  assert.match(template, /<summary>Calculation details<\/summary>/);
+  assert.match(template, /<summary>Chart data<\/summary>/);
+  assert.match(template, /aria-describedby="progress-<%= key %>-description"/);
+  assert.doesNotMatch(template, /Unknown|Insufficient Evidence/);
+});
+
+test('missing clearance rate stays unavailable and does not become zero', async () => {
+  const f = browser(undefined, { clearanceRate: null, backlogStudents: 0, backlogCleared: 0 }); await f.idle();
+  assert.equal(f.get('progress-clearanceRate').textContent, '-');
+  assert.equal(f.get('progress-uncleared').textContent, '1');
+  assert.equal(f.get('progress-unknown').textContent, '1');
 });

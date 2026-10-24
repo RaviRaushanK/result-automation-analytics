@@ -8,11 +8,16 @@
     gpaCharts: ['semesters-gpa-chart'],
     render: function (result, ui) {
       var rows = result.data || [];
-      // Same axis label for both charts: Batch / Exam Session / Semester.
+      // Each category is an independent exam-session group, not one student's progression.
       function label(r) {
-        return [(r.batchName != null ? r.batchName : r.batchId),
+        return [[(r.batchName != null ? r.batchName : r.batchId), r.semester == null ? '' : 'Sem ' + r.semester].filter(Boolean).join(' | '),
           r.examPeriod || [r.examSession, r.examYear].filter(function (v) { return v != null && v !== ''; }).join(' '),
-          r.semester].filter(function (v) { return v != null && v !== ''; }).join(' / ');
+          r.resultCount == null ? '' : r.resultCount + (Number(r.resultCount) === 1 ? ' result attempt' : ' result attempts')].filter(function (v) { return v != null && v !== ''; });
+      }
+      function chartGpa(value) {
+        if (value == null || (typeof value !== 'number' && typeof value !== 'string') || String(value).trim() === '') return null;
+        var numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
       }
       rows.forEach(function (r) {
         ui.row([
@@ -35,18 +40,18 @@
         barPercentage: 0.75,
         categoryPercentage: 0.8
       }]);
-      // Second chart beside Session Trends: stored GPA values per session.
-      // Line type lets Chart.js span the same session labels with null-safe points.
+      // Separate bars avoid connecting different cohorts as an individual trend.
+      // Missing SGPA remains missing; stored backlog CGPA is not removed or recalculated.
       ui.chart('semesters-gpa-chart', rows.map(label), [
         {
-          type: 'line', label: 'Average SGPA', data: rows.map(function (r) { return r.avgSgpa; }),
-          borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.15)',
-          pointBackgroundColor: '#2563eb', pointRadius: 4, tension: 0.3, fill: false
+          type: 'bar', label: 'Average stored SGPA', data: rows.map(function (r) { return chartGpa(r.avgSgpa); }),
+          borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.72)',
+          borderWidth: 1, maxBarThickness: 40
         },
         {
-          type: 'line', label: 'Average CGPA', data: rows.map(function (r) { return r.avgCgpa; }),
-          borderColor: '#7c3aed', backgroundColor: 'rgba(124, 58, 237, 0.15)',
-          pointBackgroundColor: '#7c3aed', pointRadius: 4, tension: 0.3, fill: false
+          type: 'bar', label: 'Average stored CGPA', data: rows.map(function (r) { return chartGpa(r.avgCgpa); }),
+          borderColor: '#7c3aed', backgroundColor: 'rgba(124, 58, 237, 0.72)',
+          borderWidth: 1, maxBarThickness: 40
         }
       ]);
       return rows.length;

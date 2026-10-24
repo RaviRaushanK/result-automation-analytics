@@ -9,6 +9,16 @@ const values = { formatGpa: require('../public/js/gpa-format').format, logStatus
   rows: [], aggregates: { overall_result: 'pass', sgpa: 7, cgpa: 7, failed_subject_count: 0 }, origResult: { sgpa: 4, cgpa: 4, result_status: 'fail', failed_subject_count: 1 },
   reviewedAt: null, reviewPresent: true, notice: null, error: null };
 
+test('informational GPA and zero failed-subject count use explicit theme text colors', async () => {
+  const input = {...values,aggregates:{...values.aggregates,sgpa:6.28,cgpa:6.28,failed_subject_count:0}};
+  const html = await ejs.renderFile(template,input);
+  assert.match(html,/revaluation-effective-summary/);
+  assert.equal((html.match(/>6\.28<\/span>/g)||[]).length,2);
+  assert.match(html,/>Failed subjects<\/small><span class="fs-5">0<\/span>/);
+  const css=require('node:fs').readFileSync(path.join(__dirname,'../public/css/result-management.css'),'utf8');
+  assert.match(css,/revaluation-effective-summary \.card-body \.fs-5:not\(\.badge\).*color: var\(--text-primary\)/);
+});
+
 test('successful persisted revaluation displays the shared celebration while retaining outcome and history', async () => {
   const before = JSON.stringify(values);
   const html = await ejs.renderFile(template, values);
@@ -17,6 +27,9 @@ test('successful persisted revaluation displays the shared celebration while ret
   assert.match(html, /replayImportCelebration/);
   assert.match(html, /js\/results\/success.js/);
   assert.match(html, /Saved revaluation changes/);
+  for (const heading of ['Original total', 'Effective total', 'Approved total']) assert.ok(html.includes(heading));
+  assert.match(html, /Informational calculation only; saved SGPA\/CGPA remain unchanged/);
+  assert.doesNotMatch(html, /computed live over the overlay mix|<th[^>]*>Revised marks/);
   assert.match(html, /unchanged by revaluation/);
   assert.equal(JSON.stringify(values), before);
 });

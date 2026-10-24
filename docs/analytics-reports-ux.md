@@ -49,17 +49,17 @@ entire cross-session history. There is no Analytics CSV/PDF export.
 | Cleared Without Backlog | All selected required semesters passed in verified first regular sittings |
 | Cleared With Backlog | Canonical completion supported by legitimate retake clearance of first-sitting failures |
 | Currently Uncleared | Canonical evidence establishes required work remains uncleared |
-| Unknown | Missing, ambiguous, unverified or insufficient history prevents safe classification |
+| Not determined | Missing, ambiguous, unverified or insufficient history prevents safe classification |
 | Backlog Clearance Rate | Cleared-with-backlog students / students with verified first-sitting failures and known completion classification, multiplied by 100 |
 
-Unknown classifications and students without backlog are excluded from the
+Not determined classifications and students without backlog are excluded from the
 clearance denominator. A zero denominator returns JSON `null`, displayed as `-`.
 A later REGULAR pass alone cannot certify completion with backlog.
 
 Charts show selected-period completion status and stacked semester completion
 trends. Trends include only students with recorded participation in each
 semester; periods with no participation are omitted. Selecting a future period
-shows Unknown, never inferred failure. Unknown remains visible in totals and
+shows Not determined, never inferred failure. Not determined remains visible in totals and
 charts. Chart descriptions also provide textual counts.
 
 The course table groups by stable AcademicCourse identity and shows verified

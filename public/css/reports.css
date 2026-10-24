@@ -86,6 +86,7 @@
 .reports-analysis-bottom .reports-summary div:last-child { border-bottom: 0; }
 .reports-page .reports-consolidated { table-layout: fixed; }
 .reports-consolidated th, .reports-consolidated td { text-align: center; border: 1px solid var(--card-border, #bbb); }
+.reports-consolidated td.reports-revaluation-cell { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; color: var(--text-primary); background: var(--secondary-bg); }
 .reports-consolidated .reports-student-name { text-align: left; }
 .reports-page .reports-consolidated td { min-width: 0; }
 .reports-page .reports-consolidated .reports-fixed-0,
@@ -199,4 +200,15 @@
   .reports-print .reports-analysis-bottom .reports-summary div { padding: 5px 7px; gap: 8px; }
   .reports-muted, .reports-context dt, .reports-summary span { color: #333 !important; }
   a { color: #000 !important; text-decoration: none; }
+}
+.reports-calculation-details { margin-block: .75rem; color: var(--text-secondary); }
+.reports-calculation-details > summary { color: var(--text-primary); cursor: pointer; font-weight: 600; }
+.reports-calculation-details > summary:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+.reports-calculation-details li { margin-block: .4rem; }
+.reports-print .reports-table td.reports-usn { white-space: nowrap; overflow-wrap: normal; word-break: normal; min-width: 12ch; }
+.reports-page .reports-table td.reports-usn { white-space: nowrap; overflow-wrap: normal; word-break: normal; min-width: 12ch; }
+@media screen {
+  .reports-page[data-report-type="revaluation"] .reports-table { width: max-content; min-width: 100%; table-layout: auto; }
+  .reports-page[data-report-type="revaluation"] .reports-table td { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+  .reports-page[data-report-type="revaluation"] .reports-table :is(td.reports-student-name, td.reports-subject-name) { min-width: 14rem; max-width: 22rem; white-space: normal; }
 }

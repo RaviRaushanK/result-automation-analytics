@@ -1,5 +1,45 @@
 # Database Structure
 
+## Revaluation component extension (24 October 2026)
+
+Migration `20261024170000-revaluation-components.js` adds nullable INTEGER
+`revised_internal_marks` and `revised_external_marks` to `revaluation_results`.
+`revised_marks` remains the approved total; no duplicate total column is added.
+Existing IDs, event states, source metadata, timestamps, indexes and foreign keys
+are preserved; the migration leaves historical component fields NULL without backfill.
+Rollback is refused once revised component evidence has been stored.
+
+Review controls and table layout are unchanged. Backend approval now saves
+explicit revised component evidence through `revaluationComponentEvidence`.
+Recognized VTU nine-column cards provide revised external marks in Final Marks;
+ordinary Internal Marks remains carried original IA and is not stored as revised
+IA. Other formats need explicit normalized revised-component evidence; missing
+components remain NULL. Range checks, stale review protection, exact attempt
+matching and existing passing rules still run before saving. No GPA recalculation
+is introduced.
+
+The explicitly authorized maintenance correction for event 8/import 77 changed
+only revised_external_marks from NULL to 20, with activity log entry 1 under
+administrator 1. The source document hash, stored approved review, original
+academic snapshot, event fingerprint and component/total consistency were checked
+under locks. All other event fields and original academic records were unchanged.
+The maintenance script defaults to dry run and refuses already-populated fields.
+
+Consolidated reports can read already-stored revised components from approved
+effective events without changing the existing table layout. When explicit
+revised components plus original fallbacks reconcile with the authoritative
+total, the existing EX/IA/T cells show those effective values numerically.
+Report mark cells contain values only. For total-only or unreconciled events,
+component cells are unavailable rather than misleading; missing revised
+components are never inferred. This report read path does not populate columns
+or change the upload/approval workflow.
+
+`effective_student_results` retains its historical columns and adds
+`effective_internal_marks`, `effective_external_marks`, `effective_total_marks`
+and `effective_result`. Only approved effective events participate, with latest
+event number resolving duplicates. Missing components fall back to the original
+SubjectResult. Parent GPA columns stay stored original values, not effective GPA.
+
 Reviewed on 17 October 2026 against Sequelize models and migration sources.
 This reference does not assert that a particular deployed database has applied
 every migration. Run migration status checks before deployment.

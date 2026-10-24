@@ -132,7 +132,7 @@
       var rows = json.data || [];
       api.render('subjects-grade-chart', {
         type: 'bar',
-        labels: rows.map(function (row) { return row.grade; }),
+        labels: rows.map(function (row) { return api.gradeLabel(row.grade); }),
         datasets: [{
           label: 'Subject grades',
           palette: true,

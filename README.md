@@ -1,7 +1,7 @@
 # Student Result Automation and Analytics System (SRAAS)
 
 Public pages and account workflows updated on 22 October 2026. Academic feature
-documentation was last reviewed on 17 October 2026.
+documentation was last reviewed on 25 October 2026.
 
 An Express, EJS, Sequelize and MySQL application for managing MCA students and
 academic sessions, importing result/revaluation cards, exploring academic
@@ -310,9 +310,10 @@ headers/footers in its print dialog when they are unwanted.
 
 **Original** uses saved academic values. **Effective** overlays only approved
 effective revaluation events, with the original as fallback. Pending/rejected
-events never change outcomes. IA/EX remain original stored components; revised
-totals are not reverse-engineered into external marks. Revaluation does not
-recalculate stored Result SGPA/CGPA.
+events never change outcomes. IA/EX remain original stored components. Effective
+totals may overlay approved revaluation; revised component marks are shown only
+when they reconcile with the approved total, otherwise unavailable. No
+component is inferred. Revaluation does not recalculate stored Result SGPA/CGPA.
 
 Stable course identity is batch + academic semester + exact normalized course
 code. Course clearance uses verified cross-session history, not the highest

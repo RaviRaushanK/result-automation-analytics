@@ -254,10 +254,10 @@
       } else if (ds.palette) {
         // One accent per bar (grade buckets, outcome categories, ...).
         out.backgroundColor = (ds.data || []).map(function (_, k) {
-          return rgba(accentHex(NAMES[k % NAMES.length]), 0.72);
+          return rgba(accentHex(ds.colors && ds.colors[k] || NAMES[k % NAMES.length]), 0.72);
         });
         out.borderColor = (ds.data || []).map(function (_, k) {
-          return accentHex(NAMES[k % NAMES.length]);
+          return accentHex(ds.colors && ds.colors[k] || NAMES[k % NAMES.length]);
         });
       } else if (isLine) {
         out.borderColor = border;
@@ -371,6 +371,7 @@
     destroyAll: destroyAll,
     rerenderAll: rerenderAll,
     palette: palette,
+    gradeLabel: function (value) { return value == null || value === 'Unknown' ? 'Grade unavailable' : value; },
     accentHex: accentHex,
     textColor: textColor,
     gridColor: gridColor,

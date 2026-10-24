@@ -87,6 +87,24 @@
         el.textContent = '';
       });
     }
+    function chartTextColor() {
+      var root = document.documentElement;
+      var dark = root && root.getAttribute('data-theme') === 'dark';
+      try { return getComputedStyle(root).getPropertyValue('--text-secondary').trim() || (dark ? '#CBD5E1' : '#4B5563'); }
+      catch (e) { return dark ? '#CBD5E1' : '#4B5563'; }
+    }
+    function applyChartText(chart) {
+      var color = chartTextColor();
+      chart.options.color = color;
+      chart.options.scales.x.ticks.color = color;
+      chart.options.scales.y.ticks.color = color;
+      chart.options.plugins.legend.labels.color = color;
+    }
+    if (typeof MutationObserver !== 'undefined' && document.documentElement) {
+      new MutationObserver(function () {
+        charts.forEach(function (chart) { applyChartText(chart); chart.update('none'); });
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
     function chart(id, labels, datasets) {
       var target = document.getElementById(id);
       if (!labels.length) { target.textContent = 'No chart data found.'; return; }
@@ -112,13 +130,15 @@
       host.style.minWidth = stripWidth + 'px';
       host.style.width = '100%';
       var canvas = document.createElement('canvas'); target.appendChild(canvas);
-      var options = { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } };
+      var options = { responsive: true, maintainAspectRatio: false,
+        scales: { x: { ticks: {} }, y: { beginAtZero: true, ticks: {} } }, plugins: { legend: { labels: {} }, tooltip: {} } };
       if ((config.gpaCharts || []).indexOf(id) !== -1) {
-        options.scales.y.ticks = { callback: function (value) { return GpaFormat.format(value); } };
-        options.plugins = { tooltip: { callbacks: { label: function (context) {
+        options.scales.y.ticks.callback = function (value) { return GpaFormat.format(value); };
+        options.plugins.tooltip.callbacks = { label: function (context) {
           return context.dataset.label + ': ' + GpaFormat.format(context.parsed.y);
-        } } } };
+        } };
       }
+      applyChartText({ options: options });
       charts.push(new Chart(canvas, { type: 'bar', data: { labels: labels, datasets: datasets },
         options: options }));
     }

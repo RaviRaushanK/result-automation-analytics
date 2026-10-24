@@ -5,6 +5,7 @@
  */
 (function () {
   'use strict';
+  const gradeLabel = value => value == null || value === 'Unknown' ? 'Grade unavailable' : value;
 
   // ---------- DOM refs ----------
   const form = document.getElementById('analytics-filter-form');
@@ -181,7 +182,7 @@
     host.textContent = '';
     var buckets = (rows || []).filter(function (g) { return g && g.count != null; });
     var summary = (rows || []).map(function (g) {
-      return g.grade + ': ' + fmtInt(g.count) + ' (' + fmt(g.percentage, 2) + '%)';
+      return gradeLabel(g.grade) + ': ' + fmtInt(g.count) + ' (' + fmt(g.percentage, 2) + '%)';
     }).join(' • ');
     if (typeof Chart === 'undefined' || !buckets.length) {
       showPlaceholder(host, summary || 'No grade data in this scope.');
@@ -194,7 +195,7 @@
     gradeDistChart = new Chart(canvas, {
       type: 'bar',
       data: {
-        labels: buckets.map(function (g) { return g.grade; }),
+        labels: buckets.map(function (g) { return gradeLabel(g.grade); }),
         datasets: [{
           label: 'Subject grades',
           data: buckets.map(function (g) { return Number(g.count) || 0; }),

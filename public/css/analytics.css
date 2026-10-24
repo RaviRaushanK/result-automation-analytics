@@ -83,7 +83,18 @@
 .analytics-page .analytics-table thead th { white-space: nowrap; font-size: .75rem; font-weight: 600; color: var(--text-secondary); background-color: var(--secondary-bg); letter-spacing: 0; }
 .analytics-page .analytics-table td:first-child { white-space: nowrap; }
 .analytics-page :is(#students-table, #semesters-table, #revaluation-by-subject-table) { min-width: 1080px; }
-.analytics-page #revaluation-detail-table { min-width: 1480px; }
+.analytics-page #revaluation-detail-table { min-width: 940px; }
+.analytics-page #revaluation-detail-table td { overflow-wrap: normal; word-break: normal; vertical-align: top; }
+.analytics-page #revaluation-detail-table td:nth-child(-n+2) { min-width: 12rem; max-width: 20rem; white-space: normal; }
+.analytics-page #revaluation-detail-table td:nth-child(n+3):nth-child(-n+6) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.analytics-page .revaluation-identity { display: block; }
+.analytics-page .revaluation-secondary { display: block; margin-top: .25rem; color: var(--text-secondary); }
+.analytics-page .analytics-audit-button { white-space: nowrap; }
+.analytics-page .revaluation-audit-modal { background: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); }
+.analytics-page .revaluation-audit-identity { display: grid; gap: .75rem; margin-bottom: 1rem; }
+.analytics-page .revaluation-audit-modal dl { margin: .75rem 0 0; }
+.analytics-page .revaluation-audit-modal dt { font-size: .8125rem; color: var(--text-secondary); }
+.analytics-page .revaluation-audit-modal dd { margin: 0 0 .75rem; overflow-wrap: anywhere; color: var(--text-primary); }
 .analytics-page #revaluation-table { min-width: 0; }
 .analytics-page #revaluation-table th:first-child { width: 70%; }
 .analytics-page #revaluation-table td:first-child { white-space: normal; }
@@ -139,3 +150,8 @@
   .analytics-page .analytics-filters .row { grid-template-columns: minmax(0, 1fr); }
   .analytics-page .analytics-filters :is(.filter-actions, .row > .d-flex:last-child) > .btn { flex: 1 1 auto; }
 }
+.analytics-page .analytics-calculation-details,
+.analytics-page .analytics-chart-data { margin-block: .75rem; color: var(--text-secondary); }
+.analytics-page details > summary { color: var(--text-primary); cursor: pointer; font-weight: 600; }
+.analytics-page details > summary:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+.analytics-page details > p { margin-block: .5rem; }

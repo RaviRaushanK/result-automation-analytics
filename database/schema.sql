@@ -254,6 +254,12 @@ CREATE TABLE revaluation_results (
   subject_result_id BIGINT NOT NULL,
   original_marks INT NOT NULL,
   revised_marks INT NOT NULL,
+  revised_internal_marks INT NULL DEFAULT NULL,
+  revised_external_marks INT NULL DEFAULT NULL,
+  revaluation_no INT NOT NULL DEFAULT 1,
+  is_effective TINYINT(1) NOT NULL DEFAULT 0,
+  reviewed_by BIGINT NULL,
+  reviewed_at DATETIME NULL,
   original_status ENUM('pass', 'fail') NOT NULL,
   revised_status ENUM('pass', 'fail') NOT NULL,
   revised_grade VARCHAR(5),
@@ -263,6 +269,7 @@ CREATE TABLE revaluation_results (
   remarks TEXT,
   uploaded_by BIGINT,
   upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_revaluation_no (subject_result_id, revaluation_no),
   FOREIGN KEY (subject_result_id) REFERENCES subject_results(subject_result_id) ON DELETE CASCADE ON UPDATE CASCADE,
   FOREIGN KEY (uploaded_by) REFERENCES admin_users(admin_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
@@ -337,6 +344,10 @@ SELECT
   srs.subject_id,
   COALESCE(rr_rev.revised_marks, srs.marks) AS effective_marks,
   COALESCE(rr_rev.revised_grade, srs.grade) AS effective_grade,
+  COALESCE(rr_rev.revised_internal_marks, srs.internal_marks) AS effective_internal_marks,
+  COALESCE(rr_rev.revised_external_marks, srs.external_marks) AS effective_external_marks,
+  COALESCE(rr_rev.revised_marks, srs.marks) AS effective_total_marks,
+  COALESCE(rr_rev.revised_status, srs.result_status) AS effective_result,
   rr.result_status,
   rr.cgpa,
   rr.sgpa,
@@ -344,7 +355,10 @@ SELECT
   rr.created_at
 FROM results rr
 JOIN subject_results srs ON rr.result_id = srs.result_id
-LEFT JOIN revaluation_results rr_rev ON srs.subject_result_id = rr_rev.subject_result_id;
+LEFT JOIN revaluation_results rr_rev ON srs.subject_result_id = rr_rev.subject_result_id
+  AND rr_rev.revaluation_status = 'approved' AND rr_rev.is_effective = 1
+  AND rr_rev.revaluation_no = (SELECT MAX(pick.revaluation_no) FROM revaluation_results pick
+    WHERE pick.subject_result_id = srs.subject_result_id AND pick.revaluation_status = 'approved' AND pick.is_effective = 1);
 
 -- --------------------------------------------------- Trigger: Auto-update updated_at for soft delete safety
 -- -------------------------------------------------

@@ -16,7 +16,7 @@
   <section aria-labelledby="progress-summary-heading">
     <h2 id="progress-summary-heading" class="h5 mb-3">Analysis Scope Completion</h2>
     <div class="progress-summary-grid mb-3">
-      <% const metrics = [['total','Total Students','blue','group'],['withoutBacklog','Cleared Without Backlog','green','check_circle'],['withBacklog','Cleared With Backlog','teal','history'],['uncleared','Currently Uncleared','red','error_outline'],['clearanceRate','Backlog Clearance Rate','amber','percent'],['unknown','Unknown / Insufficient Evidence','purple','help_outline']]; %>
+      <% const metrics = [['total','Total Students','blue','group'],['withoutBacklog','Cleared Without Backlog','green','check_circle'],['withBacklog','Cleared With Backlog','teal','history'],['uncleared','Currently Uncleared','red','error_outline'],['clearanceRate','Backlog Clearance Rate','amber','percent'],['unknown','Not determined','purple','help_outline']]; %>
       <% metrics.forEach(([key, label, color, icon]) => { %>
         <div class="card stat-card stat-<%= color %> progress-metric-card">
           <span class="stat-corner" aria-hidden="true"></span>
@@ -30,15 +30,22 @@
         </div>
       <% }); %>
     </div>
-    <p class="analytics-note">Backlog clearance rate: students with verified first-sitting failures who completed the selected scope through retake clearance / students with verified first-sitting failures and known completion status. Unknown history and students without backlog are excluded. A dash means no eligible backlog history.</p>
-    <p class="analytics-note">Original uses recorded outcomes. Effective includes approved effective revaluation only. GPA is not recalculated.</p>
+    <p class="analytics-note">Clearance rate measures completion through retakes among students with verified backlog and determined completion.</p>
+    <details class="analytics-calculation-details analytics-note">
+      <summary>Calculation details</summary>
+      <p>Completion cannot be determined from the available verified academic history when results, roster verification or an unambiguous attempt history are missing.</p>
+      <p>Backlog clearance rate = students who completed this scope through retake clearance / students with verified first-sitting failures and determined completion. Students without verified backlog and students whose completion is not determined are excluded. A dash means no eligible backlog history.</p>
+      <p id="progress-clearance-counts"></p>
+      <p>Original uses recorded outcomes. Effective includes approved effective revaluation only. Stored GPA is not recalculated.</p>
+    </details>
   </section>
   <div class="analytics-chart-grid mb-4">
     <% [['status','Student Completion Status'],['trend','Semester Completion Trends']].forEach(([key, title]) => { %>
       <section aria-labelledby="progress-<%= key %>-heading" class="analytics-chart-card">
         <h2 class="h6 analytics-card-title mb-2" id="progress-<%= key %>-heading"><%= title %></h2>
         <div class="analytics-chart-container"><div class="analytics-chart-host" id="progress-<%= key %>-chart" role="img" aria-label="<%= title %>" aria-describedby="progress-<%= key %>-description"></div></div>
-        <p class="analytics-note mt-2" id="progress-<%= key %>-description"></p>
+        <p class="analytics-note mt-2"><%= key === 'status' ? 'Completion for the selected batch and scope.' : 'Recorded participants per semester; totals can differ from batch size.' %></p>
+        <details class="analytics-chart-data analytics-note"><summary>Chart data</summary><p id="progress-<%= key %>-description"></p></details>
       </section>
     <% }); %>
   </div>

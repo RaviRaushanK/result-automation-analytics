@@ -195,6 +195,7 @@
     <% } %>
     <div class="card mb-3">
       <div class="card-header">Subject Results <span class="badge bg-secondary ms-1"><%= rows.length %></span></div>
+      <p class="small text-muted px-3 pt-3 mb-2" id="revaluationMarksHelp">On the VTU nine-column card, RV/Final marks are external marks. Internal is carried IA, not automatically revised IA. Combined total includes internal and revised external marks.</p>
       <div class="table-responsive">
         <table class="table table-sm table-bordered align-middle mb-0" id="reviewTable">
           <thead class="table-light">
@@ -203,7 +204,7 @@
               <th class="text-start">Original<br>(total)</th>
               <th style="width:90px;" class="text-center">Internal</th>
               <th style="width:90px;" class="text-center">Rev. Ext</th>
-              <th style="width:80px;" class="text-center">Derived total</th>
+              <th style="width:80px;" class="text-center">Combined total</th>
               <th style="width:110px;" class="text-center">Decision</th>
             </tr>
           </thead>

@@ -60,8 +60,9 @@
     <div class="analytics-card">
       <h2 id="toppers-heading" class="h6 p-2 analytics-card-title">Student Performance Candidates</h2>
       <p class="analytics-note px-2 ">
-        Only passed results with a stored CGPA are shown. Ranked by CGPA, highest first, numbered 1 to n. Legacy GPA is not certified cumulative GPA.
+        Passed result attempts ranked by stored CGPA, highest first.
       </p>
+      <details class="analytics-calculation-details analytics-note px-2"><summary>Calculation details</summary><p>Only passed results with a stored CGPA are included. Ranks are sequential, with the existing tie order unchanged. GPA is stored original data; displaying historical GPA does not certify cumulative course history. A student may have multiple result attempts.</p></details>
       <div class="analytics-toolbar">
         <label class="analytics-search-wrap" for="toppers-search">
           <span class="material-icons" aria-hidden="true">search</span>
@@ -80,8 +81,8 @@
               <th scope="col" data-nosort>Student Name</th>
               <th scope="col" data-nosort>Semester</th>
               <th scope="col" data-nosort>Attempt</th>
-              <th scope="col" data-nosort>SGPA</th>
-              <th scope="col" data-nosort>CGPA</th>
+              <th scope="col" data-nosort>Stored SGPA</th>
+              <th scope="col" data-nosort>Stored CGPA</th>
               <th scope="col" data-nosort>Result Status</th>
             </tr>
           </thead>

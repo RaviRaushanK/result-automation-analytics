@@ -76,6 +76,24 @@ test('stale proposal token and changed original target cannot be approved', asyn
   assert.equal(f.events.length, 0);
 });
 
+test('backend approval saves explicit external evidence without UI additions or original/GPA changes', async () => {
+  const f = fixture(), saved = f.draft(9), before = JSON.stringify(f.result);
+  saved.ocr.raw_text = 'VTU UPDATED RESULTS AFTER REVALUATION Internal Old RV Final Marks';
+  Object.assign(saved.ocr.subjects[0], { internalMarks: 40, rvMarks: 40, finalMarks: 40 });
+  assert.match(await f.approve(9), /outcome/);
+  assert.equal(f.events[0].revised_internal_marks, null);
+  assert.equal(f.events[0].revised_external_marks, 40);
+  assert.equal(f.events[0].revised_marks, 80);
+  assert.equal(JSON.stringify(f.result), before);
+});
+
+test('backend approval refuses stale explicit component evidence before creating an event', async () => {
+  const f = fixture(), saved = f.draft(9);
+  saved.ocr.subjects[0].revisedExternalMarks = 41;
+  assert.match(await f.approve(9), /error=/);
+  assert.equal(f.events.length, 0);
+});
+
 function reorderJsonKeys(value) {
   if (Array.isArray(value)) return value.map(reorderJsonKeys);
   if (!value || typeof value !== 'object') return value;

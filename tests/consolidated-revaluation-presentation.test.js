@@ -1,0 +1,98 @@
+'use strict';
+const { test, after } = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const ejs = require('ejs');
+const db = require('../database/models');
+const repository = require('../repositories/reportsRepository');
+const service = require('../services/reportsService');
+const settings = require('../services/settingsService');
+const controller = require('../controllers/reportsController');
+after(() => db.sequelize.close());
+
+test('consolidated original/effective marks stay numeric while all output paths distinguish revaluation', async () => {
+  const saved = { ...repository }, savedBranding = settings.getBranding;
+  const input = { result_id: 91, usn: 'TEST001', student_name: 'Example Student', attempt_no: 1, exam_type: 'REGULAR', total_marks: 45, sgpa: 5.44 };
+  let status = 'pass', originalMark = 45, revisedMark = 50, revisedExternal = null, revisedInternal = null;
+  repository.batch = async () => ({ batch_id: 4, batch_name: 'Example Batch' });
+  repository.session = async () => ({ exam_session_id: 8, batch_id: 4, semester: '1', exam_start_month: 12, exam_start_year: 2025, exam_end_month: 1, exam_end_year: 2026 });
+  repository.summary = async () => ({ total_rows: 1 });
+  repository.sessionSubjects = async () => [{ subject_id: 41, subject_code: 'TEST101', subject_name: 'Example Course' }, { subject_id: 42, subject_code: 'TEST102', subject_name: 'Unaffected Course' }];
+  repository.rows = async (type, f, limit, offset) => offset ? [] : [{ ...input }];
+  repository.consolidatedSubjects = async f => [
+    { result_id: 91, subject_id: 41, internal_marks: 30, external_marks: 15, original_marks: originalMark, marks: f.mode === 'effective' ? revisedMark : originalMark, result_status: f.mode === 'effective' ? status : 'fail', revaluated: f.mode === 'effective' ? 1 : 0,
+      revised_external_marks: revisedExternal, revised_internal_marks: revisedInternal },
+    { result_id: 91, subject_id: 42, internal_marks: 35, external_marks: 35, original_marks: 70, marks: 70, result_status: 'pass', revaluated: 0 }
+  ];
+  settings.getBranding = async () => settings.DEFAULTS;
+  const query = { batch_id: '4', semester: '1', exam_session_id: '8' };
+  try {
+    const original = await service.getReport('consolidated', { ...query, mode: 'original' });
+    assert.equal(original.rows[0].subject_41_EX, 15);
+    assert.equal(original.rows[0].subject_41_IA, 30);
+    assert.equal(original.rows[0].subject_41_T, 45);
+    assert.deepEqual(original.rows[0].consolidated_display, {});
+    const effective = await service.getReport('consolidated', { ...query, mode: 'effective' });
+    const row = effective.rows[0];
+    assert.equal(row.subject_41_EX, null);
+    assert.equal(row.subject_41_IA, null);
+    assert.equal(row.subject_41_T, 50);
+    assert.equal(row.sgpa, input.sgpa);
+    assert.deepEqual(row.consolidated_display, {});
+    assert.equal(row.consolidated_display.subject_42_T, undefined);
+    assert.equal(row.subject_42_T, 70);
+    assert.doesNotMatch(JSON.stringify(row.consolidated_display), /Revised EX|20/);
+    const render = report => ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), { report, context: service.contextLines(report), display: service.display });
+    const originalHtml = await render(original), effectiveHtml = await render(effective);
+    assert.doesNotMatch(originalHtml, /Original EX:|Effective T:/);
+    assert.match(originalHtml, />15<\/td>.*>30<\/td>.*>45<\/td>/s);
+    assert.doesNotMatch(effectiveHtml, /Original EX:|Original IA:|Original T:|Effective T:/);
+    assert.match(effectiveHtml, />-<\/td>.*>-<\/td>.*>50<\/td>/s);
+    assert.match(effectiveHtml, /not recalculated after revaluation/);
+    assert.match(effectiveHtml, /A dash means component marks are unavailable or cannot be reconciled with the approved total/);
+    assert.match(effectiveHtml, /5\.44/);
+    let csv = '';
+    const res = { set() {}, write(text) { csv += text; return true; }, end() {}, status(code) { throw new Error('Unexpected status ' + code); } };
+    await controller.csv('consolidated')({ query: { ...query, mode: 'effective' } }, res);
+    assert.match(csv, /,REGULAR,,,50,/);
+    assert.doesNotMatch(csv, /Original EX:|Original IA:|Original T:|Effective T:/);
+    assert.match(csv, /Approved effective marks; missing components are not estimated/);
+    assert.match(csv, /5\.44/);
+    revisedExternal = 20;
+    const components = await service.getReport('consolidated', { ...query, mode: 'effective' });
+    assert.deepEqual([components.rows[0].subject_41_EX, components.rows[0].subject_41_IA, components.rows[0].subject_41_T], [20,30,50]);
+    assert.deepEqual(components.rows[0].consolidated_display, {});
+    assert.equal(components.rows[0].sgpa, input.sgpa);
+    const componentHtml = await render(components);
+    assert.match(componentHtml, />20<\/td>.*>30<\/td>.*>50<\/td>/s);
+    assert.doesNotMatch(componentHtml, /Original EX:|Original IA:|Original T:/);
+    let numericCsv = '';
+    await controller.csv('consolidated')({ query: { ...query, mode: 'effective' } }, { ...res, write(text) { numericCsv += text; return true; } });
+    assert.match(numericCsv, /,20,30,50,/);
+    const originalAfter = await service.getReport('consolidated', { ...query, mode: 'original' });
+    assert.deepEqual([originalAfter.rows[0].subject_41_EX, originalAfter.rows[0].subject_41_IA, originalAfter.rows[0].subject_41_T], [15,30,45]);
+    revisedExternal = null; revisedInternal = 35;
+    const iaOnly = await service.getReport('consolidated', { ...query, mode: 'effective' });
+    assert.deepEqual([iaOnly.rows[0].subject_41_EX,iaOnly.rows[0].subject_41_IA], [15,35]);
+    assert.deepEqual(iaOnly.rows[0].consolidated_display, {});
+    revisedInternal = 30; revisedExternal = 20;
+    assert.deepEqual((await service.getReport('consolidated', { ...query, mode: 'effective' })).rows[0].consolidated_display, {});
+    revisedExternal = 0;
+    const inconsistent = await service.getReport('consolidated', { ...query, mode: 'effective' });
+    assert.equal(inconsistent.rows[0].subject_41_EX, null);
+    assert.equal(inconsistent.rows[0].subject_41_IA, null);
+    assert.equal(inconsistent.rows[0].subject_41_T, 50);
+    assert.deepEqual(inconsistent.rows[0].consolidated_display, {});
+    revisedExternal = null; revisedInternal = null;
+    status = 'fail'; revisedMark = 40;
+    const lower = await service.getReport('consolidated', { ...query, mode: 'effective' });
+    assert.equal(lower.rows[0].subject_41_T, 40);
+    assert.deepEqual(lower.rows[0].consolidated_display, {});
+    originalMark = null;
+    const missing = await service.getReport('consolidated', { ...query, mode: 'effective' });
+    assert.equal(missing.rows[0].subject_41_T, 40);
+    assert.deepEqual(missing.rows[0].consolidated_display, {});
+    assert.equal(input.total_marks, 45);
+    assert.equal(input.sgpa, 5.44);
+  } finally { Object.assign(repository, saved); settings.getBranding = savedBranding; }
+});

@@ -29,3 +29,16 @@ test('multi-attempt student print preserves every attempt, per-attempt summary a
   assert.equal((html.match(/class="reports-summary"/g) || []).length, 3);
   assert.equal((html.match(/<tbody>/g) || []).length, 2);
 });
+
+test('revaluation print protects the entire USN cell from mid-identifier wrapping', async () => {
+  const locals = fixture();
+  locals.report.type = 'revaluation';
+  locals.report.title = 'Revaluation Report';
+  locals.report.columns = [{key:'usn', label:'USN'}, {key:'student_name', label:'Student Name'}, {key:'original_marks',label:'Original total'}, {key:'revised_marks',label:'Revised total'}];
+  locals.report.rows = [{usn:'TEST25MC074', student_name:'Example Student', original_marks:45, revised_marks:50}];
+  const html = await ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), locals);
+  assert.match(html, /<td class="reports-usn">TEST25MC074<\/td>/);
+  assert.match(html, />45<\/td>.*>50<\/td>/s);
+  const css = require('node:fs').readFileSync(path.join(__dirname,'../public/css/reports.css'),'utf8');
+  assert.match(css, /td\.reports-usn\s*\{[^}]*white-space: nowrap;[^}]*overflow-wrap: normal;[^}]*word-break: normal/);
+});

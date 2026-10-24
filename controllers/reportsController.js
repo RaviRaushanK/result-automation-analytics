@@ -88,7 +88,7 @@ function csv(type) {
       } else await write(res, '\r\n' + line([...(numbered ? ['Sl. No.'] : []), ...columns.map(c => c.label)]));
       let index = 0;
       for await (const row of service.fullRows(report)) {
-        const cells = [...(numbered ? [service.csvCell(++index)] : []), ...columns.map(c => service.csvReportCell(c.key, row[c.key]))];
+        const cells = [...(numbered ? [service.csvCell(++index)] : []), ...columns.map(c => report.type === 'consolidated' && row.consolidated_display?.[c.key] !== undefined ? service.csvCell(row.consolidated_display[c.key]) : service.csvReportCell(c.key, row[c.key]))];
         await write(res, cells.join(',') + '\r\n');
       }
       if (type === 'result-analysis') {

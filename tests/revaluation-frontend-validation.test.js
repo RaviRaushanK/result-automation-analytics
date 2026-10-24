@@ -117,4 +117,8 @@ test('review template supplies Bootstrap feedback and native range constraints w
   assert.match(source, /id="ext_<%= r.srid %>_feedback"/);
   assert.match(source, /min="0" max="<%= r.maxExternal %>" step="1"/);
   assert.match(source, /id="approveRevaluationForm">/);
+  assert.match(source, /Combined total/);
+  assert.match(source, /RV\/Final marks are external marks/);
+  assert.match(source, /Internal is carried IA, not automatically revised IA/);
+  assert.doesNotMatch(source, /verify_revised_internal_|verify_revised_external_/);
 });

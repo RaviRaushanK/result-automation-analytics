@@ -278,6 +278,9 @@
       if (numbered) tr.append(node('td', (report.pagination.page - 1) * report.pagination.pageSize + index + 1, ['consolidated', 'student-progress'].includes(type) ? 'reports-fixed-0' : undefined));
       report.columns.forEach((column, index) => {
         const td = node('td', undefined, (type === 'consolidated' && index < 2) || (type === 'student-progress' && index < 3) ? `reports-fixed-${index + 1}` : undefined);
+        if (column.key === 'usn') td.classList.add('reports-usn');
+        if (column.key === 'student_name') td.classList.add('reports-student-name');
+        if (column.key === 'subject_name') td.classList.add('reports-subject-name');
         if (type === 'student-progress' && typeof column.group === 'number') {
           if (column.group % 2) td.classList.add('reports-semester-alt');
           const result = row.semesters[report.semesters[column.group].semester].displayed_result;
@@ -286,7 +289,9 @@
         if (type === 'student-progress' && column.key === 'latest_cgpa' && row.latest_cgpa_source) {
           const result = row.latest_cgpa_source; td.title = `Semester ${result.semester}; ${ExamPeriod.format(result)}; attempt ${result.attempt_no}; ${result.exam_type}`;
         }
-        const text = display(column.key, row[column.key]);
+        const annotated = type === 'consolidated' ? row.consolidated_display?.[column.key] : undefined;
+        const text = annotated ?? display(column.key, row[column.key]);
+        if (annotated) td.classList.add('reports-revaluation-cell');
         if (type === 'student-progress' && /^year_\d+_/.test(column.key)) td.classList.add('reports-year-completion');
         if (column.key.endsWith('status') && row[column.key]) td.append(node('span', text, `badge reports-status reports-status-${row[column.key]}`));
         else td.textContent = text;
@@ -304,10 +309,10 @@
     ui('summary').replaceChildren(...summary(report.metrics));
     ui('flat-table').hidden = type === 'student';
     if (type === 'student') renderSemesters(report);
-    if (ui('component-note')) ui('component-note').hidden = report.filters.mode !== 'effective' || (type !== 'consolidated' && !report.rows.some(row => Number(row.revaluated)));
-    ui('context').replaceChildren(...report.context.map(([label, value]) => {
+    ui('context').replaceChildren(...ReportWording.visible(report.context).map(([label, value]) => {
       const pair = node('div'); pair.append(node('dt', label), node('dd', value)); return pair;
     }));
+    ui('calculation-notes').replaceChildren(...ReportWording.details(report).map(text => node('li', text)));
     currentPage = report.pagination.page;
     totalPages = report.pagination.totalPages;
     ui('page-info').textContent = totalPages ? `Page ${currentPage} of ${totalPages} / ${report.pagination.totalRows} rows` : '0 rows';

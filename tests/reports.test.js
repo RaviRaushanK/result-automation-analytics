@@ -158,8 +158,9 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
     // Add authoritative course identities to the existing read-only CTE fixtures.
     const boundary = sql.indexOf('\n SELECT');
     const split = boundary >= 0 ? boundary : sql.search(/\)\s+SELECT /) + 1;
-    const source = sql.slice(0, split).replace(' subjects AS', ' offering_fixture AS').replace(' results AS', ' result_fixture AS').replace(' subject_results AS', ' marks_fixture AS');
+    const source = sql.slice(0, split).replace(' subjects AS', ' offering_fixture AS').replace(' results AS', ' result_fixture AS').replace(' subject_results AS', ' marks_fixture AS').replace(' revaluation_results AS', ' event_fixture AS');
     const additions = `,
+      revaluation_results AS (SELECT e.*,NULL revised_internal_marks,NULL revised_external_marks FROM event_fixture e),
       academic_courses AS (SELECT MIN(s.subject_id) course_id,rs.batch_id,rs.semester,s.subject_code,MIN(s.subject_name) subject_name,
         4 credits,50 max_internal,50 max_external,100 max_marks,'active' status,1 is_required,1 roster_verified
         FROM offering_fixture s JOIN exam_sessions rs ON rs.exam_session_id=s.exam_session_id GROUP BY rs.batch_id,rs.semester,s.subject_code),
@@ -321,8 +322,8 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.equal(Number(effective.rows[0].subject_1_T), 60);
       assert.equal(Number(effective.rows[0].total_marks), 135);
       assert.equal(Number(effective.rows[0].percentage), 67.5);
-      assert.equal(Number(effective.rows[0].subject_2_EX), 30, 'EX is not effective total minus IA');
-      assert.equal(Number(effective.rows[0].subject_2_IA), 40);
+      assert.equal(effective.rows[0].subject_2_EX, null, 'Missing revised EX is not guessed from the effective total');
+      assert.equal(effective.rows[0].subject_2_IA, null, 'Unreconciled components are not shown as part of the effective total');
       assert.equal(effective.rows[0].subject_marks[1].effective, true);
       assert.equal(Number(effective.rows[0].sgpa), 3.5);
       assert.equal(effective.trailingColumns.at(-1).label, 'SGPA (Stored)');
@@ -577,7 +578,9 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           if (type === 'consolidated') {
             assert.match(csvText, /Sl\. No\.,USN,Name,Attempt,Exam Type,MCA101,,,MCA102,,,TOTAL,%,SGPA \(Stored\)/);
             assert.match(csvText, /\r\n,,,,,EX,IA,T,EX,IA,T,,,\r\n/);
-            assert.match(csvText, /1,USN1,Student One,1,REGULAR,,,60,30,40,75,135,"=""67\.50""","=""3\.50"""/);
+            assert.doesNotMatch(csvText, /Original EX:|Original IA:|Original T:|Effective T:/);
+            assert.match(csvText, /1,USN1,Student One,1,REGULAR,,,60,,,75,135/);
+            assert.match(csvText, /135,"=""67\.50""","=""3\.50"""/);
             assert.match(csvText, /5,USN2,Student Two,3,SUPPLEMENTARY/);
           }
           if (type === 'result-analysis') {
@@ -611,7 +614,8 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.match(printText, /scope="colgroup" colspan="3"/);
             assert.match(printText, /rowspan="2"/);
             assert.match(printText, /<td>-<\/td>/);
-            assert.match(printText, /SGPA is the stored original/);
+            assert.match(printText, /not recalculated after revaluation/);
+            assert.doesNotMatch(printText, /Original EX:|Original IA:|Original T:|Effective T:/);
           }
           if (type === 'result-analysis') {
             assert.match(printText, /RESULTS ANALYSIS CHART OF 1 SEM MCA/);
