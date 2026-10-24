@@ -5,7 +5,7 @@ const { Batch, Department, Student, Result, ExamSession, AcademicCourse, sequeli
 const BATCH_PAGE_STYLES = ['/css/dashboard.css', '/css/batches.css'];
 
 function splitName(body) {
-  const course = typeof body.course_name === 'string' ? body.course_name.trim().replace(/\s+/g, ' ') : '';
+  const course = typeof body.course_name === 'string' ? body.course_name.trim().replace(/\s+/g, ' ').toUpperCase() : '';
   const year = typeof body.batch_year === 'string' || typeof body.batch_year === 'number' ? Number(body.batch_year) : NaN;
   if (!course || course.length > 90 || /[\x00-\x1f\x7f<>]/.test(course)) throw Object.assign(new Error('Enter a valid course name (up to 90 characters).'), { status: 400 });
   if (!Number.isInteger(year) || year < 1900 || year > 2200) throw Object.assign(new Error('Batch year must be between 1900 and 2200.'), { status: 400 });
@@ -107,7 +107,7 @@ const batchController = {
       let batch_name;
       if (body.course_name !== undefined || body.batch_year !== undefined) {
         if (typeof body.course_name !== 'string') return res.status(400).json({ success: false, message: 'Course name is required.' });
-        const course = body.course_name.trim().replace(/\s+/g, ' ');
+        const course = body.course_name.trim().replace(/\s+/g, ' ').toUpperCase();
         if (!course || course.length > 90 || /[\x00-\x1f\x7f<>]/.test(course)) return res.status(400).json({ success: false, message: 'Enter a valid course name (up to 90 characters).' });
         const year = typeof body.batch_year === 'string' || typeof body.batch_year === 'number' ? Number(body.batch_year) : NaN;
         if (!/^\d{4}$/.test(String(body.batch_year)) || !Number.isInteger(year) || year < 1900 || year > 2200) return res.status(400).json({ success: false, message: 'Batch year must be a valid year between 1900 and 2200.' });

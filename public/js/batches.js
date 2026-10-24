@@ -496,7 +496,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Validate a batch form. Returns { valid, data, errors }.
     function validateForm(fields) {
         var creating = fields === CREATE_FIELDS;
-        var courseName = document.getElementById(fields.course_name).value.trim().replace(/\s+/g, ' ');
+        var courseName = document.getElementById(fields.course_name).value.trim().replace(/\s+/g, ' ').toUpperCase();
         var batchYearRaw = document.getElementById(fields.batch_year).value.trim();
         var batchYear = batchYearRaw ? Number(batchYearRaw) : null;
         var batchName = courseName + ' ' + batchYearRaw;

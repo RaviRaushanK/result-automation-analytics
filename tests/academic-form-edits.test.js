@@ -109,4 +109,28 @@ test('subject update controller edits the linked course instead of invoking crea
   await context.module.exports.update({ params: { id: 1 }, body: definition }, res);
   assert.equal(res.statusCode, 200); assert.equal(res.body.success, true);
   assert.equal(calls[0][0].course_id, 3); assert.equal(calls[0][2].credits, 0); assert.equal(calls[0][3].fixture, true);
+  assert.equal(calls[0][2].subject_name, 'CORRECTED');
+});
+
+test('subject creation sends uppercase names to both course resolution and offering persistence', async () => {
+  const writes = [], definitions = [];
+  const session = { exam_session_id: 2, batch_id: 1, semester: '1' };
+  const models = {
+    Batch: { findByPk: async () => ({ batch_id: 1 }) },
+    Subject: { findOne: async () => null, create: async data => { writes.push(data); return data; } },
+    ExamSession: { findByPk: async () => session },
+    sequelize: { transaction: async fn => fn({ fixture: true }) }
+  };
+  const service = { resolve: async (session, definition) => { definitions.push(definition); return { course_id: 3 }; } };
+  const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : name === '../services/academicCourseService' ? service : require(name) };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/subjectController'), 'utf8'), context);
+  for (const subject_name of ['math', ' MaTh ']) {
+    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; } };
+    await context.module.exports.create({ body: { exam_session_id: 2, subject_code: 'MATH101', subject_name, subject_type: 'theory', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 } }, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.data.subject_name, 'MATH');
+  }
+  assert.equal(writes.length, 2);
+  assert.ok(writes.every(row => row.subject_name === 'MATH'));
+  assert.ok(definitions.every(row => row.subject_name === 'MATH'));
 });

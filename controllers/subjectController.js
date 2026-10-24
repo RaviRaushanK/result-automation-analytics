@@ -39,7 +39,7 @@ function validateSubject(body) {
     .toUpperCase();
   const subject_name = String(
     body.subject_name == null ? "" : body.subject_name,
-  ).trim();
+  ).trim().toUpperCase();
   const subject_type = String(
     body.subject_type == null ? "" : body.subject_type,
   )

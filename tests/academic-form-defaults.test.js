@@ -52,6 +52,24 @@ function sessionFixture() {
   };
 }
 
+test('batch creation saves lowercase and mixed-case course names in uppercase without relying on the browser', async () => {
+  const writes = [];
+  const models = {
+    Batch: { create: async value => { writes.push(value); return value; } },
+    Department: { findOne: async () => ({ department_id: 1 }) }
+  };
+  const context = { module: { exports: {} }, console, require: name => name === '../database/models' ? models : require(name) };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../controllers/batchController.js'), 'utf8'), context);
+  for (const course_name of ['mca', ' McA ']) {
+    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } };
+    await context.module.exports.create({ body: { course_name, batch_year: 2026, start_year: 2026, end_year: 2028 } }, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.data.batch_name, 'MCA 2026');
+  }
+  assert.equal(writes.length, 2);
+  assert.ok(writes.every(row => row.batch_name === 'MCA 2026'));
+});
+
 test('session API enforces duration-specific semester choices without changing result calculations', async () => {
   const f = sessionFixture(), body = { batch_id: 1, semester: '4', exam_start_month: 7, exam_start_year: 2026 };
   assert.equal((await f.create(body)).statusCode, 201);
