@@ -57,7 +57,7 @@ const rows = [
   'MMCL106 DBMS AND WEB 48 49 97 P 2026-04-28', 'TECHNOLOGIES', 'LABORATORY'
 ];
 function fixture(lines = [...identity,...rows]) {
-  const state = { aiCalls:0, pdfCalls:0, ocrCalls:0, configured:true, mode:'auto', aiThrows:false, pdfThrows:false };
+  const state = { aiCalls:0, pdfCalls:0, ocrCalls:0, pageCalls:0, configured:true, mode:'auto', aiThrows:false, pdfThrows:false };
   const module = {exports:{}};
   const aiResult = { success:true, extraction:{extractionMethod:'test-ai',subjects:[]} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../services/documentExtractor.js'),'utf8'), {
@@ -66,6 +66,7 @@ function fixture(lines = [...identity,...rows]) {
     require(name) {
       if(name==='fs')return {existsSync:()=>true};
       if(name==='./aiProviders')return {isConfigured:()=>state.configured};
+      if(name==='./pageRenderer')return {renderPdfToImages:async()=>{state.pageCalls++;return [{buffer:Buffer.from('rendered page')}];}};
       if(name==='./vlmExtractor')return {extract:async()=>{state.aiCalls++;if(state.aiThrows)throw new Error('AI unavailable');return aiResult;}};
       return require(name);
     }
@@ -77,7 +78,7 @@ function fixture(lines = [...identity,...rows]) {
     if(state.pdfThrows)throw new Error('No readable PDF text');
     return {text:lines.join('\n'),words:lines.map((text,i)=>({text,x:0,y:i*30,page:1,height:12}))};
   };
-  extractor.ocrImage=async()=>{state.ocrCalls++;return {text:[...identity,...rows].join('\n'),words:[]};};
+  extractor.ocrImage=async()=>{state.ocrCalls++;return {text:state.ocrText ?? [...identity,...rows].join('\n'),words:[]};};
   return {extractor,state,aiResult};
 }
 
@@ -89,6 +90,97 @@ test('complete embedded PDF text retains the wrapped last lab row before AI can 
   const last=output.extraction.subjects.find(row=>row.subjectCode==='MMCL106');
   assert.equal(last.internalMarks,48);assert.equal(last.externalMarks,49);assert.equal(last.totalMarks,97);
   assert.equal(state.aiCalls,0);assert.equal(state.ocrCalls,0);assert.equal(state.pdfCalls,1);
+});
+
+test('code-like font fragments before a complete subject-table header cannot force AI result readings', async () => {
+  const { extractor, state } = fixture(['University HDR123 encoded heading', ...identity,
+    'Subject Code Subject Name Internal Marks External Marks Total Result Announced / Updated', ...rows]);
+  const output = await extractor.extract('card.pdf', 'original', { expectedSubjectCodes: ['MMC101','MMC102','MMC103','MMC104','MMC105','MMCL106'] });
+  assert.equal(output.extraction.extractionMethod, 'pdfjs-text');
+  assert.equal(output.extraction.subjects.length, 6);
+  assert.equal(output.extraction.subjects.find(row => row.subjectCode === 'MMC102').result, 'P');
+  assert.equal(state.aiCalls, 0);
+  const evidence = await extractor.readOriginalResultEvidence('card.pdf', ['MMC102']);
+  assert.equal(evidence.subjects.find(row => row.subjectCode === 'MMC102').result, 'P');
+});
+
+test('table header filtering retains incomplete actual course rows and later mixed-semester tables', async () => {
+  const { extractor, state, aiResult } = fixture([...identity,
+    'Subject Code Subject Name Internal Marks External Marks Total Result',
+    'MMC101 COURSE 40 40 80 P', 'Semester : 2',
+    'Subject Code Subject Name Internal Marks External Marks Total Result', 'MMC201 ANOTHER COURSE']);
+  const output = await extractor.extract('card.pdf', 'original');
+  assert.equal(output, aiResult);
+  assert.equal(state.aiCalls, 1);
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC101']), null);
+});
+
+test('malformed PDF text identity uses an exact local visual rereading without changing the supplied student identity', async () => {
+  const badIdentity = identity.map(line => line.replace('1MV25MC061', '1IMV25MC061'));
+  const { extractor, state, aiResult } = fixture([...badIdentity, ...rows]);
+  assert.equal(await extractor.extract('card.pdf', 'original'), aiResult);
+  const student = { usn: '1MV25MC061', name: 'TEST STUDENT' }, before = JSON.stringify(student);
+  const evidence = await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student);
+  assert.equal(evidence.student.usn, student.usn);
+  assert.equal(evidence.student.nativeUsn, '1IMV25MC061');
+  assert.equal(evidence.student.identitySource, 'local-ocr');
+  assert.equal(JSON.stringify(student), before);
+  assert.equal(state.pageCalls, 1); assert.equal(state.ocrCalls, 1);
+});
+
+test('a different valid PDF USN is never replaced by OCR or the selected student', async () => {
+  const { extractor, state } = fixture();
+  const evidence = await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], { usn: '1MV25MC062', name: 'TEST STUDENT' });
+  assert.equal(evidence.student.usn, '1MV25MC061');
+  assert.equal(state.pageCalls, 0); assert.equal(state.ocrCalls, 0);
+});
+
+test('visual identity verification permits existing same-length I/1 OCR normalization, never extra-character truncation', async () => {
+  const badIdentity = identity.map(line => line.replace('1MV25MC061', '1IMV25MC061'));
+  for (const [visible, accepted] of [['IMV25MC061', true], ['1MV25MC0061', false], ['1MV25MC062', false]]) {
+    const { extractor, state } = fixture([...badIdentity, ...rows]);
+    state.ocrText = identity.join('\n').replace('1MV25MC061', visible);
+    const evidence = await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], { usn: '1MV25MC061', name: 'TEST STUDENT' });
+    assert.equal(Boolean(evidence), accepted);
+    if (accepted) { assert.equal(evidence.student.usn, '1MV25MC061'); assert.equal(evidence.student.visibleUsn, visible); }
+  }
+});
+
+test('successful evidence is cached by document contents and identity, with independent returned objects', async () => {
+  const { extractor, state } = fixture();
+  const student = { usn: '1MV25MC061', name: 'TEST STUDENT' };
+  // This isolated module uses synthetic file contents; no uploaded file is read.
+  const module = { exports: {} }; let contents = Buffer.from('first synthetic PDF');
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../services/documentExtractor.js'), 'utf8'), {
+    module, exports: module.exports, console: { log() {}, warn() {}, error() {} }, process: { env: {} },
+    require(name) {
+      if (name === 'fs') return { existsSync: () => true, readFileSync: () => contents };
+      if (name === './aiProviders') return { isConfigured: () => false };
+      return require(name);
+    }
+  });
+  const cached = module.exports;
+  cached.extractPdfTextWithCoordinates = extractor.extractPdfTextWithCoordinates;
+  const first = await cached.readOriginalResultEvidence('card.pdf', ['MMC101'], student);
+  first.subjects[0].result = 'F';
+  const second = await cached.readOriginalResultEvidence('card.pdf', ['MMC101'], student);
+  assert.equal(second.subjects[0].result, 'P');
+  assert.equal(state.pdfCalls, 1);
+  contents = Buffer.from('different synthetic PDF');
+  await cached.readOriginalResultEvidence('card.pdf', ['MMC101'], student);
+  assert.equal(state.pdfCalls, 2);
+  await cached.readOriginalResultEvidence('card.pdf', ['MMC102'], student);
+  assert.equal(state.pdfCalls, 3);
+});
+
+test('malformed text identity recovery rejects missing or conflicting visual USN/name evidence', async () => {
+  const badIdentity = identity.map(line => line.replace('1MV25MC061', '1IMV25MC061'));
+  for (const ocrText of ['', identity.join('\n').replace('1MV25MC061', '1MV25MC062'),
+    identity.join('\n').replace('TEST STUDENT', 'OTHER STUDENT')]) {
+    const { extractor, state } = fixture([...badIdentity, ...rows]);
+    state.ocrText = ocrText;
+    assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], { usn: '1MV25MC061', name: 'TEST STUDENT' }), null);
+  }
 });
 
 test('complete native revaluation rows preserve all nine independent card fields',async()=>{
@@ -105,6 +197,8 @@ for(const [name,lines,expected] of [
   ['inconsistent printed total',[...identity,'MMC101 COURSE 40 40 79 P'],[]],
   ['two numbers without printed total',[...identity,'MMC101 COURSE 40 40 P'],[]],
   ['no explicit result status',[...identity,'MMC101 COURSE 40 40 80'],[]],
+  ['result letter only in subject name',[...identity,'MMC101 P COURSE 40 40 80'],[]],
+  ['subject-name letter contradicts actual printed result',[...identity,'MMC101 P COURSE 40 40 80 F'],[]],
   ['missing student identity',['Semester : 1','MMC101 COURSE 40 40 80 P'],[]],
   ['configured subject missing',[...identity,'MMC101 COURSE 40 40 80 P'],['MMC101','MMCL106']],
   ['duplicate subject code',[...identity,'MMC101 COURSE 40 40 80 P','MMC101 COURSE 45 45 90 P'],[]],

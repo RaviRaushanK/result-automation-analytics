@@ -7,6 +7,7 @@ const fs = require('fs');
 const documentExtractor = require('../services/documentExtractor');
 const academicPolicy = require('../services/academicPolicy');
 const integrity = require('../services/academicIntegrity');
+const reviewIdentity = require('../services/reviewIdentity');
 const configuration = require('../services/academicConfiguration');
 const academicOutcomes = require('../services/academicOutcomeService');
 const resultHistory = require('../services/resultHistoryService');
@@ -123,7 +124,33 @@ async function loadImportContext(importId) {
     const parsed = typeof ocr.extracted_json === 'string'
       ? safeParseJson(ocr.extracted_json)
       : ocr.extracted_json;
-    if (parsed) saved = parsed;
+    if (parsed) saved = { ...parsed, subjects: (parsed.subjects || []).map(row => ({ ...row })) };
+  }
+  // Prefer a complete, identity-matched embedded PDF table over earlier OCR/AI
+  // result letters. Never infer a printed PASS from the total, or write on GET.
+  let documentResultReadingsChanged = false;
+  if (typeof documentExtractor.readOriginalResultEvidence === 'function' && saved.subjects?.length) {
+    try {
+      const attempted = saved.subjects.filter(row => integrity.present(row.internalMarks) && integrity.present(row.externalMarks));
+      const evidence = await documentExtractor.readOriginalResultEvidence(
+        path.join(__dirname, '../uploads/results', path.basename(log.file_name || '')),
+        attempted.map(row => row.subject_code), saved.student);
+      if (evidence?.student?.usn && integrity.usn(evidence.student.usn) === integrity.usn(saved.student?.usn)) {
+        saved.subjects = saved.subjects.map(row => {
+          const matches = (evidence.subjects || []).filter(item => integrity.code(item.subjectCode) === integrity.code(row.subject_code)
+            && integrity.present(row.internalMarks) && integrity.present(row.externalMarks)
+            && Number(item.internalMarks) === Number(row.internalMarks) && Number(item.externalMarks) === Number(row.externalMarks)
+            && Number(item.totalMarks) === Number(row.internalMarks) + Number(row.externalMarks));
+          const status = matches.length === 1 ? integrity.documentStatus(matches[0].result) : null;
+          if (!status || status === integrity.documentStatus(row.document_result_status)) return row;
+          documentResultReadingsChanged = true;
+          return { ...row, document_result_status: status, document_result_source: 'pdfjs-text' };
+        });
+      }
+    } catch (error) {
+      // Unreadable/scanned documents retain their existing evidence and checks.
+      console.warn('[results] Embedded printed-result verification unavailable. Existing readings retained.');
+    }
   }
   // Older drafts omitted the printed result. Recover only an unambiguous row
   // from their own stored text with matching code and both component marks.
@@ -147,6 +174,7 @@ async function loadImportContext(importId) {
     ocr,
     session: log.ExamSession,
     saved,
+    documentResultReadingsChanged,
     fileUrl: '/uploads/results/' + log.file_name,
     sessionDisplay: `${log.ExamSession.Batch.batch_name} | Sem ${log.ExamSession.semester} | ${academicPolicy.formatExamPeriod(log.ExamSession)}`
   };
@@ -341,8 +369,13 @@ async function documentContextErrors(saved, session, payload, attempt, verified,
       ? 'Mixed-document scope could not be verified. The selected semester is not identified in the document, and these exclusions cannot all be confirmed as other-semester courses: ' + saved.excluded_subjects.map(row => row.subject_code).join(', ') + '. Check the document and selected semester. Excluded rows will not be imported.'
       : 'Mixed-document scope could not be verified. Included subjects must belong unambiguously to the selected semester. Check the original card and course roster before retrying.';
   }
-  const errors = integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified)
+  const registered = saved.identity_correction ? await Student.findOne({ where: { usn: payload.student.usn }, transaction }) : null;
+  const manuallyCorrected = registered && !studentRegistrationError(registered, session, payload.student.usn)
+    && !studentNameError(registered, payload.student.name, payload.student.usn)
+    && reviewIdentity.valid(saved, reviewIdentity.originalTarget(session, registered), 'original');
+  const errors = integrity.originalDocumentErrors(saved, session, payload.student, attempt, verified, mixedVerified, manuallyCorrected)
     .map(error => scopeError && error.startsWith('Document Semester ') ? scopeError : error);
+  if (saved.identity_correction && !manuallyCorrected) errors.push('The manual identity correction is stale or does not match the current registered student. Correct USN and Student Name and Validate again.');
   if (scopeError && !mixedVerified && !errors.includes(scopeError)) errors.push(scopeError);
   return errors;
 }
@@ -540,6 +573,7 @@ const resultController = {
         raw_text: String(ex.rawText || '').substring(0, 60000),
         extracted_json: {
           document_evidence: { ...integrity.claims(ex), raw_text: ex.rawText || '', semester: ex.semester },
+          extracted_identity: { usn: ex.student?.usn || '', name: ex.student?.name || '' },
           integrity_conflicts: conflicts,
           student: {
             usn: (ex.student && ex.student.usn) || '',
@@ -644,12 +678,16 @@ const resultController = {
       const extractionWarning = extractionWarningParts.length > 0
         ? extractionWarningParts.join(' ')
         : null;
-      const documentChecks = integrity.summary(ctx.saved.document_evidence || {}, {
+      const correctedStudent = ctx.saved.identity_correction ? await Student.findOne({ where: { usn: ctx.saved.student?.usn } }) : null;
+      const correctedTarget = reviewIdentity.originalTarget(ctx.session, correctedStudent);
+      const documentChecks = reviewIdentity.annotate(integrity.summary(ctx.saved.document_evidence || {}, {
         ...ctx.session.toJSON?.() || ctx.session, usn: ctx.saved.student?.usn,
         attempt_no: ctx.saved.attempt?.attempt_no, exam_type: ctx.saved.attempt?.exam_type
-      });
+      }), ctx.saved, correctedTarget, 'original');
+      const unresolvedConflicts = reviewIdentity.blockingConflicts(ctx.saved, correctedTarget, 'original');
+      warnings = warnings.filter(warning => !(ctx.saved.integrity_conflicts || []).includes(warning) || unresolvedConflicts.includes(warning));
       const extractionReview = require('../services/extractionReviewDiagnostics').classify({
-        saved: ctx.saved, subjects, warnings,
+        saved: { ...ctx.saved, integrity_conflicts: unresolvedConflicts }, subjects, warnings,
         retake: academicPolicy.isRetakeAttempt(ctx.saved.attempt?.exam_type),
         hasUnresolvedFields: !!extractionWarning, documentChecks
       });
@@ -693,9 +731,10 @@ const resultController = {
         importId: ctx.log.import_id,
         sessionDisplay: ctx.sessionDisplay,
         student: ctx.saved.student || { usn: '', name: '' },
+        sourceToken: integrity.digest(typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json),
         attempt: attemptInfo,
-        documentChecks: integrity.summary(ctx.saved.document_evidence || {}, { ...ctx.session.toJSON?.() || ctx.session,
-          usn: ctx.saved.student?.usn, attempt_no: attemptInfo.attempt_no, exam_type: attemptInfo.exam_type }),
+        documentChecks,
+        identityCorrection: reviewIdentity.valid(ctx.saved, correctedTarget, 'original') ? ctx.saved.identity_correction : null,
         excludedSubjects: ctx.saved.excluded_subjects || [],
         mixedContextVerified: ctx.saved.mixed_context_verified === true,
         subjects,
@@ -728,6 +767,10 @@ const resultController = {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Import record not found.'));
       }
       if (ctx.log.status === 'success') return res.redirect('/results/upload/' + ctx.log.import_id + '/success');
+      if (req.body?.identity_review === '1' && req.body.source_token !== integrity.digest(
+        typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json)) {
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent('The extracted document or review changed. Reload Review & Edit before correcting the identity and validating again.'));
+      }
 
       const markInputs = extractMarkInputs(req.body);
       const { errors, payload } = await buildValidatedPayload(
@@ -736,7 +779,6 @@ const resultController = {
         markInputs,
         { session: ctx.session, documentSubjects: ctx.saved.subjects, exam_type: sanitizeAttempt(req.body.attempt_no ?? ctx.saved.attempt?.attempt_no, req.body.exam_type ?? ctx.saved.attempt?.exam_type).exam_type }
       );
-      if (ctx.saved.integrity_conflicts?.length) errors.form = ctx.saved.integrity_conflicts.join(' ');
       let registrationError = null;
       let nameError = null;
       let registeredStudent = null;
@@ -767,7 +809,8 @@ const resultController = {
         externalMarks: s.externalMarks === null ? '' : s.externalMarks,
         found_on_card: true,
         confidence: 'edited',
-        document_result_status: ctx.saved.subjects.find(row => String(row.subject_id) === String(s.subject_id))?.document_result_status || null
+        document_result_status: ctx.saved.subjects.find(row => String(row.subject_id) === String(s.subject_id))?.document_result_status || null,
+        document_result_source: ctx.saved.subjects.find(row => String(row.subject_id) === String(s.subject_id))?.document_result_source || null
       }));
 
       // Review can correct the semester attempt number. Validate all submitted
@@ -819,6 +862,13 @@ const resultController = {
       }
       const historyWarnings = academicPolicy.isRetakeAttempt(examType)
         ? await academicOutcomes.retakeWarnings(ctx.session, payload.student.usn, payload.subjects, undefined, attemptNo) : [];
+      ctx.saved.extracted_identity = ctx.saved.extracted_identity || { ...ctx.saved.student };
+      const identityTarget = reviewIdentity.originalTarget(ctx.session, registeredStudent);
+      const identityCorrection = !registrationError && !nameError && registeredStudent
+        ? reviewIdentity.propose(ctx.saved, identityTarget, req.body, 'original', req.user?.adminId || req.session?.adminId || req.user?.admin_id) : null;
+      ctx.saved = { ...ctx.saved, identity_correction: identityCorrection || ctx.saved.identity_correction };
+      const conflicts = reviewIdentity.blockingConflicts(ctx.saved, identityTarget, 'original');
+      if (conflicts.length) errors.form = [errors.form, ...conflicts].filter(Boolean).join(' ');
       const documentErrors = await documentContextErrors(ctx.saved, ctx.session, payload, { exam_type: examType, attempt_no: attemptNo }, integrity.acknowledgments(req.body), req.body.verify_mixed_context === '1');
       if (documentErrors.length) errors.form = [errors.form, ...documentErrors].filter(Boolean).join(' ');
       await ctx.ocr.update({
@@ -828,6 +878,8 @@ const resultController = {
           document_context_verified: integrity.acknowledgments(req.body),
           mixed_context_verified: req.body.verify_mixed_context === '1',
           document_evidence: ctx.saved.document_evidence,
+          extracted_identity: ctx.saved.extracted_identity,
+          identity_correction: ctx.saved.identity_correction,
           extraction_diagnostics: ctx.saved.extraction_diagnostics,
           integrity_conflicts: ctx.saved.integrity_conflicts || [],
           student: payload.student,
@@ -881,9 +933,11 @@ const resultController = {
           importId: ctx.log.import_id,
           sessionDisplay: ctx.sessionDisplay,
           student: payload.student,
+          sourceToken: integrity.digest(typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json),
           attempt: { attempt_no: attemptNo, exam_type: examType },
-          documentChecks: integrity.summary(ctx.saved.document_evidence || {}, { ...(ctx.session.toJSON?.() || ctx.session),
-            usn: payload.student.usn, attempt_no: attemptNo, exam_type: examType }),
+          documentChecks: reviewIdentity.annotate(integrity.summary(ctx.saved.document_evidence || {}, { ...(ctx.session.toJSON?.() || ctx.session),
+            usn: payload.student.usn, attempt_no: attemptNo, exam_type: examType }), ctx.saved, identityTarget, 'original'),
+          identityCorrection: reviewIdentity.valid(ctx.saved, identityTarget, 'original') ? ctx.saved.identity_correction : null,
           excludedSubjects: ctx.saved.excluded_subjects || [],
           mixedContextVerified: req.body.verify_mixed_context === '1',
           subjects,
@@ -958,6 +1012,8 @@ const resultController = {
       // Presentation only: Preview never refreshes the saved validation state.
       // Match the saved-validation prerequisites enforced again at final save.
       const requiresRevalidation = ctx.ocr.validation_status !== 'validated'
+        || ctx.documentResultReadingsChanged
+        || (ctx.saved.identity_correction && !reviewIdentity.valid(ctx.saved, reviewIdentity.originalTarget(ctx.session, student), 'original'))
         || !ctx.saved.configuration_snapshot
         || ctx.saved.configuration_snapshot !== payload.configuration_snapshot
         || !ctx.saved.review_token;
@@ -1073,9 +1129,10 @@ const resultController = {
         return res.redirect(`/results/upload/${ctx.log.import_id}/review`);
       }
 
-      if (ctx.saved.integrity_conflicts?.length) {
+      const blockingConflicts = reviewIdentity.blockingConflicts(ctx.saved, reviewIdentity.originalTarget(ctx.session, student), 'original');
+      if (blockingConflicts.length) {
         await t.rollback();
-        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(ctx.saved.integrity_conflicts.join(' ')));
+        return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent(blockingConflicts.join(' ')));
       }
       const historyError = await resultHistory.validationError(ctx.session, student, attempt, t, payload.subjects);
       if (historyError) {

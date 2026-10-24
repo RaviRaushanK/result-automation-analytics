@@ -115,3 +115,24 @@ test('Review live status preserves printed FAIL above 50 while ordinary passing 
   f.rows[1].external.dispatch('input');
   assert.match(f.rows[1].status.innerHTML, />PASS</);
 });
+
+test('Review shows PASS for recovered printed PASS with MCA-compliant component marks', () => {
+  const f = fixture();
+  for (const [index, internal, external] of [[0, 34, 23], [1, 30, 21]]) {
+    const row = f.rows[index];
+    row.dataset.documentStatus = 'pass';
+    row.internal.value = String(internal); row.external.value = String(external);
+    row.external.dispatch('input');
+    assert.match(row.status.innerHTML, />PASS</);
+  }
+});
+
+test('Review keeps maximum-mark hints without displaying pass minima', async () => {
+  const ejs = require('ejs');
+  const { base, pages } = require('./fixtures/result-management-pages');
+  const html = await ejs.renderFile(require.resolve('../views/results/review.ejs'), { ...base, ...pages.review[1],
+    subjects: base.subjects.map(row => ({ ...row, pass_minimums: { internal: 25, external: 20 } })) });
+  assert.doesNotMatch(html, /pass min/i);
+  assert.match(html, /id="internalLimit_1">max 50<\/div>/);
+  assert.match(html, /id="externalLimit_1">max 50<\/div>/);
+});

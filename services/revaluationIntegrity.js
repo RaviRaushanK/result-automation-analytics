@@ -1,12 +1,13 @@
 'use strict';
 const integrity = require('./academicIntegrity');
+const reviewIdentity = require('./reviewIdentity');
 const target = result => ({ usn: result.Student?.usn, semester: result.ExamSession?.semester,
   exam_start_month: result.ExamSession?.exam_start_month, exam_start_year: result.ExamSession?.exam_start_year,
   exam_end_month: result.ExamSession?.exam_end_month, exam_end_year: result.ExamSession?.exam_end_year,
   exam_session: result.ExamSession?.exam_session, exam_year: result.ExamSession?.exam_year,
   attempt_no: result.attempt_no, exam_type: result.exam_type });
 function checks(saved, result) {
-  const list = integrity.summary(saved.ocr || {}, target(result));
+  const list = reviewIdentity.annotate(integrity.summary(saved.ocr || {}, target(result)), saved, reviewIdentity.revaluationTarget(result), 'revaluation');
   const rows = saved.ocr?.subjects || [];
   if (rows.some(ev => ev.oldResult)) list.push({ field: 'Old external result', key: 'old_status', status: 'UNVERIFIED', document: '', expected: 'Original component status is not stored separately', derived: false });
   if (rows.some(ev => integrity.present(ev.oldMarks) && !integrity.present(result.SubjectResults.find(sr => Number(sr.subject_result_id) === Number(ev.subject_result_id))?.external_marks))) list.push({ field: 'Old external marks', key: 'old_marks', status: 'UNVERIFIED', document: '', expected: 'Original external marks are unavailable', derived: false });
@@ -41,6 +42,7 @@ function snapshotDigest(value) {
 }
 function verify(saved, result, proposals = [], acknowledged = false) {
   const errors = [], documentChecks = checks(saved, result);
+  if (saved.identity_correction && !reviewIdentity.valid(saved, reviewIdentity.revaluationTarget(result), 'revaluation')) errors.push('The manual identity correction is stale or does not match the current registered student and attempt. Correct the identity and Validate again.');
   if (!result.Student || !integrity.usn(result.Student.usn) || !result.ExamSession) errors.push('The authoritative original student or examination context is unavailable. Restore or verify the registered student and select the correct existing attempt before revaluation.');
   if (result.Student?.batch_id !== undefined && result.ExamSession?.batch_id !== undefined
     && String(result.Student.batch_id) !== String(result.ExamSession.batch_id)) errors.push('The original student and examination batch do not match. Resolve the historical association through a controlled academic workflow before revaluation.');
@@ -50,7 +52,7 @@ function verify(saved, result, proposals = [], acknowledged = false) {
     if (['NOT PRESENT IN DOCUMENT','UNVERIFIED'].includes(check.status) && !integrity.acknowledged(acknowledged, check.field)) errors.push(`Verify ${check.field} against the original card because authoritative comparison is unavailable.`);
   }
   errors.push(...integrity.duplicateRows(saved.ocr?.subjects));
-  errors.push(...(saved.ocr?.integrity_conflicts || []));
+  errors.push(...reviewIdentity.blockingConflicts(saved, reviewIdentity.revaluationTarget(result), 'revaluation'));
   if (eventReferences(saved).length > 1) errors.push('The document identifies conflicting revaluation event references. Re-extract the correct event document.');
   for (const p of proposals.filter(p => p.decision === 'accept')) {
     const id = Number(p.bound_to_srid || p.subject_result_id);

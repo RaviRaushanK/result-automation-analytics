@@ -56,17 +56,17 @@ function duplicateRows(rows = []) {
   }
   return [...new Set(conflicts)];
 }
-function originalDocumentErrors(saved, session, student, attempt, verified, mixedVerified) {
+function originalDocumentErrors(saved, session, student, attempt, verified, mixedVerified, manuallyCorrectedIdentity = false) {
   const checks = contextChecks(saved.document_evidence || {}, { batch_id: session.batch_id, semester: session.semester,
     exam_start_month: session.exam_start_month, exam_start_year: session.exam_start_year,
     exam_end_month: session.exam_end_month, exam_end_year: session.exam_end_year,
     exam_session: session.exam_session, exam_year: session.exam_year,
     usn: student.usn, attempt_no: attempt.attempt_no, exam_type: attempt.exam_type });
   const mixed = saved.excluded_subjects?.length && mixedVerified;
-  const mismatches = checks.filter(check => check.status === 'MISMATCH' && !(mixed && ['Semester','Attempt','Exam type'].includes(check.field)));
+  const mismatches = checks.filter(check => check.status === 'MISMATCH' && !(manuallyCorrectedIdentity && check.field === 'USN') && !(mixed && ['Semester','Attempt','Exam type'].includes(check.field)));
   const errors = mismatches.map(check => `Document ${check.field} ${check.documentLabel || check.document} does not match selected ${check.expectedLabel || check.expected}. Select the correct student/examination session or replace the document.`);
   for (const check of checks.filter(check => !['Attempt','Exam type'].includes(check.field))) {
-    if (check.status === 'NOT PRESENT IN DOCUMENT' && !acknowledged(verified, check.field)) errors.push(missingVerificationMessage(check.field));
+    if (check.status === 'NOT PRESENT IN DOCUMENT' && !(manuallyCorrectedIdentity && check.field === 'USN') && !acknowledged(verified, check.field)) errors.push(missingVerificationMessage(check.field));
   }
   return errors;
 }

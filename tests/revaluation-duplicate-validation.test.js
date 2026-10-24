@@ -237,15 +237,51 @@ test('identity mismatch remains visible on preview and direct Validate cannot by
   const { invoke, state, ocr } = fixture(false);
   ocr.extracted_json.ocr.student_candidates = { name: 'OTHER STUDENT', usn: '1MV25MC099' };
   const preview = await invoke('showReview');
-  assert.equal(preview.locals.identityBlocking, true);
+  assert.equal(preview.locals.identityBlocking, false);
   const html = await ejs.renderFile(path.join(root, 'views/revaluation/review.ejs'), preview.locals);
-  assert.match(html, /id="validateRevaluationBtn"[^>]*disabled/);
-  assert.match(html, /action="\/revaluation\/pending\/9\/confirm-identity"/);
+  assert.doesNotMatch(html, /id="validateRevaluationBtn"[^>]*disabled/);
+  assert.match(html, /id="reviewIdentityUsn" name="usn"/);
+  assert.match(html, /id="reviewIdentityName" name="name"/);
   const validate = await invoke('submitReview', { body: { identity_confirmed: 'true' } });
   assert.match(validate.url, /^\/revaluation\/review\/9\?error=/);
   assert.equal(ocr.validation_status, 'pending');
   assert.equal(state.writes, 0);
   assert.equal(state.countCalls.length, 0);
+});
+
+test('revaluation Validate accepts corrected OCR identity only for its selected original student and attempt', async () => {
+  const f = fixture(false);
+  f.ocr.extracted_json.ocr.student_candidates = { usn: 'OCRWRONG001', name: 'OCR WRONG NAME' };
+  f.ocr.extracted_json.ocr.integrity_conflicts = ['AI readings identify conflicting student USNs. Re-extract the correct document.'];
+  const before = JSON.stringify(f.result), source = JSON.stringify(f.ocr.extracted_json.ocr);
+  const response = await f.invoke('submitReview', { body: { source_token: integrity.digest(f.ocr.extracted_json),
+    identity_review: '1', usn: '1MV25MC027', name: 'TEST STUDENT', decision_1: 'accept', internal_1: '40', external_1: '40',
+    verify_usn: '1', verify_semester: '1', verify_period: '1', verify_old_marks: '1', verify_old_status: '1' } });
+  assert.equal(response.url, '/revaluation/review/9', JSON.stringify(response.locals?.error));
+  assert.equal(f.ocr.validation_status, 'validated');
+  assert.equal(f.ocr.extracted_json.identity_correction.corrected.usn, '1MV25MC027');
+  assert.equal(JSON.stringify(f.ocr.extracted_json.ocr), source);
+  assert.equal(f.ocr.extracted_json.result_id, 7); assert.equal(f.ocr.extracted_json.student_id, 7);
+  const preview = await f.invoke('showReview');
+  assert.equal(preview.locals.meta.documentChecks.find(check => check.field === 'USN').status, 'MANUALLY CORRECTED');
+  assert.equal(JSON.stringify(f.result), before); assert.equal(f.state.writes, 0);
+});
+
+test('revaluation manual identity review cannot retarget the result, bypass source tokens or other conflicts', async () => {
+  for (const scenario of ['wrong usn', 'wrong name', 'blank name', 'stale token', 'period', 'other conflict']) {
+    const f = fixture(false);
+    f.ocr.extracted_json.ocr.student_candidates = { usn: 'OCRWRONG001', name: 'OCR WRONG NAME' };
+    if (scenario === 'period') Object.assign(f.ocr.extracted_json.ocr, { exam_session: 'Dec', exam_year: 2025 });
+    if (scenario === 'other conflict') f.ocr.extracted_json.ocr.integrity_conflicts = ['Subject readings conflict.'];
+    const before = JSON.stringify(f.result);
+    const response = await f.invoke('submitReview', { body: { identity_review: '1',
+      source_token: scenario === 'stale token' ? 'stale' : integrity.digest(f.ocr.extracted_json),
+      usn: scenario === 'wrong usn' ? 'ANOTHER001' : '1MV25MC027', name: scenario === 'wrong name' ? 'OTHER STUDENT' : scenario === 'blank name' ? '' : 'TEST STUDENT',
+      decision_1: 'accept', internal_1: '40', external_1: '40', verify_usn: '1', verify_semester: '1', verify_period: '1' } });
+    assert.match(response.url, /error=/, scenario);
+    assert.equal(f.ocr.validation_status, 'pending'); assert.equal(f.state.writes, 0);
+    assert.equal(JSON.stringify(f.result), before);
+  }
 });
 
 test('approval is blocked before Validate and successful extraction cannot reset a validated preview', async () => {

@@ -2,6 +2,10 @@ const Tesseract = require('tesseract.js');
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+// Content-keyed, bounded read cache avoids repeating local identity OCR on
+// Review/Preview/confirmation. No draft or academic data is written.
+const originalResultEvidenceCache = new Map();
 
 // Optional AI (VLM + LLM) hybrid extractor. Loaded lazily so the classic
 // Tesseract path keeps working even if the AI modules or their optional
@@ -181,9 +185,13 @@ const documentExtractor = {
 
   hasCompleteTextRows(data, expectedSubjectCodes = []) {
     if (!data.student?.usn || !data.student?.name || !Number.isInteger(data.semester) || data.semester < 1) return false;
+    // A malformed text-layer identity must use the OCR path rather than become
+    // authoritative simply because the subject table is readable.
+    if (this._extractPatternUsn(data.student.usn) !== String(data.student.usn).toUpperCase()) return false;
     if (!Array.isArray(data.subjects) || data.subjects.length === 0) return false;
     const codePattern = /\b([A-Z]{2,4}\d{2,4}[A-Z]?|\d{2}[A-Z]{2,3}\d{2,3})\b/gi;
-    const sourceRows = (data.lines || []).flatMap(text => {
+    const lines = data.resultType === 'original' ? this.originalSubjectLines(data.lines || []) : (data.lines || []);
+    const sourceRows = lines.flatMap(text => {
       const matches = [...text.matchAll(codePattern)];
       return matches.map(match => ({ code: match[1].toUpperCase(), text }));
     });
@@ -201,18 +209,70 @@ const documentExtractor = {
       const source = sourceRows.find(item => item.code === row.subjectCode).text
         .replace(/\b20\d{2}[-/]?\d{2}[-/]?\d{2}\b/g, ' ');
       const numbers = source.match(/\b\d{1,3}\b/g) || [];
+      const printed = source.match(/\b(\d{1,3})\s*(?:\|\s*)?(\d{1,3})\s*(?:\|\s*)?(\d{1,3})\s*(?:\|\s*)?(PASS|FAIL|P|F|ABSENT|A|WITHHELD|W)\b/i);
+      const status = value => /^(?:P|PASS)$/i.test(value) ? 'P' : /^(?:F|FAIL)$/i.test(value) ? 'F' : String(value).toUpperCase();
       return numbers.length === 3 && mark(row.internalMarks) && mark(row.externalMarks)
-        && mark(row.totalMarks) && row.internalMarks + row.externalMarks === row.totalMarks && !!row.result;
+        && mark(row.totalMarks) && row.internalMarks + row.externalMarks === row.totalMarks && !!row.result
+        && printed && Number(printed[1]) === row.internalMarks && Number(printed[2]) === row.externalMarks
+        && Number(printed[3]) === row.totalMarks && status(printed[4]) === status(row.result);
     });
+  },
+
+  // A font-encoded university header can resemble a course code. When a
+  // complete table header is present, only subsequent lines are course rows.
+  // Keep later tables/semesters and incomplete rows for completeness checks.
+  originalSubjectLines(lines) {
+    const header = lines.findIndex(text => /\bSubject\s+Code\b/i.test(text)
+      && /\bSubject\s+Name\b/i.test(text) && /\bResult\b/i.test(text));
+    return header < 0 ? lines : lines.slice(header + 1);
+  },
+
+  async readOriginalResultEvidence(filePath, expectedSubjectCodes = [], expectedStudent = null) {
+    if (path.extname(filePath).toLowerCase() !== '.pdf' || !fs.existsSync(filePath)) return null;
+    const bytes = typeof fs.readFileSync === 'function' ? fs.readFileSync(filePath) : null;
+    const fingerprint = bytes ? crypto.createHash('sha256').update(bytes).digest('hex') : null;
+    const cacheKey = fingerprint ? JSON.stringify([fingerprint, expectedSubjectCodes, expectedStudent?.usn, expectedStudent?.name]) : null;
+    if (cacheKey && originalResultEvidenceCache.has(cacheKey)) return JSON.parse(originalResultEvidenceCache.get(cacheKey));
+    const pdf = await this.extractPdfTextWithCoordinates(filePath, bytes);
+    const parsed = this.parseProductionData(pdf.text || '', pdf.words || [], 'original');
+    const nativeUsn = String(parsed.student?.usn || '').toUpperCase();
+    const expectedUsn = String(expectedStudent?.usn || '').toUpperCase();
+    if (expectedUsn && nativeUsn !== expectedUsn && !this._extractPatternUsn(nativeUsn)) {
+      // Some PDFs render an identifier correctly but encode its characters
+      // incorrectly. Re-read the visible first page locally; never fuzzy-match
+      // or silently repair a USN, and never override a different valid USN.
+      const pages = await require('./pageRenderer').renderPdfToImages(filePath, 1);
+      if (!pages[0]) return null;
+      const output = await this.ocrImage(pages[0].buffer);
+      const visible = this.parseProductionData(output.text || '', output.words || [], 'original');
+      const name = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const visibleUsn = String(visible.student?.usn || '').toUpperCase();
+      // Reuse the existing I/1 and O/0 OCR comparison only at equal length;
+      // do not use its legacy truncation or introduce approximate matching.
+      const identityMatches = visibleUsn === expectedUsn || (visibleUsn.length === expectedUsn.length
+        && this._extractPatternUsn(visibleUsn) === visibleUsn
+        && this._normalizeUsn(visibleUsn) === this._normalizeUsn(expectedUsn));
+      if (!identityMatches
+        || !name(expectedStudent.name) || name(visible.student?.name) !== name(expectedStudent.name)
+        || name(parsed.student?.name) !== name(expectedStudent.name)) return null;
+      parsed.student = { ...parsed.student, usn: expectedUsn, nativeUsn, visibleUsn, identitySource: 'local-ocr' };
+    }
+    if (!this.hasCompleteTextRows(parsed, expectedSubjectCodes)) return null;
+    if (cacheKey) {
+      if (crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') !== fingerprint) return null;
+      if (originalResultEvidenceCache.size >= 16) originalResultEvidenceCache.delete(originalResultEvidenceCache.keys().next().value);
+      originalResultEvidenceCache.set(cacheKey, JSON.stringify(parsed));
+    }
+    return parsed;
   },
 
   // =====================================================
   // 1. EXTRACT PDF WITH SPATIAL LAYOUT DATA
   // =====================================================
-  async extractPdfTextWithCoordinates(filePath) {
+  async extractPdfTextWithCoordinates(filePath, fileBytes = null) {
     if (!pdfjsLib) return { text: '', words: [] };
 
-    const data = new Uint8Array(fs.readFileSync(filePath));
+    const data = new Uint8Array(fileBytes || fs.readFileSync(filePath));
     const loadingTask = pdfjsLib.getDocument({ data });
     const pdf = await loadingTask.promise;
     
@@ -590,7 +650,10 @@ const documentExtractor = {
     // Subject Code Detector (Dynamic for VTU and generic schemes: MMC101, 21MCA11, 18CS51, etc.)
     const subjectCodeRegex = /\b([A-Z]{2,4}\d{2,4}[A-Z]?|\d{2}[A-Z]{2,3}\d{2,3})\b/i;
 
-    for (const line of reconstructedLines) {
+    const subjectLines = resultType === 'revaluation' ? reconstructedLines.map(line => line.text)
+      : this.originalSubjectLines(reconstructedLines.map(line => line.text));
+    for (const text of subjectLines) {
+      const line = { text };
       const codeMatch = line.text.match(subjectCodeRegex);
       if (!codeMatch) continue;
 
@@ -767,7 +830,8 @@ const documentExtractor = {
     // Subject Code Detector (Dynamic for VTU and generic schemes: MMC101, 21MCA11, 18CS51, etc.)
     const subjectCodeRegex = /\b([A-Z]{2,4}\d{2,4}[A-Z]?|\d{2}[A-Z]{2,3}\d{2,3})\b/i;
 
-    for (const line of reconstructedLines) {
+    for (const text of this.originalSubjectLines(reconstructedLines.map(line => line.text))) {
+      const line = { text };
       const codeMatch = line.text.match(subjectCodeRegex);
       if (!codeMatch) continue;
 

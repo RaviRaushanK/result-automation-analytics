@@ -159,12 +159,25 @@
   <form method="POST" action="/revaluation/review/<%= meta.importId %>" id="reviewForm"
         class="revaluation-preview-editor needs-validation <%= mode === 'edit' ? '' : 'review-frozen' %>" novalidate>
     <input type="hidden" name="source_token" value="<%= meta.sourceToken || '' %>">
+    <input type="hidden" name="identity_review" value="1">
+    <% const identityValues = meta.identityCorrection?.corrected || meta.ocrStudent || {}; %>
+    <section class="card mb-3" aria-labelledby="correctIdentityTitle">
+      <div class="card-header" id="correctIdentityTitle">Student identity from document</div>
+      <div class="card-body">
+        <p class="small">Correct OCR errors to match the selected registered student. Selecting Validate confirms these details against the original card. Revaluation stays attached to the selected student and original attempt.</p>
+        <div class="row g-3">
+          <div class="col-sm-5"><label for="reviewIdentityUsn" class="form-label">USN</label><input id="reviewIdentityUsn" name="usn" class="form-control" value="<%= identityValues.usn || '' %>" required maxlength="50" <%= mode === 'edit' ? '' : 'readonly' %>><div class="invalid-feedback">Enter the USN shown on the original card.</div></div>
+          <div class="col-sm-7"><label for="reviewIdentityName" class="form-label">Student Name</label><input id="reviewIdentityName" name="name" class="form-control" value="<%= identityValues.name || '' %>" required maxlength="150" <%= mode === 'edit' ? '' : 'readonly' %>><div class="invalid-feedback">Enter the registered student name shown on the original card.</div></div>
+        </div>
+      </div>
+    </section>
     <% if (meta.documentChecks) { %>
       <div class="alert alert-info">
         <% meta.documentChecks.filter(check => !check.derived).forEach(check => { %><div><strong><%= check.field %>:</strong>
           <% if (check.key === 'old_status' && check.status === 'UNVERIFIED') { %>
             <span id="oldExternalResultVerificationStatus" class="manual-verification-status <%= review?.identity_verified?.old_status === true ? 'is-confirmed' : 'is-required' %>" role="status" aria-live="polite" aria-atomic="true"><%= review?.identity_verified?.old_status === true ? 'Manually confirmed' : 'Manual verification required' %></span>
           <% } else { %><%= check.status %><% } %>
+          <% if (check.manual) { %> — Corrected USN: <%= check.corrected %>. This is a manual correction, not an automatic MATCH.<% } %>
           <% if (check.document) { %> — <%= check.documentLabel || check.document %><% } %></div><% }) %>
         <% meta.documentChecks.filter(check => check.derived).forEach(check => { %><div><strong><%= check.field %>: <%= check.expected %></strong> — Derived from stored history</div><% }); %>
         <% meta.documentChecks.filter(check => !check.derived && ['NOT PRESENT IN DOCUMENT','UNVERIFIED'].includes(check.status)).forEach(check => { %>

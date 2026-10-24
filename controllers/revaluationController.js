@@ -27,6 +27,7 @@ const revaluationValidator = require('../services/revaluationValidator');
 const revaluationPersistence = require('../services/revaluationPersistence');
 const revaluationIntegrity = require('../services/revaluationIntegrity');
 const academicIntegrity = require('../services/academicIntegrity');
+const reviewIdentity = require('../services/reviewIdentity');
 
 const REVAL_PENDING_SECONDS = 15 * 60;
 
@@ -821,6 +822,7 @@ async function extractRevaluationImport(importId, res) {
   });
   delete nextJson.review;
   delete nextJson.identity_confirmed;
+  delete nextJson.identity_correction;
 
   const t = await sequelize.transaction();
   try {
@@ -913,7 +915,7 @@ function checkOcrIdentity(ocrCandidates, serverStudent) {
   } else if (nameMatch && !usnMatch) {
     severity = 'mismatch';
     requiresConfirmation = true;
-    message = 'Document USN differs from the selected student. A conflicting USN cannot be overridden; select the correct attempt or replace the document.';
+    message = 'The extracted USN differs from the selected student. Correct the OCR identity fields below against the original card, then select Validate. If this is another student\'s card, replace the document or select the correct attempt.';
   } else if (!nameMatch && usnMatch) {
     severity = 'warning';
     message = 'USN matches but student name differs ("' + (ocrNameOk ? ocrName : '(not extracted)') + '" vs "' + serverName + '"). You may continue.';
@@ -1718,6 +1720,7 @@ async function loadReviewState(importId, optsIn) {
       docUrl: doc.file_url || null,
       docType: String(doc.file_type || log.file_type || path.extname(doc.file_name || log.file_name || '').slice(1)).toLowerCase(),
       ocrStudent: ocr.student_candidates || {},
+      identityCorrection: reviewIdentity.valid(saved, reviewIdentity.revaluationTarget(result), 'revaluation') ? saved.identity_correction : null,
       warnings: ocr.warnings || [],
       unmatched: (ocr.unmatched_ocr_details && ocr.unmatched_ocr_details.length)
         ? ocr.unmatched_ocr_details
@@ -1746,7 +1749,7 @@ exports.showReview = async (req, res) => {
   }
   if (!st.ok) return res.redirect(st.redirect);
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
-  const identityCheck = checkOcrIdentity(st.ocr.student_candidates || {}, st.result.Student || {});
+  const identityCheck = checkOcrIdentity(st.meta.identityCorrection?.corrected || st.ocr.student_candidates || {}, st.result.Student || {});
 
   return res.render('revaluation/review', {
     title: 'Revaluation — Review & Validate',
@@ -1756,7 +1759,7 @@ exports.showReview = async (req, res) => {
       { label: st.review && req.query.edit !== '1' ? 'Validated Preview' : 'Review & Validate', active: true }
     ],
     identityCheck,
-    identityBlocking: identityCheck.requiresConfirmation && st.saved.identity_confirmed !== true,
+    identityBlocking: false, // Identity OCR fields remain editable; Validate checks the registered target.
     mode: st.review && req.query.edit !== '1' ? 'locked' : 'edit',
     review: st.review,
     rows: st.rows,
@@ -1868,6 +1871,22 @@ exports.submitReview = async (req, res) => {
   // ---- Identity gate: both-mismatch/both-missing requires explicit confirmation ----
   // Authority: server-side student from the Result row (not browser-supplied values).
   // identity_confirmed is set only by confirmIdentity (admin POST on /confirm-identity).
+  if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
+  const body = req.body || {};
+  if (body.source_token !== revaluationIntegrity.digest(st.saved)) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('The review changed. Reload and review the current document and decisions before validating.'));
+  if (body.identity_review === '1') {
+    const target = reviewIdentity.revaluationTarget(st.result);
+    if (academicIntegrity.usn(body.usn) !== academicIntegrity.usn(target.usn)
+      || !reviewIdentity.normalizeName(body.name) || reviewIdentity.normalizeName(body.name) !== reviewIdentity.normalizeName(target.name)) {
+      return res.redirect('/revaluation/review/' + importId + '?error=' + enc('Correct the USN and Student Name to match the selected registered student. Revaluation cannot change the student or original attempt.'));
+    }
+    const correction = reviewIdentity.propose(st.saved, target, body, 'revaluation', resolveAdminId(req));
+    if (correction) {
+      st.saved = { ...st.saved, identity_correction: correction };
+      st.meta.identityCorrection = correction;
+      st.meta.documentChecks = revaluationIntegrity.checks(st.saved, st.result);
+    }
+  }
   if (st.saved && st.saved.ocr) {
     const contradictions = revaluationIntegrity.verify(st.saved, st.result, [], true).errors;
     if (contradictions.length) return res.redirect('/revaluation/review/' + importId + '?error=' + enc(contradictions.join(' ')));
@@ -1876,7 +1895,8 @@ exports.submitReview = async (req, res) => {
       ? { student_name: st.result.Student.student_name, usn: st.result.Student.usn }
       : {};
     const idCheck = checkOcrIdentity(ocrCandidates, resultStudent);
-    if (idCheck.requiresConfirmation && !(st.saved.identity_confirmed === true)) {
+    if (idCheck.requiresConfirmation && !(st.saved.identity_confirmed === true)
+      && !reviewIdentity.valid(st.saved, reviewIdentity.revaluationTarget(st.result), 'revaluation')) {
       return res.redirect('/revaluation/review/' + importId + '?error=' +
         enc('Student identity on the marks card does not match the selected student. Confirm the mismatch or replace the document before validating.'));
     }
@@ -1884,8 +1904,6 @@ exports.submitReview = async (req, res) => {
 
   if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
 
-  const body = req.body || {};
-  if (body.source_token !== revaluationIntegrity.digest(st.saved)) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('The review changed. Reload and review the current document and decisions before validating.'));
   const attempts = [];       // { sourceSrid, targetSrid, dup?, proposal }
   const fieldErrors = {};    // srid -> [messages]
   const enteredVals = {};
@@ -2066,9 +2084,11 @@ exports.submitReview = async (req, res) => {
       if (revaluationIntegrity.digest(currentJson) !== body.source_token) throw new StaleState('The extraction or review changed. Reload and review it again.');
 
       const nextJson = Object.assign({}, currentJson, {
+        identity_correction: st.saved.identity_correction,
         review: {
           version: Number(currentJson.review?.version || 0) + 1,
           identity_verified: academicIntegrity.acknowledgments(body),
+          identity_correction_digest: revaluationIntegrity.snapshotDigest(st.saved.identity_correction || null),
           target_snapshot: revaluationIntegrity.snapshot(st.result),
           submitted_at: new Date().toISOString(),
           submitted_by: resolveAdminId(req),
@@ -2354,6 +2374,8 @@ exports.approveReview = async (req, res) => {
     if (duplicateError) throw new BadState(duplicateError);
     if (review.target_snapshot?.pass_rules_version !== mcaPolicy.passRules.version) throw new StaleState('MCA passing requirements changed. Open Edit decisions, review the component marks and select Validate again before approval.');
     if (revaluationIntegrity.snapshotDigest(review.target_snapshot) !== revaluationIntegrity.snapshotDigest(revaluationIntegrity.snapshot(result))) throw new StaleState('The original student, attempt or subject configuration changed. Review the document against the current original record again.');
+    if ((saved.identity_correction || review.identity_correction_digest)
+      && review.identity_correction_digest !== revaluationIntegrity.snapshotDigest(saved.identity_correction || null)) throw new StaleState('The corrected identity changed. Review and Validate again before approval.');
     const identityErrors = revaluationIntegrity.verify(saved, result, review.proposal, typeof review.identity_verified === 'object' ? review.identity_verified : {}).errors;
     if (identityErrors.length) throw new BadState(identityErrors.join(' '));
     if (Number(result.student_id) !== Number(saved.student_id) ||

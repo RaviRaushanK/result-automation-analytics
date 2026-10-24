@@ -125,6 +125,40 @@ test('revaluation validated under previous passing rules requires a fresh review
   assert.equal(f.events.length,0);
 });
 
+test('approval rechecks a saved manual identity correction and preserves the original result', async () => {
+  for (const exam_type of ['REGULAR', 'BACKLOG']) {
+    const f = fixture(); f.result.exam_type = exam_type; f.result.attempt_no = exam_type === 'REGULAR' ? 1 : 2;
+    const saved = f.draft(9); saved.attempt = { exam_type, attempt_no: f.result.attempt_no };
+    Object.assign(saved.ocr, { exam_type, attempt_no: f.result.attempt_no });
+    saved.ocr.student_candidates = { usn: 'OCRWRONG001', name: 'OCR WRONG NAME' };
+    const manual = require('../services/reviewIdentity');
+    saved.identity_correction = manual.propose(saved, manual.revaluationTarget(f.result),
+      { identity_review: '1', usn: 'AUDIT001', name: 'AUDIT STUDENT' }, 'revaluation', 1);
+    saved.review.identity_correction_digest = integrity.snapshotDigest(saved.identity_correction);
+    saved.identity_correction = reorderJsonKeys(saved.identity_correction);
+    const before = JSON.stringify(f.result);
+    assert.match(await f.approve(9), /outcome/);
+    assert.equal(f.events.length, 1); assert.equal(f.events[0].subject_result_id, 1);
+    assert.equal(JSON.stringify(f.result), before);
+  }
+});
+
+test('approval cannot reuse a manual correction after source, corrected identity, target name or review binding changes', async () => {
+  for (const change of ['source', 'document', 'corrected', 'target name', 'review binding']) {
+    const f = fixture(), saved = f.draft(9), manual = require('../services/reviewIdentity');
+    saved.ocr.student_candidates = { usn: 'OCRWRONG001', name: 'OCR WRONG NAME' };
+    saved.identity_correction = manual.propose(saved, manual.revaluationTarget(f.result),
+      { identity_review: '1', usn: 'AUDIT001', name: 'AUDIT STUDENT' }, 'revaluation', 1);
+    saved.review.identity_correction_digest = integrity.snapshotDigest(saved.identity_correction);
+    if (change === 'source') saved.ocr.student_candidates.usn = 'DIFFERENT_SOURCE';
+    else if (change === 'document') saved.documents[0].sha256 = 'replaced-document';
+    else if (change === 'corrected') saved.identity_correction.corrected.usn = 'AUDIT002';
+    else if (change === 'target name') f.result.Student.student_name = 'CHANGED STUDENT NAME';
+    else saved.review.identity_correction_digest = 'stale';
+    assert.match(await f.approve(9), /error=/); assert.equal(f.events.length, 0);
+  }
+});
+
 test('revaluation project SEE requirement works for model getter attributes, not just plain fixtures', async () => {
   const f = fixture();
   Object.defineProperty(f.sr.Subject,'subject_type',{get:()=> 'project'});

@@ -23,6 +23,30 @@ or revaluation upload routes. Legacy `MAX_UPLOAD_SIZE`, `UPLOAD_PATH` and
 
 ## Extraction Order
 
+### Administrator corrections to OCR identity
+
+Regular and Backlog Review & Edit, and Revaluation Review & Validate, allow USN
+and Student Name corrections. Selecting Validate explicitly confirms the corrected
+fields against the original card; no extra identity-confirmation step is needed.
+Both fields must match the registered student. Original imports additionally
+check the selected batch; Revaluation retains its exact existing student/result/
+attempt target and cannot redirect an original result to another student.
+
+`services/reviewIdentity.js` creates a manual correction in the processing JSON,
+bound to the original identity evidence, raw-text hash, document reference where
+available, registered target, actor and time. Original OCR claims are not replaced.
+The UI uses MANUALLY CORRECTED rather than automatic MATCH. Only the corresponding
+single-document OCR/AI identity disagreement is resolved; multiple-student page
+conflicts, marks/subject conflicts, semester/period contradictions and roster rules
+remain blocked. Missing-field acknowledgments retain their existing behavior when
+no explicit identity correction is submitted.
+
+Source tokens reject stale correction forms. Final import/approval rechecks the
+registered identity and source binding, including a frozen correction digest at
+revaluation approval. Re-extraction clears a previous manual correction. Editing
+the form or opening Review/Preview never updates student records or original
+academic records. Draft correction persistence happens only through Validate.
+
 Original-result drafts retain each extracted subject's printed PASS/FAIL as
 document evidence. A printed FAIL is not promoted to PASS merely because its
 component total reaches 50: Review, Validate, Preview and final import preserve
@@ -37,6 +61,27 @@ and the parsed student identity does not contradict the draft. This read-time
 recovery does not rewrite uploaded files or saved academic results. Unknown or
 ambiguous evidence is not guessed. Subjects without usable printed-result
 evidence use the shared MCA component passing requirements described below.
+
+Complete embedded PDF subject tables take precedence over earlier OCR/AI result
+letters when identity, subject code and both marks match. Code-like fragments
+before an explicit subject-table header are not course rows; missing/ambiguous
+actual table rows still prevent the native-text fast path. A printed result must
+appear after the component marks and total, not merely as a letter in a name.
+For malformed PDF text-layer identities, a local visual OCR rereading must verify
+the same USN and corroborating name. The existing same-length I/1 and O/0 OCR
+comparison is allowed; extra-character truncation and approximate USN matching
+are not. A different valid native USN cannot be overridden. No external AI call
+is made for this evidence recovery.
+Successful evidence is cached in bounded process memory by document-content hash,
+student identity and subject scope; changing any key invalidates reuse. Cached
+evidence never replaces final validation or writes to academic tables.
+
+Existing draft corrections are read-only on Review/Preview and require Validate
+again before import. Validate retains the recovered result's PDF-text provenance;
+final save rechecks the document evidence. Genuine printed FAIL results remain
+FAIL/F/zero points. No saved academic outcomes are backfilled. Review & Edit
+shows maximum-mark hints without displaying pass-minimum numbers; the server
+and browser passing checks are unchanged.
 
 ### MCA component requirements (24 October 2026)
 
@@ -79,8 +124,9 @@ included selected-semester course cannot be treated as an unrelated exclusion.
 Non-required same-semester courses outside the selected offerings may be excluded. When the
 selected semester is absent, unknown exclusions cannot excuse a semester mismatch;
 the existing verified other-semester scope path still supports separate backlog
-uploads. Multiple other semesters are supported. Identity/period contradictions
-remain blocked. No subject-code-specific exceptions are used.
+uploads. Multiple other semesters are supported. Period contradictions remain
+blocked; OCR identity corrections use the controlled Validate path described
+above. No subject-code-specific exceptions are used.
 
 ### Review warning clarification (24 October 2026)
 
@@ -125,7 +171,9 @@ is persisted through **Validate**, not merely by checking it, and does not appro
 the review. Final approval still rechecks the saved acknowledgment and original
 target. This is distinct from missing
 OCR data and from the stored overall subject outcome. Matching identity fields
-require no acknowledgment; a mismatch cannot be overridden by any checkbox.
+require no acknowledgment; a mismatch cannot be overridden by a checkbox alone.
+OCR identity corrections require edited USN/name matching the registered target
+and the source-bound Validate action described above.
 
 Revaluation Review & Validate uses Bootstrap client-side validation feedback.
 Only displayed document-verification acknowledgments are required. Accepted rows

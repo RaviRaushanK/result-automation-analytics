@@ -187,6 +187,68 @@ test('legacy draft recovers printed status only from its own unique matching cod
   }
 });
 
+for (const exam_type of ['REGULAR', 'BACKLOG']) {
+  test(`${exam_type}: matching native printed PASS corrects an OCR FAIL only after fresh Validate, without writes on Review/Preview`, async () => {
+    const history = exam_type === 'BACKLOG' ? [card(1)] : [];
+    const f = fixture({ semester: 1, history, attempt: { exam_type, attempt_no: exam_type === 'REGULAR' ? 1 : 2 } });
+    f.ocr.extracted_json.subjects[0].subject_code = 'C1';
+    f.ocr.extracted_json.subjects[0].document_result_status = 'fail';
+    f.extractor.readOriginalResultEvidence = async () => ({ student: { usn: '1MV25MC027' },
+      subjects: [{ subjectCode: 'C1', internalMarks: 40, externalMarks: 40, totalMarks: 80, result: 'P' }] });
+    const before = JSON.stringify(f.ocr.extracted_json), originalHistory = JSON.stringify(history);
+    const review = await f.invoke('showReviewPage');
+    assert.equal(review.locals.subjects[0].result_status, 'pass');
+    assert.equal(review.locals.subjects[0].document_result_status, 'pass');
+    assert.equal(JSON.stringify(f.ocr.extracted_json), before);
+    assert.equal(f.state.updates.length, 0);
+    const preview = await f.invoke('showPreviewPage');
+    assert.equal(preview.locals.data.subjects[0].result_status, 'pass');
+    assert.equal(preview.locals.requiresRevalidation, true);
+    assert.equal(JSON.stringify(f.ocr.extracted_json), before);
+    assert.equal(f.state.updates.length, 0);
+    assert.match(decodeURIComponent((await f.invoke('confirmImport')).url), /reviewed document or decisions changed/);
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.subjects.length, 0);
+    assert.equal((await f.invoke('validateReview')).url, '/results/upload/9/preview');
+    assert.equal(f.ocr.extracted_json.subjects[0].document_result_status, 'pass');
+    assert.equal(f.ocr.extracted_json.subjects[0].document_result_source, 'pdfjs-text');
+    assert.equal((await f.invoke('showPreviewPage')).locals.requiresRevalidation, false);
+    assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+    assert.equal(f.state.subjects[0].result_status, 'pass');
+    assert.equal(JSON.stringify(history), originalHistory);
+  });
+}
+
+test('native status recovery rejects mismatched identity, marks, code, total and ambiguous rows; genuine printed FAIL stays FAIL', async () => {
+  const row = { subjectCode: 'C1', internalMarks: 40, externalMarks: 40, totalMarks: 80, result: 'P' };
+  for (const evidence of [null, { student: { usn: 'OTHER001' }, subjects: [row] },
+    ...[{ ...row, subjectCode: 'OTHER' }, { ...row, internalMarks: 41 }, { ...row, totalMarks: 79 },
+      { ...row, result: 'F' }].map(item => ({ student: { usn: '1MV25MC027' }, subjects: [item] })),
+    { student: { usn: '1MV25MC027' }, subjects: [row, { ...row, result: 'F' }] }]) {
+    const f = fixture({ semester: 1 });
+    Object.assign(f.ocr.extracted_json.subjects[0], { subject_code: 'C1', document_result_status: 'fail' });
+    f.extractor.readOriginalResultEvidence = async () => evidence;
+    const before = JSON.stringify(f.ocr.extracted_json);
+    const review = await f.invoke('showReviewPage');
+    assert.equal(review.locals.subjects[0].result_status, 'fail');
+    assert.equal(JSON.stringify(f.ocr.extracted_json), before);
+    assert.equal(f.state.updates.length, 0);
+  }
+});
+
+test('a genuine native printed FAIL cannot be promoted by passing component marks or a browser status', async () => {
+  const f = fixture({ semester: 1 });
+  Object.assign(f.ocr.extracted_json.subjects[0], { subject_code: 'C1', document_result_status: 'pass' });
+  f.extractor.readOriginalResultEvidence = async () => ({ student: { usn: '1MV25MC027' },
+    subjects: [{ subjectCode: 'C1', internalMarks: 40, externalMarks: 40, totalMarks: 80, result: 'F' }] });
+  assert.equal((await f.invoke('showReviewPage')).locals.subjects[0].result_status, 'fail');
+  assert.equal((await f.invoke('validateReview', { body: { document_result_status: 'pass' } })).url, '/results/upload/9/preview');
+  assert.equal((await f.invoke('showPreviewPage')).locals.data.subjects[0].grade, 'F');
+  assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+  assert.equal(f.state.subjects[0].result_status, 'fail');
+  assert.equal(f.state.subjects[0].grade_point, 0);
+});
+
 for (const field of ['exam_session','exam_year','subject_name','roster']) {
   test('final confirmation rejects stale reviewed configuration: ' + field, async () => {
     const f = fixture({ semester: 1 });
@@ -313,6 +375,61 @@ for (const field of ['usn','semester','period']) {
     assert.equal(res.statusCode, 422); assert.match(res.locals.formError, /does not match/); assert.equal(f.state.results.length, 0);
   });
 }
+
+for (const exam_type of ['REGULAR', 'BACKLOG']) {
+  test(`${exam_type}: administrator corrects OCR USN/name and Validate proceeds with a bound manual correction`, async () => {
+    const f = fixture({ semester: 1, history: exam_type === 'BACKLOG' ? [card(1)] : [],
+      attempt: { exam_type, attempt_no: exam_type === 'REGULAR' ? 1 : 2 } });
+    f.ocr.extracted_json.student = { usn: 'OCRWRONG001', name: 'OCR WRONG NAME' };
+    f.ocr.extracted_json.document_evidence = { usns: ['OCRWRONG001', '1MV25MC027'], semesters: [1] };
+    f.ocr.extracted_json.integrity_conflicts = ['AI readings identify conflicting student USNs. Re-extract the correct document.'];
+    const before = JSON.stringify(f.ocr.extracted_json.document_evidence);
+    const review = await f.invoke('showReviewPage');
+    const validated = await f.invoke('validateReview', { session: { adminId: 1 }, body: { identity_review: '1', source_token: review.locals.sourceToken } });
+    assert.equal(validated.url, '/results/upload/9/preview', JSON.stringify(validated.locals?.formError));
+    const saved = f.ocr.extracted_json;
+    assert.equal(saved.student.usn, '1MV25MC027'); assert.equal(saved.student.name, 'TEST STUDENT');
+    assert.equal(saved.identity_correction.method, 'ADMIN_REVIEW'); assert.equal(saved.identity_correction.admin_id, 1);
+    assert.equal(saved.identity_correction.original.name, 'OCR WRONG NAME');
+    assert.equal(saved.extracted_identity.usn, 'OCRWRONG001');
+    assert.equal(JSON.stringify(saved.document_evidence), before);
+    assert.equal(saved.integrity_conflicts.length, 1);
+    assert.equal(f.state.results.length, 0); assert.equal(f.state.students.length, 0);
+    const corrected = await f.invoke('showReviewPage');
+    assert.equal(corrected.locals.documentChecks.find(check => check.field === 'USN').status, 'MANUALLY CORRECTED');
+    assert.equal((await f.invoke('showPreviewPage')).locals.requiresRevalidation, false);
+    assert.equal((await f.invoke('confirmImport')).url, '/results/upload/9/success');
+    assert.equal(f.state.results[0].student_id, 7);
+  });
+}
+
+test('manual identity review rejects incorrect/blank names, wrong batches, stale forms and unresolved non-identity conflicts', async () => {
+  for (const scenario of ['wrong name', 'blank name', 'wrong batch', 'stale form', 'other conflict', 'different pages']) {
+    const f = fixture({ semester: 1 });
+    f.ocr.extracted_json.document_evidence = { usns: ['OCRWRONG001'] };
+    if (scenario === 'wrong batch') f.db.Student.findOne = async () => ({ student_id: 8, batch_id: 2, usn: '1MV25MC027', student_name: 'TEST STUDENT' });
+    if (scenario === 'other conflict') f.ocr.extracted_json.integrity_conflicts = ['AI readings disagree on marks or status for C1. Verify this row against the original card.'];
+    if (scenario === 'different pages') f.ocr.extracted_json.integrity_conflicts = ['Document pages identify conflicting student USNs. Upload the correct student document.'];
+    const review = await f.invoke('showReviewPage');
+    const response = await f.invoke('validateReview', { body: { identity_review: '1',
+      source_token: scenario === 'stale form' ? 'stale' : review.locals.sourceToken,
+      name: scenario === 'wrong name' ? 'OTHER STUDENT' : scenario === 'blank name' ? '' : 'TEST STUDENT' } });
+    assert.ok(response.statusCode === 422 || response.url?.includes('/review?error='), scenario);
+    assert.equal(f.state.results.length, 0); assert.equal(f.state.students.length, 0);
+    assert.match((await f.invoke('confirmImport')).url, /review/);
+    assert.equal(f.state.results.length, 0);
+  }
+});
+
+test('final import rechecks identity-correction source binding and does not accept a browser-only correction', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.document_evidence = { usns: ['OCRWRONG001'] };
+  const review = await f.invoke('showReviewPage');
+  assert.equal((await f.invoke('validateReview', { body: { identity_review: '1', source_token: review.locals.sourceToken } })).url, '/results/upload/9/preview');
+  f.ocr.extracted_json.document_evidence.usns.push('CHANGED_SOURCE');
+  assert.match(decodeURIComponent((await f.invoke('confirmImport', { body: { identity_review: '1', usn: '1MV25MC027', name: 'TEST STUDENT' } })).url), /review/);
+  assert.equal(f.state.results.length, 0);
+});
 test('explicit mixed-document scope keeps exclusions and allows only the selected eligible semester', async () => {
   const f = fixture({ semester: 1, history: [card(1)], attempt: { exam_type: 'BACKLOG', attempt_no: 2 } });
   f.ocr.extracted_json.document_evidence = { semesters: [2], types: ['REGULAR'], usns: ['1MV25MC027'] };
