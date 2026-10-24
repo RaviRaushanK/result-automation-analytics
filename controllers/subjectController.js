@@ -290,6 +290,26 @@ const subjectController = {
     }
   },
 
+  reusable: async (req, res) => {
+    try {
+      const data = await require('../services/subjectReuseService').list(req.params.exam_session_id, req.query.batch_id);
+      return res.json({ success: true, ...data });
+    } catch (error) {
+      return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Unable to load existing semester subjects. Please try again.' });
+    }
+  },
+
+  reuse: async (req, res) => {
+    try {
+      const data = await require('../services/subjectReuseService').reuse(req.params.exam_session_id, req.body, validateSubject);
+      return res.status(201).json({ success: true, message: 'Existing subjects added to the selected examination session.', count: data.length });
+    } catch (error) {
+      const duplicate = error.name === 'SequelizeUniqueConstraintError';
+      return res.status(error.status || (duplicate ? 409 : 500)).json({ success: false,
+        message: error.status ? error.message : duplicate ? 'A selected subject is already offered in this examination session. Reload the list.' : 'Unable to add existing subjects. Nothing was added; please reload and try again.' });
+    }
+  },
+
   update: async (req, res) => {
     try {
       const subject = await Subject.findByPk(req.params.id);

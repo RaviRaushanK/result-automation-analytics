@@ -67,6 +67,24 @@ supported and its SGPA remains null. This does not change CGPA calculations.
 
 ## Administrator Integrity At Confirmation
 
+### Reusing subjects in a later examination session
+
+For the same batch and academic semester, **Use Existing Subjects** lists active
+canonical courses and their saved definitions. Select one or more courses to add
+new examination offerings linked to the same `course_id`; no course definition,
+required-roster flag, historical offering, result or GPA is overwritten. Faculty
+assignments are configured separately for the new offerings. Already-added
+courses/codes are visible but cannot be selected again.
+
+The administrator-only list/add endpoints are
+`GET /subjects/session/:exam_session_id/reusable` and
+`POST /subjects/session/:exam_session_id/reuse`. Adding requires the list's
+configuration snapshot and a nonempty distinct `course_ids` array. Confirmation
+locks the session then batch and rechecks the current period, course definitions,
+roster state and existing offerings. All selected offerings are inserted in one
+transaction. Unknown, inactive, foreign-batch/semester, duplicate or stale
+selections are rejected; ordinary create/edit history protections remain intact.
+
 The generic Result POST/PUT/DELETE mutations are retired with 403 responses.
 Result reads and the controlled upload workflow remain available. Student USN and
 batch are protected once Result history exists; name/email/category/status retain
@@ -85,8 +103,12 @@ attempts. A mixed document still uses separate uploads with visible exclusions;
 overriding a global semester/type header for that scope requires explicit review
 and unambiguous configured course membership in the included/excluded semesters.
 
-Revaluation validation and final approval check exact USN/context and existing
-subject ownership. Contradictions cannot be confirmed away. The current parser's
+Revaluation validation and final approval check the registered USN/context and existing
+subject ownership. Administrators can correct OCR USN/name fields through Validate
+only when both match the registered target; Revaluation cannot switch that target.
+Original OCR claims remain stored alongside a source-bound manual correction,
+actor and timestamp. The UI labels this MANUALLY CORRECTED, never automatic MATCH.
+Other contradictions cannot be confirmed away. The current parser's
 old marks/result columns describe external components: stored old external marks
 are compared when available, while an unstored external result status requires
 verification and is not confused with the stored overall status. Approval uses a

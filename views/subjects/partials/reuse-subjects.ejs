@@ -1,0 +1,21 @@
+<div class="modal fade batches-modal" id="reuseSubjectsModal" tabindex="-1" aria-labelledby="reuseSubjectsTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="reuseSubjectsTitle">Use Existing Subjects</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <p id="reuseSubjectsScope" class="reuse-subjects-scope"></p>
+      <p class="reuse-subjects-description">Select courses already defined for this batch and semester. Their saved names, credits and marking limits will be reused.</p>
+      <div class="alert alert-danger d-none" id="reuseSubjectsError" role="alert"></div>
+      <div class="reuse-subjects-toolbar">
+        <div class="form-check"><input class="form-check-input" id="reuseSubjectsAll" type="checkbox" disabled><label class="form-check-label" for="reuseSubjectsAll">Select all available subjects</label></div>
+        <button class="btn btn-outline-secondary btn-sm" id="reuseSubjectsReload" type="button">Reload list</button>
+      </div>
+      <div class="table-responsive reuse-subjects-table-wrap" role="region" aria-label="Existing subjects available for this examination session" tabindex="0"><table class="table align-middle reuse-subjects-table">
+        <colgroup><col class="reuse-select-col"><col class="reuse-code-col"><col class="reuse-name-col"><col class="reuse-credits-col"><col class="reuse-marks-col"><col class="reuse-marks-col"><col class="reuse-marks-col"><col class="reuse-status-col"></colgroup>
+        <thead><tr><th scope="col"><span class="visually-hidden">Select subject</span></th><th scope="col">Code</th><th scope="col">Subject</th><th scope="col">Credits</th><th scope="col">Internal<span class="reuse-column-hint">Max marks</span></th><th scope="col">External<span class="reuse-column-hint">Max marks</span></th><th scope="col">Total<span class="reuse-column-hint">Max marks</span></th><th scope="col">Availability</th></tr></thead>
+        <tbody id="reuseSubjectsRows"></tbody>
+      </table></div>
+      <div class="reuse-subjects-notes"><p id="reuseSubjectsCount" role="status" aria-live="polite">No subjects selected.</p><p>Faculty assignments can be configured after adding.</p></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="button" id="reuseSubjectsSave" disabled>Add selected subjects</button></div>
+  </div></div>
+</div>

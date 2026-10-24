@@ -15,6 +15,8 @@ router.get('/', (req, res, next) => {
   return subjectController.all(req, res);
 });
 router.get("/session/:exam_session_id", subjectController.getBySession);
+router.get('/session/:exam_session_id/reusable', adminMiddleware, subjectController.reusable);
+router.post('/session/:exam_session_id/reuse', adminMiddleware, subjectController.reuse);
 router.get("/:id", subjectController.getById);
 router.post("/", adminMiddleware, subjectController.create);
 router.put("/:id", adminMiddleware, subjectController.update);
