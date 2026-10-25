@@ -9,7 +9,7 @@ const integrity = require('../services/revaluationIntegrity');
 const common = require('../services/academicIntegrity');
 const policy = require('../services/academicPolicy');
 function fixture() {
-  const subject = { subject_id: 1, subject_code: 'MMC101', max_internal: 50, max_external: 50, max_marks: 100, credits: 4 };
+  const subject = { subject_id: 1, subject_code: 'MMC101', subject_type: 'theory', max_internal: 50, max_external: 50, max_marks: 100, credits: 4 };
   const sr = { subject_result_id: 1, result_id: 7, subject_id: 1, internal_marks: 20, external_marks: 20, marks: 40, grade: 'F', result_status: 'fail', Subject: subject };
   const result = { result_id: 7, student_id: 7, exam_session_id: 20, exam_type: 'REGULAR', attempt_no: 1, sgpa: 0, cgpa: 0,
     Student: { usn: 'AUDIT001', student_name: 'AUDIT STUDENT' }, ExamSession: { semester: '1', exam_session: 'Dec', exam_year: 2025 }, SubjectResults: [sr] };
@@ -18,7 +18,7 @@ function fixture() {
     const saved = { result_id: 7, student_id: 7, exam_session_id: 20, attempt: { exam_type: 'REGULAR', attempt_no: 1 }, documents: [{ sha256: sha }],
       ocr: { extraction_status: 'extracted', student_candidates: { usn: 'AUDIT001' }, semester_candidate: 1,
         exam_session: 'Dec', exam_year: 2025, attempt_no: 1, exam_type: 'REGULAR',
-        subjects: [{ subject_result_id: 1, subjectCode: 'MMC101', oldMarks: 20, oldResult: 'FAIL' }] },
+        subjects: [{ subject_result_id: 1, subjectCode: 'MMC101', oldMarks: 20, oldResult: 'PASS' }] },
       review: { version: 1, identity_verified: { usn: true, semester: true, period: true, old_marks: true, old_status: true }, target_snapshot: integrity.snapshot(result), submitted_by: 1,
         baselines: { 1: { marks: 40, status: 'fail' } }, proposal: [{ subject_result_id: 1, decision: 'accept',
           proposed_revised_internal_marks: 40, proposed_revised_external_marks: 40, proposed_revised_total_marks: 80 }] } };
@@ -74,6 +74,16 @@ test('stale proposal token and changed original target cannot be approved', asyn
   f.sr.marks = 45;
   assert.match(await f.approve(9), /original student, attempt or subject configuration changed/);
   assert.equal(f.events.length, 0);
+});
+
+test('forged presentation counts and badges cannot bypass authoritative approval checks', async () => {
+  const f = fixture(), saved = f.draft(9);
+  saved.ocr.subjects[0].oldMarks = 21;
+  const url = await f.approve(9, { verified_subjects: 6, mismatches: 0, manual_checks: 0,
+    verification_status: 'VERIFIED', verification_details_open: false, verify_old_marks: '1' });
+  assert.match(url, /error=/);
+  assert.equal(f.events.length, 0);
+  assert.equal(f.sr.external_marks, 20);
 });
 
 test('backend approval saves explicit external evidence without UI additions or original/GPA changes', async () => {
@@ -181,6 +191,7 @@ test('revaluation project SEE requirement works for model getter attributes, not
   const f = fixture();
   Object.defineProperty(f.sr.Subject,'subject_type',{get:()=> 'project'});
   const saved = f.draft(9);
+  saved.ocr.subjects[0].oldResult = 'FAIL';
   Object.assign(saved.review.proposal[0],{proposed_revised_internal_marks:30,proposed_revised_external_marks:20,proposed_revised_total_marks:50});
   assert.match(await f.approve(9),/outcome/);
   assert.equal(f.events[0].revised_status,'fail');
@@ -229,12 +240,58 @@ test('manual selection of a different owned subject cannot replace the document 
   f.result.SubjectResults.push({ ...f.sr, subject_result_id: 2, subject_id: 2, Subject: { ...f.sr.Subject, subject_code: 'MMC102' } });
   assert.match(integrity.verify(saved, f.result, [{ subject_result_id: 2, decision: 'accept', source: 'MISSING_MANUAL' }], true).errors.join(' '), /does not identify the accepted subject/);
 });
-test('old external status requires explicit verification and is never confused with stored overall status', () => {
+test('old external status is derived from stored external marks and never confused with overall status', () => {
   const f = fixture(), saved = f.draft(9);
   saved.ocr.subjects[0].oldResult = 'PASS';
-  assert.match(integrity.verify(saved, f.result, saved.review.proposal, false).errors.join(' '), /external result status is not stored separately/);
-  assert.equal(integrity.verify(saved, f.result, saved.review.proposal, true).errors.length, 0);
+  assert.equal(integrity.checks(saved, f.result).find(row => row.field === 'Old external result MMC101').status, 'MATCH');
+  assert.equal(integrity.verify(saved, f.result, saved.review.proposal, false).errors.length, 0);
   assert.equal(f.sr.result_status, 'fail');
+});
+test('legacy or special old external statuses still require explicit verification', () => {
+  const f = fixture(), saved = f.draft(9);
+  f.sr.external_marks = null;
+  saved.ocr.subjects[0].oldResult = 'ABSENT';
+  assert.equal(integrity.checks(saved, f.result).find(row => row.key === 'old_status_1').status, 'UNVERIFIED');
+  assert.match(integrity.verify(saved, f.result, saved.review.proposal, false).errors.join(' '), /authoritative comparison is unavailable/);
+  assert.equal(integrity.verify(saved, f.result, saved.review.proposal, { old_status_1: true, old_marks: true }).errors.length, 0);
+});
+test('old external PASS/FAIL comparison is independent for every subject on mixed and all-pass cards', () => {
+  const f = fixture();
+  const make = (id, external) => ({ ...f.sr, subject_result_id: id, subject_id: id, external_marks: external,
+    Subject: { ...f.sr.Subject, subject_id: id, subject_code: 'MMC10' + id } });
+  f.result.SubjectResults = [make(1, 30), make(2, 28), make(3, 15), make(4, 32)];
+  const saved = f.draft(9);
+  saved.ocr.subjects = f.result.SubjectResults.map((sr, index) => ({ subject_result_id: sr.subject_result_id,
+    subjectCode: sr.Subject.subject_code, oldMarks: sr.external_marks, oldResult: index === 2 ? 'F' : 'P' }));
+  const mixed = integrity.checks(saved, f.result).filter(row => row.field.startsWith('Old external result'));
+  assert.deepEqual(mixed.map(row => [row.expected, row.status]), [['PASS','MATCH'],['PASS','MATCH'],['FAIL','MATCH'],['PASS','MATCH']]);
+  assert.equal(mixed.some(row => row.status === 'UNVERIFIED'), false);
+  saved.ocr.subjects[2].oldMarks = 25; f.result.SubjectResults[2].external_marks = 25; saved.ocr.subjects[2].oldResult = 'Passed';
+  const allPass = integrity.checks(saved, f.result).filter(row => row.field.startsWith('Old external result'));
+  assert.ok(allPass.every(row => row.expected === 'PASS' && row.status === 'MATCH'));
+});
+test('old external contradictions block and cannot be acknowledged away', () => {
+  const f = fixture(), saved = f.draft(9);
+  saved.ocr.subjects[0].oldResult = 'FAILED';
+  assert.equal(integrity.checks(saved, f.result).find(row => row.field.startsWith('Old external result')).status, 'MISMATCH');
+  assert.match(integrity.verify(saved, f.result, saved.review.proposal, { old_status_1: true }).errors.join(' '), /Approval is blocked/);
+  f.sr.external_marks = 15; saved.ocr.subjects[0].oldMarks = 15; saved.ocr.subjects[0].oldResult = 'Passed';
+  assert.equal(integrity.checks(saved, f.result).find(row => row.field.startsWith('Old external result')).status, 'MISMATCH');
+});
+test('missing, ABSENT and WITHHELD old results remain per-subject manual checks', () => {
+  for (const printed of [null, 'ABSENT', 'WITHHELD']) {
+    const f = fixture(), saved = f.draft(9);
+    saved.ocr.subjects[0].oldResult = printed;
+    const check = integrity.checks(saved, f.result).find(row => row.field.startsWith('Old external result'));
+    assert.equal(check.key, 'old_status_1'); assert.equal(check.status, 'UNVERIFIED');
+  }
+});
+test('old external status uses only the selected attempt SubjectResult', () => {
+  const first = fixture(), second = fixture(), saved = first.draft(9);
+  first.result.attempt_no = 1; first.sr.external_marks = 30; saved.ocr.subjects[0].oldMarks = 30; saved.ocr.subjects[0].oldResult = 'P';
+  second.result.attempt_no = 2; second.sr.external_marks = 15; saved.ocr.subjects[0].oldMarks = 15; saved.ocr.subjects[0].oldResult = 'F';
+  assert.equal(integrity.checks(saved, first.result).find(row => row.field.startsWith('Old external result')).expected, 'PASS');
+  assert.equal(integrity.checks(saved, second.result).find(row => row.field.startsWith('Old external result')).expected, 'FAIL');
 });
 test('explicit document revaluation number prevents reprocessing the same event after a changed file encoding', async () => {
   const f = fixture(), first = f.draft(9), second = f.draft(10);

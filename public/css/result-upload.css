@@ -1,3 +1,13 @@
 .result-upload-page .form-select{min-width:0;max-width:100%}
+/* Keep empty session selections consistent with the other dropdowns. */
+:root[data-theme="dark"] .result-upload-page .form-select:disabled {
+  /* A quiet blue slate tint distinguishes unavailable input without the
+     washed-out grey used by the browser's default disabled control. */
+  background-color: #263247;
+  border-color: #41526d;
+  color: #d8e2f2;
+  -webkit-text-fill-color: #d8e2f2;
+  opacity: 1;
+}
 .result-upload-page .form-text{color:var(--text-secondary)}
 @media(max-width:767.98px){.main-content:has(.result-upload-page){margin-left:0;width:100%;min-width:0}.result-upload-page #dropZone{padding:1.25rem!important}}

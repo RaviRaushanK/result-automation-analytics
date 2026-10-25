@@ -10,9 +10,40 @@
   var form = document.getElementById('reviewForm');
   if (!form) return;
 
+  function formFields() {
+    if (form.elements) return Array.prototype.slice.call(form.elements)
+      .filter(function (field) { return field && (field.tagName === 'INPUT' || field.tagName === 'SELECT'); });
+    return Array.prototype.slice.call(form.querySelectorAll('input, select'));
+  }
+  function namedField(name) {
+    return form.elements && form.elements.namedItem ? form.elements.namedItem(name)
+      : form.querySelector('input[name="' + name + '"]');
+  }
+
+  function refreshManualSubjects() {
+    var required = 0, confirmed = 0;
+    Array.prototype.slice.call(document.querySelectorAll('[data-manual-subject-issue]')).forEach(function (issue) {
+      var srid = issue.getAttribute('data-manual-subject-issue');
+      var checkbox = namedField('verify_manual_subject_' + srid);
+      var status = document.getElementById('manual_issue_status_' + srid);
+      var checked = !!checkbox && checkbox.checked;
+      if (status) status.textContent = checked ? 'Manually confirmed' : 'MANUAL VERIFICATION REQUIRED';
+      issue.classList.toggle('is-confirmed', checked);
+      if (issue.hidden || !checkbox || checkbox.disabled) return;
+      if (checked) confirmed++; else required++;
+    });
+    var count = document.getElementById('manualVerificationCount');
+    if (count) count.textContent = '\u00b7 ' + (Number(count.getAttribute('data-manual-base')) + required) + ' manual checks required';
+    var confirmations = document.getElementById('manualConfirmedCount');
+    if (confirmations) {
+      confirmations.textContent = '\u00b7 ' + confirmed + ' manually confirmed';
+      confirmations.hidden = confirmed === 0;
+    }
+  }
+
   // Presentation only: UNVERIFIED and the acknowledgment remain authoritative
   // on the server. Manual confirmation must never be presented as a MATCH.
-  var oldResultCheckbox = form.querySelector('input[name="verify_old_status"]');
+  var oldResultCheckbox = namedField('verify_old_status');
   var oldResultStatus = document.getElementById('oldExternalResultVerificationStatus');
   if (oldResultCheckbox && oldResultStatus) {
     function refreshOldResultStatus() {
@@ -24,6 +55,18 @@
     oldResultCheckbox.addEventListener('change', refreshOldResultStatus);
     refreshOldResultStatus();
   }
+  Array.prototype.slice.call(document.querySelectorAll('[data-manual-status-for]')).forEach(function (status) {
+    var checkbox = namedField('verify_' + status.getAttribute('data-manual-status-for'));
+    if (!checkbox) return;
+    function refresh() {
+      status.textContent = checkbox.checked ? 'Manually confirmed' : 'Manual verification required';
+      status.classList.toggle('is-required', !checkbox.checked);
+      status.classList.toggle('is-confirmed', checkbox.checked);
+      refreshManualSubjects();
+    }
+    checkbox.addEventListener('change', refresh);
+    refresh();
+  });
 
   function rowInputs(srid) {
     return {
@@ -82,6 +125,18 @@
         }
       }
     });
+    var manualIssue = document.getElementById('manual_issue_' + srid);
+    var manualCheckbox = document.getElementById('verify_manual_subject_' + srid);
+    if (manualIssue) manualIssue.hidden = !accepting;
+    if (manualCheckbox) {
+      manualCheckbox.disabled = !accepting;
+      manualCheckbox.required = accepting;
+      if (!accepting) {
+        manualCheckbox.classList.remove('is-invalid');
+        manualCheckbox.removeAttribute('aria-invalid');
+      }
+    }
+    refreshManualSubjects();
     refreshRow(srid);
   }
 
@@ -121,7 +176,7 @@
         syncDisabled(radio.getAttribute('data-srid'));
         validateRow(radio.getAttribute('data-srid'));
         if (form.classList.contains('was-validated')) {
-          Array.prototype.forEach.call(form.querySelectorAll('input, select'), markValidity);
+          formFields().forEach(markValidity);
         }
       });
       if (radio.checked) syncDisabled(radio.getAttribute('data-srid'));
@@ -180,13 +235,13 @@
 
 
   // Bootstrap feedback is a convenience; the server repeats every integrity check.
-  Array.prototype.forEach.call(form.querySelectorAll('input, select'), function (field) {
+  formFields().forEach(function (field) {
     field.addEventListener(field.type === 'checkbox' || field.tagName === 'SELECT' ? 'change' : 'input', function () {
       if (field.classList.contains('rev-int') || field.classList.contains('rev-ext')) {
         validateRow(field.getAttribute('data-srid'));
       }
       if (form.classList.contains('was-validated')) {
-        Array.prototype.forEach.call(form.querySelectorAll('input, select'), markValidity);
+        formFields().forEach(markValidity);
       }
     });
   });
@@ -201,8 +256,8 @@
     if (!form.checkValidity()) {
       ev.preventDefault();
       ev.stopPropagation();
-      Array.prototype.forEach.call(form.querySelectorAll('input, select'), markValidity);
-      var firstInvalid = form.querySelector(':invalid');
+      formFields().forEach(markValidity);
+      var firstInvalid = formFields().find(function (field) { return !field.disabled && !field.validity.valid; });
       if (firstInvalid) {
         var details = firstInvalid.closest('details');
         if (details) details.open = true;

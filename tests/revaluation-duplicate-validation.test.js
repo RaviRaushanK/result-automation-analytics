@@ -11,15 +11,16 @@ const integrity = require('../services/revaluationIntegrity');
 
 function fixture(approved = true) {
   const state = { approved, countCalls: [], writes: 0, staged: 0, rolledBack: false, lookupFails: false, extractions: 0, extractionFails: false };
-  const subject = { subject_id: 1, subject_code: 'C1', subject_name: 'Course', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 };
+  const subject = { subject_id: 1, subject_code: 'C1', subject_name: 'Course', subject_type: 'theory', credits: 4, max_internal: 50, max_external: 50, max_marks: 100 };
   const result = { result_id: 7, student_id: 7, exam_session_id: 20, attempt_no: 1, exam_type: 'REGULAR',
     Student: { student_name: 'TEST STUDENT', usn: '1MV25MC027' },
     ExamSession: { semester: '1', exam_session: 'Jan', exam_year: 2026 },
-    SubjectResults: [{ subject_result_id: 1, subject_id: 1, result_id: 7, marks: 40, grade: 'F', result_status: 'fail', Subject: subject }] };
+    SubjectResults: [{ subject_result_id: 1, subject_id: 1, result_id: 7, marks: 40, external_marks: 20, grade: 'F', result_status: 'fail', Subject: subject }] };
   const saved = { result_id: 7, student_id: 7, exam_session_id: 20, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     student: { name: 'TEST STUDENT', usn: '1MV25MC027' },
     subjects: [{ subject_result_id: 1, subject_code: 'C1', subject_name: 'Course' }],
-    ocr: { extraction_status: 'extracted', student_candidates: { name: 'TEST STUDENT', usn: '1MV25MC027' }, subjects: [] } };
+    ocr: { extraction_status: 'extracted', student_candidates: { name: 'TEST STUDENT', usn: '1MV25MC027' },
+      subjects: [{ subject_result_id: 1, subjectCode: 'C1', oldMarks: 20, oldResult: 'P', match_state: 'MATCHED' }] } };
   const ocr = { extraction_id: 1, extracted_json: saved, validation_status: 'pending',
     update: async values => { Object.assign(ocr, values); } };
   const log = { import_id: 9, import_type: 'REVALUATION', status: 'extracted', uploaded_by: 1,
@@ -64,7 +65,8 @@ function fixture(approved = true) {
           if (state.duringExtraction) state.duringExtraction();
           if (state.extractionFails) throw new Error('Test extraction failure');
           return { ok: true, ocr: { extraction_status: 'extracted',
-            student_candidates: { name: 'TEST STUDENT', usn: '1MV25MC027' }, subjects: [], warnings: [] } };
+            student_candidates: { name: 'TEST STUDENT', usn: '1MV25MC027' },
+            subjects: [{ subject_result_id: 1, subjectCode: 'C1', oldMarks: 20, oldResult: 'P', match_state: 'MATCHED' }], warnings: [] } };
         }
       };
       if (name === './resultController') return { _test: { gradeFromPercent: policy.gradeFromPercent } };
@@ -186,9 +188,10 @@ test('Continue still rejects a result belonging to a different selected student 
 });
 
 test('extracted preview preserves genuine zero marks in all numeric card evidence', async () => {
-  const { invoke, ocr } = fixture(false);
+  const { invoke, ocr, result } = fixture(false);
+  result.SubjectResults[0].internal_marks = 0;
   ocr.extracted_json.ocr.subjects = [{
-    subject_result_id: 1, match_state: 'MATCHED', revised_internal_marks: 0, revised_external_marks: 0,
+    subject_result_id: 1, subjectCode: 'C1', match_state: 'MATCHED', revised_internal_marks: 0, revised_external_marks: 0,
     internalMarks: 0, oldMarks: 0, rvMarks: 0, finalMarks: 0
   }];
   const preview = await invoke('showReview');

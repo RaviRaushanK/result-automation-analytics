@@ -1,0 +1,17 @@
+<div class="mt-1"><strong><%= check.field %>:</strong>
+  <% if (['NOT PRESENT IN DOCUMENT', 'UNVERIFIED'].includes(check.status)) { %>
+    <span data-manual-status-for="<%= check.key %>" class="manual-verification-status <%= review?.identity_verified?.[check.key] === true ? 'is-confirmed' : 'is-required' %>" role="status" aria-live="polite" aria-atomic="true"><%= review?.identity_verified?.[check.key] === true ? 'Manually confirmed' : 'Manual verification required' %></span>
+    <div><%= check.expected || 'Authoritative comparison is unavailable. Verify against the original marks card.' %></div>
+  <% } else { %>
+    <span class="badge bg-danger"><%= check.status %></span>
+    <div>Stored history: <%= check.expectedLabel ?? check.expected ?? 'Unavailable' %> &mdash; Document: <%= check.documentLabel ?? check.document ?? 'Unavailable' %></div>
+  <% } %>
+  <% if (check.manual && check.corrected) { %><div>Manual correction: <%= check.corrected %></div><% } %>
+</div>
+<% if (!check.derived && ['NOT PRESENT IN DOCUMENT', 'UNVERIFIED'].includes(check.status)) { %>
+  <div class="form-check mt-2">
+    <input form="reviewForm" class="form-check-input" type="checkbox" id="verify_<%= check.key %>" name="verify_<%= check.key %>" value="1" required <%= typeof manualRowActive !== 'undefined' && !manualRowActive ? 'disabled' : '' %> aria-describedby="verify_<%= check.key %>_feedback" <%= review?.identity_verified?.[check.key] === true ? 'checked' : '' %>>
+    <label class="form-check-label" for="verify_<%= check.key %>">I verified the <%= check.field %> against the original marks card.</label>
+    <div class="invalid-feedback" id="verify_<%= check.key %>_feedback">Confirm <%= check.field.toLowerCase() %> against the original marks card before validating.</div>
+  </div>
+<% } %>

@@ -3,6 +3,7 @@
 const service = require('../services/reportsService');
 const reportCenter = require('../config/reportCenter');
 const settings = require('../services/settingsService');
+const reportWording = require('../public/js/reports/wording');
 async function brand(report) {
   report.branding = await settings.getBranding();
   report.brandingMetadata = settings.brandingMetadata(report.branding);
@@ -11,7 +12,7 @@ async function brand(report) {
 
 function overview(req, res) {
   res.render('reports/overview', {
-    title: 'Reports - SRAAS', pageStyles: ['/css/reports.css'], reportGroups: reportCenter,
+    title: 'Reports - SRAAS', pageStyles: ['/css/reports.css?v=20261025-3'], reportGroups: reportCenter,
     breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '/reports', label: 'Reports' }]
   });
 }
@@ -30,7 +31,7 @@ function error(res, err) {
 function page(type) {
   return async (req, res) => res.render(`reports/${type}`, {
     title: `${service.TITLES[type]} - SRAAS`, reportType: type, reportTitle: service.TITLES[type],
-    pageStyles: ['/css/reports.css'],
+    pageStyles: ['/css/reports.css?v=20261025-3'],
     branding: await settings.getBranding(),
     breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '/reports', label: 'Reports' }, { href: `/reports/${type}`, label: service.TITLES[type] }]
   });
@@ -111,7 +112,7 @@ function print(type) {
         report.rows = [];
         for await (const row of service.fullRows(report)) report.rows.push(row);
       }
-      res.render('reports/print', { layout: false, report, context: service.contextLines(report), display: service.display });
+      res.render('reports/print', { layout: false, report, context: service.contextLines(report), display: service.display, reportWording });
     } catch (err) { error(res, err); }
   };
 }

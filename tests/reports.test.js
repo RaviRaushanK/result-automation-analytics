@@ -604,7 +604,9 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           const printText = await print.text();
           assert.match(printText, /reports-print/);
           assert.ok(printText.includes(`data-report-type="${type}"`));
-          assert.match(printText, /href="\/css\/reports.css"/);
+          assert.equal((printText.match(/<dt>Generated at<\/dt>/g) || []).length, 1, type + ': generation time is retained');
+          assert.doesNotMatch(printText, /SGPA\/CGPA are saved original result values|Historical GPA may lack|Original components remain preserved|Rows represent result attempts/);
+          assert.match(printText, /href="\/css\/reports\.css(?:\?[^"\s]*)?"/);
           if (type === 'toppers') {
             assert.doesNotMatch(printText, /Sl\. No\./);
             assert.match(printText, /% Percentage/);
@@ -614,7 +616,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.match(printText, /scope="colgroup" colspan="3"/);
             assert.match(printText, /rowspan="2"/);
             assert.match(printText, /<td>-<\/td>/);
-            assert.match(printText, /not recalculated after revaluation/);
+            assert.match(printText, /GPA remains original/);
             assert.doesNotMatch(printText, /Original EX:|Original IA:|Original T:|Effective T:/);
           }
           if (type === 'result-analysis') {
@@ -662,7 +664,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         assert.ok(printSemesters.includes(1) && printSemesters.includes(2) && printSemesters.includes(4) && printSemesters.includes(10));
         assert.deepEqual(printSemesters, printSemesters.slice().sort((a, b) => a - b));
         assert.match(html, /<td>-<\/td>/);
-        assert.match(html, /IA and External are original stored components/);
+        assert.match(html, /IA\/EX: original\. Total, grade and result: effective\./);
       } finally { settings.getBranding = getBranding; await new Promise(resolve => server.close(resolve)); }
     });
   } finally { db.sequelize.query = realQuery; }

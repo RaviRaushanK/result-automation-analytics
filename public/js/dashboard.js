@@ -4,10 +4,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const page = document.querySelector('.dashboard-page');
     if (!page) return;
     const $ = id => document.getElementById(id);
-    const batch = $('filterBatch'), semester = $('filterSemester'), filters = $('dashboardFilters');
+    const batch = $('filterBatch'), semester = $('filterSemester'), session = $('filterSession'), filters = $('dashboardFilters');
     const batches = JSON.parse(filters.dataset.batches || '[]');
     const semesters = JSON.parse(filters.dataset.semesters || '[]');
     const batchSemesters = JSON.parse(filters.dataset.batchSemesters || 'null');
+    const examSessions = JSON.parse(filters.dataset.examSessions || '[]');
     const canReview = page.dataset.canReview === 'true', charts = {};
     const statIds = ['totalStudents', 'totalPass', 'totalFail', 'passPercentage', 'failPercentage', 'totalSubjects', 'highestScore', 'averageCGPA'];
     let requestId = 0, controller = null, subjects = [], grades = [], loadedScope = null, lastData = null;
@@ -17,7 +18,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const number = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
     const show = (id, visible) => $(id).classList.toggle('d-none', !visible);
     const text = (id, value) => { $(id).textContent = value == null ? '--' : value; };
-    const scope = () => ({ batch_id: batch.value, semester: semester.value });
+    const scope = () => ({ batch_id: batch.value, semester: semester.value, exam_session_id: session.value });
+    const scopeLabel = selected => (batch.selectedOptions[0]?.textContent || 'No batch') + ' / ' + (selected.semester ? 'Semester ' + selected.semester : 'All semesters') + ' / ' + (session.selectedOptions[0]?.textContent || 'All sessions') + ' - Original results / All attempts';
     function url(path, values, extra) {
         const params = new URLSearchParams();
         Object.entries(Object.assign({}, values, extra)).forEach(([key, value]) => { if (value != null && value !== '') params.set(key, value); });
@@ -36,6 +38,13 @@ document.addEventListener('DOMContentLoaded', function () {
         semester.replaceChildren(new Option('All Semesters', ''));
         [...new Set(values.map(String))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true })).forEach(s => semester.add(new Option('Semester ' + s, s)));
         semester.value = values.map(String).includes(String(preferred)) ? String(preferred) : '';
+    }
+    function sessionOptions(preferred) {
+        const rows = examSessions.filter(s => String(s.batch_id) === batch.value && (!semester.value || String(s.semester) === semester.value));
+        session.replaceChildren(new Option('All sessions', ''));
+        rows.forEach(s => session.add(new Option('Semester ' + s.semester + ' / ' + s.label, String(s.exam_session_id))));
+        session.value = rows.some(s => String(s.exam_session_id) === String(preferred)) ? String(preferred) : '';
+        session.disabled = rows.length === 0;
     }
     function destroy(id) { if (charts[id]) charts[id].destroy(); delete charts[id]; }
     function colors() {
@@ -83,10 +92,10 @@ document.addEventListener('DOMContentLoaded', function () {
         config.plugins.tooltip = { callbacks: {
             title: items => rows[items[0].dataIndex].subject_code,
             afterTitle: items => tooltipLines(rows[items[0].dataIndex].subject_name),
-            afterLabel: item => { const row = rows[item.dataIndex]; return ['Maximum: ' + row.max_marks, 'Failed attempts: ' + row.failed + ' / ' + row.attempted]; }
+            afterLabel: item => { const row = rows[item.dataIndex]; return ['Maximum: ' + (row.min_max_marks !== row.max_marks ? row.min_max_marks + '–' : '') + row.max_marks, 'Failed attempts: ' + row.failed + ' / ' + row.attempted]; }
         } };
         config.onClick = (event, items) => {
-            if (canReview && items.length && loadedScope) window.location.assign(analyticsUrl('/analytics/subjects', loadedScope, { subject_id: rows[items[0].index].subject_id }));
+            if (canReview && items.length && loadedScope) window.location.assign(analyticsUrl('/analytics/subjects', loadedScope, { subject_code: rows[items[0].index].subject_code }));
         };
         charts.subjectAverageChart = new Chart($('subjectAverageChart'), { type: 'bar', data: {
             labels: rows.map(s => s.subject_code), datasets: [{ label: 'Average marks', data: rows.map(s => s.average_marks), backgroundColor: '#3b82f6', borderRadius: 4, maxBarThickness: 44 }]
@@ -134,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const rows = subjects.filter(s => Number(s.failed) > 0).sort((a, b) => b.failed - a.failed || a.pass_percentage - b.pass_percentage || a.subject_code.localeCompare(b.subject_code)).slice(0, 5);
         $('dashboardAttentionBody').innerHTML = rows.length ? rows.map(s => {
             const label = '<strong>' + escapeHtml(s.subject_code) + '</strong><span class="dashboard-subject-name">' + escapeHtml(s.subject_name) + '</span>';
-            const name = canReview ? '<a class="dashboard-record-link" href="' + escapeHtml(analyticsUrl('/analytics/subjects', loadedScope, { subject_id: s.subject_id })) + '">' + label + '</a>' : label;
+            const name = canReview ? '<a class="dashboard-record-link" href="' + escapeHtml(analyticsUrl('/analytics/subjects', loadedScope, { subject_code: s.subject_code })) + '">' + label + '</a>' : label;
             return '<tr><td>' + name + '</td><td><span class="dashboard-failed-count">' + escapeHtml(s.failed) + '</span> / ' + escapeHtml(s.attempted) + '</td><td>' + escapeHtml(s.pass_percentage) + '%</td></tr>';
         }).join('') : '<tr><td colspan="3" class="text-muted py-4">' + (subjects.length ? 'No failed subject attempts in this selection.' : 'No subject results in this selection.') + '</td></tr>';
     }
@@ -151,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         subjects = data.subjectAverages; grades = data.gradeDistribution; lastData = data; loadedScope = selected;
         renderSubjectChart(); renderPassFail(stats); renderGradeChart(); renderAttention(); renderScorers(rows, selected);
-        text('dashboardScope', (batch.selectedOptions[0]?.textContent || 'No batch') + ' / ' + (selected.semester ? 'Semester ' + selected.semester : 'All semesters') + ' - Original results / All attempts');
+        text('dashboardScope', scopeLabel(selected));
         show('dashboardEmpty', Number(stats.totalPass || 0) + Number(stats.totalFail || 0) === 0);
         updateLinks(selected);
     }
@@ -176,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function () {
         Object.keys(charts).forEach(destroy); statIds.forEach(id => text(id, null));
         text('chartPassedCount', null); text('chartFailedCount', null);
         text('gradedAttemptCount', null); text('missingGradeCount', null); $('gradeBreakdownBody').replaceChildren();
-        text('dashboardScope', (batch.selectedOptions[0]?.textContent || 'No batch') + ' / ' + (selected.semester ? 'Semester ' + selected.semester : 'All semesters') + ' - Original results / All attempts');
+        text('dashboardScope', scopeLabel(selected));
         document.querySelector('#topScorersTable tbody').innerHTML = '<tr><td colspan="6" class="text-muted text-center py-4">Loading...</td></tr>';
         $('dashboardAttentionBody').innerHTML = '<tr><td colspan="3" class="text-muted">Loading...</td></tr>';
         if (!selected.batch_id) {
@@ -206,11 +215,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const initial = new URLSearchParams(location.search);
     if ([...batch.options].some(o => o.value === initial.get('batch_id'))) batch.value = initial.get('batch_id');
     semesterOptions(initial.get('semester'));
-    batch.addEventListener('change', () => { semesterOptions(semester.value); loadDashboard(); });
-    semester.addEventListener('change', loadDashboard);
+    sessionOptions(initial.get('exam_session_id'));
+    batch.addEventListener('change', () => { semesterOptions(semester.value); sessionOptions(''); loadDashboard(); });
+    semester.addEventListener('change', () => { sessionOptions(session.value); loadDashboard(); });
+    session.addEventListener('change', loadDashboard);
     $('dashboardFilterForm').addEventListener('submit', event => { event.preventDefault(); loadDashboard(); });
     $('applyFilterBtn').addEventListener('click', loadDashboard);
-    $('resetFilterBtn').addEventListener('click', () => { batch.selectedIndex = batches.length ? 0 : -1; semesterOptions(''); loadDashboard(); });
+    $('resetFilterBtn').addEventListener('click', () => { batch.selectedIndex = batches.length ? 0 : -1; semesterOptions(''); sessionOptions(''); loadDashboard(); });
     $('subjectChartOrder').addEventListener('change', () => { if (loadedScope) renderSubjectChart(); });
     new MutationObserver(() => {
         if (!loadedScope || !lastData) return;

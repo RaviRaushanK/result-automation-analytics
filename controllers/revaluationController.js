@@ -26,6 +26,7 @@ const marksCardValidation = require('../public/js/marks-card-validation');
 const revaluationValidator = require('../services/revaluationValidator');
 const revaluationPersistence = require('../services/revaluationPersistence');
 const revaluationIntegrity = require('../services/revaluationIntegrity');
+const revaluationScope = require('../services/revaluationScope');
 const academicIntegrity = require('../services/academicIntegrity');
 const reviewIdentity = require('../services/reviewIdentity');
 
@@ -450,7 +451,6 @@ exports.processUpload = async (req, res) => {
   // Phase 13B: subjects are the full scope of the selected Result, loaded
   // server-authoritatively. Browser-supplied subjectResultIds are never used
   // to define, expand, reduce, or replace the Result scope.
-  const owned = result.SubjectResults || [];
 
   // Re-upload path: if the draft was created via the "Re-upload Document"
   // button on the extraction page, we supersede the existing ImportLog rather
@@ -551,46 +551,14 @@ exports.processUpload = async (req, res) => {
       file_type: ext.replace(/^\./, ''),
       import_type: 'REVALUATION',
       status: 'pending',
-      total_records: owned.length,
+      total_records: 0,
       imported_records: 0,
       skipped_records: 0
     }, { transaction: t });
 
-    const subjectJson = owned.map(sr => ({
-      subject_result_id: sr.subject_result_id,
-      result_id: Number(result.result_id),
-      subject_id: sr.subject_id,
-      subject_code: sr.Subject ? sr.Subject.subject_code : null,
-      subject_name: sr.Subject ? sr.Subject.subject_name : null,
-      credits: sr.Subject ? (sr.Subject.credits || 0) : 0,
-      max_marks: sr.Subject ? (sr.Subject.max_marks || 100) : 100,
-      original_marks: sr.marks,
-      grade: sr.grade,
-      result_status: sr.result_status
-    }));
-
-    // BUG 3 FIX (REVERTED — workflow correction):
-    // The current workflow has NO pre-upload subject selection. The
-    // "subjects selected for revaluation" concept does not exist at this
-    // stage. The previous fix filtered stored subjects to only failed
-    // ones, which made the "Missing / Not Detected" section on the
-    // extraction page look like a pre-selection.
-    //
-    // The correct model is:
-    //   - extracted_json.subjects  =  full student SubjectResults set
-    //     (used by the review page's "Add Subject" feature so the admin
-    //     can manually add any subject the candidate applied for that OCR
-    //     didn't detect)
-    //   - the OCR Extraction page shows ONLY what was detected on the card;
-    //     it does NOT show a missing list and does NOT compute
-    //     "all - detected = missing".
-    //
-    // We store the full scope (no filter by failed). This is a safe change
-    // because the review page's existing `loadReviewState` only iterates
-    // `saved.subjects` to build the row table; it does not assume the
-    // list is filtered. The "Add Subject" flow is preserved (admin can
-    // still add any of the student's other subjects).
-    const selectedSubjects = subjectJson;
+    // No subject scope exists before extraction. The live Result roster is
+    // reference data for matching; only document targets are persisted below.
+    const selectedSubjects = [];
 
     await OcrExtraction.create({
       import_id: importLog.import_id,
@@ -621,10 +589,6 @@ exports.processUpload = async (req, res) => {
           exam_end_month: result.ExamSession ? result.ExamSession.exam_end_month : null,
           exam_end_year: result.ExamSession ? result.ExamSession.exam_end_year : null
         },
-        // The full student SubjectResults set is persisted. The review
-        // page uses this to offer "Add Subject" candidates (admin manual
-        // entry for subjects OCR did not detect). The Extraction page
-        // remains available for manual review in the combined preview.
         subjects: selectedSubjects
       },
       confidence_score: 0,
@@ -818,8 +782,13 @@ async function extractRevaluationImport(importId, res) {
 
   const nextJson = Object.assign({}, saved, {
     ocr: extractionResult.ocr,
+    subjects: [...revaluationScope.resolve({ ocr: extractionResult.ocr }, result).targets.values()].map(({ sr }) => ({
+      subject_result_id: sr.subject_result_id, subject_id: sr.subject_id, result_id: result.result_id,
+      subject_code: sr.Subject?.subject_code, subject_name: sr.Subject?.subject_name
+    })),
     student: { name: result.Student ? result.Student.student_name : '', usn: result.Student ? result.Student.usn : '' }
   });
+  delete nextJson.manual_subjects;
   delete nextJson.review;
   delete nextJson.identity_confirmed;
   delete nextJson.identity_correction;
@@ -838,7 +807,8 @@ async function extractRevaluationImport(importId, res) {
     }
     if (JSON.stringify(current) !== JSON.stringify(saved)) throw new Error('The upload changed during extraction. Please retry.');
     await currentOcr.update({ extracted_json: nextJson, validation_status: 'pending' }, { transaction: t });
-    await currentLog.update({ status: extractionResult.ok ? 'extracted' : 'failed' }, { transaction: t });
+    await currentLog.update({ status: extractionResult.ok ? 'extracted' : 'failed',
+      total_records: extractionResult.ocr?.subjects?.length || 0 }, { transaction: t });
     await t.commit();
   } catch (err) {
     await t.rollback();
@@ -1588,12 +1558,6 @@ async function loadReviewState(importId, optsIn) {
                         result.exam_type !== saved.attempt.exam_type)) {
     ctxErrs.push('Stored attempt number/type no longer matches the Result.');
   }
-  const ownedIds = new Set((result.SubjectResults || []).map(sr => Number(sr.subject_result_id)));
-  for (const s of (saved.subjects || [])) {
-    if (!ownedIds.has(Number(s.subject_result_id))) {
-      ctxErrs.push(`Selected subject ${s.subject_code || s.subject_result_id} no longer belongs to this Result.`);
-    }
-  }
   if (ctxErrs.length) {
     return { ok: false, redirect: `${backTo}?error=` +
       enc('Server-side revaluation context is invalid: ' + ctxErrs.join(' ')) };
@@ -1602,10 +1566,11 @@ async function loadReviewState(importId, optsIn) {
   const srById = new Map();
   for (const sr of (result.SubjectResults || [])) srById.set(Number(sr.subject_result_id), sr);
 
-  // Evidence lookup + normalized-code grouping among SELECTED subjects.
-  const evBySrid = new Map((ocr.subjects || []).map(r => [Number(r.subject_result_id), r]));
-  const selNorms = (saved.subjects || []).map(s => ({
-    id: Number(s.subject_result_id), norm: normCode(s.subject_code)
+  // Extracted/confirmed subjects are active. Other exact-attempt subjects
+  // are optional table rows, rejected by default and excluded from approval.
+  const scope = revaluationScope.resolve(saved, result);
+  const selNorms = [...scope.targets.values()].map(({ sr }) => ({
+    id: Number(sr.subject_result_id), norm: normCode(sr.Subject?.subject_code)
   }));
 
   // Frozen-proposal lookup. PROMPT 14: when the admin re-opens the form to
@@ -1621,12 +1586,21 @@ async function loadReviewState(importId, optsIn) {
     }
   }
 
-  const rows = (saved.subjects || []).map(sv => {
-    const srid = Number(sv.subject_result_id);
-    const sr = srById.get(srid);
+  const reviewTargets = new Map(scope.targets);
+  for (const sr of result.SubjectResults || []) {
+    const id = Number(sr.subject_result_id);
+    if (!scope.entries.some(entry => Number(entry.sr?.subject_result_id) === id) && sr.Subject
+      && (sr.Subject.exam_session_id == null || Number(sr.Subject.exam_session_id) === Number(result.exam_session_id))) {
+      reviewTargets.set(id, { sr, evidence: { match_state: 'NOT_DETECTED', manual_candidate: true } });
+    }
+  }
+  const rows = [...reviewTargets.values()]
+    .sort((a, b) => String(a.sr.Subject?.subject_code || '').localeCompare(String(b.sr.Subject?.subject_code || ''), undefined, { numeric: true, sensitivity: 'base' }))
+    .map(({ sr, evidence: ev }) => {
+    const srid = Number(sr.subject_result_id);
+    const sv = { subject_code: sr.Subject?.subject_code, subject_name: sr.Subject?.subject_name };
     const subj = (sr && sr.Subject) ? sr.Subject : null;
     const limits = subjectLimits(subj);
-    const ev = evBySrid.get(srid) || null;
     const ambiguous = !!(ev && ev.match_state === 'AMBIGUOUS');
     const pickOptions = ambiguous
       ? selNorms
@@ -1636,18 +1610,16 @@ async function loadReviewState(importId, optsIn) {
             code: ((srById.get(x.id) || {}).Subject || {}).subject_code || ('#' + x.id)
           }))
       : [];
-    // PROMPT 14: server-side preference for the pre-fill mark values.
-    // 1. The admin's prior frozen-proposal marks (subject of this edit).
-    // 2. OCR-derived marks when the row was MATCHED and no prior edit exists.
-    // 3. null (no fallback invented by us).
+    // Retain saved edits. Otherwise carry Internal from the authoritative
+    // original SubjectResult and revised External from the uploaded card.
     const prior = priorPropByTgt.get(String(srid));
     const priorInt = prior && prior.proposed_revised_internal_marks != null
       ? Number(prior.proposed_revised_internal_marks) : null;
     const priorExt = prior && prior.proposed_revised_external_marks != null
       ? Number(prior.proposed_revised_external_marks) : null;
-    const ocrInt = ev ? ev.revised_internal_marks : null;
-    const ocrExt = ev ? ev.revised_external_marks : null;
-    const revInt = (priorInt != null) ? priorInt : ((ocrInt !== null && ocrInt !== undefined) ? Number(ocrInt) : null);
+    const databaseInternal = academicIntegrity.present(sr.internal_marks) ? Number(sr.internal_marks) : null;
+    const ocrExt = ev.manual_entry || ev.manual_candidate ? null : ev.revised_external_marks;
+    const revInt = priorInt ?? databaseInternal;
     const revExt = (priorExt != null) ? priorExt : ((ocrExt !== null && ocrExt !== undefined) ? Number(ocrExt) : null);
     const revTotal = (revInt !== null && revExt !== null) ? (revInt + revExt) : null;
     return {
@@ -1663,11 +1635,13 @@ async function loadReviewState(importId, optsIn) {
       origStatus: sr ? sr.result_status : null,
       origGrade: sr ? sr.grade : null,
       evidence: {
-        match_state: ev ? ev.match_state : 'SELECTED_BUT_NOT_FOUND',
+        match_state: ev.match_state || 'MATCHED',
+        manual_entry: ev.manual_entry === true,
+        manual_candidate: ev.manual_candidate === true,
         ocr_subject_code: ev ? ev.ocr_subject_code : null,
         normalized: ev ? ev.normalized_code : normCode(sv.subject_code),
         // PROMPT 14: revised_int/ext/total now follow the edit-time preference
-        // (prior proposal > OCR); OCR evidence is preserved in OCR-only fields.
+        // (saved edits > database Internal / card External). Raw OCR is retained below.
         revised_int: revInt,
         revised_ext: revExt,
         revised_total: revTotal,
@@ -1679,7 +1653,7 @@ async function loadReviewState(importId, optsIn) {
         // PHASE 4: canonical 9-card fields — authoritative, never calculated
         subjectCode:   ev ? (ev.subjectCode   || ev.subject_code   || null) : null,
         subjectName:   ev ? (ev.subjectName   || ev.subject_name   || null) : null,
-        internalMarks: ev ? (ev.internalMarks ?? ev.revised_internal_marks ?? null) : null,
+        internalMarks: ev.manual_entry || ev.manual_candidate ? null : (ev.internalMarks ?? ev.revised_internal_marks ?? null),
         oldMarks:      ev ? (ev.oldMarks      ?? null) : null,
         oldResult:     ev ? (ev.oldResult     || null) : null,
         rvMarks:       ev ? (ev.rvMarks       ?? null) : null,
@@ -1713,18 +1687,17 @@ async function loadReviewState(importId, optsIn) {
       sessionDisplay: sessionDisplay(result.ExamSession),
       attemptNo: Number(result.attempt_no),
       examType: result.exam_type,
-    // PHASE 4: selected subjects NOT detected by OCR (no card data available)
-    missingSubjects: (ocr.missing_subjects && Array.isArray(ocr.missing_subjects))
-      ? ocr.missing_subjects : [],
+      // Roster-only subjects are never missing revaluation evidence.
+    missingSubjects: [],
       docName: doc.file_name || log.file_name || '',
       docUrl: doc.file_url || null,
       docType: String(doc.file_type || log.file_type || path.extname(doc.file_name || log.file_name || '').slice(1)).toLowerCase(),
       ocrStudent: ocr.student_candidates || {},
       identityCorrection: reviewIdentity.valid(saved, reviewIdentity.revaluationTarget(result), 'revaluation') ? saved.identity_correction : null,
       warnings: ocr.warnings || [],
-      unmatched: (ocr.unmatched_ocr_details && ocr.unmatched_ocr_details.length)
-        ? ocr.unmatched_ocr_details
-        : (ocr.unmatched_ocr_codes || []).map(c => ({ ocr_subject_code: c })),
+      unmatched: scope.entries.filter(entry => entry.error).map(entry => ({
+        ...entry.evidence, ocr_subject_code: entry.code
+      })),
       rawText: ocr.raw_text || ocrRow.raw_text || '',
       extractionMethod: ocr.extraction_method || null,
       uploadedByAdminId: Number(log.uploaded_by)
@@ -1760,7 +1733,7 @@ exports.showReview = async (req, res) => {
     ],
     identityCheck,
     identityBlocking: false, // Identity OCR fields remain editable; Validate checks the registered target.
-    mode: st.review && req.query.edit !== '1' ? 'locked' : 'edit',
+    mode: st.review && st.ocrRow.validation_status === 'validated' && req.query.edit !== '1' ? 'locked' : 'edit',
     review: st.review,
     rows: st.rows,
     missingSubjects: (st.meta && st.meta.missingSubjects) || [],
@@ -1913,6 +1886,8 @@ exports.submitReview = async (req, res) => {
     const sr = st.srById.get(srid);
 
     enteredVals[srid] = {
+      decision: readDecisionField(body, srid) ? 'accept' : 'reject',
+      manualVerified: body['verify_manual_subject_' + srid] === '1',
       internal: body['internal_' + srid] !== undefined ? String(body['internal_' + srid]) : '',
       external: body['external_' + srid] !== undefined ? String(body['external_' + srid]) : '',
       ack: !!body['ack_' + srid],
@@ -1920,10 +1895,24 @@ exports.submitReview = async (req, res) => {
     };
 
     if (!readDecisionField(body, srid)) {
+      if (row.evidence.manual_candidate) continue; // An untouched roster row is outside the proposal.
       attempts.push({ sourceSrid: srid, targetSrid: srid,
         proposal: { subject_result_id: srid, decision: 'reject',
                     rejection_reason: 'ADMIN_REJECTED' } });
       continue;
+    }
+
+    if (row.evidence.manual_candidate) {
+      if (body['verify_manual_subject_' + srid] !== '1') {
+        fieldErrors[srid] = ['Confirm that this subject appears on the uploaded card and verify its manually entered marks.'];
+        continue;
+      }
+      const adminId = Number(resolveAdminId(req));
+      if (!Number.isSafeInteger(adminId) || adminId <= 0) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('An administrator is required for manual subject entry.'));
+      st.saved = { ...st.saved, manual_subjects: [...(st.saved.manual_subjects || []), {
+        subject_result_id: srid, subject_code: row.code,
+        document_digest: revaluationScope.manualDocumentDigest(st.saved), added_by: adminId, added_at: new Date().toISOString()
+      }] };
     }
 
     let target = srid;
@@ -1958,6 +1947,16 @@ exports.submitReview = async (req, res) => {
     if (!outcome.ok || !outcome.proposal) {
       fieldErrors[srid] = outcome.errors.length ? outcome.errors : ['Decision could not be validated.'];
       continue;
+    }
+    if (row.evidence.manual_entry || row.evidence.manual_candidate) {
+      const oldExternalOutcome = academicIntegrity.present(sr.external_marks)
+        ? mcaPolicy.passRules.evaluateExternal(Number(sr.external_marks), sr.Subject) : null;
+      Object.assign(outcome.proposal, { source: 'MANUAL_ENTRY', was_manual_correction: true,
+        proposed_card_internal_marks: outcome.proposal.proposed_revised_internal_marks,
+        proposed_card_old_marks: sr.external_marks,
+        proposed_card_old_result: oldExternalOutcome?.valid ? oldExternalOutcome.status : null,
+        proposed_card_rv_marks: outcome.proposal.proposed_revised_external_marks,
+        proposed_card_rv_result: outcome.proposal.proposed_revised_status });
     }
     outcome.proposal.bound_to_srid = target;
     attempts.push({ sourceSrid: srid, targetSrid: target, proposal: outcome.proposal });
@@ -2084,6 +2083,7 @@ exports.submitReview = async (req, res) => {
       if (revaluationIntegrity.digest(currentJson) !== body.source_token) throw new StaleState('The extraction or review changed. Reload and review it again.');
 
       const nextJson = Object.assign({}, currentJson, {
+        manual_subjects: st.saved.manual_subjects || [],
         identity_correction: st.saved.identity_correction,
         review: {
           version: Number(currentJson.review?.version || 0) + 1,
@@ -2113,175 +2113,46 @@ exports.submitReview = async (req, res) => {
 
 /**
  * POST /revaluation/review/:importId/add-missing
- * PHASE 4: Manually add a missing selected subject (not detected by OCR).
- *
- * Receives the 9-card-field values from the inline "Add" form.
- * The subject_result_id is validated against the current Result (ownership check).
- * The server re-reads authoritative data from the DB. Never trusts browser-supplied data.
+ * Register an OCR-missed subject explicitly confirmed as present on the card.
+ * Marks are entered in the normal review table and require a fresh validation.
+ * The target is resolved against the current Result and exact ExamSession.
  */
 exports.addMissing = async (req, res) => {
   const importId = Number(req.params.importId);
-  let st;
-  try { st = await loadReviewState(importId, { requireExtracted: true }); }
-  catch (err) {
-    console.error('[revaluation] addMissing load error:', err);
-    return res.redirect('/revaluation/start?error=' + enc('Could not load revaluation record.'));
-  }
-  if (!st.ok) return res.redirect(st.redirect);
-  if (st.approved) return res.redirect(`/revaluation/outcome/${importId}`);
-  if (req.body?.source_token !== revaluationIntegrity.digest(st.saved)) return res.redirect('/revaluation/review/' + importId + '?error=' + enc('The review changed. Reload it before adding a subject.'));
-
-  const body = req.body || {};
-  const srid = Number(body.subject_result_id);
-
-  // SECURITY: validate ownership — srid must belong to the current Result
-  if (!Number.isInteger(srid) || srid <= 0 || !st.srById.has(srid)) {
-    return res.redirect(`/revaluation/review/${importId}?error=` +
-      enc('Subject not found or does not belong to this result.'));
-  }
-
-  const sr = st.srById.get(srid);
-  const subj = (sr && sr.Subject) ? sr.Subject : null;
-  const limits = subjectLimits(subj);
-
-  // Parse card fields. Old Marks / Old Result are NOT taken from the browser
-  // form anymore — they come from the authoritative SubjectResult row.
-  const im = normalizeIntInput(body.card_internal_marks);
-  const em = normalizeIntInput(body.card_rv_marks);
-  const errors = [], warnings = [];
-
-  // Authoritative original values from DB (SubjectResult row).
-  // These were never entered by the admin; the form reads them from DB.
-  const origMarks = (sr && sr.marks !== null && sr.marks !== undefined) ? Number(sr.marks) : null;
-  const origStatusRaw = (sr && sr.result_status) ? String(sr.result_status).trim().toLowerCase() : null;
-  const oldMarks = origMarks;
-  const oldResult = (origStatusRaw === 'pass' || origStatusRaw === 'fail') ? origStatusRaw : null;
-
-  // Validate Internal Marks against DB maxInt
-  if (!im.present) {
-    errors.push('Internal Marks are required.');
-  } else if (im.invalid) {
-    errors.push('Internal Marks must be a whole number.');
-  } else if (im.value < 0 || im.value > limits.maxInt) {
-    errors.push('Internal Marks must be between 0 and ' + limits.maxInt + '.');
-  }
-
-  // Validate RV Marks against DB maxExt
-  if (!em.present) {
-    errors.push('RV Marks are required.');
-  } else if (em.invalid) {
-    errors.push('RV Marks must be a whole number.');
-  } else if (em.value < 0 || em.value > limits.maxExt) {
-    errors.push('RV Marks must be between 0 and ' + limits.maxExt + '.');
-  }
-
-  // Auto-calculate Final Marks = Internal + RV Marks
-  const fm = (im.present && !im.invalid && em.present && !em.invalid)
-    ? { present: true, invalid: false, value: im.value + em.value }
-    : { present: false, invalid: true, value: null };
-
-  if (!fm.present) {
-    errors.push('Could not auto-calculate Final Marks. Please enter Internal and RV marks correctly.');
-  } else if (fm.value > limits.maxTotal) {
-    errors.push('Final Marks (Internal + RV) exceed the subject maximum of ' + limits.maxTotal + '.');
-  }
-
-  // Recompute using the MCA component requirements, never the total alone.
-  const fr = fm.present && fm.value !== null
-    ? mcaPolicy.gradeFromComponents(im.value, em.value, { subject_type: subj?.subject_type, max_internal: limits.maxInt, max_external: limits.maxExt, max_marks: limits.maxTotal }).status
-    : null;
-
-  // PHASE 5: Server-side validation of all nine card fields.
-  // The browser only submits Internal + RV; the rest of the nine fields
-  // (old_marks, old_result, final_marks, final_result) are derived
-  // server-side from the DB or from the auto-calculation above, so we
-  // override them in the body that the validator sees.
-  const cardBody = Object.assign({}, body, {
-    card_internal_marks: im.present ? im.value : null,
-    card_old_marks:      oldMarks,
-    card_old_result:     oldResult,
-    card_rv_marks:       em.present ? em.value : null,
-    card_rv_result:      fr, // RV result is auto-derived
-    card_final_marks:    fm.present ? fm.value : null,
-    card_final_result:   fr
-  });
-  const cardValidation = revaluationValidator.validateNineCardFields(cardBody, subj || {});
-  errors.push(...cardValidation.errors);
-  warnings.push(...cardValidation.warnings);
-
-  if (errors.length > 0) {
-    return res.redirect(`/revaluation/review/${importId}?error=` +
-      enc('Could not add subject: ' + errors.join(' ')));
-  }
-
-  // Authoritative values: finalMarks and finalResult
-  const pct = limits.maxTotal > 0 ? Math.floor((fm.value / limits.maxTotal) * 100) : 0;
-  const g = mcaPolicy.gradeFromComponents(im.value, em.value, { subject_type: subj?.subject_type, max_internal: limits.maxInt, max_external: limits.maxExt, max_marks: limits.maxTotal });
-
-  const entry = {
-    subject_result_id: srid,
-    source: 'MISSING_MANUAL',
-    proposed_revised_internal_marks: im.value,
-    proposed_revised_external_marks: em.value,
-    decision: 'accept',
-    was_manual_correction: true,
-    // Values from auto-calculation
-    proposed_card_internal_marks: im.value,
-    proposed_card_old_marks:      oldMarks,
-    proposed_card_old_result:     oldResult,
-    proposed_card_rv_marks:      em.value,
-    proposed_card_rv_result:     fr,
-    proposed_revised_total_marks: fm.value,
-    proposed_revised_percent: pct,
-    proposed_revised_status: g.status,
-    proposed_revised_grade: g.grade,
-    warnings: warnings
-  };
-
-  // Duplicate guard: srid already accepted in this review
-  // (already excluded in loadReviewState, retained as server-side defence)
-  if (st.saved && st.saved.review && Array.isArray(st.saved.review.proposal)) {
-    const existing = st.saved.review.proposal.find(p =>
-      p && p.decision === 'accept' &&
-      Number(p.bound_to_srid || p.subject_result_id) === srid
-    );
-    if (existing) {
-      return res.redirect(`/revaluation/review/${importId}?error=` +
-        enc('This subject is already in the proposal. Edit or remove the existing entry first.'));
-    }
-  }
-
-  // Merge into existing review proposal
-  const identityErrors = revaluationIntegrity.verify(st.saved, st.result, [entry], academicIntegrity.acknowledgments(req.body)).errors;
-  if (identityErrors.length) return res.redirect('/revaluation/review/' + importId + '?error=' + enc(identityErrors.join(' ')));
-  const t = await sequelize.transaction();
+  const back = '/revaluation/review/' + importId;
+  let t;
   try {
-    const freshOcr = await OcrExtraction.findByPk(st.ocrRow.extraction_id,
-      { transaction: t, lock: t.LOCK.UPDATE });
-    if (!freshOcr) throw new Error('OcrExtraction record disappeared.');
-    const currentJson = safeJson(freshOcr.extracted_json);
-    if (revaluationIntegrity.digest(currentJson) !== req.body.source_token) throw new StaleState('The extraction or review changed. Reload it before adding a subject.');
-    const existingProposal = (currentJson.review && Array.isArray(currentJson.review.proposal))
-      ? currentJson.review.proposal : [];
-    const nextProposal = existingProposal.concat(entry);
-    const nextJson = Object.assign({}, currentJson, {
-      review: Object.assign({}, currentJson.review || {}, {
-        version: ((currentJson.review && currentJson.review.version) || 0) + 1,
-        target_snapshot: revaluationIntegrity.snapshot(st.result),
-        identity_verified: academicIntegrity.acknowledgments(req.body),
-        baselines: { ...(currentJson.review?.baselines || {}), [srid]: { marks: Number(sr.marks), status: sr.result_status } },
-        proposal: nextProposal
-      })
-    });
-    await freshOcr.update({ validation_status: 'validated', extracted_json: nextJson }, { transaction: t });
+    const st = await loadReviewState(importId, { requireExtracted: true });
+    if (!st.ok) return res.redirect(st.redirect);
+    if (st.approved) return res.redirect('/revaluation/outcome/' + importId);
+    if (req.body?.source_token !== revaluationIntegrity.digest(st.saved)) throw new StaleState('The review changed. Reload it before adding a subject.');
+    const srid = Number(req.body?.subject_result_id);
+    const sr = st.srById.get(srid);
+    if (!sr || !sr.Subject || Number(sr.result_id) !== Number(st.result.result_id)
+      || sr.Subject.exam_session_id != null && Number(sr.Subject.exam_session_id) !== Number(st.result.exam_session_id))
+      throw new BadState('Subject does not belong to the selected Exam Session or original attempt.');
+    if (req.body?.confirm_on_card !== '1') throw new BadState('Confirm that this subject appears on the uploaded revaluation card.');
+    const scope = revaluationScope.resolve(st.saved, st.result);
+    if (scope.entries.some(entry => Number(entry.sr?.subject_result_id) === srid)) throw new BadState('This subject is already in the review.');
+    const adminId = Number(resolveAdminId(req));
+    if (!Number.isSafeInteger(adminId) || adminId <= 0) throw new AuthzError('An administrator is required to add a subject.');
+    t = await sequelize.transaction();
+    const fresh = await OcrExtraction.findByPk(st.ocrRow.extraction_id, { transaction: t, lock: t.LOCK.UPDATE });
+    const current = safeJson(fresh?.extracted_json);
+    if (!fresh || revaluationIntegrity.digest(current) !== req.body.source_token) throw new StaleState('The review changed. Reload it before adding a subject.');
+    const next = { ...current, manual_subjects: [...(current.manual_subjects || []), {
+      subject_result_id: srid, subject_code: sr.Subject.subject_code,
+      document_digest: revaluationScope.manualDocumentDigest(current), added_by: adminId, added_at: new Date().toISOString(),
+    }] };
+    // Adding a row never validates or approves it. Keep prior entries as edit defaults.
+    if (next.review) { next.review = { ...next.review, version: Number(next.review.version || 0) + 1 }; }
+    await fresh.update({ extracted_json: next, validation_status: 'pending' }, { transaction: t });
     await t.commit();
-    return res.redirect(`/revaluation/review/${importId}?notice=` +
-      enc('Subject added to the review proposal.'));
+    return res.redirect(back + '?edit=1&notice=' + enc('Subject added. Enter its marks and Validate the review.'));
   } catch (err) {
-    if (!t.finished) await t.rollback();
-    console.error('[revaluation] addMissing tx error:', err);
-    return res.redirect(`/revaluation/review/${importId}?error=` +
-      enc(err instanceof StaleState ? err.message : 'Could not save the subject. Reload the current review and verify its document.'));
+    if (t && !t.finished) await t.rollback();
+    return res.redirect(back + '?error=' + enc(err instanceof BadState || err instanceof StaleState || err instanceof AuthzError
+      ? err.message : 'Could not add the subject. Reload the review and try again.'));
   }
 };
 
@@ -2396,7 +2267,8 @@ exports.approveReview = async (req, res) => {
       throw new AuthzError('Only an active administrator account can approve revaluations.');
     }
 
-    const evMap = new Map((ocr.subjects || []).map(r => [Number(r.subject_result_id), r]));
+    const evMap = new Map([...revaluationScope.resolve(saved, result).targets]
+      .map(([id, entry]) => [id, entry.evidence]));
     const doc = (Array.isArray(saved.documents) && saved.documents[0]) || {};
     const createdEvents = [];
 
@@ -2480,7 +2352,8 @@ exports.approveReview = async (req, res) => {
         throw new BadState('Recomputed total mismatch for ' + codeOf + '.');
       }
       const P = rec.proposal;
-      const revisedComponents = require('../services/revaluationComponentEvidence').fromApprovedReview(evRaw,
+      const revisedComponents = require('../services/revaluationComponentEvidence').fromApprovedReview(
+        evRaw?.manual_entry ? { ...evRaw, revisedExternalMarks: P.proposed_revised_external_marks } : evRaw,
         { ...P, was_manual_correction: !!a.p.was_manual_correction }, subj, ocr.raw_text || '');
 
       // PHASE 6: Re-validate all nine canonical card fields under the lock.

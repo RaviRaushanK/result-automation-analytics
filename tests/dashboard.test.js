@@ -128,10 +128,79 @@ test('top scorer drill-down retains student, batch, session and passed-with-CGPA
 });
 
 test('invalid filters are rejected before any database query', async () => {
-  for (const action of ['analytics', 'topScorers', 'passFail']) for (const query of [{ batch_id: '-1' }, { batch_id: '1 OR 1=1' }, { semester: 'n/a' }]) {
+  for (const action of ['analytics', 'topScorers', 'passFail']) for (const query of [{ batch_id: '-1' }, { batch_id: '1 OR 1=1' }, { semester: 'n/a' }, { exam_session_id: '-1' }, { exam_session_id: 'invalid' }, { exam_session_id: '9007199254740992' }]) {
     const f = fixture();
     const response = await request(f.controller, action, query);
     assert.equal(response.code, 400);
     assert.equal(f.calls.length, 0);
   }
+});
+
+test('exam session intersects batch and semester on every dashboard endpoint', async () => {
+  for (const action of ['analytics', 'topScorers', 'passFail']) {
+    const f = fixture();
+    const response = await request(f.controller, action, { batch_id: '1', semester: '2', exam_session_id: '10' });
+    assert.equal(response.code, 200);
+    const { where } = f.calls.find(c => c.model === 'ExamSession').query;
+    assert.equal(where.batch_id, 1);
+    assert.equal(where.semester, '2');
+    assert.equal(where.exam_session_id, 10);
+  }
+});
+
+test('subject averages combine session-specific subject records by code and count distinct courses', async () => {
+  const f = fixture();
+  await request(f.controller, 'analytics', { batch_id: '1', semester: '2' });
+  const query = f.calls.find(c => c.model === 'SubjectResult' && c.query?.group?.includes('Subject.subject_code')).query;
+  assert.deepEqual(Array.from(query.group), ['Subject.subject_code']);
+  const average = query.attributes.find(a => a[1] === 'average_marks')[0];
+  assert.equal(average.fn, 'AVG');
+  assert.equal(average.args[0].col, 'SubjectResult.marks');
+  const count = f.calls.find(c => c.model === 'Subject' && c.method === 'count').query;
+  assert.equal(count.distinct, true);
+  assert.equal(count.col, 'subject_code');
+});
+
+test('dashboard session options follow batch and semester and clear incompatible selections', () => {
+  class Select {
+    constructor() { this.options = []; this.value = ''; this.dataset = {}; }
+    add(option) { this.options.push(option); if (this.options.length === 1) this.value = String(option.value); }
+    replaceChildren(...options) { this.options = options; this.value = String(options[0]?.value || ''); }
+    addEventListener() {}
+    get selectedOptions() { return this.options.filter(o => String(o.value) === this.value); }
+  }
+  const elements = new Map();
+  const get = id => { if (!elements.has(id)) elements.set(id, new Select()); return elements.get(id); };
+  get('dashboardFilters').dataset = {
+    batches: JSON.stringify([{ batch_id: 1, batch_name: 'MCA 2025' }, { batch_id: 2, batch_name: 'MCA 2024' }]),
+    batchSemesters: JSON.stringify([{ batch_id: 1, semester: 1 }, { batch_id: 1, semester: 2 }, { batch_id: 2, semester: 1 }]),
+    examSessions: JSON.stringify([
+      { exam_session_id: 10, batch_id: 1, semester: 1, label: 'Jan 2026' },
+      { exam_session_id: 11, batch_id: 1, semester: 1, label: 'Jun 2026' },
+      { exam_session_id: 12, batch_id: 1, semester: 2, label: 'Oct 2026' },
+      { exam_session_id: 20, batch_id: 2, semester: 1, label: 'Jan 2025' }
+    ])
+  };
+  const context = {
+    document: { addEventListener: (event, callback) => callback(), querySelector: () => ({ dataset: {} }), getElementById: get },
+    Option: function (textContent, value) { return { textContent, value: String(value) }; },
+    URLSearchParams, location: { search: '?batch_id=1&semester=1&exam_session_id=11' },
+    MutationObserver: class { observe() {} }
+  };
+  const source = fs.readFileSync(require.resolve('../public/js/dashboard.js'), 'utf8')
+    .replace(/    loadDashboard\(\);\s*\}\);\s*$/, '    globalThis.hooks = { scope, semesterOptions, sessionOptions };\n});');
+  vm.runInNewContext(source, context);
+  const session = get('filterSession');
+  assert.deepEqual(session.options.map(o => o.value), ['', '10', '11']);
+  assert.equal(context.hooks.scope().exam_session_id, '11');
+  get('filterSemester').value = '2';
+  context.hooks.sessionOptions('11');
+  assert.equal(session.value, '');
+  assert.deepEqual(session.options.map(o => o.value), ['', '12']);
+  get('filterBatch').value = '2';
+  context.hooks.semesterOptions('2');
+  context.hooks.sessionOptions('12');
+  assert.equal(get('filterSemester').value, '');
+  assert.equal(session.value, '');
+  assert.deepEqual(session.options.map(o => o.value), ['', '20']);
 });

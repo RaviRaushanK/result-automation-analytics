@@ -10,7 +10,7 @@ function classList(initial = []) {
   return { add: value => values.add(value), remove: value => values.delete(value), contains: value => values.has(value),
     toggle(value, enabled) { if (enabled) values.add(value); else values.delete(value); } };
 }
-function fixture() {
+function fixture(manual = false, manualChecked = false) {
   const elements = {}, fields = [], details = { open: false };
   let choice = 'accept';
   const row = { dataset: { maxMarks: '100' }, querySelector: () => choice === 'accept' ? accept : reject };
@@ -35,6 +35,15 @@ function fixture() {
   const verification = field('verify_old_status', '1', 'checkbox'); verification.required = true; verification.checked = true;
   const pick = field('pick_1', '1', 'select');
   const ack = field('ack_1', 'on', 'checkbox'); ack.checked = true;
+  const manualCheckbox = manual ? field('verify_manual_subject_1', '1', 'checkbox') : null;
+  if (manual) {
+    manualCheckbox.checked = manualChecked;
+    elements.manual_issue_1 = { hidden: false, classList: classList(), getAttribute: () => '1' };
+    elements.manual_issue_status_1 = { textContent: '' };
+    elements.manual_subject_status_1 = { textContent: '', classList: classList(), getAttribute: () => 'manual_subject_1' };
+    elements.manualVerificationCount = { textContent: '', getAttribute: () => '0' };
+    elements.manualConfirmedCount = { textContent: '', hidden: true };
+  }
   const accept = field('accept_1', 'accept', 'radio'), reject = field('reject_1', 'reject', 'radio');
   accept.checked = true;
   elements.tot_1 = { textContent: '' };
@@ -43,6 +52,7 @@ function fixture() {
   const form = { classList: classList(),
     querySelector(selector) {
       if (selector === 'input[name="verify_old_status"]') return verification;
+      if (selector === 'input[name="verify_manual_subject_1"]') return manualCheckbox;
       if (selector === ':invalid') return fields.find(field => !field.validity.valid);
       return choice === 'accept' ? accept : reject;
     },
@@ -52,14 +62,56 @@ function fixture() {
   };
   const document = {
     getElementById: id => id === 'reviewForm' ? form : elements[id] || null,
-    querySelectorAll: selector => selector === 'input.rev-decision' ? [accept, reject] : selector === '#reviewTable tbody tr' ? [row] : []
+    querySelectorAll: selector => selector === 'input.rev-decision' ? [accept, reject] : selector === '#reviewTable tbody tr' ? [row]
+      : selector === '[data-manual-subject-issue]' && manual ? [elements.manual_issue_1] : []
   };
+  const originalQuery = document.querySelectorAll;
+  document.querySelectorAll = selector => selector === '[data-manual-status-for]' && manual
+    ? [elements.manual_subject_status_1] : originalQuery(selector);
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/revaluation-review.js'), 'utf8'), { document });
-  return { internal, external, verification, pick, ack, row, form, details, elements,
+  return { internal, external, verification, manualCheckbox, pick, ack, row, form, details, elements,
     choose(value) { choice = value; accept.checked = value === 'accept'; reject.checked = !accept.checked; (accept.checked ? accept : reject).dispatch('change'); },
     submit() { let blocked = false; submitHandler({ preventDefault() { blocked = true; }, stopPropagation() {} }); return blocked; }
   };
 }
+
+test('Accept reveals manual verification and Reject hides it without requiring its checkbox', () => {
+  const f = fixture(true);
+  f.choose('reject');
+  assert.equal(f.elements.manual_issue_1.hidden, true);
+  assert.equal(f.manualCheckbox.disabled, true); assert.equal(f.manualCheckbox.required, false);
+  assert.match(f.elements.manualVerificationCount.textContent, /0 manual checks required/);
+  assert.equal(f.submit(), false);
+  f.choose('accept');
+  assert.equal(f.elements.manual_issue_1.hidden, false);
+  assert.equal(f.manualCheckbox.disabled, false); assert.equal(f.manualCheckbox.required, true);
+  assert.match(f.elements.manualVerificationCount.textContent, /1 manual checks required/);
+  assert.equal(f.submit(), true);
+  f.manualCheckbox.checked = true; f.manualCheckbox.dispatch('change');
+  assert.equal(f.elements.manual_issue_status_1.textContent, 'Manually confirmed');
+  assert.equal(f.elements.manual_subject_status_1.textContent, 'Manually confirmed');
+  assert.equal(f.elements.manual_issue_1.classList.contains('is-confirmed'), true);
+  assert.match(f.elements.manualVerificationCount.textContent, /0 manual checks required/);
+  assert.equal(f.elements.manualConfirmedCount.hidden, false);
+  assert.match(f.elements.manualConfirmedCount.textContent, /1 manually confirmed/);
+  assert.equal(f.submit(), false);
+  f.manualCheckbox.checked = false; f.manualCheckbox.dispatch('change');
+  assert.equal(f.elements.manual_issue_status_1.textContent, 'MANUAL VERIFICATION REQUIRED');
+  assert.equal(f.elements.manual_subject_status_1.textContent, 'Manual verification required');
+  assert.match(f.elements.manualVerificationCount.textContent, /1 manual checks required/);
+  assert.equal(f.elements.manualConfirmedCount.hidden, true);
+  assert.equal(f.submit(), true);
+  f.choose('reject');
+  assert.equal(f.elements.manual_issue_1.hidden, true); assert.equal(f.submit(), false);
+});
+
+test('a saved manual confirmation initializes consistently without appearing automatically verified', () => {
+  const f = fixture(true, true);
+  assert.equal(f.elements.manual_issue_status_1.textContent, 'Manually confirmed');
+  assert.equal(f.elements.manual_subject_status_1.textContent, 'Manually confirmed');
+  assert.match(f.elements.manualVerificationCount.textContent, /0 manual checks required/);
+  assert.equal(f.submit(), false);
+});
 
 test('Bootstrap blocks missing acknowledgments and focuses the invalid field; checking clears feedback', () => {
   const f = fixture(); f.verification.checked = false;
@@ -111,14 +163,16 @@ test('ambiguous picks and exceptional-status acknowledgments are required only f
 
 test('review template supplies Bootstrap feedback and native range constraints without changing approval form', () => {
   const source = fs.readFileSync(path.join(__dirname, '../views/revaluation/review.ejs'), 'utf8');
+  const verification = fs.readFileSync(path.join(__dirname, '../views/revaluation/partials/verification-check.ejs'), 'utf8');
   assert.match(source, /id="reviewForm"[\s\S]*?needs-validation[\s\S]*?novalidate/);
-  assert.match(source, /name="verify_<%= check.key %>"[^>]*value="1" required/);
+  assert.match(verification, /<input form="reviewForm"/);
+  assert.match(verification, /name="verify_<%= check.key %>"[^>]*value="1" required/);
   assert.match(source, /id="int_<%= r.srid %>_feedback"/);
   assert.match(source, /id="ext_<%= r.srid %>_feedback"/);
   assert.match(source, /min="0" max="<%= r.maxExternal %>" step="1"/);
   assert.match(source, /id="approveRevaluationForm">/);
   assert.match(source, /Combined total/);
-  assert.match(source, /RV\/Final marks are external marks/);
-  assert.match(source, /Internal is carried IA, not automatically revised IA/);
+  assert.doesNotMatch(source, /RV\/Final marks are external marks/);
+  assert.doesNotMatch(source, /Internal is carried IA, not automatically revised IA/);
   assert.doesNotMatch(source, /verify_revised_internal_|verify_revised_external_/);
 });

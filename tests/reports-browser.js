@@ -118,6 +118,22 @@ async function main() {
     const page = fixture.pages[req.params.page];
     if (!page) return res.sendStatus(404);
     const locals = { ...fixture.base, ...page[1] };
+    if (process.env.REVALUATION_VERIFICATION_ONLY === '1' && req.params.page === 'revaluation-review') {
+      const codes = ['MMC101', 'MMC102', 'MMC103', 'MMC104', 'MMC105', 'MMCL106'];
+      const result = { Student: { usn: fixture.base.meta.studentUsn },
+        ExamSession: { semester: 1, exam_session: 'Jun', exam_year: 2026 }, attempt_no: 1, exam_type: 'REGULAR',
+        SubjectResults: codes.map((code, index) => ({ subject_result_id: index + 1, external_marks: code === 'MMC105' ? 15 : 28,
+          Subject: { subject_code: code, subject_type: 'theory', max_external: 50 } })) };
+      const saved = { ocr: { student: { usn: result.Student.usn }, semester: 1, exam_session: 'Jun', exam_year: 2026,
+        subjects: codes.map((code, index) => ({ subject_result_id: index + 1, subjectCode: code,
+          oldMarks: code === 'MMC105' ? 15 : 28, oldResult: code === 'MMC105' ? 'F' : 'P' })) } };
+      locals.rows = codes.map((code, index) => ({ ...fixture.base.rows[0], srid: index + 1, code, pickOptions: [],
+        evidence: { ...saved.ocr.subjects[index], match_state: 'MATCHED', revised_int: 30, revised_ext: 20,
+          revised_total: 50, raw_line: 'OCR_' + code.repeat(50) } }));
+      if (['mismatch', 'mixed'].includes(req.query.verification)) saved.ocr.subjects[4].oldMarks = 18;
+      if (['manual', 'mixed'].includes(req.query.verification)) result.SubjectResults[2].external_marks = null;
+      locals.meta = { ...locals.meta, documentChecks: require('../services/revaluationIntegrity').checks(saved, result) };
+    }
     if (req.query.identity === 'mismatch') {
       const message = 'Student name does not match USN 1MV25MC004. Registered name: AMRUTHA S. Correct the Student Name or USN, then click Validate again.';
       locals.student = {usn:'1MV25MC004',name:'AMRUTHA SLOP'};
@@ -248,6 +264,55 @@ async function main() {
     const available = name => until(`!document.getElementById(${JSON.stringify('report-' + name)}).disabled`);
     await command('Page.enable'); await command('Runtime.enable');
     await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+    if (process.env.REVALUATION_VERIFICATION_ONLY === '1') {
+      let passed = 0;
+      for (const width of [1440, 390, 360]) for (const theme of ['light', 'dark']) {
+        for (const [scenario, counts, issues] of [
+          ['verified', [6, 0, 0], []], ['mismatch', [5, 1, 0], ['MMC105']],
+          ['manual', [5, 0, 1], ['MMC103']], ['mixed', [4, 1, 1], ['MMC103', 'MMC105']]
+        ]) {
+          await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+          await command('Page.navigate', { url: `${base}/verification/result-management/revaluation-review?verification=${scenario}` });
+          await until("document.readyState==='complete' && !!document.querySelector('.verification-details')");
+          await evaluate(`document.documentElement.setAttribute('data-theme', ${JSON.stringify(theme)})`);
+          const state = await evaluate(`(() => {
+            const panel = document.querySelector('.revaluation-verification');
+            return { summary: panel.querySelector('[data-verification-summary]').innerText,
+              issues: [...panel.querySelectorAll('.verification-issue > strong')].map(e => e.innerText.split(' — ')[0]),
+              open: panel.querySelector('.verification-details').open,
+              width: document.documentElement.scrollWidth,
+              color: getComputedStyle(panel).color, background: getComputedStyle(panel).backgroundColor,
+              controls: [...panel.querySelectorAll('input')].every(e => e.form?.id === 'reviewForm') };
+          })()`);
+          assert.match(state.summary, new RegExp(`${counts[0]} subjects verified`));
+          assert.match(state.summary, new RegExp(`${counts[1]} mismatch`));
+          assert.match(state.summary, new RegExp(`${counts[2]} manual checks required`));
+          assert.deepEqual(state.issues, issues); assert.equal(state.open, false);
+          assert.equal(state.controls, true); assert.ok(state.width <= width + 1);
+          // WCAG normal-text contrast for the actual computed panel colors.
+          const luminance = rgb => rgb.match(/\d+/g).slice(0, 3).map(Number).map(v => {
+            v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+          }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+          const levels = [luminance(state.color), luminance(state.background)].sort((a, b) => b - a);
+          assert.ok((levels[0] + .05) / (levels[1] + .05) >= 4.5, `${theme} text contrast`);
+          await evaluate("document.querySelector('.verification-details > summary').focus()");
+          // Native disclosure still works by keyboard with page scripts disabled.
+          await command('Emulation.setScriptExecutionDisabled', { value: true });
+          await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+          await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+          await command('Emulation.setScriptExecutionDisabled', { value: false });
+          assert.equal(await evaluate("document.querySelector('.verification-details').open"), true);
+          await evaluate("document.querySelectorAll('.verification-details details').forEach(e => e.open = true)");
+          assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), true, 'Expanded evidence fits viewport');
+          await evaluate("document.querySelector('.revaluation-verification').scrollIntoView({block:'start'})");
+          await fs.writeFile(path.join(output, `verification-${scenario}-${width}-${theme}.png`), Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+          passed++;
+        }
+      }
+      assert.deepEqual(exceptions, []);
+      console.log(`Verification browser checks: passed ${passed}, failed 0, skipped 0. Screenshots: ${output}`);
+      return;
+    }
     if (process.env.PROGRESS_CARDS_ONLY === '1') {
       await command('Page.navigate', { url: `${base}/analytics/progress` });
       await until("document.readyState==='complete' && document.getElementById('progress-filters')?.getAttribute('aria-busy')==='false'");

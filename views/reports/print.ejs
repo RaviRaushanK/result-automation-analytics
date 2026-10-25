@@ -3,21 +3,25 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= report.title %> - SRAAS</title>
-  <link rel="stylesheet" href="/css/reports.css">
+  <link rel="stylesheet" href="/css/reports.css?v=20261025-3">
 </head>
 <body class="reports-print <%= report.type === 'student-progress' ? 'reports-progress-print' : '' %>" data-report-type="<%= report.type %>">
+  <% const compactToppers = report.type === 'toppers';
+     const printContext = reportWording.visible(context, report.type, report.generatedAt);
+     const printNotes = reportWording.details(report, true);
+  %>
   <% if (report.branding) { %><%- include('partials/branding', { branding: report.branding }) %><% } %>
   <% if (report.type === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h1><%= report.formalTitle %></h1></header><% } %>
   <% if (report.type === 'result-analysis') { %>
     <header class="reports-analysis-header"><p>Department: MCA</p><h1><%= report.formalHeader.title %></h1><p><%= report.formalHeader.examination %></p><p><%= report.meta.batch.batch_name %></p></header>
-  <% } else if (report.type !== 'student-progress') { %><header><p>MCA / SRAAS</p><h1><%= report.title %></h1></header><% } %>
+  <% } else if (report.type !== 'student-progress') { %><header><% if (!compactToppers) { %><p>MCA / SRAAS</p><% } %><h1><%= report.title %></h1></header><% } %>
   <button type="button" class="reports-print-action" id="print-report">Print / Save PDF</button>
   <dl class="reports-context">
-    <% context.filter(([label]) => label !== 'Calculation details' && (label !== 'SGPA Basis' || !context.some(([key]) => key === 'GPA Basis'))).forEach(([label, value]) => { %><div class="<%= /Basis|Eligibility|Tie Order/.test(label) ? 'reports-context-note' : '' %>"><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
+    <% printContext.forEach(([label, value]) => { %><div class="<%= /Basis|Eligibility|Tie Order/.test(label) ? 'reports-context-note' : '' %>"><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
   </dl>
-  <% context.filter(([label]) => label === 'Calculation details').forEach(([, value]) => { %><p class="reports-component-note"><%= value %></p><% }); %>
+  <% if (report.type !== 'student-progress') { printNotes.forEach(note => { %><p class="reports-component-note"><%= note %></p><% }); } %>
   <% if (report.type !== 'result-analysis') { %><div class="reports-summary">
-    <% report.metrics.forEach(([label, value]) => { %><div><span><%= label %></span><strong><%= display(label, value) %></strong></div><% }); %>
+    <% report.metrics.forEach(([label, value]) => { %><div><span><%= reportWording.metricLabel(label) %></span><strong><%= display(label, value) %></strong></div><% }); %>
   </div><% } %>
   <% if (report.type === 'student') { %>
     <% const attemptCount = report.semesters.reduce((total, term) => total + term.sessions.reduce((count, sitting) => count + sitting.attempts.length, 0), 0); %>
@@ -39,7 +43,7 @@
     <% if (!report.semesters.length) { %><p>No persisted results match the selected student and filters.</p><% } %>
   <% } else if (report.type === 'student-progress') { %>
     <%- include('partials/progress-table', { report, display }) %>
-    <ul class="reports-progress-notes"><% report.notes.forEach(note => { %><li><%= note %></li><% }); %></ul>
+    <ul class="reports-progress-notes"><% printNotes.forEach(note => { %><li><%= note %></li><% }); %></ul>
   <% } else if (report.type === 'result-analysis') { %>
     <%- include('partials/result-analysis-table', { report, display }) %>
     <section class="reports-analysis-bottom">
@@ -52,8 +56,8 @@
   <% } else if (report.type === 'consolidated') { %>
     <%- include('partials/consolidated-table', { report, display }) %>
   <% } else if (!report.rows.length) { %><p>No records match the selected report filters.</p><% } else { %>
-    <table class="reports-table">
-      <caption class="reports-print-caption"><%= report.title %></caption>
+    <table class="reports-table" aria-label="<%= report.title %>">
+      <% if (!compactToppers) { %><caption class="reports-print-caption"><%= report.title %></caption><% } %>
       <thead><tr><% if (report.type !== 'toppers') { %><th scope="col">Sl. No.</th><% } %><% report.columns.forEach(column => { %><th scope="col" title="<%= column.title || column.label %>"><%= column.label %></th><% }); %></tr></thead>
       <tbody><% report.rows.forEach((row, index) => { %><tr><% if (report.type !== 'toppers') { %><td><%= index + 1 %></td><% } %><% report.columns.forEach(column => { %><td<% if (column.key === 'usn') { %> class="reports-usn"<% } %>><%= display(column.key, row[column.key]) %></td><% }); %></tr><% }); %></tbody>
     </table>

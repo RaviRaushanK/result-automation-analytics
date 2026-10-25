@@ -112,12 +112,8 @@ function findRawLine(lines, code) {
  *  - Subject codes in the student's result that are not on the card are NOT
  *    automatically turned into "missing revaluation subjects" on the
  *    extraction page. That message would be wrong under the current workflow.
- *  - The review/edit page already has an "Add Subject" feature that lets
- *    the admin manually add a subject row when OCR didn't detect one. This
- *    adapter does not redesign that flow; it just stops generating missing
- *    rows from a "selected subjects" list.
- *  - `allSubjectResults` is also surfaced (lightly) as `missing_subjects` so
- *    the review page's existing "Add Subject" feature continues to function.
+ *  - Roster-only subjects are never missing-subject candidates. Duplicate
+ *    document rows retain their evidence and existing conflict blocks.
  *
  * @param {Object} engineOut  output of runEngine()
  * @param {Object} serverCtx  SERVER-authoritative context:
@@ -172,8 +168,7 @@ function buildCandidates(engineOut, serverCtx) {
     const nc = normalizeCode(rawCode);
     if (!nc) continue;
     if (seenNormalized.has(nc)) {
-      warnings.push(`Duplicate OCR entry detected for normalized code '${nc}'. Skipping additional occurrence.`);
-      continue;
+      warnings.push(`Duplicate OCR entry detected for normalized code '${nc}'. Preserving additional occurrence for conflict review.`);
     }
     seenNormalized.add(nc);
 
@@ -231,7 +226,6 @@ function buildCandidates(engineOut, serverCtx) {
   // ---- PHASE 2: OCR-first row generation ----
   // Step 1: Create detected rows for EACH OCR candidate (only subjects on the card)
   const detectedRows = [];
-  const matchedSrid = new Set(); // Track which SubjectResult ids were matched
 
   for (const c of candidates) {
     const selEntries = selByNorm[c.normalizedCode] || [];
@@ -239,7 +233,6 @@ function buildCandidates(engineOut, serverCtx) {
     if (selEntries.length === 1) {
       // Exactly one SubjectResult matches this OCR candidate → MATCHED
       const sel = selEntries[0];
-      matchedSrid.add(Number(sel.subject_result_id));
 
       detectedRows.push({
         // Identity from server-selected subject (authoritative)
@@ -356,33 +349,8 @@ function buildCandidates(engineOut, serverCtx) {
     }
   }
 
-  // Step 2: Identify the student's authoritative subjects that were NOT
-  // detected on the revaluation card. These are surfaced as
-  // `missing_subjects` ONLY for the review page's "Add Subject" feature.
-  //
-  // IMPORTANT: this list is NOT shown on the OCR Extraction page. The
-  // current workflow has no pre-upload subject selection, so showing
-  // "selected subjects that were not found on the card" would be wrong.
-  // The Extraction page only shows what was actually detected on the card.
-  const missingSubjects = [];
-  for (const sr of (serverCtx.allSubjectResults || [])) {
-    if (!matchedSrid.has(Number(sr.subject_result_id))) {
-      missingSubjects.push({
-        subject_result_id: sr.subject_result_id,
-        subject_code: sr.subject_code,
-        subject_name: sr.subject_name || sr.subject_code,
-        credits: (sr.credits === undefined ? null : sr.credits),
-        original_marks: (sr.marks === undefined ? null : sr.marks),
-        original_status: sr.result_status || null,
-        // The student owns this subject, OCR just didn't see it on the card.
-        detection_state: 'NOT_DETECTED_ON_CARD',
-        match_state: 'NOT_DETECTED_ON_CARD'
-      });
-      // We deliberately do NOT add a top-level warning here. The review
-      // page exposes the full missing list as Add-Subject candidates; the
-      // Extraction page must not show a "missing" section.
-    }
-  }
+  // Absence from a revaluation card is normal; roster-only subjects are
+  // reference data and must not become missing-subject review candidates.
 
   warnings.push(...engineOut.parser_warnings.filter(w => typeof w === 'string' && w));
 
@@ -417,10 +385,8 @@ function buildCandidates(engineOut, serverCtx) {
     // OCR-detected subjects from the uploaded card (the ONLY source of
     // initial revaluation rows in the current workflow).
     subjects: detectedRows,
-    // The student's other SubjectResults that were NOT detected on the
-    // card. Surfaced ONLY for the review page's "Add Subject" feature —
-    // the Extraction page does not render a Missing list.
-    missing_subjects: missingSubjects,
+    // Compatibility field: absence from the document is normal.
+    missing_subjects: [],
     // Unmatched OCR codes (backward compatibility)
     unmatched_ocr_codes: detectedRows
       .filter(r => r.match_state === 'UNMATCHED_NOT_IN_RESULT')

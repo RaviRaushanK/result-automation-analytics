@@ -296,7 +296,7 @@ test('controlled revaluation approval creates separate event while preserving or
   const before = JSON.stringify(result), events = [];
   const saved = { result_id: 10, student_id: 7, exam_session_id: 20, attempt: { attempt_no: 1, exam_type: 'REGULAR' },
     documents: [{ file_name: 'isolated-card.pdf' }], ocr: { extraction_status: 'extracted',
-      student_candidates: { name: 'AUDIT STUDENT', usn: 'AUDIT001' }, subjects: [] },
+      student_candidates: { name: 'AUDIT STUDENT', usn: 'AUDIT001' }, subjects: [{ subject_result_id: 11, subjectCode: 'C1' }] },
     review: { submitted_by: 1, baselines: { 11: { marks: 40, status: 'fail' } },
       proposal: [{ subject_result_id: 11, decision: 'accept', proposed_revised_internal_marks: 40,
         proposed_revised_external_marks: 40, proposed_revised_total_marks: 80 }] } };
@@ -311,7 +311,7 @@ test('controlled revaluation approval creates separate event while preserving or
   const controller = load('controllers/revaluationController.js', { '../database/models': models, '../middlewares/upload': {},
     './resultController': { _test: { gradeFromPercent: policy.gradeFromPercent } } });
   const integrity = require('../services/revaluationIntegrity');
-  saved.review.target_snapshot = integrity.snapshot(result); saved.review.identity_verified = { usn: true, semester: true, period: true, old_marks: true, old_status: true };
+  saved.review.target_snapshot = integrity.snapshot(result); saved.review.identity_verified = { usn: true, semester: true, period: true, old_marks: true, old_status: true, old_status_11: true };
   const res = response(); await controller.approveReview({ params: { importId: 9 }, session: { adminId: 1 }, body: { review_token: integrity.digest(saved.review) } }, res);
   assert.equal(res.url, '/revaluation/outcome/9'); assert.equal(events.length, 1);
   assert.equal(events[0].subject_result_id, 11); assert.equal(events[0].revised_marks, 80);

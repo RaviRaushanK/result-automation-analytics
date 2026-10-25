@@ -396,7 +396,7 @@ const resultController = {
 
       res.render('results/upload', {
         title: 'Upload Results - SRAAS',
-        pageStyles: ['/css/result-upload.css'],
+        pageStyles: ['/css/result-upload.css?v=20261025-2'],
         breadcrumbItems: [
           { label: 'Result Management' },
           { label: 'Upload Results', active: true }

@@ -110,7 +110,7 @@ test('reports share safe GPA formatting across print, browser tables, summaries 
     metrics: [['SGPA', 7], ['Highest Stored CGPA', 2.5]],
     columns: [{ key: 'sgpa', label: 'SGPA' }, { key: 'cgpa', label: 'CGPA' }], rows: [{ sgpa: 7, cgpa: 1.77 }] };
   const before = JSON.stringify(report);
-  const html = await ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), { report, context: [], display: reports.display });
+  const html = await ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), { reportWording: require('../public/js/reports/wording'), report, context: [], display: reports.display });
   assert.match(html, /<strong>7\.00<\/strong>/); assert.match(html, /<strong>2\.50<\/strong>/);
   assert.match(html, /<td>7\.00<\/td>/); assert.match(html, /<td>1\.77<\/td>/);
   assert.equal(JSON.stringify(report), before);

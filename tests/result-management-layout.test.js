@@ -58,8 +58,9 @@ test('validated revaluation preview has one explicit approval POST, not another 
 
 test('responsive stylesheet is restricted to Result Management requests', async () => {
   const head = path.join(__dirname, '../views/partials/head.ejs');
-  assert.match(await ejs.renderFile(head, { resultManagementPage: true }), /href="\/css\/result-management.css"/);
-  assert.doesNotMatch(await ejs.renderFile(head, {}), /href="\/css\/result-management.css"/);
+  const stylesheet = /href="\/css\/result-management\.css(?:\?[^"\s]*)?"/;
+  assert.match(await ejs.renderFile(head, { resultManagementPage: true }), stylesheet);
+  assert.doesNotMatch(await ejs.renderFile(head, {}), stylesheet);
 });
 
 for (const [label, maxInternal, maxExternal] of [['internal-only', 100, 0], ['external-only', 0, 100], ['legacy', null, undefined]]) {

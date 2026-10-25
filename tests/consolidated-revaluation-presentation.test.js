@@ -42,14 +42,14 @@ test('consolidated original/effective marks stay numeric while all output paths 
     assert.equal(row.consolidated_display.subject_42_T, undefined);
     assert.equal(row.subject_42_T, 70);
     assert.doesNotMatch(JSON.stringify(row.consolidated_display), /Revised EX|20/);
-    const render = report => ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), { report, context: service.contextLines(report), display: service.display });
+    const render = report => ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), { reportWording: require('../public/js/reports/wording'), report, context: service.contextLines(report), display: service.display });
     const originalHtml = await render(original), effectiveHtml = await render(effective);
     assert.doesNotMatch(originalHtml, /Original EX:|Effective T:/);
     assert.match(originalHtml, />15<\/td>.*>30<\/td>.*>45<\/td>/s);
     assert.doesNotMatch(effectiveHtml, /Original EX:|Original IA:|Original T:|Effective T:/);
     assert.match(effectiveHtml, />-<\/td>.*>-<\/td>.*>50<\/td>/s);
-    assert.match(effectiveHtml, /not recalculated after revaluation/);
-    assert.match(effectiveHtml, /A dash means component marks are unavailable or cannot be reconciled with the approved total/);
+    assert.match(effectiveHtml, /GPA remains original/);
+    assert.match(effectiveHtml, /A dash means unavailable/);
     assert.match(effectiveHtml, /5\.44/);
     let csv = '';
     const res = { set() {}, write(text) { csv += text; return true; }, end() {}, status(code) { throw new Error('Unexpected status ' + code); } };

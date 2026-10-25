@@ -1,6 +1,6 @@
 <section class="reports-page" id="reports-page" data-report-type="<%= reportType %>">
   <header class="reports-header">
-    <div><h1><%= reportTitle %></h1><p>MCA Academic Reports</p></div>
+    <div><h1><%= reportTitle %></h1><p><%= reportType === 'toppers' ? 'Ranked by original CGPA' : 'MCA Academic Reports' %></p></div>
     <span class="reports-view badge" id="reports-view"><%= reportType === 'revaluation' ? 'Revaluation Events' : reportType === 'toppers' ? 'Original Result' : 'Effective Result' %></span>
   </header>
 
@@ -66,7 +66,7 @@
 
   <div class="alert alert-danger mt-3" id="reports-error" role="alert" hidden></div>
   <div class="reports-state" id="reports-loading" role="status" hidden><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Generating report...</div>
-  <div class="reports-state" id="reports-empty" role="status">Select the required filters and generate the report.</div>
+  <div class="reports-state" id="reports-empty" role="status"><%= reportType === 'toppers' ? 'Select filters, then generate.' : 'Select the required filters and generate the report.' %></div>
 
   <section id="reports-output" aria-label="Report Preview" hidden>
     <%- include('branding', { branding }) %>
@@ -81,7 +81,7 @@
     <% if (reportType === 'student-progress') { %><header class="reports-analysis-header"><p>Department of Master of Computer Applications</p><h2 id="reports-progress-title"></h2></header><% } %>
     <dl id="reports-context" class="reports-context"></dl>
     <details class="reports-calculation-details reports-muted" id="reports-calculation-details">
-      <summary>Calculation details</summary>
+      <summary>Notes</summary>
       <ul id="reports-calculation-notes"></ul>
       <% if (reportType === 'student-progress') { %><ul class="reports-progress-notes" id="reports-progress-notes"></ul><% } %>
     </details>
@@ -113,5 +113,5 @@
 <script src="/js/reports/result-analysis.js" defer></script>
 <% } %>
 <script src="/js/reports/branding.js" defer></script>
-<script src="/js/reports/wording.js" defer></script>
-<script src="/js/reports/common.js" defer></script>
+<script src="/js/reports/wording.js?v=20261025-2" defer></script>
+<script src="/js/reports/common.js?v=20261025-2" defer></script>

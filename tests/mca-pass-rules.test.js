@@ -39,6 +39,15 @@ test('browser and server use identical MCA requirements', () => {
     assert.equal(context.window.McaPassRules.evaluate(i,e,subject).status, rules.evaluate(i,e,subject).status);
   }
 });
+test('external component evaluation uses configured course-type thresholds', () => {
+  assert.deepEqual(rules.evaluateExternal(20, { max_external: 50, subject_type: 'theory' }).status, 'pass');
+  assert.deepEqual(rules.evaluateExternal(19, { max_external: 50, subject_type: 'theory' }).status, 'fail');
+  assert.deepEqual(rules.evaluateExternal(25, { max_external: 50, subject_type: 'project' }).status, 'pass');
+  assert.deepEqual(rules.evaluateExternal(24, { max_external: 50, subject_type: 'project' }).status, 'fail');
+  assert.equal(rules.evaluateExternal(NaN, { max_external: 50 }).valid, false);
+  assert.equal(rules.evaluateExternal(30, { max_external: 50, subject_type: 'unknown' }).valid, false);
+  assert.equal(rules.evaluateExternal(30, { subject_type: 'theory' }).valid, false);
+});
 test('revaluation FAIL above total pass band is valid when a component fails; a forged PASS is blocked', () => {
   const card = { card_internal_marks:37,card_old_marks:14,card_old_result:'fail',card_rv_marks:14,
     card_rv_result:'fail',card_final_marks:51,card_final_result:'fail' };

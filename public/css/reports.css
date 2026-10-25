@@ -26,6 +26,19 @@
 .reports-filters { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
 .reports-page .form-select, .reports-page .form-control { background-color: var(--card-bg); color: var(--text-primary); border-color: var(--card-border); min-width: 0; }
 .reports-page .form-select:disabled { background-color: var(--secondary-bg); color: var(--text-secondary); }
+:root[data-theme="dark"] .reports-page .reports-filters :is(.form-select, .form-control):disabled {
+  background-color: #263247;
+  border-color: #41526d;
+  color: #d8e2f2;
+  -webkit-text-fill-color: #d8e2f2;
+  opacity: 1;
+  cursor: not-allowed;
+}
+:root[data-theme="dark"] .reports-page .reports-filters .form-select:disabled {
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23d8e2f2' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+.reports-page[data-report-type="toppers"] :is(.reports-context dd, .reports-calculation-details) { font-size: .825rem; }
+.reports-page[data-report-type="toppers"] .reports-context { gap: .5rem 1rem; margin-bottom: .75rem; }
 .reports-page .form-label { font-size: .875rem; font-weight: 600; }
 .reports-page .material-icons { font-size: 1.2rem; }
 .reports-state { padding: 3rem 1rem; text-align: center; color: var(--text-secondary); border-block: 1px solid var(--card-border); }
@@ -207,6 +220,15 @@
 .reports-calculation-details li { margin-block: .4rem; }
 .reports-print .reports-table td.reports-usn { white-space: nowrap; overflow-wrap: normal; word-break: normal; min-width: 12ch; }
 .reports-page .reports-table td.reports-usn { white-space: nowrap; overflow-wrap: normal; word-break: normal; min-width: 12ch; }
+@media screen {
+  .reports-print .reports-context { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .5rem 1rem; margin-bottom: .75rem; }
+  .reports-print .reports-context dt,
+  .reports-print .reports-summary span { font-size: 11px; }
+  .reports-print .reports-context dd { font-size: 12px; }
+  .reports-print .reports-component-note { font-size: 11px; margin: .5rem 0; }
+  .reports-print .reports-summary { padding: .5rem 0; margin-bottom: .75rem; }
+  .reports-print .reports-summary strong { font-size: 14px; }
+}
 @media screen {
   .reports-page[data-report-type="revaluation"] .reports-table { width: max-content; min-width: 100%; table-layout: auto; }
   .reports-page[data-report-type="revaluation"] .reports-table td { white-space: nowrap; overflow-wrap: normal; word-break: normal; }

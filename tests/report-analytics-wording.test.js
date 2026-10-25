@@ -24,15 +24,55 @@ test('screen, print and CSV retain calculation explanations without changing num
   const print = fs.readFileSync(require.resolve('../views/reports/print.ejs'), 'utf8');
   const service = fs.readFileSync(require.resolve('../services/reportsService'), 'utf8');
   const controller = fs.readFileSync(require.resolve('../controllers/reportsController'), 'utf8');
-  assert.match(page, /<summary>Calculation details<\/summary>/);
+  assert.match(page, /<summary>Notes<\/summary>/);
   assert.ok(page.indexOf('/js/reports/wording.js') < page.indexOf('/js/reports/common.js'));
-  assert.match(print, /label === 'Calculation details'/);
+  assert.match(print, /reportWording\.details\(report, true\)/);
   assert.match(service, /yield \['Calculation details', detail\]/);
   assert.match(controller, /service.contextLines\(report\)/);
   for (const file of ['reports','analytics']) {
     const css = fs.readFileSync(require.resolve('../public/css/' + file + '.css'), 'utf8');
     assert.match(css, /summary.*var\(--text-primary\)/);
     assert.match(css, /summary:focus-visible/);
+  }
+});
+
+test('Toppers uses short screen copy while retaining full export explanations and context data', () => {
+  const report = { type: 'toppers', filters: { mode: 'original' }, context: [
+    ['Programme', 'MCA'], ['Batch', 'MCA 2025'], ['Semester', 1], ['Exam Session', 'Dec 2025 / Jan 2026'],
+    ['Result View', 'Original Result'], ['Ranking Basis', 'Stored original CGPA, descending'],
+    ['GPA Basis', wording.gpa], ['Generated At', '2026-10-25'],
+    ['Calculation details', 'Full original explanation remains available for export.']
+  ] };
+  const before = JSON.stringify(report);
+  assert.deepEqual(wording.visible(report.context, report.type), [
+    ['Batch', 'MCA 2025'], ['Semester', 1], ['Exam Session', 'Dec 2025 / Jan 2026'],
+    ['Result View', 'Original Result'], ['Generated at', '2026-10-25']
+  ]);
+  const notes = wording.details(report, true);
+  assert.ok(notes.every(note => note.length < 65));
+  assert.deepEqual(notes, ['Original CGPA, highest first. Passed attempts only.']);
+  assert.deepEqual(wording.details(report), ['Full original explanation remains available for export.']);
+  assert.equal(JSON.stringify(report), before);
+});
+
+test('every report has essential screen/PDF context, a timestamp and at most two short notes', () => {
+  for (const type of ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress']) {
+    const report = { type, generatedAt: '2026-10-25T17:41:38Z', filters: { mode: 'effective' }, context: [
+      ['Batch', 'MCA 2025'], ['Semester', 1], ['USN', 'TEST001'], ['Exam Session', 'Dec 2025 / Jan 2026'],
+      ['Result View', 'Effective Result'], ['GPA Basis', 'Long GPA explanation'], ['Marks Basis', 'Long marks explanation'],
+      ['Calculation details', 'Long calculation explanation'], ['Eligibility', 'Long eligibility explanation']
+    ] };
+    const before = JSON.stringify(report);
+    const context = wording.visible(report.context, type, report.generatedAt);
+    assert.deepEqual(context.slice(0, 5), report.context.slice(0, 5));
+    assert.deepEqual(context.at(-1), ['Generated at', report.generatedAt]);
+    assert.equal(context.filter(([label]) => label === 'Generated at').length, 1);
+    const withTimestamp = wording.visible([...report.context, ['Generated At', report.generatedAt]], type, report.generatedAt);
+    assert.equal(withTimestamp.filter(([label]) => label === 'Generated at').length, 1);
+    const notes = wording.details(report, true);
+    assert.ok(notes.length <= 2, type);
+    assert.ok(notes.every(note => note.length < 100), type);
+    assert.equal(JSON.stringify(report), before);
   }
 });
 

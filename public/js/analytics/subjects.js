@@ -112,7 +112,10 @@
   function readFilters() {
     var params = new URLSearchParams();
     Array.from(form.elements).forEach(function (el) {
-      if (el.name && el.value.trim()) params.set(el.name, el.value.trim());
+      if (el.name && el.value.trim()) {
+        if (el === subjectSel && el.value.startsWith('code:')) params.set('subject_code', el.value.slice(5));
+        else params.set(el.name, el.value.trim());
+      }
     });
     return params;
   }
@@ -216,9 +219,17 @@
         var json = await fetchJSON('/analytics/api/filter-options/' + def[0] + qs(scoped));
         if (request !== filterRequest) return;
         var previous = initialQuery.get(def[4]) || def[1].value;
+        var courseCode = def[0] === 'subjects' ? initialQuery.get('subject_code') : null;
+        if (courseCode) { previous = 'code:' + courseCode; initialQuery.delete('subject_code'); }
         initialQuery.delete(def[4]);
         var autoFirst = !!def[5];
         def[1].innerHTML = autoFirst ? '' : '<option value="">All</option>';
+        if (def[0] === 'subjects' && previous && previous.startsWith('code:')) {
+          var courseOption = document.createElement('option');
+          courseOption.value = previous;
+          courseOption.textContent = previous.slice(5) + ' (all selected sessions)';
+          def[1].appendChild(courseOption);
+        }
         (json.data || []).forEach(function (row) {
           var option = document.createElement('option');
           option.value = String(row[def[2]]);

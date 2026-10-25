@@ -32,17 +32,127 @@
     </div>
   <% } %>
 
-  <%#
-    PHASE 4 — OCR state summary. Sections below are READ-ONLY reference
-    views except the "Add Subject" UI further below.
-    1. Revaluation Subjects  (OCR-detected + manually added via the "Add
-       Subject" button; the only "missing" concept is what OCR didn't
-       capture, which the admin can add manually — there is no
-       automatic "Missing / Not Detected" list because there is no
-       pre-upload subject selection to diff against)
-    2. Unmatched OCR rows (detected on the card but not in the
-       student's SubjectResults)
+  <% if (meta.documentChecks) {
+    // Presentation only. These groups never participate in validation or approval.
+    const allRows = typeof rows !== 'undefined' ? rows : [];
+    const manualRows = allRows.filter(row => row.evidence?.manual_candidate || row.evidence?.manual_entry);
+    const manualAccepting = row => (typeof enteredVals !== 'undefined' && enteredVals?.[row.srid]?.decision || row.priorDecision) === 'accept';
+    const manualConfirmed = row => typeof enteredVals !== 'undefined' && enteredVals?.[row.srid]
+      ? enteredVals[row.srid].manualVerified === true : review?.identity_verified?.['manual_subject_' + row.srid] === true;
+    const selectedManualCount = manualRows.filter(manualAccepting).length;
+    const confirmedManualCount = manualRows.filter(row => manualAccepting(row) && manualConfirmed(row)).length;
+    const subjectRows = allRows.filter(row => !row.evidence?.manual_candidate && !row.evidence?.manual_entry);
+    const subjectGroups = subjectRows.map(row => ({ code: row.code, row, checks: [] }));
+    const contextChecks = [];
+    const needsAttention = check => check.status === 'MISMATCH' || (!check.derived && check.status !== 'MATCH');
+    meta.documentChecks.forEach(check => {
+      if (check.key?.startsWith('manual_subject_')) return;
+      const code = /^(?:Subject|Old external marks|Old external result) (.+)$/.exec(check.field)?.[1];
+      if (!code && !check.subject_result_id) { contextChecks.push(check); return; }
+      let group = subjectGroups.find(group => check.subject_result_id
+        ? String(group.row?.srid || group.subjectResultId) === String(check.subject_result_id) || (!group.row && !group.subjectResultId && group.code === code)
+        : [group.code, group.row?.evidence?.subjectCode, group.row?.evidence?.ocr_subject_code].includes(code));
+      if (!group) { group = { code: code || '#' + check.subject_result_id, checks: [] }; subjectGroups.push(group); }
+      if (check.subject_result_id) group.subjectResultId = check.subject_result_id;
+      group.checks.push(check);
+    });
+    subjectGroups.forEach(group => {
+      group.errors = typeof errors !== 'undefined' && errors?.[group.row?.srid] || [];
+      const state = group.row?.evidence?.match_state;
+      group.status = group.checks.some(check => check.status === 'MISMATCH') || group.errors.length
+        ? 'MISMATCH'
+        : !group.checks.length || group.checks.some(check => !check.derived && check.status !== 'MATCH')
+          || (state && state !== 'MATCHED')
+          || (contextChecks.some(check => check.key === 'old_marks' && check.status === 'UNVERIFIED')
+            && !group.checks.some(check => check.field.startsWith('Old external marks ')))
+          ? 'MANUAL VERIFICATION REQUIRED' : 'VERIFIED';
+    });
+    const verified = subjectGroups.filter(group => group.status === 'VERIFIED');
+    const mismatched = subjectGroups.filter(group => group.status === 'MISMATCH');
+    const manual = subjectGroups.filter(group => group.status === 'MANUAL VERIFICATION REQUIRED');
+    const contextIssues = contextChecks.filter(needsAttention);
+    const allVerified = subjectGroups.length > 0 && verified.length === subjectGroups.length && !contextIssues.length && !selectedManualCount;
   %>
+    <section class="alert alert-info revaluation-top-message revaluation-verification" aria-labelledby="documentVerificationTitle" data-all-verified="<%= allVerified %>">
+      <strong id="documentVerificationTitle">Document Verification</strong>
+      <div class="d-flex flex-wrap gap-2 mt-1" data-verification-summary>
+        <span><%= verified.length %> <%= verified.length === 1 ? 'subject' : 'subjects' %> verified</span>
+        <span>&middot; <%= mismatched.length %> <%= mismatched.length === 1 ? 'mismatch' : 'mismatches' %></span>
+        <span id="manualVerificationCount" data-manual-base="<%= manual.length %>">&middot; <%= manual.length + selectedManualCount - confirmedManualCount %> manual checks required</span>
+        <span id="manualConfirmedCount" <%= confirmedManualCount ? '' : 'hidden' %>>&middot; <%= confirmedManualCount %> manually confirmed</span>
+      </div>
+      <div class="mt-2 verification-document-context">
+        <% contextChecks.filter(check => !needsAttention(check)).forEach(check => { %>
+          <div><strong><%= check.field %>:</strong> <%= check.expectedLabel ?? check.expected ?? check.documentLabel ?? check.document %> &mdash; <%= check.derived ? 'Derived from stored history' : 'Verified' %></div>
+        <% }); %>
+      </div>
+      <% subjectGroups.filter(group => group.status !== 'VERIFIED').forEach(group => { %>
+        <div class="verification-issue border rounded p-2 mt-2" role="alert">
+          <strong><%= group.code %> &mdash; <%= group.status %></strong>
+          <% group.checks.filter(needsAttention).forEach(check => { %>
+            <%- include('partials/verification-check', { check }) %>
+          <% }); %>
+          <% group.errors.forEach(message => { %><div class="mt-1"><%= message %></div><% }); %>
+          <% if (!group.row?.evidence?.manual_entry && (!group.checks.length || (group.row?.evidence?.match_state && group.row.evidence.match_state !== 'MATCHED'))) { %>
+            <div class="mt-1">Subject evidence requires review: <%= group.row?.evidence?.match_state || 'No automatic verification available' %>.</div>
+          <% } %>
+        </div>
+      <% }); %>
+      <% contextIssues.forEach(check => { %>
+        <div class="verification-issue border rounded p-2 mt-2" role="alert"><%- include('partials/verification-check', { check }) %></div>
+      <% }); %>
+      <% manualRows.forEach(row => {
+        const manualRowActive = manualAccepting(row);
+        const check = { field: 'Manual subject ' + row.code, key: 'manual_subject_' + row.srid, status: 'UNVERIFIED', derived: false,
+          expected: 'OCR did not detect this subject. Confirm that it appears on the uploaded card and verify the marks entered below.' };
+        const manualReview = typeof enteredVals !== 'undefined' && enteredVals?.[row.srid]
+          ? { identity_verified: { [check.key]: enteredVals[row.srid].manualVerified === true } } : review;
+      %>
+        <div id="manual_issue_<%= row.srid %>" data-manual-subject-issue="<%= row.srid %>" class="verification-issue border rounded p-2 mt-2 <%= manualConfirmed(row) ? 'is-confirmed' : '' %>" role="alert" <%= manualRowActive ? '' : 'hidden' %>>
+          <strong><%= row.code %> &mdash; <span id="manual_issue_status_<%= row.srid %>"><%= manualConfirmed(row) ? 'Manually confirmed' : 'MANUAL VERIFICATION REQUIRED' %></span></strong>
+          <%- include('partials/verification-check', { check, review: manualReview, manualRowActive }) %>
+        </div>
+      <% }); %>
+      <details class="verification-details mt-2">
+        <summary class="py-1">View verification details</summary>
+        <% subjectGroups.forEach(group => {
+          const oldMarks = group.checks.find(check => check.field.startsWith('Old external marks '));
+          const oldResult = group.checks.find(check => check.field.startsWith('Old external result '));
+          const evidence = group.row?.evidence;
+        %>
+          <div class="border-top pt-2 mt-2">
+            <strong><%= group.code %> &mdash; <%= group.status === 'VERIFIED' ? 'Verified' : group.status %></strong>
+            <div>Old EX: <%= oldMarks?.expected ?? 'Unavailable' %> &middot; Old result: <%= oldResult?.derived_old_external_result || (['PASS', 'FAIL'].includes(oldResult?.expected) ? oldResult.expected : 'Unavailable') %></div>
+            <% if (evidence?.revised_ext != null || evidence?.revised_total != null) { %>
+              <div>Revised EX: <%= evidence.revised_ext ?? 'Unavailable' %> &middot; Effective total: <%= evidence.revised_total ?? 'Unavailable' %></div>
+            <% } %>
+            <details class="mt-1"><summary>Comparison evidence for <%= group.code %></summary>
+              <% group.checks.forEach(check => { %>
+                <div class="mt-1"><strong><%= check.field %>:</strong> <%= check.status === 'MATCH' ? 'Verified' : check.status %>
+                  <div>Stored: <%= check.expectedLabel ?? check.expected ?? 'Unavailable' %> &middot; Document: <%= check.documentLabel ?? check.document ?? 'Unavailable' %></div>
+                  <% if (check.printed_old_external_result != null) { %><div>Printed old result: <%= check.printed_old_external_result %> &middot; Derived old result: <%= check.derived_old_external_result %></div><% } %>
+                  <% if (check.manual && check.corrected) { %><div>Manual correction: <%= check.corrected %></div><% } %>
+                </div>
+              <% }); %>
+              <% if (evidence) { %>
+                <div class="mt-1">OCR subject: <%= evidence.ocr_subject_code ?? evidence.subjectCode ?? 'Unavailable' %> &middot; Normalized: <%= evidence.normalized ?? 'Unavailable' %></div>
+                <div>Document old EX: <%= evidence.oldMarks ?? 'Unavailable' %> &middot; Document old result: <%= evidence.oldResult ?? 'Unavailable' %></div>
+                <div>Document internal: <%= evidence.internalMarks ?? 'Unavailable' %> &middot; RV EX: <%= evidence.rvMarks ?? 'Unavailable' %> &middot; Final marks: <%= evidence.finalMarks ?? 'Unavailable' %></div>
+                <div>Revised internal: <%= evidence.revised_int ?? 'Unavailable' %> &middot; RV result: <%= evidence.rvResult ?? 'Unavailable' %> &middot; Final result: <%= evidence.finalResult ?? 'Unavailable' %></div>
+                <div>Evidence state: <%= evidence.match_state ?? 'Unavailable' %> &middot; Confidence: <%= evidence.confidence ?? 'Unavailable' %></div>
+                <% if (evidence.raw_line) { %><div>Raw OCR: <%= evidence.raw_line %></div><% } %>
+              <% } %>
+            </details>
+          </div>
+        <% }); %>
+        <% contextChecks.filter(check => check.manual && check.corrected).forEach(check => { %>
+          <div>Manual correction: <%= check.corrected %></div>
+        <% }); %>
+      </details>
+    </section>
+  <% } %>
+
+  <%# Read-only evidence for document subjects, including unresolved rows. %>
   <% const detectedRows = rows.filter(r => r.evidence && r.evidence.match_state === 'MATCHED'); %>
   <% const unmatchedRows = meta.unmatched || []; %>
 
@@ -104,7 +214,7 @@
     <div class="card mb-3 border-warning">
       <div class="card-header bg-warning text-dark">
         <strong><i class="material-icons align-middle me-1" style="font-size:16px;">warning</i>
-          Unmatched / Not Selected (OCR detected these, but they are not in the selected list)</strong>
+          Extracted subjects outside the selected Exam Session or original attempt</strong>
         <span class="badge bg-dark ms-2"><%= unmatchedRows.length %></span>
       </div>
       <div class="table-responsive">
@@ -117,7 +227,7 @@
               <tr>
                 <td><code><%= u.ocr_subject_code || '—' %></code></td>
                 <td><small class="text-muted"><%= u.raw_line ? u.raw_line.substring(0, 80) : '—' %></small></td>
-                <td><span class="badge bg-secondary">UNMATCHED / NOT SELECTED</span></td>
+                <td><span class="badge bg-danger">Subject does not belong to the selected Exam Session</span></td>
               </tr>
             <% }) %>
           </tbody>
@@ -125,14 +235,6 @@
       </div>
     </div>
   <% } %>
-
-  <%#
-    PHASE 4 REMOVAL — The "Add Subject" section was removed. Subjects that OCR
-    did not detect are now handled by selecting "Accept" in the table below
-    and entering Internal + Rev. Ext marks. The Internal field auto-fills from
-    the database total marks when Accept is selected; the Derived total auto-updates
-    as Rev. Ext is entered.
-  %>
 
   <div class="revaluation-preview-grid">
     <section class="revaluation-preview-document">
@@ -149,7 +251,7 @@
               <img src="<%= meta.docUrl %>" alt="Original revaluation marks card" class="revaluation-document-image">
             </div>
           <% } else { %>
-            <iframe src="<%= meta.docUrl %>" title="Original revaluation marks card" class="revaluation-document-frame"></iframe>
+            <iframe src="<%= meta.docUrl %><%= String(meta.docUrl).includes('#') ? '&' : '#' %>view=FitH" title="Original revaluation marks card" class="revaluation-document-frame"></iframe>
           <% } %>
         <% } else { %>
           <p class="text-muted p-3">Original document is unavailable.</p>
@@ -161,45 +263,26 @@
     <input type="hidden" name="source_token" value="<%= meta.sourceToken || '' %>">
     <input type="hidden" name="identity_review" value="1">
     <% const identityValues = meta.identityCorrection?.corrected || meta.ocrStudent || {}; %>
-    <section class="card mb-3" aria-labelledby="correctIdentityTitle">
-      <div class="card-header" id="correctIdentityTitle">Student identity from document</div>
+    <section class="card mb-3 revaluation-student-information" aria-labelledby="correctIdentityTitle">
+      <div class="card-header d-flex align-items-center justify-content-between gap-2" id="correctIdentityTitle">
+        <span>Student Information</span>
+        <span class="d-flex gap-2"><span class="badge bg-secondary">Attempt <%= meta.attemptNo %></span><span class="badge bg-info text-dark"><%= meta.examType %></span></span>
+      </div>
       <div class="card-body">
-        <p class="small">Correct OCR errors to match the selected registered student. Selecting Validate confirms these details against the original card. Revaluation stays attached to the selected student and original attempt.</p>
         <div class="row g-3">
-          <div class="col-sm-5"><label for="reviewIdentityUsn" class="form-label">USN</label><input id="reviewIdentityUsn" name="usn" class="form-control" value="<%= identityValues.usn || '' %>" required maxlength="50" <%= mode === 'edit' ? '' : 'readonly' %>><div class="invalid-feedback">Enter the USN shown on the original card.</div></div>
-          <div class="col-sm-7"><label for="reviewIdentityName" class="form-label">Student Name</label><input id="reviewIdentityName" name="name" class="form-control" value="<%= identityValues.name || '' %>" required maxlength="150" <%= mode === 'edit' ? '' : 'readonly' %>><div class="invalid-feedback">Enter the registered student name shown on the original card.</div></div>
+          <div class="col-sm-5"><label for="reviewIdentityUsn" class="form-label">USN <span class="text-danger" aria-hidden="true">*</span></label><input id="reviewIdentityUsn" name="usn" class="form-control" value="<%= identityValues.usn || '' %>" required maxlength="50" <%= mode === 'edit' ? '' : 'readonly' %>><div class="invalid-feedback">Enter the USN shown on the original card.</div></div>
+          <div class="col-sm-7"><label for="reviewIdentityName" class="form-label">Student Name <span class="text-danger" aria-hidden="true">*</span></label><input id="reviewIdentityName" name="name" class="form-control" value="<%= identityValues.name || '' %>" required maxlength="150" <%= mode === 'edit' ? '' : 'readonly' %>><div class="invalid-feedback">Enter the registered student name shown on the original card.</div></div>
+          <div class="col-12"><label for="revaluationAttemptNo" class="form-label">Attempt No <span class="text-danger" aria-hidden="true">*</span></label><input id="revaluationAttemptNo" class="form-control" value="<%= meta.attemptNo %>" readonly aria-readonly="true"></div>
         </div>
       </div>
     </section>
-    <% if (meta.documentChecks) { %>
-      <div class="alert alert-info">
-        <% meta.documentChecks.filter(check => !check.derived).forEach(check => { %><div><strong><%= check.field %>:</strong>
-          <% if (check.key === 'old_status' && check.status === 'UNVERIFIED') { %>
-            <span id="oldExternalResultVerificationStatus" class="manual-verification-status <%= review?.identity_verified?.old_status === true ? 'is-confirmed' : 'is-required' %>" role="status" aria-live="polite" aria-atomic="true"><%= review?.identity_verified?.old_status === true ? 'Manually confirmed' : 'Manual verification required' %></span>
-          <% } else { %><%= check.status %><% } %>
-          <% if (check.manual) { %> — Corrected USN: <%= check.corrected %>. This is a manual correction, not an automatic MATCH.<% } %>
-          <% if (check.document) { %> — <%= check.documentLabel || check.document %><% } %></div><% }) %>
-        <% meta.documentChecks.filter(check => check.derived).forEach(check => { %><div><strong><%= check.field %>: <%= check.expected %></strong> — Derived from stored history</div><% }); %>
-        <% meta.documentChecks.filter(check => !check.derived && ['NOT PRESENT IN DOCUMENT','UNVERIFIED'].includes(check.status)).forEach(check => { %>
-          <div class="form-check mt-2">
-            <input class="form-check-input" type="checkbox" id="verify_<%= check.key %>" name="verify_<%= check.key %>" value="1" required aria-describedby="verify_<%= check.key %>_feedback<%= check.key === 'old_status' ? ' oldExternalResultVerificationHelp oldExternalResultSaveHelp' : '' %>" <%= review?.identity_verified?.[check.key] === true ? 'checked' : '' %>>
-            <label class="form-check-label" for="verify_<%= check.key %>"><%= check.key === 'old_status' ? 'I verified the old external PASS/FAIL status against the original marks card.' : 'I verified the ' + check.field + ' against the original card because authoritative comparison is unavailable.' %></label>
-            <div class="invalid-feedback" id="verify_<%= check.key %>_feedback">Confirm <%= check.field.toLowerCase() %> against the original marks card before validating.</div>
-          </div>
-        <% }); %>
-        <% if (meta.documentChecks.some(check => check.key === 'old_status' && check.status === 'UNVERIFIED')) { %>
-        <div class="small mt-1" id="oldExternalResultVerificationHelp">The original external PASS/FAIL status is not stored separately, so this field must be checked manually.</div>
-        <div class="small mt-1" id="oldExternalResultSaveHelp">Select Validate to save this confirmation. Approval remains a separate step.</div>
-        <% } %>
-      </div>
-    <% } %>
-    <div class="card mb-3">
-      <div class="card-header">Subject Results <span class="badge bg-secondary ms-1"><%= rows.length %></span></div>
-      <p class="small text-muted px-3 pt-3 mb-2" id="revaluationMarksHelp">On the VTU nine-column card, RV/Final marks are external marks. Internal is carried IA, not automatically revised IA. Combined total includes internal and revised external marks.</p>
+    <div class="card revaluation-subject-results">
+      <div class="card-header d-flex align-items-center justify-content-between gap-2"><span>Subject Results</span><span class="small"><%= rows.length %> subjects</span></div>
       <div class="table-responsive">
         <table class="table table-sm table-bordered align-middle mb-0" id="reviewTable">
           <thead class="table-light">
             <tr>
+              <th style="width:90px;">Code</th>
               <th style="min-width:180px;">Subject</th>
               <th class="text-start">Original<br>(total)</th>
               <th style="width:90px;" class="text-center">Internal</th>
@@ -231,25 +314,22 @@
     : ((ev.revised_int !== null && ev.revised_int !== undefined) ? String(ev.revised_int) : '');
   const preExt = entered ? entered.external
     : ((ev.revised_ext !== null && ev.revised_ext !== undefined) ? String(ev.revised_ext) : '');
-  // PROMPT 14: default the accept/reject radio to mirror the prior frozen
-  // decision when one exists (so re-edits preserve user intent). When no
-  // prior proposal exists, default to accept only when OCR provided both
-  // components (preserves the previous behaviour for first-time edits).
-  const defAccept = r.priorDecision
-    ? (r.priorDecision === 'accept')
-    : (ev.match_state === 'MATCHED' && preInt !== '' && preExt !== '');
+  // Extracted subjects start accepted; manual additions start rejected.
+  // Re-editing always retains the saved decision.
+  const defAccept = entered?.decision ? entered.decision === 'accept' : r.priorDecision
+    ? r.priorDecision === 'accept'
+    : ev.match_state === 'MATCHED' && !ev.manual_entry;
   const needAck = !!ev.raw_letter &&
     ACK_LETTERS.indexOf(String(ev.raw_letter).trim().toUpperCase()) !== -1;
   const rowErrs = (errors && errors[r.srid]) ? errors[r.srid] : [];
   const prop = propBySrid[r.srid] || null;
 %>
             <tr data-max-marks="<%= r.maxMarks %>" class="<%= prop && prop.decision === 'reject' ? 'table-light text-muted' : '' %>">
+              <td class="revaluation-subject-code"><code><%= r.code %></code></td>
               <td>
-                <strong><%= r.code %></strong><br>
-                <small class="text-muted"><%= r.name %></small><br>
-                <small>credits <%= r.credits %> &middot; max I/E/T: <%= r.maxInternal %>/<%= r.maxExternal %>/<%= r.maxMarks %></small>
-                <% if (r.passMinimums) { %><small class="d-block text-muted">Pass minimum CIE/SEE/total: <%= r.passMinimums.internal %>/<%= r.passMinimums.external %>/<%= r.passMinimums.total %></small><% } %>
-                <details class="mt-1"><summary>OCR evidence</summary>
+                <span class="revaluation-subject-name"><%= r.name %></span>
+                <% if (ev.manual_entry || ev.manual_candidate) { %><small class="d-block revaluation-manual-label">Not detected by OCR &middot; Accept to enter marks from the card</small><% } %>
+                <details class="mt-1" <%= editable && ev.ambiguous && r.pickOptions.length ? '' : 'hidden' %>><summary>OCR evidence</summary>
                 <span class="badge bg-<%= ev.match_state === 'MATCHED' ? 'success' : (ev.match_state === 'AMBIGUOUS' ? 'warning text-dark' : 'secondary') %>">
                   <%= ev.match_state %>
                 </span>
@@ -316,14 +396,14 @@
                        name="internal_<%= r.srid %>" id="int_<%= r.srid %>" aria-label="Internal marks for <%= r.code %>"
                        value="<%= preInt %>" class="form-control form-control-sm rev-int"
                        data-srid="<%= r.srid %>" aria-describedby="int_<%= r.srid %>_feedback"
-                       <%= editable ? '' : 'disabled' %>>
+                       <%= editable && defAccept ? '' : 'disabled' %>>
                 <div class="invalid-feedback" id="int_<%= r.srid %>_feedback">Enter whole-number internal marks from 0 to <%= r.maxInternal %>.</div>
               </td>
               <td class="text-center">
                 <input type="number" min="0" max="<%= r.maxExternal %>" step="1"
                        name="external_<%= r.srid %>" id="ext_<%= r.srid %>" aria-label="Revised external marks for <%= r.code %>"
                        value="<%= preExt %>" class="form-control form-control-sm rev-ext"
-                       data-srid="<%= r.srid %>" aria-describedby="ext_<%= r.srid %>_feedback" <%= editable ? '' : 'disabled' %>>
+                       data-srid="<%= r.srid %>" aria-describedby="ext_<%= r.srid %>_feedback" <%= editable && defAccept ? '' : 'disabled' %>>
                 <div class="invalid-feedback" id="ext_<%= r.srid %>_feedback">Enter whole-number revised external marks from 0 to <%= r.maxExternal %>.</div>
               </td>
               <td class="text-center">
@@ -443,4 +523,4 @@
     </a>
   </div>
 </div>
-<script src="/js/revaluation-review.js"></script>
+<script src="/js/revaluation-review.js?v=20261025-5"></script>

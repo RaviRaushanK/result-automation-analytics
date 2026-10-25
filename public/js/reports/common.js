@@ -260,7 +260,7 @@
       th.append(document.createTextNode('Successfully Completed'), node('br'), document.createTextNode(group.label)); top.append(th);
       group.columns.forEach(column => { const cell = node('th', column.label, 'reports-year-completion'); cell.scope = 'col'; bottom.append(cell); });
     });
-    ui('progress-notes').replaceChildren(...report.notes.map(note => node('li', note)));
+    ui('progress-notes').replaceChildren(...ReportWording.details(report, true).map(note => node('li', note)));
     return [top, bottom];
   }
 
@@ -306,13 +306,16 @@
       tr.append(td); fragment.append(tr);
     }
     body.replaceChildren(fragment);
-    ui('summary').replaceChildren(...summary(report.metrics));
+    const metrics = report.metrics.map(([label, value]) => [ReportWording.metricLabel(label), value]);
+    ui('summary').replaceChildren(...summary(metrics));
     ui('flat-table').hidden = type === 'student';
     if (type === 'student') renderSemesters(report);
-    ui('context').replaceChildren(...ReportWording.visible(report.context).map(([label, value]) => {
+    ui('context').replaceChildren(...ReportWording.visible(report.context, type, report.generatedAt).map(([label, value]) => {
       const pair = node('div'); pair.append(node('dt', label), node('dd', value)); return pair;
     }));
-    ui('calculation-notes').replaceChildren(...ReportWording.details(report).map(text => node('li', text)));
+    const notes = type === 'student-progress' ? [] : ReportWording.details(report, true);
+    ui('calculation-notes').replaceChildren(...notes.map(text => node('li', text)));
+    ui('calculation-details').hidden = notes.length === 0 && type !== 'student-progress';
     currentPage = report.pagination.page;
     totalPages = report.pagination.totalPages;
     ui('page-info').textContent = totalPages ? `Page ${currentPage} of ${totalPages} / ${report.pagination.totalRows} rows` : '0 rows';

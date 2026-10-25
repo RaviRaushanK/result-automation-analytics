@@ -7,9 +7,9 @@ const {
     Subject,
     SubjectResult
 } = require('../database/models');
-const { POINTS } = require('../services/academicPolicy');
+const { POINTS, formatExamPeriod } = require('../services/academicPolicy');
 
-const DASHBOARD_PAGE_STYLES = ['/css/dashboard.css?v=20261016-2'];
+const DASHBOARD_PAGE_STYLES = ['/css/dashboard.css?v=20261025-3'];
 
 // Build a where clause for ExamSession from query params
 function buildSessionFilter(query) {
@@ -23,6 +23,12 @@ function buildSessionFilter(query) {
     if (query.semester) {
         if (!/^[1-9]\d?$/.test(query.semester)) throw Object.assign(new Error('Select a valid semester.'), { status: 400 });
         where.semester = query.semester;
+    }
+    if (query.exam_session_id) {
+        if (!/^\d+$/.test(query.exam_session_id) || !Number.isSafeInteger(Number(query.exam_session_id)) || Number(query.exam_session_id) < 1) {
+            throw Object.assign(new Error('Select a valid exam session.'), { status: 400 });
+        }
+        where.exam_session_id = Number(query.exam_session_id);
     }
     return where;
 }
@@ -53,8 +59,8 @@ const dashboardController = {
                 raw: true
             });
             const semesters = await ExamSession.findAll({
-                attributes: ['batch_id', 'semester'],
-                order: [['semester', 'ASC']],
+                attributes: ['exam_session_id', 'batch_id', 'semester', 'exam_session', 'exam_year', 'exam_start_month', 'exam_start_year', 'exam_end_month', 'exam_end_year'],
+                order: [['exam_end_year', 'DESC'], ['exam_end_month', 'DESC'], ['exam_session_id', 'DESC']],
                 raw: true
             });
             res.render('dashboard/index', {
@@ -64,7 +70,8 @@ const dashboardController = {
                     batch_name: b.batch_name
                 })),
                 semesters: [...new Set(semesters.map(s => s.semester))],
-                batchSemesters: semesters
+                batchSemesters: semesters,
+                examSessions: semesters.map(s => ({ ...s, label: formatExamPeriod(s) }))
             });
         } catch (err) {
             console.error('Dashboard render error:', err);
@@ -72,7 +79,8 @@ const dashboardController = {
                 ...base,
                 batches: [],
                 semesters: [],
-                batchSemesters: []
+                batchSemesters: [],
+                examSessions: []
             });
         }
     },
@@ -95,7 +103,7 @@ const dashboardController = {
             const totalResults = totalPass + totalFail;
             const passPercentage = totalResults ? parseFloat(((totalPass / totalResults) * 100).toFixed(2)) : 0;
             const failPercentage = totalResults ? parseFloat(((totalFail / totalResults) * 100).toFixed(2)) : 0;
-            const totalSubjects = await Subject.count({ where: subjectWhere });
+            const totalSubjects = await Subject.count({ where: subjectWhere, distinct: true, col: 'subject_code' });
 
             // Highest score
             const highestScore = await SubjectResult.max('marks', {
@@ -110,20 +118,21 @@ const dashboardController = {
             });
             const averageCGPA = cgpaAgg?.avgCgpa == null ? null : Number(Number(cgpaAgg.avgCgpa).toFixed(2));
 
-            // Subject-wise averages
+            // Subject records belong to sessions. Combine the same course code
+            // across sessions using AVG over attempts, not an average of averages.
             const subjectAverages = await SubjectResult.findAll({
                 attributes: [
-                    [col('Subject.subject_id'), 'subject_id'],
                     [col('Subject.subject_code'), 'subject_code'],
-                    [col('Subject.subject_name'), 'subject_name'],
-                    [col('Subject.max_marks'), 'max_marks'],
+                    [fn('MIN', col('Subject.subject_name')), 'subject_name'],
+                    [fn('MIN', col('Subject.max_marks')), 'min_max_marks'],
+                    [fn('MAX', col('Subject.max_marks')), 'max_marks'],
                     [fn('AVG', col('SubjectResult.marks')), 'average_marks'],
                     [fn('COUNT', col('SubjectResult.subject_result_id')), 'attempted'],
                     [literal("SUM(CASE WHEN SubjectResult.result_status = 'pass' THEN 1 ELSE 0 END)"), 'passed'],
                     [literal("SUM(CASE WHEN SubjectResult.result_status = 'fail' THEN 1 ELSE 0 END)"), 'failed']
                 ],
                 include: [{ model: Subject, attributes: [], where: subjectWhere }, { model: Result, attributes: [], where: resultWhere }],
-                group: ['Subject.subject_id', 'Subject.subject_code', 'Subject.subject_name', 'Subject.max_marks'],
+                group: ['Subject.subject_code'],
                 order: [[fn('AVG', col('SubjectResult.marks')), 'DESC']],
                 raw: true
             });
@@ -160,10 +169,10 @@ const dashboardController = {
                         averageCGPA
                     },
                     subjectAverages: subjectAverages.map(s => ({
-                        subject_id: s.subject_id,
                         subject_code: s.subject_code,
                         subject_name: s.subject_name,
                         max_marks: Number(s.max_marks),
+                        min_max_marks: Number(s.min_max_marks ?? s.max_marks),
                         average_marks: Number(Number(s.average_marks).toFixed(2)),
                         attempted: Number(s.attempted), passed: Number(s.passed), failed: Number(s.failed),
                         pass_percentage: Number(s.attempted) ? Number((Number(s.passed) / Number(s.attempted) * 100).toFixed(2)) : 0

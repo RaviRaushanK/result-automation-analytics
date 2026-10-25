@@ -20,29 +20,28 @@ test('existing result drafts display clarified stage warnings without hiding unr
   assert.equal(warnings[0], 'Vision reading was incomplete or unavailable on some pages. Verify the extracted rows against the card.');
 });
 
-test('revaluation period labels are readable while component acknowledgment stays mandatory', () => {
+test('revaluation period labels are readable and stored external marks verify printed PASS/FAIL', () => {
   const revaluation = require('../services/revaluationIntegrity');
   const period = { exam_start_month: 12, exam_start_year: 2025, exam_end_month: 1, exam_end_year: 2026 };
-  const result = { ...attempt, Student: student, ExamSession: { semester: 1, ...period }, SubjectResults: [{ subject_result_id: 1, external_marks: 15, Subject: { subject_code: 'MMC105' } }] };
+  const result = { ...attempt, Student: student, ExamSession: { semester: 1, ...period }, SubjectResults: [{ subject_result_id: 1, external_marks: 15, Subject: { subject_code: 'MMC105', subject_type: 'theory', max_external: 50 } }] };
   const saved = { ocr: { student: { usn: student.usn }, semester: 1, ...period, subjects: [{ subject_result_id: 1, subjectCode: 'MMC105', oldMarks: 15, oldResult: 'F' }] } };
   const checks = revaluation.checks(saved, result);
   assert.equal(checks.find(check => check.field === 'Examination period').documentLabel, 'Dec 2025 / Jan 2026');
-  assert.equal(checks.find(check => check.key === 'old_status').status, 'UNVERIFIED');
-  assert.ok(revaluation.verify(saved, result).errors.some(error => /Old external result/.test(error)));
-  assert.deepEqual(revaluation.verify(saved, result, [], { old_status: true }).errors, []);
+  assert.equal(checks.find(check => check.field === 'Old external result MMC105').status, 'MATCH');
+  assert.equal(checks.find(check => check.key === 'old_status'), undefined);
+  assert.deepEqual(revaluation.verify(saved, result).errors, []);
   const wrong = { ...saved, ocr: { ...saved.ocr, exam_start_month: 5, exam_end_month: 6, exam_start_year: 2026 } };
   assert.ok(revaluation.verify(wrong, result, [], { old_status: true, period: true }).errors.some(error => /Approval is blocked/.test(error)));
 
   const template = fs.readFileSync(require('path').join(__dirname, '../views/revaluation/review.ejs'), 'utf8');
   const start = template.indexOf('<% if (meta.documentChecks)');
-  const block = template.slice(start, template.indexOf('    <div class="card mb-3">', start));
-  const render = documentChecks => ejs.render(block, { meta: { documentChecks }, review: {} });
+  const block = template.slice(start, template.indexOf('  <%#', start));
+  const render = documentChecks => ejs.render(block, { meta: { documentChecks }, review: {} }, { filename: require.resolve('../views/revaluation/review.ejs') });
   const html = render(checks);
   assert.match(html, /Dec 2025 \/ Jan 2026/);
   assert.doesNotMatch(html, /2025-12-2026-1/);
-  assert.match(html, /I verified the old external PASS\/FAIL status against the original marks card/);
-  assert.match(html, /this field must be checked manually/);
-  assert.match(html, /name="verify_old_status"/);
+  assert.match(html, /Old external result MMC105/);
+  assert.doesNotMatch(html, /this field must be checked manually|name="verify_old_status"/);
   assert.doesNotMatch(html, /name="verify_(?:usn|semester|period)"/);
   const matched = render(checks.filter(check => check.key !== 'old_status'));
   assert.doesNotMatch(matched, /type="checkbox"|this field must be checked manually/);
@@ -59,18 +58,17 @@ test('all document identity fields match without acknowledgment; attempt/type de
 test('revaluation manual-status label renders unchecked and saved acknowledgments without changing automatic checks', () => {
   const source = fs.readFileSync(require('path').join(__dirname, '../views/revaluation/review.ejs'), 'utf8');
   const start = source.indexOf('<% if (meta.documentChecks)');
-  const fragment = source.slice(start, source.indexOf('    <div class="card mb-3">', start));
+  const fragment = source.slice(start, source.indexOf('  <%#', start));
   const manual = { field: 'Old external result', key: 'old_status', status: 'UNVERIFIED', derived: false };
   const automatic = [{ field: 'USN', key: 'usn', status: 'MATCH', document: 'TEST001' },
     { field: 'Semester', key: 'semester', status: 'MISMATCH', document: '2' }];
-  const render = (review, check = manual) => ejs.render(fragment, { meta: { documentChecks: [...automatic, check] }, review });
+  const render = (review, check = manual) => ejs.render(fragment, { meta: { documentChecks: [...automatic, check] }, review }, { filename: require.resolve('../views/revaluation/review.ejs') });
   const initial = render(null);
   assert.match(initial, /Manual verification required/);
   assert.match(initial, /class="manual-verification-status is-required"/);
   assert.doesNotMatch(initial, /UNVERIFIED/);
   assert.match(initial, /role="status" aria-live="polite" aria-atomic="true"/);
-  assert.match(initial, /aria-describedby="verify_old_status_feedback oldExternalResultVerificationHelp oldExternalResultSaveHelp"/);
-  assert.match(initial, /Select Validate to save this confirmation\. Approval remains a separate step/);
+  assert.match(initial, /aria-describedby="verify_old_status_feedback"/);
   const confirmed = render({ identity_verified: { old_status: true } });
   assert.match(confirmed, /Manually confirmed/);
   assert.match(confirmed, /class="manual-verification-status is-confirmed"/);
@@ -80,13 +78,13 @@ test('revaluation manual-status label renders unchecked and saved acknowledgment
   assert.match(uncheckedAgain, /Manual verification required/);
   assert.doesNotMatch(uncheckedAgain, /name="verify_old_status"[^>]* checked/);
   for (const html of [initial, confirmed, uncheckedAgain]) {
-    assert.match(html, /<strong>USN:<\/strong>\s*MATCH/);
-    assert.match(html, /<strong>Semester:<\/strong>\s*MISMATCH/);
-    assert.doesNotMatch(html, /id="oldExternalResultVerificationStatus"[^>]*>\s*MATCH/);
+    assert.match(html, /<strong>USN:<\/strong>[\s\S]*?Verified/);
+    assert.match(html, /<strong>Semester:<\/strong>\s*<span class="badge bg-danger">MISMATCH/);
+    assert.doesNotMatch(html, /data-manual-status-for="old_status"[^>]*>\s*MATCH/);
   }
   const mismatched = render({ identity_verified: { old_status: true } }, { ...manual, status: 'MISMATCH' });
-  assert.doesNotMatch(mismatched, /oldExternalResultVerificationStatus|name="verify_old_status"|Manually confirmed/);
-  assert.match(mismatched, /<strong>Old external result:<\/strong>\s*MISMATCH/);
+  assert.doesNotMatch(mismatched, /data-manual-status-for|name="verify_old_status"|Manually confirmed/);
+  assert.match(mismatched, /<strong>Old external result:<\/strong>[\s\S]*MISMATCH[\s\S]*Stored history:/);
   assert.equal(manual.status, 'UNVERIFIED');
 });
 

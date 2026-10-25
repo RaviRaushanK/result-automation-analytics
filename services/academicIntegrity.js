@@ -76,7 +76,12 @@ function missingVerificationMessage(field) {
   return `The ${field.toLowerCase()} could not be verified from the document. Please confirm it against the original marks card.`;
 }
 function acknowledged(values, field) { return values === true || values?.[verificationKeys[field]] === true; }
-function acknowledgments(body = {}) { return Object.fromEntries(Object.values(verificationKeys).map(key => [key, body['verify_' + key] === '1'])); }
+function acknowledgments(body = {}) {
+  const fixed = Object.fromEntries(Object.values(verificationKeys).map(key => [key, body['verify_' + key] === '1']));
+  for (const [name, value] of Object.entries(body)) if (/^verify_old_status_[A-Z0-9]+$/i.test(name)) fixed[name.slice(7)] = value === '1';
+  for (const [name, value] of Object.entries(body)) if (/^verify_manual_subject_[1-9][0-9]*$/.test(name)) fixed[name.slice(7)] = value === '1';
+  return fixed;
+}
 function summary(ex, target) { return contextChecks(ex, target).map(check => ({ ...check,
   key: verificationKeys[check.field], derived: ['Attempt','Exam type'].includes(check.field) && check.status === 'NOT PRESENT IN DOCUMENT' })); }
 module.exports = { digest, present, mark, code, usn, documentStatus, claims, contextChecks, duplicateRows, originalDocumentErrors, acknowledged, acknowledgments, summary };

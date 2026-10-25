@@ -1,4 +1,16 @@
 <div class="container-fluid revaluation-ui">
+  <% if (error) { %><div class="alert alert-danger revaluation-upload-alert" role="alert"><i class="material-icons me-2 align-middle" aria-hidden="true">error</i><%= error %></div><% } %>
+  <% if (isReplace) { %>
+    <div class="alert alert-warning revaluation-upload-alert d-flex align-items-start gap-2" role="alert">
+      <i class="material-icons mt-1" aria-hidden="true">upload_file</i>
+      <div>
+        <strong>Re-uploading the marks card.</strong>
+        The previous OCR extraction will be discarded and replaced with the new document you are about to upload.
+        The new extracted preview will open after uploading.
+      </div>
+    </div>
+  <% } %>
+
   <div class="row mb-3 align-items-center">
     <div class="col">
       <h4 class="mb-1">Upload Revaluation Document</h4>
@@ -14,18 +26,6 @@
     </div>
   </div>
 
-  <% if (error) { %><div class="alert alert-danger"><%= error %></div><% } %>
-  <% if (isReplace) { %>
-    <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
-      <i class="material-icons mt-1" aria-hidden="true">upload_file</i>
-      <div>
-        <strong>Re-uploading the marks card.</strong>
-        The previous OCR extraction will be discarded and replaced with the new document you are about to upload.
-        The new extracted preview will open after uploading.
-      </div>
-    </div>
-  <% } %>
-
   <details class="mb-3">
     <summary class="py-2">Original subjects and marks (<%= subjectCount %>)</summary>
     <div class="table-responsive mb-0">
@@ -39,7 +39,7 @@
           <% subjects.forEach(s => {
             const passClass = s.result_status === 'pass' ? 'success' : 'danger'; %>
             <tr>
-              <td><%= s.subject_code %></td>
+              <td class="revaluation-subject-code"><code><%= s.subject_code %></code></td>
               <td><%= s.subject_name %></td>
               <td class="text-end"><%= s.credits %></td>
               <td class="text-end"><%= s.original_marks %> / <%= s.max_marks || 100 %></td>

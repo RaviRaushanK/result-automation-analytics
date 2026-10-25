@@ -21,5 +21,15 @@
     var passed = valid && internal >= limits.internal && external >= limits.external && internal + external >= limits.total;
     return { valid: valid, status: passed ? 'pass' : 'fail', limits: limits };
   }
-  return { version: version, thresholds: thresholds, evaluate: evaluate };
+  function evaluateExternal(external, subject) {
+    var limits = thresholds(subject);
+    var type = String(subject && subject.subject_type || '').toLowerCase();
+    var configuredMaximum = Number(subject && (subject.max_external ?? subject.max_external_marks));
+    var knownRule = ['theory', 'lab', 'project'].indexOf(type) >= 0
+      && Number.isSafeInteger(configuredMaximum) && configuredMaximum > 0;
+    var valid = knownRule && typeof external === 'number' && Number.isSafeInteger(external)
+      && external >= 0 && external <= limits.maxExternal;
+    return { valid: valid, status: valid ? (external >= limits.external ? 'pass' : 'fail') : null, limits: limits };
+  }
+  return { version: version, thresholds: thresholds, evaluate: evaluate, evaluateExternal: evaluateExternal };
 });
