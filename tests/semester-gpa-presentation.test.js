@@ -46,7 +46,7 @@ test('screen report cells have room for full identifiers and names without chang
   assert.match(css, /\.reports-page \.reports-table td\.reports-usn \{[^}]*white-space: nowrap;[^}]*word-break: normal/);
   assert.match(css, /@media screen\s*\{\s*\.reports-page\[data-report-type="revaluation"\] \.reports-table \{ width: max-content/);
   const template = fs.readFileSync(require.resolve('../views/analytics/semesters.ejs'), 'utf8');
-  assert.match(template, /Missing GPA is not plotted/);
-  assert.match(template, /not one student's progression/);
+  assert.match(template, /Missing GPA is hidden/);
+  assert.match(template, /not one student's progress/);
   assert.match(template, /<details[^>]*>\s*<summary>About these averages<\/summary>/);
 });

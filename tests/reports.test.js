@@ -427,8 +427,11 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       assert.equal(effective.metrics.some(([label]) => /SGPA|CGPA/.test(label)), false);
       assert.equal(effective.columns.some(c => c.key === 'internal_marks'), true);
       assert.equal(effective.rows[0].internal_marks, null);
-      assert.equal(Number(effective.rows[1].internal_marks), 40);
-      assert.equal(Number(effective.rows[1].external_marks), 30);
+      assert.equal(effective.rows[1].internal_marks, null);
+      assert.equal(effective.rows[1].external_marks, null);
+      assert.equal(effective.rows[1].effectiveInternal, 40);
+      assert.equal(effective.rows[1].effectiveExternal, 30);
+      assert.equal(effective.rows[1].componentsReconciled, false);
       assert.equal(Number(effective.rows[1].marks), 75);
       assert.equal(original.metrics.find(([label]) => label === 'CGPA')[1], '-');
     });
@@ -616,7 +619,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
             assert.match(printText, /scope="colgroup" colspan="3"/);
             assert.match(printText, /rowspan="2"/);
             assert.match(printText, /<td>-<\/td>/);
-            assert.match(printText, /GPA remains original/);
+            assert.match(printText, /GPA: saved values, unchanged by revaluation/);
             assert.doesNotMatch(printText, /Original EX:|Original IA:|Original T:|Effective T:/);
           }
           if (type === 'result-analysis') {
@@ -629,7 +632,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
           if (type === 'student-progress') {
             assert.match(printText, /reports-progress-print/);
             assert.ok(printText.indexOf('</table>') < printText.indexOf('<ul class="reports-progress-notes">'));
-            assert.match(printText, /Missing or unverified semesters/);
+            assert.match(printText, /not enough verified history/);
             assert.equal((printText.match(/Successfully Completed<br>/g) || []).length, 2);
             assert.match(printText, /class="reports-completion-group" colspan="5"/);
             assert.match(printText, />First Year<\/th>/);
@@ -664,7 +667,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
         assert.ok(printSemesters.includes(1) && printSemesters.includes(2) && printSemesters.includes(4) && printSemesters.includes(10));
         assert.deepEqual(printSemesters, printSemesters.slice().sort((a, b) => a - b));
         assert.match(html, /<td>-<\/td>/);
-        assert.match(html, /IA\/EX: original\. Total, grade and result: effective\./);
+        assert.match(html, /Marks: approved revaluation for this attempt; otherwise original marks/);
       } finally { settings.getBranding = getBranding; await new Promise(resolve => server.close(resolve)); }
     });
   } finally { db.sequelize.query = realQuery; }

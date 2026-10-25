@@ -113,7 +113,7 @@
     if (!modeBadge || !modeLabel) return;
     modeBadge.classList.remove('is-original', 'is-effective');
     modeBadge.classList.add('is-' + mode);
-    modeLabel.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    modeLabel.textContent = mode === 'effective' ? 'Effective Result' : 'Original Result';
   }
 
   // ---------- Charts (Chart.js 4.4.1, loaded by the Overview view) ----------
@@ -227,7 +227,7 @@
     if (!host) return;
     perfSummaryChart = destroyChart(perfSummaryChart);
     host.textContent = '';
-    var labels = ['Subject results', 'Stored result headers'];
+    var labels = ['Subject results', 'Saved overall results'];
     var passed = [Number(subject.passed) || 0, Number(parent.resultPassCount) || 0];
     var failed = [Number(subject.failed) || 0, Number(parent.resultFailCount) || 0];
     var title = passRate == null ? '' : 'Subject pass rate: ' + fmt(passRate, 2) + '%';

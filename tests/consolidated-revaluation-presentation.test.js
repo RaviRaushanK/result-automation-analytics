@@ -48,15 +48,15 @@ test('consolidated original/effective marks stay numeric while all output paths 
     assert.match(originalHtml, />15<\/td>.*>30<\/td>.*>45<\/td>/s);
     assert.doesNotMatch(effectiveHtml, /Original EX:|Original IA:|Original T:|Effective T:/);
     assert.match(effectiveHtml, />-<\/td>.*>-<\/td>.*>50<\/td>/s);
-    assert.match(effectiveHtml, /GPA remains original/);
-    assert.match(effectiveHtml, /A dash means unavailable/);
+    assert.match(effectiveHtml, /GPA: saved values, unchanged by revaluation/);
+    assert.match(effectiveHtml, /Dash = unavailable/);
     assert.match(effectiveHtml, /5\.44/);
     let csv = '';
     const res = { set() {}, write(text) { csv += text; return true; }, end() {}, status(code) { throw new Error('Unexpected status ' + code); } };
     await controller.csv('consolidated')({ query: { ...query, mode: 'effective' } }, res);
     assert.match(csv, /,REGULAR,,,50,/);
     assert.doesNotMatch(csv, /Original EX:|Original IA:|Original T:|Effective T:/);
-    assert.match(csv, /Approved effective marks; missing components are not estimated/);
+    assert.match(csv, /Same-attempt approved revaluation; revised components use original fallbacks/);
     assert.match(csv, /5\.44/);
     revisedExternal = 20;
     const components = await service.getReport('consolidated', { ...query, mode: 'effective' });

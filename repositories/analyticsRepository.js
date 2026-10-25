@@ -85,21 +85,8 @@ const MAX_LIMIT = 1000;
  * subject_result. Used ONLY as a LEFT JOIN overlay; original values remain
  * the fallback via COALESCE.
  */
-const EFFECTIVE_EVENT_JOIN = `
-  LEFT JOIN (
-    SELECT e.revaluation_id, e.subject_result_id, e.original_marks,
-           e.revised_marks, e.original_status, e.revised_status, e.revised_grade
-    FROM revaluation_results e
-    INNER JOIN (
-      SELECT subject_result_id, MAX(revaluation_no) AS max_no
-      FROM revaluation_results
-      WHERE is_effective = 1 AND revaluation_status = 'approved'
-      GROUP BY subject_result_id
-    ) pick ON pick.subject_result_id = e.subject_result_id
-          AND pick.max_no = e.revaluation_no
-    WHERE e.is_effective = 1 AND e.revaluation_status = 'approved'
-  ) eff ON eff.subject_result_id = sr.subject_result_id
-`;
+const { effectiveEventJoin, expressions } = require('./revaluationOverlay');
+const EFFECTIVE_EVENT_JOIN = effectiveEventJoin(false, true);
 
 /** FROM/WHERE skeleton shared by subject-level analytics queries. */
 const SUBJECT_FROM = `
@@ -108,7 +95,7 @@ const SUBJECT_FROM = `
   INNER JOIN exam_sessions rs ON rs.exam_session_id  = r.exam_session_id
   INNER JOIN batches b          ON b.batch_id     = rs.batch_id
   INNER JOIN students st        ON st.student_id  = r.student_id
-  INNER JOIN subjects sub       ON sub.subject_id = sr.subject_id
+  INNER JOIN subjects sub       ON sub.subject_id = sr.subject_id AND sub.exam_session_id = r.exam_session_id
 `;
 
 // ---------------------------------------------------------------------------
@@ -254,6 +241,7 @@ function buildAttemptFragment(f) {
   INNER JOIN (
     SELECT student_id, exam_session_id, MAX(attempt_no) AS max_attempt_no
     FROM results
+    ${f.exam_type !== undefined ? 'WHERE exam_type = :examType' : ''}
     GROUP BY student_id, exam_session_id
   ) la ON la.student_id = r.student_id
       AND la.exam_session_id = r.exam_session_id
@@ -279,15 +267,8 @@ function buildSubjectQueryBase(f, resolved, params, includeEffective = false) {
   sql += ' WHERE 1 = 1' + sessionFragment + attempt.fragment;
 
   const rowFragment = buildRowFilterFragment(f, params);
-  const statusExpr = f.mode === 'effective'
-    ? 'COALESCE(eff.revised_status, sr.result_status)'
-    : 'sr.result_status';
-  const gradeExpr = f.mode === 'effective'
-    ? 'COALESCE(eff.revised_grade, sr.grade)'
-    : 'sr.grade';
-  const marksExpr = f.mode === 'effective'
-    ? 'COALESCE(eff.revised_marks, sr.marks)'
-    : 'sr.marks';
+  const outcome = expressions(f.mode);
+  const statusExpr = outcome.status, gradeExpr = outcome.grade, marksExpr = outcome.marks;
 
   return {
     rowFragment,
@@ -564,7 +545,7 @@ async function getSemesterAnalytics(filters) {
       b.batch_name         AS batchName,
       COUNT(DISTINCT r.result_id)  AS resultCount,
       SUM(CASE WHEN r.result_status = 'pass' THEN 1 ELSE 0 END) AS resultPassCount,
-      SUM(CASE WHEN r.result_status = 'fail' THEN 1 ELSE 0 END) AS resultFailCount,
+      COUNT(DISTINCT CASE WHEN r.result_status = 'fail' THEN r.result_id END) AS resultFailCount,
       AVG(r.sgpa)          AS avgSgpa,
       AVG(r.cgpa)          AS avgCgpa,
       COUNT(*)             AS subjectAttempts,

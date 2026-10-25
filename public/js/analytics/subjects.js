@@ -107,7 +107,7 @@
     mode = mode === 'effective' ? 'effective' : 'original';
     modeBadge.classList.remove('is-original', 'is-effective');
     modeBadge.classList.add('is-' + mode);
-    modeLabel.textContent = mode === 'effective' ? 'Effective' : 'Original';
+    modeLabel.textContent = mode === 'effective' ? 'Effective Result' : 'Original Result';
   }
   function readFilters() {
     var params = new URLSearchParams();

@@ -7,7 +7,7 @@
     </div>
     <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
       <span class="material-icons" aria-hidden="true">insights</span>
-      Result Basis: <strong id="analytics-mode-label">Original</strong>
+      Result View: <strong id="analytics-mode-label">Original Result</strong>
     </span>
   </div>
 
@@ -40,10 +40,10 @@
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-mode">Mode</label>
+          <label class="form-label" for="filter-mode">Result View</label>
           <select class="form-select" id="filter-mode" name="mode">
-            <option value="original" selected>Original</option>
-            <option value="effective">Effective</option>
+            <option value="original" selected>Original Result</option>
+            <option value="effective">Effective Result</option>
           </select>
         </div>
         <%- include('partials/exam-type-filter') %>
@@ -145,13 +145,13 @@
       </div>
     </div>
     <p class="analytics-note">
-      Subject-level metrics follow the selected result basis (Original or Effective).
+      Subject results use the selected Result View.
     </p>
   </section>
 
   <%# ---- Stored parent-result metrics (clearly separated from subject metrics) ---- %>
   <section aria-labelledby="parent-metrics-heading" class="mt-4">
-    <h2 id="parent-metrics-heading" class="h5 mb-3">Stored Result-Header Metrics</h2>
+    <h2 id="parent-metrics-heading" class="h5 mb-3">Saved Overall Results</h2>
     <div class="row g-4 mb-4" id="analytics-parent-cards">
       <div class="col-sm-6 col-xl-3">
         <div class="card stat-card stat-green" data-metric="result-pass-count">
@@ -211,7 +211,7 @@
       </div>
     </div>
     <p class="analytics-note">
-      SGPA/CGPA shown here are stored result-header values; not recalculated after revaluation.
+      Overall results and GPA are saved values, unchanged by revaluation.
     </p>
   </section>
 

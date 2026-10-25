@@ -1,16 +1,18 @@
 # Report and Analytics presentation
 
-Presentation changes do not change report queries, calculation formulas, API metric keys, ranking, classification or stored academic data.
+Presentation changes do not change academic passing rules, stored GPA or historical data. Report projections now share the [Original/Effective contract](report-mode-semantics.md); ranking and completion classification policies remain unchanged.
 
 ## Reports
 
-All reports retain programme, batch and applicable semester/exam-session metadata. Screen summaries use short basis notes; **Calculation details** holds the full explanation. Print/PDF and CSV include those explanations without depending on an expandable control.
+Report screens and print/PDF keep scope, Result View and Generated at, with at
+most two short basis notes. Full provenance explanations remain in CSV/API
+context. Programme/institution branding remains separate from repeated context.
 
 | Report | Meaning retained |
 | --- | --- |
-| Student | Subject outcomes grouped by recorded semester, sitting and attempt. IA/EX remain original components; effective totals/status can include approved effective revaluation. |
+| Student | Subject outcomes grouped by recorded semester, sitting and attempt. Effective IA/EX use explicit revisions or original fallbacks, with consistent unavailable markers. |
 | Class | Result-attempt rows, with distinct-student and result-row counts distinguished. |
-| Subject | Subject-result attempts, not necessarily distinct students. Original components and effective outcomes remain distinguished. |
+| Subject | Subject-result attempts, not distinct students. Uses the same Original/Effective subject outcome as Student and Consolidated. |
 | Revaluation | Event ledger, including pending/rejected and approved non-effective events. Only approved effective events affect current outcomes. |
 | Toppers | Existing eligibility and stored original CGPA ranking/tie order. Multiple result attempts can belong to one student. |
 | Consolidated | Numeric EX/IA/T cells. Approved revised components may use original fallbacks only when they reconcile with the approved total. Otherwise components remain unavailable; no component is inferred. |
@@ -56,3 +58,12 @@ Semester Analysis displays stored SGPA/CGPA averages as separate bars per exam s
 Relevant report/Analytics/Progress/revaluation/GPA suite: 212 passed, 0 failed, 7 skipped (exit 0). Regression fixtures cover missing/invalid/zero GPA, preserved backlog CGPA, separate session bars, unchanged input data, readable report identifiers and existing print/GPA output.
 
 The chart orientation changes were reverted at the user's request. Both charts retain their earlier vertical-bar presentations. The GPA explanation is collapsed behind the native arrow beside **About these averages**. The revaluation outcome summary's explicit text styling remains. Chart axis and legend text now follows the light/dark theme and refreshes on theme changes, without altering graph layout or values. Focused chart-text/GPA checks: 16 passed, 0 failed, 0 skipped (exit 0); syntax and diff checks passed.
+
+
+## Short report notes (26 October 2026)
+
+Every formal report uses at most two short notes on screen and print/PDF. Notes start with familiar labels (Marks, Results, Ranking, Counts or Completion), explain the selected view, and avoid repository terminology. Student, Subject and Consolidated explain unavailable marks and separate backlog attempts; GPA guidance appears only where relevant. Class explains selected attempt results; Toppers explains saved CGPA ranking; Analysis explains attempt counts; Revaluation explains approval and active revisions; Progress explains history and missing verified data. Original Progress notes do not imply revaluation was included.
+
+Analytics notes use the same plain language. Saved overall results are distinguished from subject results, past failures remain separate from later backlog clearance, and session GPA comparisons retain their limitations. Detailed provenance remains available in exports and calculation details. No calculations or academic records changed.
+
+Wording verification: 500 tests, 498 passed, 0 failed, 2 opt-in tests skipped; exit 0. JavaScript syntax: 23 passed; EJS compilation: 74 passed; diff check passed (exit 0).

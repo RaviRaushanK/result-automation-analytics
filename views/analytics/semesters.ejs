@@ -7,7 +7,7 @@
     </div>
     <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
       <span class="material-icons" aria-hidden="true">insights</span>
-      Result Basis: <strong id="analytics-mode-label">Original</strong>
+      Result View: <strong id="analytics-mode-label">Original Result</strong>
     </span>
   </div>
 
@@ -34,10 +34,10 @@
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-mode">Mode</label>
+          <label class="form-label" for="filter-mode">Result View</label>
           <select class="form-select" id="filter-mode" name="mode">
-            <option value="original" selected>Original</option>
-            <option value="effective">Effective</option>
+            <option value="original" selected>Original Result</option>
+            <option value="effective">Effective Result</option>
           </select>
         </div>
         <%- include('partials/exam-type-filter') %>
@@ -54,7 +54,7 @@
     <div class="analytics-card">
       <h2 id="semesters-table-heading" class="h6 p-2 analytics-card-title">Exam Session Comparison</h2>
       <p class="analytics-note px-2">
-        SGPA/CGPA shown here are stored result-header values.
+        GPA: saved values, unchanged by revaluation.
       </p>
       <div class="table-responsive">
         <table class="table analytics-table" id="semesters-table">
@@ -101,7 +101,7 @@
         <h3 class="h6 p-2 analytics-card-title">Stored GPA by Exam Session</h3>
         <details class="analytics-calculation-details analytics-note px-2">
           <summary>About these averages</summary>
-          <p id="semesters-gpa-note">Session averages describe different result groups, not one student's progression. Missing GPA is not plotted. Backlog results do not calculate a new semester SGPA; an available stored CGPA is still shown.</p>
+          <p id="semesters-gpa-note">Each bar shows a session average, not one student's progress. Missing GPA is hidden. Backlog CGPA is shown when saved; no new SGPA is calculated.</p>
         </details>
         <div class="analytics-chart-body">
           <div class="analytics-chart-container">

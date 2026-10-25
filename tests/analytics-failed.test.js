@@ -12,7 +12,7 @@ const fixture = `WITH
  students AS (SELECT 1 student_id,'U1' usn,'Student 1' student_name UNION ALL SELECT 2,'U2','Student 2'
    UNION ALL SELECT 3,'U3','Student 3' UNION ALL SELECT 4,'U4','Student 4' UNION ALL SELECT 5,'U5','Student 5'
    UNION ALL SELECT 6,'U6','Student 6' UNION ALL SELECT 7,'U7','Student 7' UNION ALL SELECT 8,'U8','Student 8' UNION ALL SELECT 9,'U9','Student 9'),
- subjects AS (SELECT 1 subject_id,'C1' subject_code,'Course' subject_name),
+ subjects AS (SELECT 1 subject_id,'C1' subject_code,'Course' subject_name,1 exam_session_id),
  results AS (SELECT student_id result_id,student_id,1 exam_session_id,1 attempt_no,'REGULAR' exam_type FROM students
    UNION ALL SELECT 10,1,1,2,'REGULAR'),
  subject_results AS (SELECT student_id subject_result_id,student_id result_id,1 subject_id,

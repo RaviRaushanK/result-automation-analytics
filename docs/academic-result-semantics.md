@@ -2,6 +2,19 @@
 
 Reviewed on 23 October 2026. Source services and applied migrations remain authoritative.
 
+## Report mode contract (26 October 2026)
+
+Original Result reads the selected attempt's stored values. Effective Result
+applies only that same SubjectResult's approved effective revaluation; it never
+means the latest backlog attempt. Explicit revised IA/EX are supported across
+Student, Subject and Consolidated reports, with the same component-fallback and
+unavailable-marker policy in screen, CSV and print/PDF. Stored GPA is unchanged.
+
+Current Completion is a separate history-based concept. Valid later backlog
+attempts may clear a course, but never replace the values of an earlier Result.
+See the complete [before/after report audit](report-mode-semantics.md), including
+the shared helpers, all report families, database-view audit and live example.
+
 ## Stable Identity And Rollout
 
 `ExamSession` is the examination sitting/period container: batch + academic

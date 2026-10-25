@@ -866,7 +866,7 @@ async function main() {
         for (let n = 1; n <= pdf.numPages; n++) text += (await (await pdf.getPage(n)).getTextContent()).items.map(item => item.str).join(' ') + '\n';
         assert.ok(text.includes('MCA'), `${type}: branding/context retained in PDF`);
         if (type === 'student-progress') {
-          assert.ok(text.includes('Missing or unverified semesters'), 'Progress explanatory notes retained after table');
+          assert.ok(text.includes('not enough verified history'), 'Progress explanatory notes retained after table');
           assert.equal(await evaluate("document.querySelector('.reports-progress').compareDocumentPosition(document.querySelector('.reports-progress-notes')) & Node.DOCUMENT_POSITION_FOLLOWING"), 4);
         }
         const page = await pdf.getPage(1), viewport = page.getViewport({ scale: 1.25 });

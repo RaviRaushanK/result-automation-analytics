@@ -7,7 +7,7 @@
     </div>
     <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
       <span class="material-icons" aria-hidden="true">insights</span>
-      Result Basis: <strong id="analytics-mode-label">Original</strong>
+      Result View: <strong id="analytics-mode-label">Original Result</strong>
     </span>
   </div>
   <%# ---- Filters (options populated by Phase 5) ---- %>
@@ -45,10 +45,10 @@
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-mode">Mode</label>
+          <label class="form-label" for="filter-mode">Result View</label>
           <select class="form-select" id="filter-mode" name="mode">
-            <option value="original" selected>Original</option>
-            <option value="effective">Effective</option>
+            <option value="original" selected>Original Result</option>
+            <option value="effective">Effective Result</option>
           </select>
         </div>
         <%- include('partials/exam-type-filter') %>
@@ -108,16 +108,16 @@
       </div>
     </div>
     <p class="analytics-note">
-      Counts describe the failure records listed below for the current filters.
+      Counts use the selected filters.
     </p>
   </section>
 
   <%# ---- Failed subject results table ---- %>
   <section aria-labelledby="failed-table-heading" class="mt-4">
     <div class="analytics-card">
-      <h2 id="failed-table-heading" class="h6 p-2 analytics-card-title">Recorded Failed Subject Results</h2>
+      <h2 id="failed-table-heading" class="h6 p-2 analytics-card-title">Failed Subject Attempts</h2>
       <p class="analytics-note px-2">
-        Original mode lists recorded subject failures. Effective mode lists failures after approved effective revaluation; revised passes leave this list. Effective values fall back to originals when no approved effective revision exists. Pending and rejected revisions are excluded.
+        Past failed attempts remain listed even if a later backlog attempt passed.
       </p>
       <div class="analytics-toolbar">
         <label class="analytics-search-wrap" for="failed-search">

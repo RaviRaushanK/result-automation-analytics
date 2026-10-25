@@ -19,7 +19,7 @@ test('single-attempt student print combines headings and omits the duplicate att
   assert.doesNotMatch(html, /<h3>|<h4>/);
   assert.equal((html.match(/<tbody>/g) || []).length, 1);
   for (let i = 1; i <= 6; i++) assert.match(html, new RegExp('MCA' + i));
-  assert.match(html, /SGPA\/CGPA: original values\./);
+  assert.match(html, /Marks: original values for each selected attempt\./);
 });
 
 test('multi-attempt student print preserves every attempt, per-attempt summary and subject table', async () => {
@@ -43,7 +43,7 @@ test('revaluation print protects the entire USN cell from mid-identifier wrappin
   assert.match(css, /td\.reports-usn\s*\{[^}]*white-space: nowrap;[^}]*overflow-wrap: normal;[^}]*word-break: normal/);
 });
 
-test('Toppers print keeps essential context and one short note without duplicating long explanations', async () => {
+test('Toppers print keeps essential context and two short notes without duplicating long explanations', async () => {
   const locals = fixture();
   Object.assign(locals.report, { type: 'toppers', title: 'Toppers Report',
     metrics: [['Eligible Result Attempts', 3], ['Students', 3], ['Highest Stored CGPA', 7.89]],
@@ -57,8 +57,8 @@ test('Toppers print keeps essential context and one short note without duplicati
   const html = await ejs.renderFile(path.join(__dirname, '../views/reports/print.ejs'), locals);
   assert.match(html, /MCA 2025/); assert.match(html, /Dec 2025 \/ Jan 2026/);
   assert.match(html, /Generated at<\/dt><dd>2026-10-25T17:41:38.466Z/);
-  assert.equal((html.match(/class="reports-component-note"/g) || []).length, 1);
-  assert.match(html, /Original CGPA, highest first\. Passed attempts only\./);
+  assert.equal((html.match(/class="reports-component-note"/g) || []).length, 2);
+  assert.match(html, /Ranking: passed attempts, highest saved CGPA first\./);
   assert.doesNotMatch(html, /Eligibility|Tie Order|GPA Basis|Long historical|Rows represent|Eligible Result Attempts|Highest Stored CGPA/);
   assert.match(html, />Eligible attempts<\/span>/); assert.match(html, />Top CGPA<\/span>/);
   assert.match(html, /<td>1<\/td><td>Test Student<\/td><td>7\.89<\/td>/);

@@ -57,7 +57,7 @@
     if (!modeBadge || !modeLabel) return;
     modeBadge.classList.remove('is-original', 'is-effective');
     modeBadge.classList.add('is-' + mode);
-    modeLabel.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    modeLabel.textContent = mode === 'effective' ? 'Effective Result' : 'Original Result';
   }
 
   function showEmpty(show) {

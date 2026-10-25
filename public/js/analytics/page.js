@@ -162,7 +162,7 @@
         if (config.done) config.done(result, { row: row, number: number, chart: chart, statusBadge: statusBadge, params: params });
         if (!rows) message('No analytics data found for the selected filters.');
         var label = document.getElementById('analytics-mode-label');
-        if (label) label.textContent = result.mode === 'effective' ? 'Effective' : 'Original';
+        if (label) label.textContent = result.mode === 'effective' ? 'Effective Result' : 'Original Result';
         var badge = document.getElementById('analytics-mode-badge');
         if (badge) {
           badge.classList.toggle('is-effective', result.mode === 'effective');

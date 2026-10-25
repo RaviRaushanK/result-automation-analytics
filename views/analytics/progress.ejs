@@ -7,7 +7,7 @@
     <div class="row g-3 align-items-end">
       <div class="col-12 col-sm-6 col-lg-3"><label for="progress-batch" class="form-label">Batch</label><select id="progress-batch" name="batch_id" class="form-select" required></select></div>
       <div class="col-12 col-sm-6 col-lg-4"><label for="progress-scope" class="form-label">Analysis Scope</label><select id="progress-scope" name="analysis_scope" class="form-select"></select></div>
-      <div class="col-12 col-sm-6 col-lg-2"><label for="progress-mode" class="form-label">Result Basis</label><select id="progress-mode" name="mode" class="form-select"><option value="original">Original</option><option value="effective" selected>Effective</option></select></div>
+      <div class="col-12 col-sm-6 col-lg-2"><label for="progress-mode" class="form-label">Result View</label><select id="progress-mode" name="mode" class="form-select"><option value="original">Original Result</option><option value="effective" selected>Effective Result</option></select></div>
       <div class="col-12 col-sm-6 col-lg-3 d-flex gap-2"><button type="reset" class="btn btn-outline-secondary">Reset</button><button type="submit" class="btn btn-primary">Apply Filters</button></div>
     </div>
   </form>
@@ -30,13 +30,13 @@
         </div>
       <% }); %>
     </div>
-    <p class="analytics-note">Clearance rate measures completion through retakes among students with verified backlog and determined completion.</p>
+    <p class="analytics-note">Clearance rate: students who cleared a verified backlog. Undetermined completion is excluded.</p>
     <details class="analytics-calculation-details analytics-note">
       <summary>Calculation details</summary>
       <p>Completion cannot be determined from the available verified academic history when results, roster verification or an unambiguous attempt history are missing.</p>
       <p>Backlog clearance rate = students who completed this scope through retake clearance / students with verified first-sitting failures and determined completion. Students without verified backlog and students whose completion is not determined are excluded. A dash means no eligible backlog history.</p>
       <p id="progress-clearance-counts"></p>
-      <p>Original uses recorded outcomes. Effective includes approved effective revaluation only. Stored GPA is not recalculated.</p>
+      <p>Original uses saved results. Effective adds approved revaluation to each attempt. Saved GPA is unchanged.</p>
     </details>
   </section>
   <div class="analytics-chart-grid mb-4">

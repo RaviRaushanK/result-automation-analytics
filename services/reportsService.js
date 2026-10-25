@@ -5,6 +5,7 @@ const academicOutcomes = require('./academicOutcomeService');
 const academicPolicy = require('./academicPolicy');
 const gpaFormat = require('../public/js/gpa-format');
 const reportWording = require('../public/js/reports/wording');
+const { presentSubjectOutcome } = require('./subjectOutcome');
 const TYPES = ['student', 'class', 'subject', 'revaluation', 'toppers', 'consolidated', 'result-analysis', 'student-progress'];
 const TITLES = { student: 'Student Result Report', class: 'Class Result Report', subject: 'Subject Result Report', revaluation: 'Revaluation Report', toppers: 'Toppers Report', consolidated: 'Consolidated Result Report', 'result-analysis': 'Result Analysis Report' };
 TITLES['student-progress'] = 'All Students Progress Report';
@@ -126,9 +127,14 @@ function columns(type, mode) {
   if (type === 'class') pairs = [...identity, ...attempt, ['subjects', 'Subjects'], ['passed', 'Passed'], ['failed', 'Failed'], ['result_status', 'Result'], ...(mode === 'original' ? [['sgpa', 'SGPA'], ['cgpa', 'CGPA']] : [])];
   if (type === 'toppers') pairs = [['position', 'Rank'], ...identity, ...attempt, ['subjects', 'Subjects'], ['passed', 'Passed'], ['total_marks', 'Total'], ['sgpa', 'SGPA'], ['cgpa', 'CGPA'], ['percentage', '% Percentage'], ['result_status', 'Result']];
   if (type === 'subject') pairs = [...identity, ...attempt, ...outcome];
-  if (type === 'revaluation') pairs = [...identity, ...attempt, ['subject_code', 'Subject Code'], ['subject_name', 'Subject Name'], ['revaluation_no', 'Revaluation No.'], ['original_marks', 'Original Marks'], ['original_status', 'Original Result'], ['revised_marks', 'Revised Marks'], ['revised_grade', 'Revised Grade'], ['revised_status', 'Revised Result'], ['revaluation_status', 'Revaluation Status'], ['is_effective', 'Effective'], ['reviewed_at', 'Reviewed At']];
+  if (type === 'revaluation') pairs = [...identity, ...attempt, ['subject_code', 'Subject Code'], ['subject_name', 'Subject Name'], ['revaluation_no', 'Revaluation No.'],
+    ['original_internal_marks', 'Original IA'], ['original_external_marks', 'Original EX'],
+    ['revised_internal_marks', 'Revised IA'], ['revised_external_marks', 'Revised EX'],
+    ['original_marks', 'Original total'], ['original_status', 'Original Result'], ['revised_marks', 'Revised total'], ['revised_grade', 'Revised Grade'], ['revised_status', 'Revised Result'], ['revaluation_status', 'Revaluation Status'], ['is_effective', 'Effective'], ['reviewed_at', 'Reviewed At']];
   if (mode === 'effective' && type !== 'class' && type !== 'revaluation') pairs.push(['revaluated', 'Revaluated']);
-  return pairs.map(([key, label]) => ({ key, label, ...(key === 'internal_marks' ? { title: 'Original Internal Assessment marks' } : key === 'external_marks' ? { title: 'Original External / SEE marks' } : {}) }));
+  return pairs.map(([key, label]) => ({ key, label, ...(key === 'internal_marks'
+    ? { title: mode === 'effective' ? 'Approved revised IA, otherwise original IA; unavailable if components do not reconcile' : 'Original Internal Assessment marks' }
+    : key === 'external_marks' ? { title: mode === 'effective' ? 'Approved revised EX, otherwise original EX; unavailable if components do not reconcile' : 'Original External / SEE marks' } : {}) }));
 }
 
 function subjectSummary(rows) {
@@ -152,7 +158,7 @@ async function studentReport(filters) {
     if (!filters.attempt_no && results.length > 1) invalid('Select an attempt for this student and session.');
     if (!filters.attempt_no) filters.attempt_no = Number(results[0].attempt_no);
   }
-  const subjects = await repository.studentSubjects(filters);
+  const subjects = (await repository.studentSubjects(filters)).map(row => presentSubjectOutcome(row, filters.mode));
   const byResult = new Map();
   for (const row of subjects) {
     const key = String(row.result_id);
@@ -237,6 +243,7 @@ async function getReport(type, query) {
     return report;
   }
   report.rows = await repository.rows(type, report.filters, pageSize, (page - 1) * pageSize);
+  if (type === 'subject') report.rows = report.rows.map(row => presentSubjectOutcome(row, report.filters.mode));
   if (type === 'consolidated') report.rows = await pivotConsolidated(report, report.rows);
   return report;
 }
@@ -246,6 +253,7 @@ async function* fullRows(report) {
   // Full exports are fetched in chunks without the preview's page-size cap.
   for (let offset = 0; ; offset += 1000) {
     let rows = report.type === 'student-progress' ? await progressRows(report, 1000, offset) : await repository.rows(report.type, report.filters, 1000, offset);
+    if (report.type === 'subject') rows = rows.map(row => presentSubjectOutcome(row, report.filters.mode));
     if (report.type === 'consolidated') rows = await pivotConsolidated(report, rows);
     for (const row of rows) yield row;
     if (rows.length < 1000) break;
@@ -377,20 +385,15 @@ function subjectKey(id, component) { return `subject_${id}_${component}`; }
 
 async function pivotConsolidated(report, rows) {
   const cells = await repository.consolidatedSubjects(report.filters, rows.map(row => row.result_id));
-  const byResult = new Map(rows.map(row => [String(row.result_id), { ...row, subject_marks: {}, consolidated_display: {},
+  const byResult = new Map(rows.map(row => [String(row.result_id), { ...row, subject_marks: {}, subject_outcomes: {}, consolidated_display: {},
     ...Object.fromEntries(report.subjects.flatMap(subject => ['EX', 'IA', 'T'].map(component => [subjectKey(subject.subject_id, component), null]))) }]));
   for (const cell of cells) {
     const row = byResult.get(String(cell.result_id));
-    const effective = report.filters.mode === 'effective' && Number(cell.revaluated);
-    let internal = effective ? cell.revised_internal_marks ?? cell.internal_marks : cell.internal_marks;
-    let external = effective ? cell.revised_external_marks ?? cell.external_marks : cell.external_marks;
-    const reconciled = [internal, external, cell.marks].every(value => value != null && Number.isFinite(Number(value)))
-      && Number(internal) + Number(external) === Number(cell.marks);
-    // Numeric-only cells must not present original components as components of
-    // a different approved total. Never manufacture the missing revision.
-    if (effective && !reconciled) { internal = null; external = null; }
-    row.subject_marks[cell.subject_id] = { external, internal, total: cell.marks, effective: Boolean(Number(cell.revaluated)) };
-    for (const [component, value] of [['EX', external], ['IA', internal], ['T', cell.marks]]) row[subjectKey(cell.subject_id, component)] = value;
+    const outcome = presentSubjectOutcome(cell, report.filters.mode);
+    row.subject_outcomes[cell.subject_id] = outcome;
+    row.subject_marks[cell.subject_id] = { external: outcome.external_marks, internal: outcome.internal_marks,
+      total: outcome.marks, effective: outcome.wasRevaluated };
+    for (const [component, value] of [['EX', outcome.external_marks], ['IA', outcome.internal_marks], ['T', outcome.marks]]) row[subjectKey(cell.subject_id, component)] = value;
   }
   return rows.map(row => byResult.get(String(row.result_id)));
 }
@@ -489,7 +492,7 @@ function* studentCsvLines(report) {
   yield ['Result View', view];
   for (const detail of reportWording.details(report)) yield ['Calculation details', detail];
   if (report.filters.mode === 'effective' && report.rows.some(row => Number(row.revaluated))) {
-    yield ['Marks Basis', 'IA and External are original stored components; Total, Grade and Result may reflect approved revaluation.'];
+    yield ['Marks Basis', 'Same-attempt approved revaluation; revised components use original fallbacks when consistent with the authoritative total. Backlog attempts remain separate.'];
   }
   for (const term of report.semesters) {
     yield [];

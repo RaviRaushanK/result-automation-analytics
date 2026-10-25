@@ -6,21 +6,7 @@ const { RETAKE_TYPES } = require('../services/academicPolicy');
 
 const select = (sql, replacements = {}) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
 
-// Same approved-effective, highest-event-number selection as Analytics.
-function effectiveEventJoin(components = false) { return `
-  LEFT JOIN (
-    SELECT e.revaluation_id, e.subject_result_id, e.revised_marks,
-           e.revised_status, e.revised_grade${components ? ', e.revised_internal_marks, e.revised_external_marks' : ''}
-    FROM revaluation_results e
-    INNER JOIN (
-      SELECT subject_result_id, MAX(revaluation_no) AS max_no
-      FROM revaluation_results
-      WHERE is_effective = 1 AND revaluation_status = 'approved'
-      GROUP BY subject_result_id
-    ) pick ON pick.subject_result_id = e.subject_result_id AND pick.max_no = e.revaluation_no
-    WHERE e.is_effective = 1 AND e.revaluation_status = 'approved'
-  ) eff ON eff.subject_result_id = sr.subject_result_id
-`; }
+const { effectiveEventJoin, expressions } = require('./revaluationOverlay');
 const EFFECTIVE_EVENT_JOIN = effectiveEventJoin();
 
 async function batch(batchId) {
@@ -77,15 +63,17 @@ async function options(scope, f) {
 
 function subjectRows(f, components = false) {
   const effective = f.mode === 'effective';
+  const outcome = expressions(f.mode);
   return `SELECT sr.subject_result_id, r.result_id, r.student_id, st.usn, st.student_name,
     rs.exam_session_id, rs.semester, rs.exam_session, rs.exam_year, rs.exam_start_month, rs.exam_start_year, rs.exam_end_month, rs.exam_end_year, sr.internal_marks, sr.external_marks,
     r.attempt_no, r.exam_type, sub.subject_id, sub.subject_code, sub.subject_name, sub.credits, sub.max_marks,
-    sr.marks AS original_marks,
+    sr.marks AS original_marks, sr.grade AS original_grade, sr.result_status AS original_result_status,
+    sr.internal_marks AS original_internal_marks, sr.external_marks AS original_external_marks,
     ${components ? `${effective ? 'eff.revised_internal_marks' : 'NULL'} AS revised_internal_marks, ${effective ? 'eff.revised_external_marks' : 'NULL'} AS revised_external_marks,` : ''}
-    ${effective ? 'COALESCE(eff.revised_marks, sr.marks)' : 'sr.marks'} AS marks,
-    ${effective ? 'COALESCE(eff.revised_grade, sr.grade)' : 'sr.grade'} AS grade,
-    ${effective ? 'COALESCE(eff.revised_status, sr.result_status)' : 'sr.result_status'} AS result_status,
-    ${effective ? '(eff.revaluation_id IS NOT NULL)' : '0'} AS revaluated
+    ${outcome.marks} AS marks,
+    ${outcome.grade} AS grade,
+    ${outcome.status} AS result_status,
+    ${effective ? '(eff.revaluation_id IS NOT NULL)' : '0'} AS revaluated, ${effective ? 'eff.revaluation_id' : 'NULL'} AS revaluation_id
     FROM subject_results sr
     INNER JOIN results r ON r.result_id = sr.result_id
     INNER JOIN students st ON st.student_id = r.student_id AND st.deleted_at IS NULL
@@ -117,7 +105,7 @@ function dataset(type, f) {
       WHERE eligible.result_status = 'pass' AND eligible.cgpa IS NOT NULL
         AND eligible.subjects > 0 AND eligible.failed = 0`;
   }
-  if (type === 'student' || type === 'subject') return subjectRows(f);
+  if (type === 'student' || type === 'subject') return subjectRows(f, true);
   if (type === 'class' || type === 'consolidated') {
     return `SELECT r.result_id, r.student_id, st.usn, st.student_name, r.attempt_no, r.exam_type,
       r.sgpa, r.cgpa, COALESCE(a.subjects, 0) AS subjects,
@@ -141,6 +129,8 @@ function dataset(type, f) {
   }
   return `SELECT rv.revaluation_id, r.student_id, st.usn, st.student_name, r.attempt_no, r.exam_type,
     sub.subject_code, sub.subject_name, rv.revaluation_no, rv.original_marks, rv.original_status,
+    sr.internal_marks AS original_internal_marks, sr.external_marks AS original_external_marks,
+    rv.revised_internal_marks, rv.revised_external_marks,
     rv.revised_marks, rv.revised_grade, rv.revised_status, rv.revaluation_status,
     COALESCE(eff.revaluation_id = rv.revaluation_id, 0) AS is_effective, rv.reviewed_at
     FROM revaluation_results rv
@@ -195,7 +185,7 @@ async function studentResults(f) {
 }
 
 async function studentSubjects(f) {
-  return select(`SELECT q.* FROM (${subjectRows(f)}) q ORDER BY q.subject_code, q.subject_result_id`, f);
+  return select(`SELECT q.* FROM (${subjectRows(f, true)}) q ORDER BY q.subject_code, q.subject_result_id`, f);
 }
 
 async function sessionSubjects(f) {

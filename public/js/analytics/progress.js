@@ -67,7 +67,7 @@
       el('scope-description').textContent = data.description;
       el('status-heading').textContent = data.label + ' Completion Status';
       el('status-chart').setAttribute('aria-label', data.label + ' Completion Status');
-      el('clearance-heading').textContent = 'Clearance Status (' + (data.mode === 'effective' ? 'Effective' : 'Original') + ')';
+      el('clearance-heading').textContent = 'Clearance Status (' + (data.mode === 'effective' ? 'Effective Result' : 'Original Result') + ')';
       el('state').textContent = !data.summary.total ? 'No students found for the selected batch.'
         : data.summary.unknown === 0 ? `Completion is determined for all ${data.summary.total} students in this scope.`
         : `Completion not determined for ${number(data.summary.unknown)} of ${data.summary.total} students in this scope.`;
@@ -89,7 +89,7 @@
         link.href = '/reports/student?' + new URLSearchParams({ batch_id: data.filters.batch_id, student_id: s.studentId, mode: data.mode });
         return [s.usn, s.name, s.period, s.unclearedCourses, s.latestAttempt, 'Uncleared', link];
       }), 'No students currently have known uncleared courses.');
-      el('attention-note').textContent = `${data.mode === 'effective' ? 'Effective results, including approved effective revaluation' : 'Original results, before revaluation'}. Showing ${data.attention.length} of ${data.attentionTotal} students with known uncleared work.`;
+      el('attention-note').textContent = `${data.mode === 'effective' ? 'Effective results with approved revaluation' : 'Original results, before revaluation'}. Showing ${data.attention.length} of ${data.attentionTotal} students with confirmed uncleared subjects.`;
     } catch (error) {
       if (request !== version) return;
       el('state').textContent = error.message;

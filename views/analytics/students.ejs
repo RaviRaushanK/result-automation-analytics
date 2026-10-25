@@ -7,7 +7,7 @@
     </div>
     <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
       <span class="material-icons" aria-hidden="true">insights</span>
-      Result Basis: <strong id="analytics-mode-label">Original</strong>
+      Result View: <strong id="analytics-mode-label">Original Result</strong>
     </span>
   </div>
 
@@ -44,10 +44,10 @@
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-mode">Mode</label>
+          <label class="form-label" for="filter-mode">Result View</label>
           <select class="form-select" id="filter-mode" name="mode">
-            <option value="original" selected>Original</option>
-            <option value="effective">Effective</option>
+            <option value="original" selected>Original Result</option>
+            <option value="effective">Effective Result</option>
           </select>
         </div>
         <%- include('partials/exam-type-filter') %>

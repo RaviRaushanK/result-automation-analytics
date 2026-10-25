@@ -7,7 +7,7 @@
     </div>
     <span id="analytics-mode-badge" class="analytics-mode-badge is-original" aria-live="polite">
       <span class="material-icons" aria-hidden="true">insights</span>
-      Result Basis: <strong id="analytics-mode-label">Original</strong>
+      Result View: <strong id="analytics-mode-label">Original Result</strong>
     </span>
   </div>
 
@@ -40,10 +40,10 @@
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label" for="filter-mode">Mode</label>
+          <label class="form-label" for="filter-mode">Result View</label>
           <select class="form-select" id="filter-mode" name="mode">
-            <option value="original" selected>Original</option>
-            <option value="effective">Effective</option>
+            <option value="original" selected>Original Result</option>
+            <option value="effective">Effective Result</option>
           </select>
         </div>
         <%- include('partials/exam-type-filter') %>
@@ -60,7 +60,7 @@
     <div class="analytics-card">
       <h2 id="toppers-heading" class="h6 p-2 analytics-card-title">Student Performance Candidates</h2>
       <p class="analytics-note px-2 ">
-        Passed result attempts ranked by stored CGPA, highest first.
+        Ranking: passed attempts, highest saved CGPA first.
       </p>
       <details class="analytics-calculation-details analytics-note px-2"><summary>Calculation details</summary><p>Only passed results with a stored CGPA are included. Ranks are sequential, with the existing tie order unchanged. GPA is stored original data; displaying historical GPA does not certify cumulative course history. A student may have multiple result attempts.</p></details>
       <div class="analytics-toolbar">

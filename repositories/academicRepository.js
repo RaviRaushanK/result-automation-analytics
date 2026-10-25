@@ -1,7 +1,8 @@
 'use strict';
 const { sequelize } = require('../database/models');
 const { QueryTypes } = require('sequelize');
-const { EFFECTIVE_EVENT_JOIN } = require('./reportsRepository');
+const { effectiveEventJoin, expressions } = require('./revaluationOverlay');
+const EFFECTIVE_EVENT_JOIN = effectiveEventJoin();
 const select = (sql, replacements, transaction) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT, transaction });
 async function load(batchId, studentIds, mode = 'original', transaction) {
   const replacements = { batch_id: batchId, student_ids: studentIds };
@@ -12,11 +13,12 @@ async function load(batchId, studentIds, mode = 'original', transaction) {
     JOIN exam_sessions rs ON rs.exam_session_id=r.exam_session_id AND rs.batch_id=st.batch_id
     WHERE rs.batch_id=:batch_id AND r.student_id IN (:student_ids)`, replacements, transaction);
   const effective = mode === 'effective';
+  const outcome = expressions(mode);
   const subjects = await select(`SELECT sr.*,s.course_id,s.subject_code,s.credits,s.max_marks,
     s.exam_session_id AS subject_session_id,r.student_id,r.exam_session_id,r.attempt_no,r.exam_type,rs.semester,rs.exam_session,rs.exam_year,rs.exam_start_month,rs.exam_start_year,rs.exam_end_month,rs.exam_end_year,
-    ${effective ? 'COALESCE(eff.revised_marks,sr.marks)' : 'sr.marks'} AS outcome_marks,
-    ${effective ? 'COALESCE(eff.revised_status,sr.result_status)' : 'sr.result_status'} AS outcome_status,
-    ${effective ? 'COALESCE(eff.revised_grade,sr.grade)' : 'sr.grade'} AS outcome_grade
+    ${outcome.marks} AS outcome_marks,
+    ${outcome.status} AS outcome_status,
+    ${outcome.grade} AS outcome_grade
     FROM subject_results sr JOIN results r ON r.result_id=sr.result_id
     JOIN subjects s ON s.subject_id=sr.subject_id AND s.exam_session_id=r.exam_session_id
     JOIN students st ON st.student_id=r.student_id AND st.deleted_at IS NULL

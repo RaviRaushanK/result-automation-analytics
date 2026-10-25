@@ -15,7 +15,7 @@ test('report summaries preserve identity metadata and move full explanations int
     if (['student','class','toppers','consolidated'].includes(type)) assert.match(copy, /not recalculated.*verified cumulative/s);
     if (type === 'consolidated') assert.match(copy, /No component is inferred/);
     if (type === 'revaluation') assert.match(copy, /Pending, rejected and approved non-effective events do not change/);
-    if (type === 'subject') assert.match(copy, /original stored components/);
+    if (type === 'subject') assert.match(copy, /Explicit revised IA\/EX override original components/);
   }
 });
 
@@ -50,7 +50,7 @@ test('Toppers uses short screen copy while retaining full export explanations an
   ]);
   const notes = wording.details(report, true);
   assert.ok(notes.every(note => note.length < 65));
-  assert.deepEqual(notes, ['Original CGPA, highest first. Passed attempts only.']);
+  assert.deepEqual(notes, ['Ranking: passed attempts, highest saved CGPA first.', 'GPA: saved values, unchanged by revaluation.']);
   assert.deepEqual(wording.details(report), ['Full original explanation remains available for export.']);
   assert.equal(JSON.stringify(report), before);
 });
@@ -95,4 +95,19 @@ test('attempt counts and stored GPA headings identify the existing metric meanin
   for (const page of ['overview', 'semesters']) {
     assert.match(fs.readFileSync(require.resolve('../views/analytics/' + page + '.ejs'), 'utf8'), /Average stored SGPA/);
   }
+});
+
+
+test('short notes explain each report and keep Original separate from approved revaluation', () => {
+  for (const type of ['student', 'subject', 'consolidated', 'class', 'result-analysis', 'student-progress']) {
+    const original = wording.details({type, filters:{mode:'original'}}, true).join(' ');
+    const effective = wording.details({type, filters:{mode:'effective'}}, true).join(' ');
+    assert.match(original, /original/i, type);
+    assert.doesNotMatch(original, /includes? approved revaluation|including backlog and approved revaluation/, type);
+    assert.match(effective, /approved revaluation/, type);
+    assert.doesNotMatch(effective, /SubjectResult|component fallback|authoritative|result-header/, type);
+  }
+  assert.match(wording.details({type:'subject',filters:{mode:'effective'}}, true).join(' '), /Dash = unavailable/);
+  assert.doesNotMatch(wording.details({type:'subject',filters:{mode:'effective'}}, true).join(' '), /GPA/);
+  assert.match(wording.details({type:'revaluation',filters:{}}, true).join(' '), /approval.*active/);
 });
