@@ -86,6 +86,19 @@ HTTP adapters, aggregation stays in the service, and EJS is presentation only.
 Failures propagate through the existing API error pattern rather than becoming
 fabricated empty results.
 
+## Current report contract (26 October 2026)
+
+The [complete report audit](report-mode-semantics.md) defines Original Result,
+Effective Result and completion for all eight reports and eight Analytics pages.
+Student, Subject and Consolidated share revised-component presentation.
+Effective never selects a later backlog attempt in place of the selected attempt.
+Formal Toppers remains original-only; Analytics Toppers retains selected-view
+subject eligibility with saved-CGPA ranking. Revaluation never recalculates GPA.
+
+Visible labels use Result View, Original Result and Effective Result. Formal
+reports keep at most two short notes plus Generated at. [Report wording](report-analytics-wording.md)
+documents presentation. Implementation lists and results below are dated history.
+
 ## Files
 
 Created:

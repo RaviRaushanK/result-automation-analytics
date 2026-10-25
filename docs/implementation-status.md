@@ -1,6 +1,7 @@
 # Implementation Status
 
-Reviewed on 17 October 2026. This is a source/verification snapshot, not a claim
+Current report/workflow summary reviewed on 26 October 2026. Dated verification
+sections below remain historical snapshots, not a claim
 that all production acceptance, deployment-security or external-service work is complete.
 
 ## Implemented
@@ -31,6 +32,25 @@ that all production acceptance, deployment-security or external-service work is 
 - Upload directories tracked only through four `.gitkeep` files; runtime
   uploaded files excluded from Git.
 
+## Current report and review behavior (26 October 2026)
+
+- Original Result reads the selected attempt; Effective Result applies only its
+  approved, active revaluation. Shared helpers keep Student, Subject and
+  Consolidated consistent across screen, CSV and print/PDF.
+- Missing revised components fall back to originals. Unreconciled components are
+  unavailable; the approved total remains authoritative. Stored GPA is unchanged.
+- Backlog remains a separate attempt. Completion uses valid history;
+  historical failed attempts are not erased by a later pass.
+- Reports retain Generated at and at most two short, report-specific notes.
+- Revaluation review keeps roster order and optional manual rows. Non-detected
+  rows default to Reject and require acceptance and manual confirmation before
+  they can become approval targets.
+- Original result duplicate/history checks run at Validate, preview and final
+  import. No automatic duplicate alert on initial Review is included.
+
+See [report audit](report-mode-semantics.md), [wording](report-analytics-wording.md)
+and [extraction workflow](result-extraction.md).
+
 ## Recent Cleanup
 
 Removed a historical validation report, the retired standalone history generator,
@@ -42,6 +62,17 @@ Subject-created feedback is anchored below Create Subject. Its message, dismissa
 timing and unrelated fixed notifications are unchanged.
 
 ## Verification Snapshot
+
+### Reports and wording ? 26 October 2026
+
+Latest relevant regression suite: 500 tests, 498 passed, 0 failed, 2 skipped,
+exit 0, with REPORTS_DB_TEST=1. The skipped cases are opt-in persisted demo
+Progress and isolated migration checks. Read-only report fixtures ran. Live
+Student/Subject/Consolidated parity passed 18 checks without changing source
+records. Syntax checks passed for 23 changed JavaScript files; all 74 EJS
+templates compiled. Print/PDF HTML was tested; no PDF raster audit was performed.
+This is a focused regression result, not a new full-suite claim.
+
 
 ### Public-page contrast and entrance motion — 23 October 2026
 

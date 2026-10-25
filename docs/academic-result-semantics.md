@@ -1,6 +1,7 @@
 # Academic Result Semantics
 
-Reviewed on 23 October 2026. Source services and applied migrations remain authoritative.
+Report semantics updated on 26 October 2026; earlier academic-policy sections
+retain their dated verification. Source services and applied migrations remain authoritative.
 
 ## Report mode contract (26 October 2026)
 

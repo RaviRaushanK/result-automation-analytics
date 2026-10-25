@@ -1,6 +1,6 @@
 # Project Structure
 
-Reviewed on 17 October 2026. Paths below describe the current repository.
+Report-related paths reviewed on 26 October 2026. Paths below describe the repository.
 
 ~~~text
 .
@@ -23,7 +23,7 @@ Reviewed on 17 October 2026. Paths below describe the current repository.
 |   +-- css/                Shared tokens and feature/responsive styles
 |   +-- js/                 Feature clients, validation, charts and year picker
 +-- views/                  EJS layouts, feature pages and reusable partials
-+-- scripts/                Database bootstrap and initialization runner
++-- scripts/                Database bootstrap, initialization and read-only verification
 +-- seed/                   Explicit guarded demo reset and maintenance utilities
 |   +-- academic/           Deterministic data, safety, persistence and verification
 +-- test/                   Analytics and legacy hybrid extraction tests
@@ -52,7 +52,7 @@ in the current Git tree.
 | Course identity/roster | `academicCoursesController.js`, `academicCourseService.js`, `academicRepository.js` |
 | Academic meaning | `academicPolicy.js`, `academicOutcomeService.js`, `progressAnalyticsService.js` |
 | Students directory | `studentController.js`, `studentDirectoryService.js`, `studentDirectoryRepository.js` |
-| Reports | `reportsController.js`, `reportsService.js`, `reportsRepository.js` |
+| Reports | `reportsController.js`, `reportsService.js`, `reportsRepository.js`, `revaluationOverlay.js`, `subjectOutcome.js` |
 | Settings | `settingsController.js`, `settingsService.js`, `settingsRepository.js` |
 | Registration/invitations | `registrationController.js`, `registrationService.js`, `invitationEmailService.js` |
 | Recovery/contact verification | `authController.js`, `otpService.js`, `emailService.js`, `twilioVerifyService.js` |
@@ -60,6 +60,18 @@ in the current Git tree.
 Names in the table are basenames within their established controller/service/
 repository folders. HTTP controllers should not replace shared academic policy
 with template or browser calculations.
+
+## Shared report semantics
+
+`repositories/revaluationOverlay.js` selects the approved active event for the
+same SubjectResult and provides SQL outcome expressions. Reports, Analytics and
+academic history reuse it. `services/subjectOutcome.js` projects original and
+effective components, outcome and provenance for Student/Subject/Consolidated.
+History-based completion stays in `academicOutcomeService.js`.
+
+`public/js/reports/wording.js` supplies compact screen/print notes and export
+explanations. `scripts/verify-report-mode-semantics.js` checks an explicitly
+selected live record read-only. See [report audit](report-mode-semantics.md).
 
 ## Current Navigation and Removed Files
 

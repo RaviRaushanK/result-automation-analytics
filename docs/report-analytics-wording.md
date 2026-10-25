@@ -31,7 +31,7 @@ The batch-wide completion summary and semester trends have different populations
 
 Progress uses green (cleared without backlog), teal (cleared through retake), red (uncleared), and purple (not determined). Missing-grade chart labels read **Grade unavailable**; backend grade categories are unchanged. Disclosure controls use existing theme text tokens and keyboard focus styling.
 
-## Verification (25 October 2026)
+## Historical verification (25 October 2026)
 
 - Focused reports, Progress, Analytics, revaluation and GPA: 203 passed, 0 failed, 7 skipped; exit 0.
 - Read-only MySQL report/Progress fixtures: 44 passed, 0 failed, 0 skipped; exit 0. Queries are restricted to SELECT fixtures.
@@ -39,7 +39,7 @@ Progress uses green (cleared without backlog), teal (cleared through retake), re
 - JavaScript syntax checks and EJS compilation passed; diff whitespace check passed.
 - Desktop/mobile browser visual inspection in both themes remains unverified: no browser integration was exposed, and earlier native browser control was blocked. Theme-token and disclosure-accessibility checks are automated, not visual confirmation.
 
-No academic records, GPA, schema, API metric keys or calculation/classification rules were changed by this wording task. Earlier pending component-persistence work remains separate in the working tree.
+That wording change did not alter academic records, GPA, schema, API metric keys or calculation/classification rules. Working-tree notes in dated reports describe those earlier runs, not the current checkout. Current report semantics are defined in [the report audit](report-mode-semantics.md).
 
 ## Revaluation detail presentation
 

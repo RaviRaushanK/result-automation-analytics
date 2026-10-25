@@ -1,7 +1,7 @@
 # Student Result Automation and Analytics System (SRAAS)
 
 Public pages and account workflows updated on 22 October 2026. Academic feature
-documentation was last reviewed on 25 October 2026.
+documentation was last reviewed on 26 October 2026.
 
 An Express, EJS, Sequelize and MySQL application for managing MCA students and
 academic sessions, importing result/revaluation cards, exploring academic
@@ -308,12 +308,22 @@ native XLSX export is not implemented. Shared compact print headers apply across
 reports; consolidated student names are left-aligned. Disable the browser's own
 headers/footers in its print dialog when they are unwanted.
 
-**Original** uses saved academic values. **Effective** overlays only approved
-effective revaluation events, with the original as fallback. Pending/rejected
-events never change outcomes. IA/EX remain original stored components. Effective
-totals may overlay approved revaluation; revised component marks are shown only
-when they reconcile with the approved total, otherwise unavailable. No
-component is inferred. Revaluation does not recalculate stored Result SGPA/CGPA.
+**Original Result** uses the selected attempt's saved marks, grade and result.
+**Effective Result** applies only that attempt's approved, active revaluation.
+Explicit revised IA/EX replace original components; missing revisions fall back
+to the original component. If components are incomplete or do not match the
+approved total, Student, Subject and Consolidated show unavailable component
+cells and keep the approved total. No marks are inferred. Pending, rejected and
+inactive revisions do not change outcomes. Stored SGPA/CGPA remain unchanged.
+
+A later Backlog result is a separate attempt and never replaces an earlier
+attempt's marks. Progress evaluates valid attempt history to determine completion.
+Formal Toppers retains original-result eligibility and saved-CGPA ranking.
+
+Screen and print/PDF keep the selected filters, Result View and Generated at,
+with at most two short notes. Detailed calculation information remains available
+in export context. See the [report audit](docs/report-mode-semantics.md) and
+[label and note guide](docs/report-analytics-wording.md).
 
 Stable course identity is batch + academic semester + exact normalized course
 code. Course clearance uses verified cross-session history, not the highest
@@ -417,11 +427,17 @@ Current verification notes are maintained in
 - [Extraction and Upload Workflows](docs/result-extraction.md)
 - [Academic Forms](docs/academic-form-defaults.md)
 - [Academic Result Semantics](docs/academic-result-semantics.md)
+- [Original / Effective Report Audit](docs/report-mode-semantics.md)
+- [Report Labels and Notes](docs/report-analytics-wording.md)
 - [Students Search and Lookup](docs/students-search-lookup.md)
 - [Analytics and Reports](docs/analytics-reports-ux.md)
 - [Settings](docs/settings-first-release.md)
 - [Demo Dataset](seed/README.md)
 - [Implementation Status](docs/implementation-status.md)
+
+Dated implementation/audit reports preserve their original verification and
+working-tree snapshots. For current report behavior, use the report audit and
+wording guide above; old commit/status notes are historical.
 
 Source code and applied migrations are authoritative. `package.json` declares ISC;
 the repository currently has no standalone license file.

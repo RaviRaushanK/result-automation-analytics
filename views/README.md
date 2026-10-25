@@ -1,7 +1,8 @@
 # Views
 
 Public/authentication views updated on 22 October 2026. Other feature views last
-reviewed on 17 October 2026. Templates use EJS and `express-ejs-layouts`.
+reviewed on 17 October 2026; report/revaluation notes updated on 26 October 2026.
+Templates use EJS and `express-ejs-layouts`.
 
 ## Current Pages
 
@@ -90,11 +91,21 @@ layouts keep forms/actions reachable and wide tables horizontally scrollable.
 evidence, extracted rows, decisions and Validate share that review. Pending is
 retained for failed extraction/retry; old extraction/approval URLs resume the
 canonical flow rather than requiring unnecessary extra screens.
+The subject table retains roster order. Extracted subjects are review targets;
+optional non-detected rows default to Reject, have disabled mark fields, and do
+not create missing-subject warnings. Acceptance enables entry and a required
+manual-confirmation checkbox. Internal starts from the stored original result.
+Successful input checks do not add green check icons.
 
 **Reports:** overview is the report center. Shared partials provide branding,
 tables and compact print headers across all report types. Student names in
 consolidated output are left-aligned. Browser print headers/footers are separate
 from application-owned report headings.
+The shared wording module keeps Generated at and at most two short notes for
+each report on screen and print/PDF. Revised components and unavailable markers
+come from the shared server projection; templates do not calculate them. See
+[report semantics](../docs/report-mode-semantics.md) and
+[labels and notes](../docs/report-analytics-wording.md).
 
 **Settings:** success messages appear below the navbar, then dismiss. Validation
 errors remain inline. The account menu has Profile and Logout; password fields

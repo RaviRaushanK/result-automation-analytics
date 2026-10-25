@@ -1,6 +1,7 @@
 # Extraction and Upload Workflows
 
-Reviewed on 17 October 2026. This is the current workflow reference, not a
+Base workflow reviewed on 17 October 2026; manual revaluation review updated
+on 26 October 2026. This is the current workflow reference, not a
 guarantee of OCR accuracy or a report that every external model is always available.
 
 ## Supported Input
@@ -175,12 +176,30 @@ require no acknowledgment; a mismatch cannot be overridden by a checkbox alone.
 OCR identity corrections require edited USN/name matching the registered target
 and the source-bound Validate action described above.
 
+### Optional manual subjects (26 October 2026)
+
+The revaluation table keeps the usual subject-code order. Extracted subjects
+start in scope. Roster subjects not detected on the card remain optional rows,
+default to Reject, and contribute no missing-subject warning or verification count.
+Their Internal and revised External inputs are disabled until Accept is selected.
+Internal starts from the selected original SubjectResult in the database.
+
+Accepting a non-detected subject adds a manual-verification requirement: confirm
+it appears on the uploaded card and verify the entered marks. The checkbox shows
+Manual verification required until checked, then Manually confirmed; Validate
+persists the acknowledgment. Reject removes the row from approval scope. Unknown
+or cross-session extracted subjects still block under existing integrity rules.
+Approval processes only accepted, validated targets for the exact original attempt.
+
+
 Revaluation Review & Validate uses Bootstrap client-side validation feedback.
 Only displayed document-verification acknowledgments are required. Accepted rows
 require whole-number internal/revised external marks within their configured
 component and total ceilings, plus an ambiguous-subject pick or exceptional-status
 acknowledgment where those controls are present. Rejected rows do not require
-marks or those row-specific confirmations. Invalid submission shows field feedback,
+marks or those row-specific confirmations. Valid mark inputs do not display green
+validation ticks; Bootstrap alerts/feedback appear for failed input rules. Invalid
+submission shows field feedback,
 opens a collapsed invalid subject selector when necessary and focuses the first
 invalid control. Corrections clear the feedback. Browser validation does not
 replace server validation, final approval checks or mismatch blocking, and does

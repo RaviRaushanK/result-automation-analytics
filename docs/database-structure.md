@@ -9,7 +9,8 @@ Existing IDs, event states, source metadata, timestamps, indexes and foreign key
 are preserved; the migration leaves historical component fields NULL without backfill.
 Rollback is refused once revised component evidence has been stored.
 
-Review controls and table layout are unchanged. Backend approval now saves
+This migration only adds component storage. The current review UI is documented
+in [Extraction](result-extraction.md). Backend approval saves
 explicit revised component evidence through `revaluationComponentEvidence`.
 Recognized VTU nine-column cards provide revised external marks in Final Marks;
 ordinary Internal Marks remains carried original IA and is not stored as revised

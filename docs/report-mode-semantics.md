@@ -102,7 +102,44 @@ and final live rechecks are recorded by the verification performed for this audi
 - Screen table and print/PDF HTML rendering plus CSV were verified. No browser-generated PDF was rasterized.
 - Latest-attempt analytics selection now respects an explicit exam type; semester failed Result counts count distinct Result attempts. Subject analytics joins enforce the selected session offering.
 
-## Changed file manifest
+## Later wording verification (26 October 2026)
+
+After simplifying report notes: 500 tests, 498 passed, 0 failed, 2 skipped,
+exit 0. Syntax checks: 23 passed. All 74 EJS templates compiled. The same two
+opt-in checks remained skipped. Notes use Marks, Ranking, Counts and Completion
+labels; Original Progress notes describe original history.
+
+## Reproduce the read-only report checks
+
+Run from the repository root in PowerShell with the configured MySQL database:
+
+~~~powershell
+$env:REPORTS_DB_TEST = '1'
+$reportTests = @(rg --files tests test | Where-Object {
+  $_ -match '(report|analytic|progress|revaluation|result-history|exam-type|gpa|academic-outcome|historical-record|session-identity)' -and $_ -match '\.test\.js$'
+})
+node --test @reportTests
+Remove-Item Env:REPORTS_DB_TEST
+~~~
+
+The documentation review on 26 October reran this command: **500 tests,
+498 passed, 0 failed, 2 skipped, exit 0**. The two opt-in persisted-demo and
+migration cases remain separate; the read-only CTE fixtures ran.
+
+For an existing known record, the live parity CLI takes explicit identifiers:
+
+~~~powershell
+node scripts/verify-report-mode-semantics.js --usn 1MV25MC074 --subject MMC105 --result-id 40
+~~~
+
+That example requires the documented local record; IDs and outcomes are not
+portable fixture data. The CLI only reads and checks the selected source data.
+Do not seed or migrate a live database to satisfy fixture expectations.
+
+## Original semantic-change file manifest
+
+This historical list covers the initial semantic change; later wording updates
+and documentation review affect additional files. Use Git for the current changes.
 
 - `docs/report-mode-semantics.md`
 - `repositories/revaluationOverlay.js`
