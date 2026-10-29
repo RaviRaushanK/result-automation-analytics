@@ -394,6 +394,12 @@ const resultController = {
         order: [['exam_start_year', 'DESC'], ['exam_start_month', 'DESC'], ['semester', 'ASC']]
       });
 
+      // Retain selected values from "Upload Another" click
+      const selectedBatchId = req.query.batch_id || batches[0]?.batch_id || '';
+      const selectedSessionId = req.query.exam_session_id || '';
+      const selectedAttemptNo = req.query.attempt_no || '1';
+      const selectedExamType = req.query.exam_type || 'REGULAR';
+
       res.render('results/upload', {
         title: 'Upload Results - SRAAS',
         pageStyles: ['/css/result-upload.css?v=20261025-2'],
@@ -415,7 +421,10 @@ const resultController = {
           batch_name: s.Batch.batch_name
         })),
         batches,
-        selectedBatchId: batches[0]?.batch_id || '',
+        selectedBatchId,
+        selectedSessionId,
+        selectedAttemptNo,
+        selectedExamType,
         error: req.query.error || null,
         importId: req.query.importId || null
       });
@@ -1261,6 +1270,8 @@ const resultController = {
         sessionDisplay: ctx.sessionDisplay,
         attemptNo: importedAttemptNo,
         examType: (ctx.saved.attempt && ctx.saved.attempt.exam_type) || 'REGULAR',
+        batchId: ctx.session.batch_id,
+        examSessionId: ctx.session.exam_session_id,
         studentName: result && student ? student.student_name : (ctx.saved.student.name || ''),
         usn,
         subjectsCount: result ? result.SubjectResults.length : 0,

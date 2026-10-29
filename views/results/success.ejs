@@ -16,7 +16,7 @@ const backlogWithoutSgpa = String(examType || '').toUpperCase() === 'BACKLOG' &&
     <div><div class="import-success-label">Cumulative CGPA</div><div class="import-success-value"><%= gpa(typeof cgpa === 'undefined' ? null : cgpa) %></div><p><%= gpa(typeof cgpa === 'undefined' ? null : cgpa) === 'Unavailable' ? 'Complete verified course and grading history is required.' : 'Saved cumulative grade point average' %></p></div>
   </div>
   <nav class="import-success-actions" aria-label="Import actions">
-    <a href="/results/upload" class="btn btn-primary"><span class="material-icons" aria-hidden="true">cloud_upload</span>Upload Another</a>
+    <a href="/results/upload?batch_id=<%= batchId %>&exam_session_id=<%= examSessionId %>&attempt_no=<%= attemptNo %>&exam_type=<%= examType %>" class="btn btn-primary"><span class="material-icons" aria-hidden="true">cloud_upload</span>Upload Another</a>
     <a href="/results/logs" class="btn btn-outline-secondary"><span class="material-icons" aria-hidden="true">list_alt</span>View Import Logs</a>
   </nav>
 </section>

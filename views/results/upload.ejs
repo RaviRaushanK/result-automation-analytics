@@ -33,7 +33,7 @@
               <select class="form-select form-select-lg" id="examSessionSelect" name="exam_session_id" required>
                 <option value="">Select Exam Session</option>
                 <% sessions.forEach(function (s) { %>
-                  <option value="<%= s.exam_session_id %>" data-batch-id="<%= s.batch_id %>"><%= s.display_name %></option>
+                  <option value="<%= s.exam_session_id %>" data-batch-id="<%= s.batch_id %>" <%= String(s.exam_session_id) === selectedSessionId ? 'selected' : '' %>><%= s.display_name %></option>
                 <% }); %>
               </select>
               <div class="invalid-feedback">Please select the exam session this marks card belongs to.</div>
@@ -44,14 +44,14 @@
               <div class="col-md-4">
                 <label for="attemptNoInput" class="form-label fw-semibold">Attempt No <span class="text-danger">*</span></label>
                 <input type="number" class="form-control form-control-lg" id="attemptNoInput" name="attempt_no"
-                       value="1" min="1" step="1" required>
+                       value="<%= selectedAttemptNo %>" min="1" step="1" required>
                 <div class="form-text">For this student and semester: Regular 1, first Backlog 2, then 3 and onward across exam sessions.</div>
               </div>
               <div class="col-md-8">
                 <label for="examTypeSelect" class="form-label fw-semibold">Exam Type <span class="text-danger">*</span></label>
                 <select class="form-select form-select-lg" id="examTypeSelect" name="exam_type" required>
-                  <option value="REGULAR" selected>Regular</option>
-                  <option value="BACKLOG">Backlog</option>
+                  <option value="REGULAR" <%= selectedExamType === 'REGULAR' ? 'selected' : '' %>>Regular</option>
+                  <option value="BACKLOG" <%= selectedExamType === 'BACKLOG' ? 'selected' : '' %>>Backlog</option>
                 </select>
               </div>
             </div>
