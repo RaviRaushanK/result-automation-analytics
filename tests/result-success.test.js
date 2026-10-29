@@ -6,7 +6,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const template = path.join(__dirname, '../views/results/success.ejs');
-const values = { formatGpa: require('../public/js/gpa-format').format, savedConfirmed: true, studentName: 'Test Student', usn: '1MV25MC061', sessionDisplay: 'MCA 2025 - June 2026', attemptNo: 1, examType: 'REGULAR', subjectsCount: 6, overallResult: 'pass', sgpa: 8, cgpa: 8.25 };
+const values = { formatGpa: require('../public/js/gpa-format').format, savedConfirmed: true, studentName: 'Test Student', usn: '1MV25MC061', sessionDisplay: 'MCA 2025 - June 2026', batchId: 1, examSessionId: 1, attemptNo: 1, examType: 'REGULAR', subjectsCount: 6, overallResult: 'pass', sgpa: 8, cgpa: 8.25 };
 test('success page shows saved metrics, import details and existing next actions', async () => {
   const html = await ejs.renderFile(template, values);
   for (const text of ['Result imported successfully', '1MV25MC061', '8.00', '8.25', 'PASS', 'is-confirmed', '/results/upload', '/results/logs']) assert.ok(html.includes(text), text);

@@ -1,13 +1,17 @@
 # Settings First Release
 
-Implemented on 13 October 2026; documentation reviewed on 17 October 2026. Academic policy and academic data are unchanged.
+Implemented on 13 October 2026; account/access documentation reviewed on 29 October 2026. Academic policy and academic data are unchanged.
 No database reset or seed was executed.
 
 Settings success feedback appears at the top right below the navbar and dismisses
 after five seconds, with a manual dismiss button. Validation errors stay inline.
 The navbar account menu contains Profile and Logout; Account Security remains in
-Settings. Shared password fields show an accessible visibility toggle only when
-nonempty, default to masked, and return to masked when cleared.
+Settings. Faculty receives My Account, Account Security, Appearance and read-only
+Academic Policy. Institution branding and System Information remain Admin-only.
+Faculty name/code appear read-only in My Account; there is no identity card above
+sidebar Settings. See [Faculty access](faculty-access.md). Shared password fields
+show an accessible visibility toggle only when nonempty, default to masked, and
+return to masked when cleared.
 
 ## Routes and Access
 
@@ -37,7 +41,7 @@ updates also recheck administrator status inside their database transaction.
 ## Account and Security
 
 Updated on 22 October 2026: My Account displays username, role, status, last
-login, email and masked mobile from supported AdminUser fields. Missing last
+login and email from supported AdminUser fields. Missing last
 login displays "Not recorded". No password hash is selected for this page.
 Direct email updates are disabled. A new email is normalized, validated and
 checked for duplication before an OTP is sent to that address; it is saved
@@ -45,11 +49,11 @@ only after verification. Browser format errors appear below the field. DNS
 checks reject confirmed invalid domains but temporary lookup failures defer
 to delivery and OTP verification. No provider-specific email allowlist is used.
 
-New Mobile Number has a searchable country-code field. The backend validates
-the selection and combines it with the national number. An OTP goes to the
-new number, and the existing number stays unchanged until verification.
-Resend and cancel actions use the current account and CSRF protection.
-Student and faculty records are not linked or changed by these account edits.
+Phone-number fields, country-code selection, and mobile registration/settings
+endpoints are removed. Registration requires a faculty code and email verification.
+Historical phone data is retained in the database but is not displayed or edited
+in account settings. Email changes continue to require verification.
+Contact edits change the login account only; faculty identity remains linked by faculty ID, independently of contact email. Student and faculty record details are not changed.
 
 Account Security reuses one partial and the existing authController verification,
 bcrypt hashing, six-character minimum, confirmation and session-destruction
@@ -185,14 +189,11 @@ preview/PDF and all Analytics regressions.
 
 Verification counts above describe the original feature checkpoint, not a new
 browser/integration run. See [Implementation Status](implementation-status.md)
-for current default-suite outcomes, known seed-test failures and the local
-missing-dependency issue. No full-suite-green claim is made here.
+for current default-suite outcomes and optional integration limits. Earlier
+checkpoint counts are not the current test totals.
 
 User Administration, synchronized report preferences, notifications and backup/
-restore are not implemented. Before User Administration, extend current-role/
-active-status revalidation to other privileged workflows, define session
-revocation, regenerate sessions at login, protect the last active administrator,
-and explicitly model any faculty/login relationship. Before synchronized report
+restore are not implemented. Protected requests now reload current account permissions and reject inactive faculty links. Faculty login accounts link uniquely to faculty records. Before broader User Administration, define session revocation, regenerate sessions at login, and protect the last active administrator. Before synchronized report
 preferences, add account-keyed storage and keep explicit URL/filter selections
 above defaults, respecting each report's permitted modes. Appearance currently
 remains browser-local, and deployment/session security configuration is unchanged.

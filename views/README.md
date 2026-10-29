@@ -1,6 +1,6 @@
 # Views
 
-Public/authentication views updated on 22 October 2026. Other feature views last
+Account views and Faculty navigation reviewed on 29 October 2026. Other feature views last
 reviewed on 17 October 2026; report/revaluation notes updated on 26 October 2026.
 Templates use EJS and `express-ejs-layouts`.
 
@@ -12,13 +12,13 @@ Templates use EJS and `express-ejs-layouts`.
 | `auth/` | login, invited registration, invitations, inline-OTP forgot-password, reset-password, compatibility account-security page, shared password and welcome-panel partials |
 | `batches/` | batch list and create/edit dialogs; shared year-input partial |
 | `dashboard/` | dashboard filters, metrics, pie/subject/grade charts and attention rows |
-| `errors/` | 404 and 500 |
-| `faculty/` | faculty management and per-subject multi-faculty assignment |
+| `errors/` | 404, 500 and styled account-access-disabled page (403) |
+| `faculty/` | faculty creation, confirmed Activate/Deactivate dialog, and per-subject multi-faculty assignment |
 | `landing/` | public landing page |
 | `reports/` | overview plus eight reports, standalone print view and shared table/branding partials |
 | `results/` | upload, review, validated preview, success and logs |
 | `revaluation/` | session/student/attempt selection, upload, recovery/pending, review and outcome |
-| `sessions/` | session management |
+| `exam-sessions/` | examination session management |
 | `settings/` | account, security, appearance, institution, policy and system sections |
 | `students/` | student directory and reusable row partial |
 | `subjects/` | examination-subject list/dialogs, roster/edit view and shared tabs |
@@ -71,10 +71,17 @@ the shared login/registration styles. Registration uses `registration.css`.
 handles reset-password visibility controls. The old standalone OTP template
 and `landing.css` have been removed. `/verify-otp` is a redirect, not a view.
 
-**Invitations:** the page emails a private registration link and shows the
+**Invitations:** the administrator selects an existing active faculty record and
+provides the invitation email. Registration checks the faculty code and verifies
+email; phone fields and mobile verification are removed. The page emails a private registration link and shows the
 recipient after SMTP acceptance. Failures retain a copyable link. The form
-collapses under **Invite another user** after success; localhost links are
+collapses under **Invite another faculty member** after success; localhost links are
 explicitly marked as local tests.
+
+**Faculty:** Manage Faculty lists active/inactive records with search, filtering
+and a confirmation view inside the same dialog. `faculty-status.js` calls the
+administrator-only registry/status APIs and refreshes active assignment choices
+after a successful change. It does not delete historical assignments or reports.
 
 **Subjects:** `subjects/index.ejs` contains the examination configuration dialogs.
 `subjects/courses.ejs` renders the integrated Semester Roster/read-only or edit
@@ -110,6 +117,30 @@ come from the shared server projection; templates do not calculate them. See
 **Settings:** success messages appear below the navbar, then dismiss. Validation
 errors remain inline. The account menu has Profile and Logout; password fields
 show an eye toggle only when nonempty.
+
+## Disabled account page
+
+`errors/account-disabled.ejs` uses the public layout and scoped `account-access.css`
+for an accessible light/dark account-status message and administrator guidance.
+The response helper keeps HTML and JSON denials consistent. No workspace navigation
+or private account details appear. Return to sign in uses the existing logout flow
+with a fixed login destination, so an old session cannot redirect back to a blocked
+page. `account-access.test.js` verifies responses and navigation;
+`account-access-browser.js` checks all four sidebar viewport widths and text/button
+contrast in both themes.
+
+## Faculty sidebar
+
+Faculty sees a subtle Faculty Workspace label and only existing permitted links.
+Analytics opens by default; Reports opens for the active report or on manual
+expansion. Shared submenu labels, sizing and spacing are retained. Settings stays
+at the bottom with no faculty profile block above it. Faculty-only layout rules
+live in `public/css/faculty-sidebar.css`; Admin uses the existing shared styling.
+
+`tests/faculty-sidebar.test.js` checks navigation, active states and route access.
+`tests/faculty-sidebar-browser.js` checks 1440, 1024, 768 and 375px, both themes,
+drawer/rail transitions and scrolling. Browser artifacts go to the OS temporary
+directory. See [Faculty access](../docs/faculty-access.md).
 
 ## Rendering and Client Responsibilities
 

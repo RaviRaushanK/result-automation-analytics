@@ -1,0 +1,23 @@
+/* Faculty navigation only; the shared sidebar width and Admin rules stay intact. */
+.faculty-sidebar .faculty-workspace-label {
+  padding: .65rem 1.15rem .4rem;
+  color: var(--text-secondary);
+  font-size: .69rem;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.faculty-sidebar .sidebar-scrollable { scrollbar-width: thin; overscroll-behavior-y: contain; }
+.faculty-sidebar .sidebar-scrollable::-webkit-scrollbar { display: block; width: 4px; }
+.faculty-sidebar .sidebar-scrollable::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 4px; }
+.faculty-sidebar.collapsed .nav-item .collapse:not(.show) { display: none !important; }
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .faculty-sidebar:not(.expanded) .faculty-workspace-label { display: none; }
+  .faculty-sidebar:not(.expanded) ~ .main-content { margin-left: var(--sidebar-collapsed-width); }
+  .faculty-sidebar.expanded ~ .main-content { margin-left: var(--sidebar-width); }
+  .faculty-sidebar.expanded .collapse:not(.show) { display: none !important; }
+}
+@media (max-width: 767.98px) {
+  .faculty-sidebar { max-width: calc(100vw - 32px); }
+  .faculty-sidebar ~ .main-content { margin-left: 0; }
+}

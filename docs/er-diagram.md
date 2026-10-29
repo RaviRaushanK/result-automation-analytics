@@ -1,12 +1,16 @@
 # Entity Relationships
 
-Reviewed on 17 October 2026. This logical diagram follows current domain models;
+Account relationships reviewed on 29 October 2026. This logical diagram follows current domain models;
 installed foreign-key actions and migration status must be checked separately.
 
 ~~~mermaid
 erDiagram
     DEPARTMENTS ||--o{ BATCHES : contains
     DEPARTMENTS ||--o{ FACULTY : contains
+    FACULTY o|--o| ADMIN_USERS : linked_login
+    FACULTY o|--o{ ACCOUNT_INVITATIONS : invited_for
+    ADMIN_USERS ||--o{ ACCOUNT_INVITATIONS : invites
+    ADMIN_USERS ||--o{ ADMIN_OTPS : verifies
     BATCHES ||--o{ EXAM_SESSIONS : schedules
     BATCHES ||--o{ ACADEMIC_COURSES : defines
     BATCHES ||--o{ STUDENTS : registers
@@ -33,7 +37,9 @@ ambiguity is not silently accepted as a verified course equivalence.
 | Entity/table | Primary key | Important identity |
 | --- | --- | --- |
 | Department / `departments` | department_id | UUID and department code |
-| Account / `admin_users` | admin_id | UUID, username, email |
+| Account / `admin_users` | admin_id | UUID, username, email; optional unique faculty_id |
+| AccountInvitation / `account_invitations` | id | Unique token hash, faculty/email binding |
+| AdminOtp / `admin_otps` | id | Account/type, hashed OTP, expiry and usage state |
 | Batch / `batches` | batch_id | UUID |
 | Faculty / `faculty` | faculty_id | UUID, faculty code; optional email |
 | ExamSession / `exam_sessions` | exam_session_id | UUID; batch/semester/full examination period |
@@ -57,7 +63,9 @@ as a Sequelize association. Consult models and migrations for those distinctions
 ## Important Cardinalities
 
 - A teaching offering can have any number of distinct assigned faculty through
-  SubjectFaculty. Faculty is not a login account.
+  SubjectFaculty. A faculty record can optionally have one linked login account.
+  Each new Faculty invitation targets that record; legacy invitations may lack
+  a faculty link. Administrator accounts do not require a faculty link.
 - Student and Result identity are authoritative database records, not OCR names.
   A student can have several attempts per session with distinct attempt numbers.
 - Each SubjectResult can accumulate multiple historical revaluation events.

@@ -47,9 +47,9 @@ test('Guard requires explicit environment, local database, operation and exact c
   assert.throws(()=>options(['--confirm-db']));assert.throws(()=>options(['--force']));
 });
 
-test('CLI and legacy entry point refuse production before connecting',()=>{
-  for(const file of ['seed_demo.js','seed_all.js']){
-    const result=spawnSync(process.execPath,[path.resolve(__dirname,'../seed',file),'--reset','--confirm-db','fake'],{
+test('Current demo CLI entry points refuse production before connecting',()=>{
+  for(const [file,args] of [['seed_demo.js',['--reset','--confirm-db','fake']],['seed_quick_demo.js',[]]]){
+    const result=spawnSync(process.execPath,[path.resolve(__dirname,'../seed',file),...args],{
       env:{...process.env,NODE_ENV:'production',DB_HOST:'unreachable.invalid'},encoding:'utf8'});
     assert.equal(result.status,1);assert.match(result.stderr,/production.*refused/i);
     assert.doesNotMatch(result.stderr,/ECONN|ENOTFOUND/);
@@ -57,9 +57,9 @@ test('CLI and legacy entry point refuse production before connecting',()=>{
 });
 
 test('Full REGULAR and partial retakes preserve session-scoped attempt identities',()=>{
-  const plan=data.plan();assert.equal(plan.results.length,102);
+  const plan=data.plan();assert.equal(plan.results.length,92);
   assert.deepEqual(Object.fromEntries(policy.EXAM_TYPES.map(t=>[t,plan.results.filter(r=>r.exam_type===t).length])),
-    {REGULAR:92,BACKLOG:6,SUPPLEMENTARY:2,REPEAT:2});
+    {REGULAR:83,BACKLOG:5,SUPPLEMENTARY:2,REPEAT:2});
   const keys=new Set();
   for(const result of plan.results){
     const key=`${result.usn}:${result.session}:${result.attempt_no}`;assert.ok(!keys.has(key));keys.add(key);
@@ -69,16 +69,17 @@ test('Full REGULAR and partial retakes preserve session-scoped attempt identitie
   }
   const attempts=plan.results.filter(r=>r.usn==='1MV25MC017'&&r.session==='p1');
   assert.deepEqual(attempts.map(r=>r.attempt_no),[1,2]);
-  const praful=plan.results.filter(r=>r.usn==='1MV25MC052');
-  const regular=praful.find(r=>r.session==='p1'),retake=praful.find(r=>r.session==='p1jun');
-  assert.equal(regular.values[2],42);assert.equal(retake.values[2],75);
+  assert.ok(plan.results.every(r=>!data.isRealStudent(r.usn)), 'Protected identities receive no fabricated results');
+  const fictional=plan.results.filter(r=>r.usn==='1MV25MC004');
+  const regular=fictional.find(r=>r.session==='p1'),retake=fictional.find(r=>r.session==='p1jun');
+  assert.equal(regular.values[2],38);assert.equal(retake.values[2],45);
   const first=plan.sessions.find(s=>s.key===regular.session),later=plan.sessions.find(s=>s.key===retake.session);
   assert.equal(first.semester,later.semester);assert.notEqual(first.key,later.key);
   assert.equal(data.courses(1)[2].subject_code,'MMC103');
   assert.ok(data.courses(2).every(c=>/^MMCL?2/.test(c.subject_code)));
 });
 
-test('Marks, maxima, grade boundaries and topper tie use the production policy',()=>{
+test('Marks, maxima and grade boundaries follow policy without fabricating protected student results',()=>{
   const plan=data.plan();
   for(const spec of plan.results){
     const session=plan.sessions.find(s=>s.key===spec.session),courses=data.courses(Number(session.semester));
@@ -90,7 +91,8 @@ test('Marks, maxima, grade boundaries and topper tie use the production policy',
       assert.equal(m.grade,policy.gradeFromPercent(Math.floor(m.marks*100/course.max_marks)).grade);
     }
   }
-  for(const semester of [1,2,3])assert.deepEqual(data.percentages('1MV25MC061',semester),data.percentages('1MV25MC011',semester));
+  for(const real of data.REAL_STUDENTS)for(const semester of [1,2,3])assert.throws(()=>data.percentages(real.usn,semester),/Refusing to generate demo percentages/);
+  assert.deepEqual(data.percentages('1MV25MC011',1),[95,94,93,92,91,90]);
   assert.deepEqual(data.percentages('1MV25MC010',1).map(p=>data.marks(data.courses(1)[0],p).grade),['F','C','C','B','B','B+']);
   assert.equal(data.courses(3).find(c=>c.subject_code==='MMC305').max_marks,150);
   assert.ok(data.percentages('1MV26MC002',1).every(p=>p>=50));
@@ -98,8 +100,8 @@ test('Marks, maxima, grade boundaries and topper tie use the production policy',
 
 test('Ledger scenarios isolate approved-effective, pending and rejected events',()=>{
   const plan=data.plan(),events=plan.revaluations;
-  assert.equal(events.length,9);
-  assert.equal(events.filter(e=>e.is_effective).length,5);
+  assert.equal(events.length,8);
+  assert.equal(events.filter(e=>e.is_effective).length,4);
   for(const event of events)if(event.revaluation_status!=='approved')assert.equal(event.is_effective,false);
   const multiple=events.filter(e=>e.usn==='1MV25MC008');
   assert.equal(multiple.length,3);assert.deepEqual(multiple.filter(e=>e.is_effective).map(e=>e.revaluation_no),[2]);
@@ -114,7 +116,7 @@ test('Persisted demo academic scenarios and all report/Analytics smoke checks',{
   try{
     const verification=require('../seed/academic/verify');
     const result=await verification.verify(db);
-    assert.equal(result.counts.students,36);assert.equal(result.counts.subjectResults,563);
+    assert.equal(result.counts.students,36);assert.equal(result.counts.subjectResults,508);
     assert.match(await verification.verifyReports(db),/All eight report types/);
   }finally{await db.sequelize.close();}
 });

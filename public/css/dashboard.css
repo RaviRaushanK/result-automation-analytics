@@ -110,6 +110,7 @@
 }
 
 /* ---------- Stat Cards ---------- */
+.card.stat-card { border: 0; }
 .stat-card {
     position: relative;
     overflow: hidden;
@@ -160,51 +161,26 @@
     margin-top: 0.125rem;
 }
 
-/* ---------- Left Edge Color Accent ----------*/
-.stat-corner {
+/* Thin, rounded inset accent shared by metric cards; hover shadows stay intact. */
+.stat-card::before {
+    content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 6px;
-    border-radius: 12px 0 0 12px;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 4px 0 0 var(--metric-accent, var(--accent-blue));
     pointer-events: none;
     z-index: 1;
 }
-
-/* ---------- Left Edge Colors ---------- */
-
-.stat-blue .stat-corner {
-    background-color: var(--accent-blue);
-}
-
-.stat-green .stat-corner {
-    background-color: var(--accent-green);
-}
-
-.stat-red .stat-corner {
-    background-color: var(--accent-red);
-}
-
-.stat-teal .stat-corner {
-    background-color: var(--accent-teal);
-}
-
-.stat-amber .stat-corner {
-    background-color: var(--accent-amber);
-}
-
-.stat-purple .stat-corner {
-    background-color: var(--accent-purple);
-}
-
-.stat-orange .stat-corner {
-    background-color: var(--accent-orange);
-}
-
-.stat-emerald .stat-corner {
-    background-color: var(--accent-emerald);
-}
+/* Legacy markers remain in templates; the card itself now draws the accent. */
+.stat-card .stat-corner { display: none; }
+.stat-blue { --metric-accent: var(--accent-blue); }
+.stat-green { --metric-accent: var(--accent-green); }
+.stat-red { --metric-accent: var(--accent-red); }
+.stat-teal { --metric-accent: var(--accent-teal); }
+.stat-amber { --metric-accent: var(--accent-amber); }
+.stat-purple { --metric-accent: var(--accent-purple); }
+.stat-orange { --metric-accent: var(--accent-orange); }
+.stat-emerald { --metric-accent: var(--accent-emerald); }
 
 /* ---------- Icon Color & Background ---------- */
 .stat-blue .stat-icon {

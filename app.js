@@ -34,7 +34,7 @@ app.set("layout", "layouts/main");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads/branding", express.static(path.join(__dirname, "uploads", "branding")));
 app.use(cookieParser());
 app.use(session(sessionConfig));
 
@@ -78,7 +78,6 @@ app.use((req, res, next) => {
   res.locals.flash = res.locals.flash || [];
   res.locals.breadcrumbItems = res.locals.breadcrumbItems || [];
   res.locals.maskEmail = otpService.maskEmail;
-  res.locals.maskMobile = otpService.maskMobile;
   next();
 });
 
@@ -121,16 +120,17 @@ app.get("/api/health", (req, res) => {
 // Normalize academic IDs at the HTTP boundary; login sessions are untouched.
 app.use(['/exam-sessions', '/sessions', '/results', '/revaluation', '/subjects', '/faculty', '/analytics', '/reports', '/dashboard'], require('./middlewares/examSessionParameters'));
 app.use("/dashboard", authMiddleware, dashboardRoutes);
-app.use("/batches", authMiddleware, batchRoutes);
-app.use("/results", authMiddleware, resultRoutes);
-app.use("/revaluation", authMiddleware, revaluationRoutes);
-app.use("/sessions", authMiddleware, require('./middlewares/legacyExamSessionRedirect'));
-app.use("/exam-sessions", authMiddleware, examSessionRoutes);
-app.use("/subjects", authMiddleware, subjectRoutes);
+app.use("/batches", authMiddleware, adminMiddleware, batchRoutes);
+app.use("/results", authMiddleware, adminMiddleware, resultRoutes);
+app.use("/revaluation", authMiddleware, adminMiddleware, revaluationRoutes);
+app.use("/sessions", authMiddleware, adminMiddleware, require('./middlewares/legacyExamSessionRedirect'));
+app.use("/exam-sessions", authMiddleware, adminMiddleware, examSessionRoutes);
+app.use("/subjects", authMiddleware, adminMiddleware, subjectRoutes);
 app.use("/faculty", authMiddleware, adminMiddleware, facultyRoutes);
+app.use('/uploads', authMiddleware, adminMiddleware, express.static(path.join(__dirname, 'uploads')));
 app.use('/analytics', authMiddleware, analyticsRoutes);
 app.use('/reports', authMiddleware, reportsRoutes);
-app.use('/students', authMiddleware, studentRoutes);
+app.use('/students', authMiddleware, adminMiddleware, studentRoutes);
 app.use('/settings', require('./routes/settingsRoutes'));
 
 // ======================
@@ -163,6 +163,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.APP_PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
+module.exports = app;

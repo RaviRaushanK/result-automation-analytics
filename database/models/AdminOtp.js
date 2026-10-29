@@ -14,6 +14,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     type: {
+      // Retain legacy rows; otpService accepts email types only.
       type: DataTypes.ENUM('password_reset', 'email_change', 'mobile_change'),
       allowNull: false
     },

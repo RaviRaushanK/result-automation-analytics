@@ -4,7 +4,6 @@
   "private": true,
   "description": "One-off database seed scripts for testing the result-automation-analytics system. NOT loaded by the running app.",
   "scripts": {
-    "all": "node seed_all.js",
     "demo": "node seed_demo.js",
     "verify": "node seed_demo.js --verify",
     "clean": "node seed_clean.js",

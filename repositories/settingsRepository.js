@@ -1,9 +1,17 @@
 'use strict';
 const { Op } = require('sequelize');
-const { sequelize, SystemSetting, SettingAudit, AdminUser } = require('../database/models');
-const ACCOUNT_FIELDS = ['admin_id', 'username', 'email', 'mobile', 'role', 'status', 'last_login'];
+const { sequelize, SystemSetting, SettingAudit, AdminUser, Faculty } = require('../database/models');
+const ACCOUNT_FIELDS = ['admin_id', 'username', 'email', 'role', 'status', 'last_login', 'faculty_id'];
 async function account(id) {
-  return AdminUser.findOne({ where: { admin_id: id, deleted_at: null, status: 'active' }, attributes: ACCOUNT_FIELDS, raw: true });
+  const row = await AdminUser.findOne({ where: { admin_id: id, deleted_at: null, status: 'active' }, attributes: ACCOUNT_FIELDS, raw: true });
+  if (!row || !['admin', 'faculty'].includes(row.role)) return null;
+  if (row.role === 'faculty') {
+    if (!row.faculty_id) return null;
+    const faculty = await Faculty.findOne({ where: { faculty_id: row.faculty_id, status: 'active', deleted_at: null }, attributes: ['faculty_name', 'faculty_code'], raw: true });
+    if (!faculty) return null;
+    Object.assign(row, faculty);
+  }
+  return row;
 }
 async function emailTaken(email, id) {
   return Boolean(await AdminUser.findOne({ where: { email, admin_id: { [Op.ne]: id } }, attributes: ['admin_id'], paranoid: false }));

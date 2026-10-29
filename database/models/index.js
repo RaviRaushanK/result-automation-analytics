@@ -40,6 +40,10 @@ const SystemSetting = require('./SystemSetting')(sequelize, DataTypes);
 const SettingAudit = require('./SettingAudit')(sequelize, DataTypes);
 const AdminOtp = require('./AdminOtp')(sequelize, DataTypes);
 const AccountInvitation = require('./AccountInvitation')(sequelize, DataTypes);
+Faculty.hasOne(AdminUser, { foreignKey: 'faculty_id' });
+AdminUser.belongsTo(Faculty, { foreignKey: 'faculty_id' });
+Faculty.hasMany(AccountInvitation, { foreignKey: 'faculty_id' });
+AccountInvitation.belongsTo(Faculty, { foreignKey: 'faculty_id' });
 
 // ============================================
 // Associations

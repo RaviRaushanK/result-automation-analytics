@@ -41,18 +41,19 @@ Generate a secret locally:
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ~~~
 
-## Invitation Email and Mobile Verification
+## Invitation Email and Email Verification
 
-Account configuration updated on 22 October 2026:
+Account configuration reviewed on 29 October 2026:
 
 | Variable | Meaning |
 | --- | --- |
 | `APP_BASE_URL` | Reachable application origin for invitation URLs; defaults to localhost with `APP_PORT` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | SMTP connection, authentication and sender for invitations and email OTPs |
-| `SMS_PROVIDER` | `twilio-verify` for provider-managed mobile OTPs, or `twilio` for custom Messaging API bodies |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Private Twilio account credentials |
-| `TWILIO_VERIFY_SERVICE_SID` | Verify service identifier for `twilio-verify` mode |
-| `TWILIO_FROM`, `TWILIO_MESSAGING_SERVICE_SID` | Alternative senders for `twilio` Messaging mode; unused in Verify mode |
+
+Invitations create Faculty accounts linked to existing active faculty records.
+Only email verification is used. See [Faculty access](../docs/faculty-access.md).
+
+Phone-number registration and account settings are removed; SMS/Twilio credentials are no longer used.
 
 Set a reachable `APP_BASE_URL` before inviting remote users. SMTP acceptance
 does not prove inbox delivery. Restart the server after changing environment

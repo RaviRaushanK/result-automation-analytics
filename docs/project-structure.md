@@ -1,6 +1,6 @@
 # Project Structure
 
-Report-related paths reviewed on 26 October 2026. Paths below describe the repository.
+Account/navigation paths reviewed on 29 October 2026; report paths on 26 October 2026. Paths below describe the repository.
 
 ~~~text
 .
@@ -55,7 +55,8 @@ in the current Git tree.
 | Reports | `reportsController.js`, `reportsService.js`, `reportsRepository.js`, `revaluationOverlay.js`, `subjectOutcome.js` |
 | Settings | `settingsController.js`, `settingsService.js`, `settingsRepository.js` |
 | Registration/invitations | `registrationController.js`, `registrationService.js`, `invitationEmailService.js` |
-| Recovery/contact verification | `authController.js`, `otpService.js`, `emailService.js`, `twilioVerifyService.js` |
+| Faculty sidebar | `views/partials/sidebar.ejs`, `public/css/faculty-sidebar.css`, `public/js/sidebar.js` |
+| Recovery/email verification | `authController.js`, `otpService.js`, `emailService.js` |
 
 Names in the table are basenames within their established controller/service/
 repository folders. HTTP controllers should not replace shared academic policy
@@ -72,6 +73,19 @@ History-based completion stays in `academicOutcomeService.js`.
 `public/js/reports/wording.js` supplies compact screen/print notes and export
 explanations. `scripts/verify-report-mode-semantics.js` checks an explicitly
 selected live record read-only. See [report audit](report-mode-semantics.md).
+
+## Current account and Faculty behavior (29 October 2026)
+
+Faculty-only registration binds an administrator-selected faculty record and
+invitation email, checks its faculty code, then activates after email verification.
+There are no phone inputs, account phone-update routes or SMS provider modules.
+Legacy storage and migrations are retained for compatibility.
+
+Faculty sees Dashboard, Analytics, Reports and personal Settings. Only Analytics
+expands by default; Reports expands for its selected page or on manual opening.
+Original submenu labels/sizing/spacing remain. The sidebar has no faculty profile
+block. Admin navigation and server permissions are unchanged by presentation work.
+See [Faculty access](faculty-access.md).
 
 ## Current Navigation and Removed Files
 

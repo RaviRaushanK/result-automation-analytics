@@ -26,15 +26,9 @@
       const confirm=form.querySelector('[name="confirmPassword"]');
       if(password)password.setCustomValidity(new TextEncoder().encode(password.value).length>72?'Use a password of at most 72 UTF-8 bytes.':'');
       if(confirm)confirm.setCustomValidity(confirm.value!==password.value?'The passwords do not match.':'');
-      const mobile=form.querySelector('[name="mobile"]'),country=form.querySelector('[name="countryCode"]');
-      if(country){
-        const selection=window.registrationCountries.find(item=>item.label===country.value);
-        country.setCustomValidity(selection?'':'Select a country and calling code from the suggestions.');
-        if(mobile)mobile.setCustomValidity(selection&&!/^\+[1-9]\d{7,14}$/.test(selection.dial+mobile.value)?'Enter a valid mobile number without the country code.':'');
-      }
       fields.forEach(input=>{
         const invalid=!input.validity.valid;
-        const messages={username:'Use 3–50 letters, numbers, dots, underscores or hyphens.',mobile:'Enter your mobile number using digits only.',password:'Use at least 12 characters (maximum 72 UTF-8 bytes).',confirmPassword:'Re-enter the same password.',otp:'Enter the 6-digit verification code.'};
+        const messages={username:'Use 3–50 letters, numbers, dots, underscores or hyphens.',password:'Use at least 12 characters (maximum 72 UTF-8 bytes).',confirmPassword:'Re-enter the same password.',otp:'Enter the 6-digit verification code.'};
         const message=feedback.get(input);
         message.textContent=input.validity.customError?input.validationMessage:(messages[input.name]||'Please complete this field.');
         message.hidden=!invalid;message.classList.toggle('d-block',invalid);
@@ -51,9 +45,4 @@
       input.addEventListener('input',()=>{if(form.classList.contains('was-validated')||input.classList.contains('is-invalid'))update();});
     });
   });
-  const country=document.getElementById('register-country'),list=document.getElementById('registration-countries');
-  if(!country||!list)return;
-  list.replaceChildren(...window.registrationCountries.map(item=>{const option=document.createElement('option');option.value=item.label;return option;}));
-  const check=()=>country.setCustomValidity(window.registrationCountries.some(item=>item.label===country.value)?'':'Select a country and calling code from the suggestions.');
-  country.addEventListener('input',check);country.addEventListener('change',check);country.addEventListener('invalid',check);
 })();

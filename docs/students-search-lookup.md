@@ -1,6 +1,6 @@
 # Students Search and Lookup
 
-Implemented on 14 October 2026; documentation reviewed on 17 October 2026. The existing `/students` page remains the only
+Implemented on 14 October 2026; authorization documentation reviewed on 29 October 2026. The existing `/students` page remains the only
 administrative student directory. No new lookup or results page was created.
 No database migration, seed, reset, or academic-record update was performed.
 
@@ -124,21 +124,20 @@ Deleting a Student still soft-deletes it rather than deleting result history.
 `/students?search=Ravi&batch_id=all`. The `q` alias is supported. Recognized filter
 and page values are preserved; unsupported parameters are not copied.
 
-The redundant Student Search sidebar child is removed for every role. The
-Student Repository group and its Students child explicitly allow admin/faculty,
-avoiding an empty directory group for students.
+The redundant Student Search sidebar child is removed for every role. Student
+Repository and its Students child are administrator-only.
 
 ## Authorization
 
-The Students router explicitly requires authentication and an admin/faculty role
-before every page, lookup, list, stats, category, CRUD, and import endpoint.
-This does not rely on hiding sidebar links.
+The Students router requires authentication and an administrator role before
+every page, lookup, list, stats, category, CRUD and import endpoint. Direct URLs
+are protected as well as navigation. Faculty, student and unknown roles receive
+403. Administrators retain browse/search/create/edit/delete/import access.
 
-Admins retain browse/search/create/edit/delete/import access. Faculty retain the
-same access they already had in the repository; no new faculty privilege or
-invented read-only policy was introduced. Student and unknown roles receive 403,
-including direct requests with another student's ID or altered query parameters.
-Unauthenticated requests are rejected by the existing authentication middleware.
+Faculty can view institutional academic data through Dashboard, Analytics and
+Reports; those permissions do not grant student-directory management access.
+The authentication middleware reloads current account permissions for protected
+requests and rejects inactive accounts or inactive/deleted faculty links.
 
 AdminUser has no authoritative relationship to Student.student_id. Student
 self-service is therefore not provided, and ownership is never guessed from

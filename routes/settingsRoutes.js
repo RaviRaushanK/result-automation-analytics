@@ -9,8 +9,6 @@ router.get('/', csrf, controller.page);
 router.post('/account', csrf, controller.account);
 router.post('/account/change-email/request', csrf, controller.changeEmailRequest);
 router.post('/account/change-email/verify', csrf, controller.changeEmailVerify);
-router.post('/account/change-mobile/request', csrf, controller.changeMobileRequest);
-router.post('/account/change-mobile/verify', csrf, controller.changeMobileVerify);
 router.post('/account/verification', csrf, controller.contactVerification);
 router.post('/institution', controller.administrator, csrf, controller.institution);
 router.post('/logo', controller.administrator, upload.single('logo'), csrf, controller.logo);

@@ -34,7 +34,7 @@
 .registration-card .login-btn:hover{background:#1949ad}
 .registration-card button:focus-visible,.registration-card a:focus-visible{outline:3px solid #6a9df4;outline-offset:3px}
 .registration-card .alert{font-size:13px;line-height:1.6;border-radius:10px;padding:12px 15px;margin:18px 0;overflow-wrap:anywhere}
-.registration-verification-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:26px 0}
+.registration-verification-grid{display:grid;grid-template-columns:1fr;gap:18px;margin:26px 0}
 .registration-contact{border:1px solid #dce3ee;border-radius:14px;padding:22px 18px;background:#fbfcfe;min-width:0}
 .registration-contact-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:#eaf0fc;color:#3762b2;font-size:22px;margin-bottom:17px}
 .registration-contact h2{font-size:15px;font-weight:600;margin:0 0 7px}
@@ -70,7 +70,6 @@
 .registration-contact{padding:17px 15px}
 .registration-contact-icon{margin-bottom:12px}
 .registration-destination{margin-bottom:15px}
-.registration-phone{display:grid;grid-template-columns:minmax(0,0.7fr) minmax(0,1.3fr);gap:16px}
 .registration-password{position:relative}
 .registration-password .form-control{padding-right:44px}
 .registration-password button{position:absolute;right:3px;top:3px;bottom:3px;width:36px;display:grid;place-items:center;border:0;background:transparent;border-radius:6px;color:#65768e;cursor:pointer}

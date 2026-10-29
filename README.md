@@ -1,7 +1,7 @@
 # Student Result Automation and Analytics System (SRAAS)
 
-Public pages and account workflows updated on 22 October 2026. Academic feature
-documentation was last reviewed on 26 October 2026.
+Account access and navigation documentation reviewed on 30 October 2026.
+Academic feature documentation was last reviewed on 26 October 2026.
 
 An Express, EJS, Sequelize and MySQL application for managing MCA students and
 academic sessions, importing result/revaluation cards, exploring academic
@@ -61,42 +61,32 @@ remote recipients cannot open it. The page reports email-delivery failures and
 retains the generated link for private manual sharing. Mail-server acceptance
 does not guarantee inbox placement; recipients should check spam as well.
 
-For mobile OTPs compatible with a Twilio Verify trial, configure `SMS_PROVIDER=twilio-verify` and
-`TWILIO_VERIFY_SERVICE_SID` with the existing Twilio Account SID and Auth Token.
-Verify generates and checks mobile OTPs through its API; this mode does not use
-`TWILIO_FROM`, a Messaging Service, or custom SMS bodies. Trial recipients must
-be verified in Twilio. Email OTPs continue to use SMTP. No account upgrade is
-required while eligible trial units remain.
-
 An active administrator creates and emails a seven-day invitation from **Settings > My
-Account > Invite a user**. After mail-server acceptance the form collapses under
-**Invite another user**. Invitations grant the application's current administrator
-role and access to this installation's shared institution data; this is not a
-separate-institution signup flow. Creating another invitation for the same email
-revokes the old invitation.
+Account > Invite faculty**. Select an existing active faculty member by name/code and
+enter their email; faculty records do not need a saved email. The recipient must enter
+the matching faculty code and verify their email address before activation.
+Invitations create faculty accounts with read-only access to all institutional data
+in Dashboard, Analysis, and Reports, including printing and exports. Faculty settings
+include My Account, Account Security, Appearance, and read-only Academic Policy.
+Creating another invitation for the same faculty member or email revokes the old one.
+Each faculty record can have only one login account.
 
-The recipient chooses a username, searches/selects a country calling code,
-enters the national mobile number, and chooses a password of at least 12
-characters (maximum 72 UTF-8 bytes). The server combines the calling code and
-number into international format. Password fields have visibility controls.
-The invited email is fixed. Separate OTPs go to that email and mobile number.
-An active account is created atomically only after both codes are verified.
-Passwords and locally generated codes are stored as bcrypt hashes. With Twilio
-Verify, mobile codes are generated and checked by Twilio and the app stores the
-verification identifier instead of a mobile-code hash. Verification timestamps are
-recorded on the account. Existing accounts are preserved without being marked
-verified retroactively. Contact changes in Settings also require an OTP sent
-to the new contact; the former direct email-update bypass is disabled.
+Run `npm run migrate` before starting the updated application. The faculty-access
+migration preserves existing accounts and roles and revokes unused legacy invitations,
+including registrations in progress. Issue new faculty invitations for those recipients.
 
-Configure real `SMTP_*` delivery for email. The alternative `SMS_PROVIDER=twilio` uses
-`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either `TWILIO_FROM` or
-`TWILIO_MESSAGING_SERVICE_SID` in `config/.env`. See Twilio's
-[Messages API](https://www.twilio.com/docs/messaging/api/message-resource).
-This alternative sends custom SMS bodies and is not compatible with the current
-Messaging trial's predefined-content restriction. For Verify mode, configure
-`TWILIO_VERIFY_SERVICE_SID` instead of a sender number or Messaging Service.
-Missing configuration or delivery errors block verification. Codes are never
-printed as an SMS fallback. Credentials are not included in the example config.
+The recipient enters their faculty code, chooses a username, and chooses a password
+of at least 12 characters (maximum 72 UTF-8 bytes). Password fields have visibility
+controls. Registration does not collect a phone number.
+The invited email is fixed. An email OTP activates the account after faculty-code
+validation. Passwords and codes are stored as bcrypt hashes. Email changes in
+Settings require verification of the new address. Phone-number registration and
+account phone settings are removed. SMS/Twilio services are not used. Existing accounts and historical verification records are retained.
+Registrations already waiting for mobile verification can activate using their
+previously verified email in the same unexpired registration session.
+
+Configure real `SMTP_*` delivery for email. Missing SMTP configuration or delivery
+errors block email verification; codes are never printed as a fallback.
 
 For Gmail SMTP, `SMTP_USER` must be the sending Gmail account and `SMTP_PASS`
 must be a current App Password created by that same account, with 2-Step
@@ -108,21 +98,35 @@ invalidates the generated OTP and leaves the user on the forgot-password form.
 
 Registration is bound to its browser session and expires after 30 minutes.
 Codes expire after five minutes, with a 60-second resend cooldown, four sends
-and five guesses per contact for the whole registration. Resending does not
-reset the guess budget. Locally generated codes are replaced on resend; Twilio
-Verify manages its own mobile-code lifecycle. An expired or locked
+and five guesses for the whole registration. Resending does not
+reset the guess budget. Codes are replaced on resend. An expired or locked
 registration requires a fresh invitation. Administrators may create up to 20
 invitations per hour. Invitations are single-use and their tokens are stored as
 SHA-256 hashes. After activation, temporary registration details are cleared.
 
-Run `node --test tests/registration.test.js` for isolated checks. The rollback-only
-database verification is opt-in:
+Run `node --test tests/registration.test.js tests/faculty-access.test.js` for isolated checks. Database verification is opt-in. Registration fixtures roll back; the concurrency
+check creates temporary fixtures and removes them in cleanup:
 
 ~~~powershell
 $env:REGISTRATION_DB_TEST = '1'
-node --test tests/registration.test.js
+node --test tests/registration.test.js tests/faculty-registration-race.test.js
 Remove-Item Env:REGISTRATION_DB_TEST
 ~~~
+
+## Faculty navigation
+
+Faculty can access Dashboard, all existing Analytics pages, Reports, and personal
+Settings. Only Analytics expands by default; Reports expands for its active page
+or when opened manually. The submenu uses the original shared labels, icons and
+spacing, including Progress / Backlog Trends. No faculty identity card is shown
+above Settings. Admin navigation is unchanged.
+
+Administrators can activate or deactivate faculty under **Academic Management >
+Faculty > Manage Faculty**. Deactivation blocks new logins and existing sessions
+on their next request, while preserving historical assignments and reports.
+
+See [Faculty access](docs/faculty-access.md) for registration, status management, permissions,
+compatibility and verification commands.
 
 ## Public pages and password recovery
 
@@ -155,8 +159,8 @@ Email format checks run in the browser and server without provider/address
 allowlists. Server DNS checks reject confirmed nonexistent or non-mail domains;
 temporary DNS failures defer to email delivery and mandatory OTP verification.
 Format and DNS checks alone do not establish mailbox ownership. My Account
-keeps existing contacts until their replacements pass verification and supports
-the same country-code selection for mobile changes.
+keeps the existing email until its replacement passes verification. Phone-number
+entry and editing are no longer part of registration or My Account.
 
 ## Configuration
 
@@ -373,7 +377,7 @@ does not generate demo results for them.
 
 The current in-memory plan has 36 students, 92 results and eight revaluation
 events. Earlier documentation's 102-result/nine-event plan is obsolete.
-`seed/seed_all.js` is absent; do not use that old alias.
+The obsolete `seed/seed_all.js` entry point and its `all` npm alias are removed.
 See [Demo Data and Safety](seed/README.md) before executing any reset.
 
 ## Verification
@@ -389,27 +393,28 @@ Optional database checks are opt-in using `REPORTS_DB_TEST=1` and
 it writes screenshots/PDFs to an OS temporary directory. Some test modules load
 database configuration even when integration checks are skipped.
 
-Known baseline issues remain in `tests/demo-seed.test.js`: the missing legacy
-entry point, old result/event counts, and an attempt to generate marks for a
-protected real student. Do not interpret a focused suite pass as a green full
-suite, or run a seed to make test expectations pass against real records.
+The 30 October 2026 default-suite run passed 960 tests with no failures;
+15 optional checks were skipped. Stale demo assertions and rendering
+fixtures were updated to current contracts. No demo reset or migration was run.
+Optional persisted-database/provider checks require their own explicit setup.
 
 Current verification notes are maintained in
 [Implementation Status](docs/implementation-status.md).
 
 ## Access and Deployment Limits
 
-- Reports, Analytics and the Students router enforce admin/faculty access.
-  Required-course confirmation and Faculty management are administrator-only.
-- The initial login-role schema is admin-only. Faculty records/assignments are
-  separate from login accounts; there is no implemented student self-service.
+- Dashboard, Analytics, and Reports allow administrators and faculty. Academic
+  management, students, uploads, revaluation management, and invitations require
+  an administrator. Protected requests reload current account permissions and
+  reject inactive/deleted faculty records even for existing sessions.
+- Faculty login accounts link uniquely to existing faculty records. Existing
+  administrator roles are retained; student self-service is not implemented.
 - Settings changes use current-account checks, field allowlists and CSRF.
   These protections should not be assumed to cover every older write endpoint.
 - Use a strong session secret, change development credentials, configure HTTPS,
   review proxy/cookie behavior, restrict database privileges, and establish backups.
-- `/uploads` is currently mounted as static storage before authentication.
-  Ignoring files in Git does not make the HTTP endpoint private. Review document
-  access controls before deploying sensitive records.
+- Uploaded result, revaluation, and temporary documents require administrator
+  access. Institution branding images remain available for pages and reports.
 - `/api/health` confirms HTTP health, not complete database/dependency readiness.
   Restart the application after backend code/environment changes.
 - Current ignore rules protect `.env` but not every environment-file variant;

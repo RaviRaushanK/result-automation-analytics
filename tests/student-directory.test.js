@@ -113,7 +113,7 @@ test('batch-scoped cards use database aggregates, not full student downloads', a
   assert.ok(calls.every(call => call.type === 'count'));
 });
 
-test('directory routes require authentication and deny student/unknown roles on every endpoint', async () => {
+test('directory routes require administrator access and deny faculty/student/unknown roles on every endpoint', async () => {
   const express = require('express');
   const directory = require('../services/studentDirectoryService');
   const original = { list: directory.list, stats: directory.stats };
@@ -131,7 +131,7 @@ test('directory routes require authentication and deny student/unknown roles on 
   directory.stats = fixture().service.stats;
   const app = express();
   app.use(express.json());
-  app.use((req, res, next) => { const role = req.headers['x-test-role']; req.session = role ? { adminId: 1, role } : {}; req.user = role ? { role } : null; next(); });
+  app.use((req, res, next) => { const role = req.headers['x-test-role']; req.session = role ? { adminId: 1, role } : {}; req.user = role ? { role } : null; if (role) req.account = { admin_id: 1, username: 'Directory fixture', role }; next(); });
   app.use('/students', require('../routes/studentRoutes'));
   app.use('/reports', require('../routes/reportsRoutes'));
   const server = app.listen(0, '127.0.0.1');
@@ -141,14 +141,14 @@ test('directory routes require authentication and deny student/unknown roles on 
     assert.equal((await fetch(base + '/students/api/list', { headers: { Accept: 'application/json' }, redirect: 'manual' })).status, 401);
     const anonymous = await fetch(base + '/students', { redirect: 'manual' });
     assert.equal(anonymous.status, 302); assert.equal(anonymous.headers.get('location'), '/login');
-    for (const role of ['student', 'guest', 'invalid']) {
+    for (const role of ['faculty', 'student', 'guest', 'invalid']) {
       for (const [method, url] of [['GET', '/'], ['GET', '/search?q=Ravi'], ['GET', '/api/list?batch_id=all'], ['GET', '/api/stats'], ['GET', '/api/categories'], ['GET', '/api/1'], ['GET', '/api/999'], ['POST', '/api'], ['PUT', '/api/1'], ['DELETE', '/api/1'], ['POST', '/api/import/preview'], ['POST', '/api/import/confirm']]) {
         const response = await fetch(base + '/students' + url, { method, headers: { 'x-test-role': role }, redirect: 'manual' });
         assert.equal(response.status, 403, role + ' ' + method + url);
       }
     }
     assert.equal((await fetch(base + '/reports/student?student_id=999&batch_id=all', { headers: { 'x-test-role': 'student' } })).status, 403);
-    for (const role of ['admin', 'faculty']) {
+    for (const role of ['admin']) {
       const response = await fetch(base + '/students/api/list?batch_id=all&page=2', { headers: { 'x-test-role': role } });
       assert.equal(response.status, 200);
       assert.equal((await response.json()).pagination.totalRows, 537);
@@ -162,7 +162,7 @@ test('directory routes require authentication and deny student/unknown roles on 
       const confirmed = await fetch(base + '/students/api/import/confirm', { method: 'POST', headers: { 'x-test-role': role, 'Content-Type': 'application/json' }, body: JSON.stringify({ batch_id: '1', status: 'active', rows: [{ ...person, valid: true }] }) });
       assert.equal(confirmed.status, 200); assert.equal((await confirmed.json()).data.imported, 1);
     }
-    assert.equal(mutations.length, 8);
+    assert.equal(mutations.length, 4);
     directory.list = async () => { throw new Error('secret SQL stack database credentials'); };
     const failure = await fetch(base + '/students/api/list', { headers: { 'x-test-role': 'admin' } });
     assert.equal(failure.status, 500); assert.doesNotMatch(await failure.text(), /secret|credentials|stack/);
@@ -173,7 +173,7 @@ test('sidebar keeps one directory destination and no student self-service mappin
   const menu = require('../config/sidebar.json').menu;
   const children = menu.find(item => item.label === 'Student Repository').children;
   assert.equal(children.length, 1); assert.equal(children[0].route, '/students');
-  assert.deepEqual(children[0].roles, ['admin', 'faculty']);
+  assert.deepEqual(children[0].roles, ['admin']);
   const res = { locals: {} };
   require('../middlewares/menuMiddleware')({ user: { role: 'student' }, originalUrl: '/dashboard' }, res, () => {});
   assert.equal(res.locals.sidebarMenu.some(item => item.label === 'Student Repository'), false);

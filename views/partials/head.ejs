@@ -25,4 +25,7 @@
     <link rel="stylesheet" href="/css/result-management.css?v=20261025-8">
   <% } %>
   <link rel="stylesheet" href="/css/workspace-responsive.css?v=20261016-3">
+  <% if (typeof user !== 'undefined' && user && user.role === 'faculty') { %>
+    <link rel="stylesheet" href="/css/faculty-sidebar.css?v=20261029-3">
+  <% } %>
 </head>

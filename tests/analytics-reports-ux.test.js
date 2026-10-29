@@ -15,6 +15,7 @@ async function harness(run) {
   app.use(express.static(path.join(__dirname, '../public')));
   app.use((req, res, next) => {
     const role = req.headers['x-role']; req.session = role ? { adminId: 1, role, username: 'UX test' } : {};
+    if (role) req.account = { admin_id: 1, username: 'UX test', role };
     res.locals.flash = []; res.locals.breadcrumbItems = []; next();
   });
   app.use(require('../middlewares/userMiddleware')); app.use(require('../middlewares/themeMiddleware')); app.use(require('../middlewares/menuMiddleware'));

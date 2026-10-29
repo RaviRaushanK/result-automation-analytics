@@ -1,5 +1,4 @@
 'use strict';
-const { Op } = require('sequelize');
 const { AdminUser, AdminOtp } = require('../database/models');
 const repository = require('../repositories/settingsRepository');
 const policy = require('./academicPolicy');
@@ -57,12 +56,6 @@ async function updateEmail(body, actor) {
   allowFields(body, ['email', '_csrf']);
   throw Object.assign(new Error('Email changes require a verification code. Use the email verification form.'), { status: 400 });
 }
-const mobilePattern = /^\+[1-9][0-9]{7,14}$/;
-
-async function mobileTaken(mobile, id) {
-  return Boolean(await AdminUser.findOne({ where: { mobile, admin_id: { [Op.ne]: id } }, attributes: ['admin_id'], paranoid: false }));
-}
-
 async function requestChangeEmail(body, adminId) {
   allowFields(body, ['new_email', '_csrf']);
   const checked = require('../public/js/accountEmailValidation').validate(body.new_email);
@@ -104,45 +97,6 @@ async function verifyChangeEmail(body, adminId) {
   const [updated] = await AdminUser.update({ email: targetEmail, email_verified_at: new Date(), updated_at: new Date() }, { where: { admin_id: adminId, deleted_at: null, status: 'active' } });
   if (!updated) throw Object.assign(new Error('Failed to update email address.'), { status: 500 });
   return { notice: 'Your email address has been updated successfully.' };
-}
-
-async function requestChangeMobile(body, adminId) {
-  allowFields(body, ['new_mobile', 'countryCode', '_csrf']);
-  let newMobile = typeof body.new_mobile === 'string' ? body.new_mobile.trim() : '';
-  if (body.countryCode !== undefined) {
-    const country = require('../public/js/countryCodes').find(item => item.label === body.countryCode);
-    if (!country || !/^\d{4,14}$/.test(newMobile)) throw validation({ new_mobile: 'Select a country and enter your mobile number using digits only, without the country code.' });
-    newMobile = country.dial + newMobile;
-  }
-  if (!mobilePattern.test(newMobile)) {
-    throw validation({ new_mobile: 'Enter a mobile number with its country code, for example +919876543210.' });
-  }
-  const admin = await AdminUser.findByPk(adminId);
-  if (!admin) throw Object.assign(new Error('Account not found.'), { status: 404 });
-  if (admin.mobile === newMobile) throw validation({ new_mobile: 'This is already your registered mobile number.' });
-  if (await mobileTaken(newMobile, adminId)) {
-    throw validation({ new_mobile: 'This mobile number is already used by another account.' });
-  }
-  const result = await otpService.createAndSendOtp({ adminId, type: 'mobile_change', targetValue: newMobile });
-  return { notice: 'A verification code has been sent to your new mobile number.', ...result };
-}
-
-async function verifyChangeMobile(body, adminId) {
-  allowFields(body, ['otp', '_csrf', 'kind']);
-  const code = typeof body.otp === 'string' ? body.otp.trim() : '';
-  if (!code || !/^\d{6}$/.test(code)) throw validation({ otp: 'Enter the 6-digit verification code.' });
-
-  const otp = await AdminOtp.findOne({
-    where: { admin_id: adminId, type: 'mobile_change', is_used: 0 },
-    order: [['created_at', 'DESC']]
-  });
-  if (!otp) throw Object.assign(new Error('Invalid or expired verification code.'), { status: 400 });
-  const result = await otpService.verifyOtp({ adminId, type: 'mobile_change', code });
-  const targetMobile = result.targetValue;
-
-  const [updated] = await AdminUser.update({ mobile: targetMobile, mobile_verified_at: new Date(), updated_at: new Date() }, { where: { admin_id: adminId, deleted_at: null, status: 'active' } });
-  if (!updated) throw Object.assign(new Error('Failed to update mobile number.'), { status: 500 });
-  return { notice: 'Your mobile number has been updated successfully.' };
 }
 
 async function logoImage(file) {
@@ -196,4 +150,4 @@ function brandingMetadata(branding) {
   return [['Institution', 'institution_name'], ['Institution Short Name', 'institution_short_name'], ['Institution Address', 'institution_address'], ['Institution Phone', 'institution_phone'], ['Institution Email', 'institution_email'], ['Report Footer', 'report_footer']]
     .filter(([, key]) => branding[key] && branding[key] !== DEFAULTS[key]).map(([label, key]) => [label, branding[key]]);
 }
-module.exports = { FIELDS, DEFAULTS, KEYS, safeLogo, allowFields, validateInstitution, getBranding, saveInstitution, updateEmail, requestChangeEmail, verifyChangeEmail, requestChangeMobile, verifyChangeMobile, logoImage, saveLogo, academicPolicy, systemInformation, brandingMetadata };
+module.exports = { FIELDS, DEFAULTS, KEYS, safeLogo, allowFields, validateInstitution, getBranding, saveInstitution, updateEmail, requestChangeEmail, verifyChangeEmail, logoImage, saveLogo, academicPolicy, systemInformation, brandingMetadata };

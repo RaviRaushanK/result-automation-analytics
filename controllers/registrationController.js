@@ -2,7 +2,7 @@
 const crypto = require('node:crypto');
 const service = require('../services/registrationService');
 const invitationEmail = require('../services/invitationEmailService');
-const { maskEmail, maskMobile } = require('../services/otpService');
+const { maskEmail } = require('../services/otpService');
 function render(res, stage, values = {}, status = 200) {
   return res.status(status).render('auth/register', { layout: 'layouts/landing', title: 'Registration - SRAAS',
     pageStyles: ['/css/registration.css'], stage, error: null, notice: null, ...values });
@@ -14,7 +14,7 @@ function publicError(error) {
 async function verificationPage(req, res, error = null, notice = null, status = 200) {
   try {
     const state = await service.state(req.session.registrationToken, req.session.registrationSecret);
-    return render(res, 'verify', { ...state, email: maskEmail(state.email), mobile: maskMobile(state.mobile), error, notice }, status);
+    return render(res, 'verify', { ...state, email: maskEmail(state.email), error, notice }, status);
   } catch (err) { return render(res, 'unavailable', { error: publicError(err) }, err.status || 500); }
 }
 module.exports = {
@@ -53,27 +53,30 @@ module.exports = {
   },
   verify: async (req, res) => {
     try {
-      const result = await service.verify(req.session.registrationToken, req.session.registrationSecret, req.body.channel, req.body.otp);
-      if (!result.complete) return verificationPage(req, res, null, 'Contact verified. Complete the remaining verification to activate your account.');
+      await service.verify(req.session.registrationToken, req.session.registrationSecret, req.body.channel, req.body.otp);
       delete req.session.registrationToken; delete req.session.registrationSecret; delete req.session.registrationStarted;
       return render(res, 'complete');
     } catch (error) { return verificationPage(req, res, publicError(error), null, error.status || 500); }
   },
-  invitations: (req, res) => res.render('auth/invitations', { title: 'Invite a User - SRAAS', error: null, invitePath: null }),
+  invitations: async (req, res, next) => {
+    try { return res.render('auth/invitations', { title: 'Invite Faculty - SRAAS', error: null, invitePath: null, faculty: await service.availableFaculty() }); } catch (error) { next(error); }
+  },
   invite: async (req, res) => {
     let invitePath = null;
+    let faculty = [];
     try {
+      faculty = await service.availableFaculty();
       // Validate the configured origin before creating an invitation.
       invitationEmail.invitationUrl('/register?token=' + '0'.repeat(64));
-      invitePath = invitationEmail.invitationUrl(await service.invite(req.session.adminId, req.body.email));
+      invitePath = invitationEmail.invitationUrl(await service.invite(req.session.adminId, req.body.email, req.body.facultyId));
       const recipient = req.body.email.trim().toLowerCase();
       console.log('[invitations] Sending invitation email.');
       const receipt = await invitationEmail.send(recipient, invitePath);
       console.log('[invitations] Email accepted by SMTP server:', { messageId: receipt?.messageId, acceptedCount: receipt?.accepted?.length });
-      return res.render('auth/invitations', { title: 'Invite a User - SRAAS', error: null, invitePath, emailSent: true, emailRecipient: recipient });
+      return res.render('auth/invitations', { title: 'Invite Faculty - SRAAS', faculty, error: null, invitePath, emailSent: true, emailRecipient: recipient });
     } catch (error) {
       console.error('[invitations] Invitation request failed:', { code: error.code, status: error.status, invitationCreated: Boolean(invitePath) });
-      return res.status(error.status || 500).render('auth/invitations', { title: 'Invite a User - SRAAS', error: invitePath ? 'Invitation created, but the email could not be sent. Check the email service configuration. You can copy the link below and share it privately.' : publicError(error), invitePath, emailSent: false });
+      return res.status(error.status || 500).render('auth/invitations', { title: 'Invite Faculty - SRAAS', faculty, error: invitePath ? 'Invitation created, but the email could not be sent. Check the email service configuration. You can copy the link below and share it privately.' : publicError(error), invitePath, emailSent: false });
     }
   }
 };

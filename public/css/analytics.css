@@ -30,7 +30,7 @@
 .analytics-page .btn { white-space: normal; overflow-wrap: anywhere; }
 .analytics-page .material-icons { flex-shrink: 0; vertical-align: middle; }
 .analytics-page .stat-card { border-radius: 8px; }
-.analytics-page .stat-card .card-body { min-height: 108px; padding: 1rem; gap: .75rem; }
+.analytics-page .stat-card .card-body { min-height: 90px; padding: 1rem; gap: .75rem; }
 .analytics-page .stat-icon { width: 40px; height: 40px; border-radius: 8px; }
 .analytics-page .stat-icon .material-icons { font-size: 22px; }
 .analytics-page .stat-value { white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
@@ -38,22 +38,22 @@
 .analytics-page .analytics-deep-link,
 .analytics-page .analytics-deep-link:is(:hover, :focus) { color: inherit; text-decoration: none; }
 .analytics-page .analytics-deep-link:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
-.analytics-page .analytics-summary-card { position: relative; height: 100%; min-height: 108px; padding: 1rem; border: 1px solid var(--card-border); border-left: 4px solid var(--accent-blue); border-radius: 8px; background: var(--card-bg); }
+.analytics-page .analytics-summary-card { position: relative; height: 100%; min-height: 108px; padding: 1rem; border: 0; border-radius: 8px; background: var(--card-bg); }
+.analytics-page .analytics-summary-card::before { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 4px 0 0 var(--metric-accent, var(--accent-blue)); pointer-events: none; }
 .analytics-page .analytics-summary-label { color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
 .analytics-page .analytics-summary-value { margin-top: .5rem; font-size: 1.75rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .analytics-page .progress-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
 .analytics-page .progress-metric-card { border-radius: 6px; }
-.analytics-page .progress-metric-card .stat-corner { width: 3px; }
 .analytics-page .progress-metric-card .card-body { min-height: 96px; padding: .65rem .6rem; gap: .5rem; }
 .analytics-page .progress-metric-card .stat-icon { width: 32px; height: 32px; border-radius: 6px; }
 .analytics-page .progress-metric-card .stat-icon .material-icons { font-size: 19px; }
 .analytics-page .progress-metric-card .analytics-summary-label { min-height: 0; font-size: .75rem; line-height: 1.4; }
 .analytics-page .progress-metric-card .analytics-summary-value { margin: 0; font-size: 1.5rem; }
-.analytics-page .accent-green { border-left-color: var(--accent-green); }
-.analytics-page .accent-teal { border-left-color: var(--accent-teal); }
-.analytics-page .accent-red { border-left-color: var(--accent-red); }
-.analytics-page .accent-amber { border-left-color: var(--accent-amber); }
-.analytics-page .accent-purple { border-left-color: var(--accent-purple); }
+.analytics-page .accent-green { --metric-accent: var(--accent-green); }
+.analytics-page .accent-teal { --metric-accent: var(--accent-teal); }
+.analytics-page .accent-red { --metric-accent: var(--accent-red); }
+.analytics-page .accent-amber { --metric-accent: var(--accent-amber); }
+.analytics-page .accent-purple { --metric-accent: var(--accent-purple); }
 
 .analytics-page .analytics-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
 .analytics-page .analytics-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 1rem !important; color: var(--text-primary); font-size: 1rem; line-height: 1.4; }

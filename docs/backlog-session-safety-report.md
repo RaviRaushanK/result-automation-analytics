@@ -67,7 +67,7 @@ Production files:
 - `services/academicPolicy.js` — conventional month-name normalization.
 - `services/resultHistoryService.js` — reject reused semester exam periods.
 - `controllers/resultController.js` — session lock/check and excluded-row metadata.
-- `controllers/sessionController.js` — transactional identity protection.
+- `controllers/examSessionController.js` — transactional identity protection.
 - `views/results/review.ejs`, `views/results/preview.ejs` — import-scope notice.
 - `views/results/partials/import-scope.ejs` — shared scope/exclusion display.
 

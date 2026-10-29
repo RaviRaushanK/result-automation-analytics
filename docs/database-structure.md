@@ -1,5 +1,18 @@
 # Database Structure
 
+## Faculty account extension (29 October 2026)
+
+Migration `20261029100000-faculty-account-access.js` extends the login role enum
+with `faculty`, adds a nullable unique `admin_users.faculty_id` foreign key, and
+adds an invitation faculty reference. Existing administrator roles are preserved;
+unaccepted legacy invitations without a faculty reference are revoked.
+
+An active faculty login links to one existing active faculty record. Account
+creation/consumption is transactional and the unique faculty key prevents duplicate
+activation. Phone inputs and SMS verification are retired. Historical mobile
+columns and the legacy OTP enum value remain for compatibility, not active use.
+See [Faculty access](faculty-access.md) for the current lifecycle and permissions.
+
 ## Revaluation component extension (24 October 2026)
 
 Migration `20261024170000-revaluation-components.js` adds nullable INTEGER
@@ -49,7 +62,8 @@ every migration. Run migration status checks before deployment.
 
 - `migrations/`: installed schema evolution and constraints.
 - `database/models/`: application field/association definitions.
-- `database/schema.sql`: reference snapshot, not a safe upgrade/reset script.
+- `database/schema.sql`: older reference snapshot, not a safe upgrade/reset script;
+  later migration-defined account and academic fields may be absent.
 - Sequelize's migration metadata and the installed MySQL schema: actual state.
 
 Use `npm run migrate` for pending changes after a backup. No migration, seed or
@@ -60,7 +74,9 @@ database write is required merely to update this documentation.
 | Table | Purpose |
 | --- | --- |
 | `departments`, `batches` | Department affiliation and course/cohort years |
-| `admin_users` | Login accounts; distinct from teaching faculty and student identities |
+| `admin_users` | Administrator/Faculty login accounts; optional unique link to a faculty identity |
+| `admin_otps` | Email-change and password-reset challenges; legacy mobile rows retained |
+| `account_invitations` | Hashed, expiring, single-use invitations bound to faculty and email |
 | `faculty`, `subject_faculty` | Teaching faculty and many-to-many offering assignments |
 | `exam_sessions` | Batch + academic semester + structured examination start/end month and year |
 | `academic_courses` | Stable batch/semester/course identity, definition and roster review |
@@ -72,7 +88,7 @@ database write is required merely to update this documentation.
 | `import_logs`, `ocr_extractions` | Upload/extraction/review staging, not authoritative academic outcomes |
 | `system_settings`, `setting_audits` | Allowlisted branding settings and configuration change history |
 
-There are 16 exported domain models. The initial schema also defines
+There are 18 exported models, including OTP and invitation storage. The initial schema also defines
 `activity_logs`; it has no exported domain model in the current loader.
 The session-store table and Sequelize migration metadata are infrastructure,
 not additional student/result workflow models.
@@ -90,6 +106,10 @@ not additional student/result workflow models.
   retaining its existing outcome expressions. Existing audit payloads are not
   rewritten. Historical constraint/index names are retained intentionally.
 
+- `admin_users`: unique username/email/UUID and optional faculty ID. Faculty roles
+  require an active linked faculty record at the application boundary.
+- `account_invitations`: unique token hash; faculty/email binding, inviter, expiry,
+  acceptance/revocation and temporary registration state.
 - `subjects`: unique offering code within a session, not globally unique.
 - `exam_sessions`: unique batch/semester/start-month/start-year/end-month/end-year
   combination. `exam_session` and `exam_year` are retained compatibility values

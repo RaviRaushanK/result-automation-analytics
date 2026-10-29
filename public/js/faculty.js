@@ -109,6 +109,7 @@ document.addEventListener('DOMContentLoaded', function () {
   async function confirmRemove() { if (!state.removing) return; var button = $('facultyRemoveBtn'), subjectId = state.removing.subject_id, target = state.removeTarget; var url = '/faculty/api/assignments/' + encodeURIComponent(subjectId) + (target ? '/faculty/' + encodeURIComponent(target.faculty_id) : ''); button.disabled = true; button.textContent = 'Removing Assignment...'; error('facultyRemoveError', ''); try { await api(url, { method: 'DELETE' }); state.removing = null; state.removeTarget = null; modal('facultyRemoveModal', false); toast('success', 'Faculty assignment removed successfully.'); delete state.drafts[subjectId]; await loadSubjects(true); } catch (e) { error('facultyRemoveError', e.message); } finally { button.disabled = false; button.textContent = removeTargetLabel(); } }
 
   $('addFacultyBtn').addEventListener('click', openFacultyForm); $('addAssignmentFacultyBtn').addEventListener('click', openFacultyForm); $('addFacultyForm').addEventListener('submit', reviewFaculty);
+  document.addEventListener('faculty-status-changed', loadFaculty);
   batch.addEventListener('change', loadSessions); session.addEventListener('change', () => loadSubjects()); $('facultySearch').addEventListener('input', render);
   $('saveFacultyAssignmentsBtn').addEventListener('click', () => openConfirmation()); $('facultyConfirmSaveBtn').addEventListener('click', confirmSave);
   function updateFacultyCount(e) {

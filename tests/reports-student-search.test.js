@@ -37,7 +37,7 @@ test('searched report options retain authentication and staff-only authorization
   const saved = service.getOptions;
   service.getOptions = async (scope, filters) => { assert.equal(scope, 'students'); assert.equal(filters.search, 'Ravi'); return []; };
   const app = express();
-  app.use((req, res, next) => { req.session = req.headers['x-test-role'] ? { adminId: 1, role: req.headers['x-test-role'] } : {}; next(); });
+  app.use((req, res, next) => { req.session = req.headers['x-test-role'] ? { adminId: 1, role: req.headers['x-test-role'] } : {}; if (req.session.adminId) req.account = { admin_id: 1, username: 'Search fixture', role: req.session.role }; next(); });
   app.use('/reports', require('../routes/reportsRoutes'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));

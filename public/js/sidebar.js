@@ -172,7 +172,7 @@
   }
 
   function closeMobileDrawer() {
-    if (!isMobile()) return;
+    if (!isMobile() && !sidebar.classList.contains('faculty-sidebar')) return;
     sidebar.classList.remove('mobile-open');
     sidebarOverlay.classList.remove('active');
     sidebarToggle.setAttribute('aria-expanded', 'false');
@@ -239,6 +239,10 @@
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(function () {
       const wasMobile = sidebar.classList.contains('mobile-open');
+      if (isMobile() && sidebar.classList.contains('faculty-sidebar')) {
+        // A Faculty tablet rail must become a fully labelled mobile drawer.
+        sidebar.classList.remove('collapsed', 'expanded');
+      }
       if (!isMobile() && wasMobile) {
         // Switching from mobile to desktop/tablet: close drawer
         closeMobileDrawer();
@@ -256,6 +260,9 @@
   // Ensure collapse toggles in sidebar have proper keyboard handling
   const sidebarLinks = sidebar.querySelectorAll('.sidebar-link[data-bs-toggle="collapse"]');
   sidebarLinks.forEach(function (link) {
+    // Faculty groups start open; Bootstrap owns their collapse and ARIA state.
+    // Preserve the existing Admin event handling.
+    if (sidebar.classList.contains('faculty-sidebar')) return;
     link.addEventListener('click', function (e) {
       // Let Bootstrap handle the collapse, but ensure aria-expanded is correct
       const targetId = this.getAttribute('data-bs-target');

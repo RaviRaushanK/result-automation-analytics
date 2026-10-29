@@ -35,7 +35,7 @@ test('split course/year composes stored batch name and validates the selected ac
   assert.equal(f.lookups[0].where.status, 'active');
   assert.equal(f.lookups[0].where.deleted_at, null);
   await f.create({ ...input, course_name: 'BTech', batch_year: '2026' });
-  assert.equal(f.writes[1].batch_name, 'BTech 2026');
+  assert.equal(f.writes[1].batch_name, 'BTECH 2026');
   assert.equal(f.writes[1].department_id, 42);
   assert.equal(f.lookups[1].where.department_code, 'MCA');
   assert.equal((await f.create({ ...input, department_id: ['42'] })).statusCode, 400);

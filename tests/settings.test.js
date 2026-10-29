@@ -140,6 +140,14 @@ test('Settings routes enforce account ownership, CSRF, admin authority, PRG and 
   try {
     assert.equal((await fetch(base + '/settings', { headers: { Accept: 'application/json' } })).status, 401);
     const admin = await get('1'), faculty = await get('2');
+    for (const identity of [admin, faculty]) {
+      assert.doesNotMatch(identity.html, /Mobile Number|new-mobile|account-country|accountMobile|countryCodes/);
+      for (const route of ['/settings/account/mobile', '/settings/account/change-mobile/request', '/settings/account/change-mobile/verify']) {
+        assert.equal((await post(route, { _csrf: identity.token, new_mobile: '+15555550123' }, identity)).status, 404);
+      }
+    }
+    assert.equal((await post('/settings/account/verification', { _csrf: faculty.token, kind: 'mobile', action: 'resend' }, faculty)).status, 400);
+    assert.equal((await post('/resend-otp', { adminId: '2', type: 'mobile_change' }, faculty)).status, 403);
     assert.equal(admin.response.status, 200); assert.match(admin.html, /Ravi/); assert.match(admin.html, /Administrator/); assert.match(admin.html, /admin@example.com/); assert.ok(!admin.html.includes('password_hash'));
     assert.equal((await get('2', 'institution')).response.status, 403); assert.equal((await get('2', 'system')).response.status, 403);
     assert.equal((await fetch(base + '/profile', { headers: { Cookie: admin.cookie }, redirect: 'manual' })).headers.get('location'), '/settings?section=account');

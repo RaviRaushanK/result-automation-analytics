@@ -30,9 +30,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     role: {
-      type: DataTypes.STRING,
+      type: DataTypes.ENUM('admin', 'faculty'),
       defaultValue: 'admin'
     },
+    faculty_id: { type: DataTypes.BIGINT, allowNull: true, unique: true },
     status: {
       type: DataTypes.ENUM('active', 'inactive'),
       defaultValue: 'active'
@@ -41,6 +42,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE
     },
     email_verified_at: { type: DataTypes.DATE, allowNull: true },
+    // Legacy storage only; account phone entry and verification are retired.
     mobile_verified_at: { type: DataTypes.DATE, allowNull: true },
     created_at: {
       type: DataTypes.DATE,

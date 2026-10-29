@@ -1,0 +1,22 @@
+.account-access-page{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:32px 16px;background:var(--body-bg);color:var(--text-primary)}
+.account-access-card{width:100%;max-width:510px;padding:32px;border:1px solid var(--card-border);border-radius:20px;background:var(--card-bg);box-shadow:0 16px 48px #0000000c;overflow-wrap:anywhere}
+.account-access-brand{display:flex;align-items:center;gap:11px;color:var(--text-primary);text-decoration:none;font-size:17px;font-weight:650;margin-bottom:34px;width:fit-content}
+.account-access-brand>.material-icons{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:var(--primary-brand);color:#fff;font-size:24px}
+.account-access-brand small{display:block;margin-top:2px;color:var(--text-secondary);font-size:11px;font-weight:400}
+.account-access-icon{display:grid;place-items:center;width:64px;height:64px;border-radius:18px;background:var(--sidebar-active);color:var(--primary-brand);margin-bottom:20px}
+.account-access-icon .material-icons{font-size:31px}
+.account-access-card .account-access-eyebrow{color:var(--text-secondary);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px}
+.account-access-card h1{color:var(--text-primary);font-size:29px;font-weight:650;line-height:1.25;letter-spacing:-.025em;margin:0 0 15px}
+.account-access-card .account-access-description{color:var(--text-secondary);font-size:14px;line-height:1.75;margin:0 0 22px}
+.account-access-guidance{display:flex;align-items:flex-start;gap:10px;padding:14px;border:1px solid var(--card-border);border-radius:11px;background:var(--secondary-bg);margin-bottom:26px}
+.account-access-guidance>.material-icons{flex-shrink:0;color:var(--text-secondary);font-size:19px;margin-top:2px}
+.account-access-guidance p{color:var(--text-secondary);font-size:12px;line-height:1.65;margin:0}
+.account-access-actions{display:grid;gap:16px;text-align:center}
+.account-access-actions .btn{display:flex;align-items:center;justify-content:center;gap:9px;min-height:45px;border-radius:9px;font-size:14px;font-weight:500}
+.account-access-actions .btn-primary{background-color:#2563eb;border-color:#2563eb;color:#fff}
+.account-access-actions .btn-primary:hover,.account-access-actions .btn-primary:focus-visible{background-color:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.account-access-actions .material-icons{font-size:18px}
+.account-access-home{display:inline-flex;align-items:center;justify-content:center;gap:7px;color:var(--text-secondary);font-size:13px;text-decoration:none;min-height:30px}
+.account-access-home:hover{color:var(--primary-brand);text-decoration:underline}
+.account-access-card a:focus-visible{outline:3px solid var(--primary-brand);outline-offset:4px}
+@media(max-width:480px){.account-access-page{padding:20px 14px}.account-access-card{padding:25px 22px;border-radius:16px}.account-access-brand{margin-bottom:28px}.account-access-card h1{font-size:26px}}

@@ -1,9 +1,11 @@
-<aside class="sidebar" id="sidebar" aria-label="Main sidebar">
+<% var facultySidebar = typeof user !== 'undefined' && user && user.role === 'faculty'; %>
+<aside class="sidebar<%= facultySidebar ? ' faculty-sidebar' : '' %>" id="sidebar" aria-label="Main sidebar">
   <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse sidebar" title="Collapse sidebar">
     <span class="material-icons">chevron_left</span>
   </button>
 
   <div class="sidebar-scrollable">
+    <% if (facultySidebar) { %><div class="faculty-workspace-label">Faculty Workspace</div><% } %>
     <nav class="nav flex-column" aria-label="Main navigation">
       <%
         // Get active path - currentPath is passed from route
@@ -37,8 +39,7 @@
             var safeId = item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
             var itemActive = isActive(item.route);
             var parentActive = hasActiveChild(item.children);
-            var isExpanded = parentActive;
-            
+            var isExpanded = parentActive || (facultySidebar && item.label === 'Analytics');
             // Build class string
             var linkClass = 'sidebar-link';
             if (itemActive) linkClass += ' active';

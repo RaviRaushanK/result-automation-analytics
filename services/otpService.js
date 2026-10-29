@@ -3,9 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
 const { AdminOtp, AdminUser } = require('../database/models');
 const emailService = require('./emailService');
-const smsService = require('./smsService');
 
-const OTP_LENGTH = 6;
 const OTP_TTL_MS = 2 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_RESENDS = 3;
@@ -21,13 +19,6 @@ function maskEmail(email) {
   return local[0] + '*'.repeat(local.length - 1) + '@' + domain;
 }
 
-function maskMobile(mobile) {
-  if (!mobile) return mobile;
-  const len = mobile.length;
-  if (len <= 4) return '*'.repeat(len);
-  return '*'.repeat(len - 4) + mobile.slice(-4);
-}
-
 async function invalidatePreviousOtps(adminId, type) {
   await AdminOtp.update(
     { is_used: 1 },
@@ -37,17 +28,19 @@ async function invalidatePreviousOtps(adminId, type) {
 
 async function deliverOtp(admin, type, targetValue, code) {
   const text = `SRAAS: Your verification code is ${code}. It expires in 2 minutes. Do not share it.`;
-  if (type === 'mobile_change') {
-    if (!targetValue) throw Object.assign(new Error('A new mobile number is required.'), { status: 400 });
-    return smsService.sendOtpSms(targetValue, text);
-  } else if (type === 'email_change' || type === 'password_reset') {
+  if (type === 'email_change' || type === 'password_reset') {
     const to = type === 'email_change' ? targetValue : admin.email;
     if (!to) throw Object.assign(new Error('An email address is required.'), { status: 400 });
     await emailService.sendOtpEmail(to, 'SRAAS verification code', text, undefined);
   } else throw Object.assign(new Error('Unsupported verification type.'), { status: 400 });
 }
 
+function requireEmailType(type) {
+  if (!['password_reset', 'email_change'].includes(type)) throw Object.assign(new Error('Unsupported verification type.'), { status: 400 });
+}
+
 async function createAndSendOtp({ adminId, type, targetValue }) {
+  requireEmailType(type);
   await invalidatePreviousOtps(adminId, type);
 
   const admin = await AdminUser.findByPk(adminId);
@@ -70,24 +63,23 @@ async function createAndSendOtp({ adminId, type, targetValue }) {
   });
 
   try {
-    const delivery = await deliverOtp(admin, type, targetValue, otp);
-    if (delivery?.verificationSid) await AdminOtp.update({ otp_hash: 'twilio-verify:' + delivery.verificationSid }, { where: { id: challenge.id } });
+    await deliverOtp(admin, type, targetValue, otp);
   } catch (error) {
     await AdminOtp.update({ is_used: 1 }, { where: { id: challenge.id } });
     throw error;
   }
   const destination = type === 'password_reset' ? admin.email : targetValue;
-  const label = type === 'mobile_change' ? 'mobile' : 'email';
 
   return {
     ok: true,
-    maskedDestination: label === 'email' ? maskEmail(destination) : maskMobile(destination),
+    maskedDestination: maskEmail(destination),
     ttlSeconds: Math.floor(OTP_TTL_MS / 1000),
     resendInSeconds: Math.floor(RESEND_COOLDOWN_MS / 1000)
   };
 }
 
 async function resendOtp({ adminId, type }) {
+  requireEmailType(type);
   const { Op } = require('sequelize');
   const otp = await AdminOtp.findOne({
     where: { admin_id: adminId, type, is_used: 0 },
@@ -139,24 +131,23 @@ async function resendOtp({ adminId, type }) {
   });
 
   try {
-    const delivery = await deliverOtp(admin, type, otp.target_value, newOtp);
-    if (delivery?.verificationSid) await AdminOtp.update({ otp_hash: 'twilio-verify:' + delivery.verificationSid }, { where: { id: challenge.id } });
+    await deliverOtp(admin, type, otp.target_value, newOtp);
   } catch (error) {
     await AdminOtp.update({ is_used: 1 }, { where: { id: challenge.id } });
     throw error;
   }
   const destination = type === 'password_reset' ? admin.email : otp.target_value;
-  const label = type === 'mobile_change' ? 'mobile' : 'email';
 
   return {
     ok: true,
-    maskedDestination: label === 'email' ? maskEmail(destination) : maskMobile(destination),
+    maskedDestination: maskEmail(destination),
     ttlSeconds: Math.floor(OTP_TTL_MS / 1000),
     resendInSeconds: Math.floor(RESEND_COOLDOWN_MS / 1000)
   };
 }
 
 async function verifyOtp({ adminId, type, code }) {
+  requireEmailType(type);
   const { Op } = require('sequelize');
   const otp = await AdminOtp.findOne({
     where: { admin_id: adminId, type, is_used: 0 },
@@ -177,9 +168,7 @@ async function verifyOtp({ adminId, type, code }) {
     throw Object.assign(new Error('Too many verification attempts. Please request a new code.'), { status: 429 });
   }
 
-  const isMatch = type === 'mobile_change' && otp.otp_hash.startsWith('twilio-verify:')
-    ? await require('./twilioVerifyService').check(otp.otp_hash.slice('twilio-verify:'.length), code)
-    : await bcrypt.compare(code, otp.otp_hash);
+  const isMatch = await bcrypt.compare(code, otp.otp_hash);
   if (!isMatch) {
     await AdminOtp.increment('attempts', { where: { id: otp.id } });
     const remaining = otp.max_attempts - (otp.attempts + 1);
@@ -202,7 +191,6 @@ async function cleanupExpiredOtps() {
 module.exports = {
   generateOtp,
   maskEmail,
-  maskMobile,
   createAndSendOtp,
   resendOtp,
   verifyOtp,

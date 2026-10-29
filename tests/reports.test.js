@@ -69,6 +69,7 @@ test('page, API and export roles are enforced server-side', async () => {
   const app = express();
   app.use((req, res, next) => {
     req.session = req.headers['x-test-role'] ? { adminId: 1, role: req.headers['x-test-role'] } : {};
+    if (req.session.adminId) req.account = { admin_id: 1, username: 'Report fixture', role: req.session.role };
     next();
   });
   app.use('/reports', router);
@@ -551,7 +552,7 @@ test('read-only MySQL fixture integration', { skip: process.env.REPORTS_DB_TEST 
       const app = express();
       app.set('view engine', 'ejs');
       app.set('views', path.join(__dirname, '../views'));
-      app.use((req, res, next) => { req.session = { adminId: 1, role: 'faculty' }; next(); });
+      app.use((req, res, next) => { req.session = { adminId: 1, role: 'faculty' }; req.account = { admin_id: 1, username: 'Report fixture', role: 'faculty' }; next(); });
       app.use('/reports', router);
       const server = app.listen(0, '127.0.0.1');
       await new Promise(resolve => server.once('listening', resolve));

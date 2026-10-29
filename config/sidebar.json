@@ -9,27 +9,29 @@
     {
       "label": "Academic Management",
       "icon": "school",
+      "roles": ["admin"],
       "children": [
-        { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin", "faculty"] },
-        { "label": "Exam Sessions", "icon": "calendar_today", "route": "/exam-sessions", "roles": ["admin", "faculty"] },
-        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin", "faculty"] },
+        { "label": "Batches", "icon": "layers", "route": "/batches", "roles": ["admin"] },
+        { "label": "Exam Sessions", "icon": "calendar_today", "route": "/exam-sessions", "roles": ["admin"] },
+        { "label": "Subjects", "icon": "book", "route": "/subjects", "roles": ["admin"] },
         { "label": "Faculty", "icon": "people", "route": "/faculty", "roles": ["admin"] }
       ]
     },
     {
       "label": "Student Repository",
       "icon": "person",
-      "roles": ["admin", "faculty"],
+      "roles": ["admin"],
       "children": [
-        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin", "faculty"] }
+        { "label": "Students", "icon": "people", "route": "/students", "roles": ["admin"] }
       ]
     },
     {
       "label": "Result Management",
       "icon": "assessment",
+      "roles": ["admin"],
       "children": [
-        { "label": "Upload Results", "icon": "cloud_upload", "route": "/results/upload", "roles": ["admin", "faculty"] },
-        { "label": "Upload Revaluation", "icon": "cloud_upload", "route": "/revaluation/start", "roles": ["admin", "faculty"] },
+        { "label": "Upload Results", "icon": "cloud_upload", "route": "/results/upload", "roles": ["admin"] },
+        { "label": "Upload Revaluation", "icon": "cloud_upload", "route": "/revaluation/start", "roles": ["admin"] },
         { "label": "Import Logs", "icon": "list_alt", "route": "/results/logs", "roles": ["admin"] }
       ]
     },

@@ -31,8 +31,8 @@ The confirmation must match `DB_NAME`. Stop imports, revaluation reviews and
 other writes before reset. `npm start`, `npm run setup` and migrations do not
 automatically seed this dataset.
 
-`seed/seed_all.js` is absent. Do not run the old `npm --prefix seed run all`
-alias, which still references it. `seed_clean.js` is a retired guard that refuses
+The retired `seed/seed_all.js` file and its broken `all` npm alias are removed.
+Use the documented root demo commands above. `seed_clean.js` is a retired guard that refuses
 writes; the retired history generator was removed. `seed_summary.js`,
 `seed_check.js` and the disabled legacy GPA backfill are maintenance/diagnostic
 utilities, not alternate instructions for creating verified academic history.

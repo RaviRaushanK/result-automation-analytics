@@ -18,7 +18,10 @@ Result. Its eight cards use the existing report titles and routes:
 The center has no export or chart controls. Individual report previews, CSV and
 print/PDF routes are preserved. Reports gain an Overview sidebar entry and
 breadcrumb context. Analytics gains Progress / Backlog Trends; Students precedes
-Toppers. Parent items retain their existing expansion behavior. Overview active
+Toppers. Admin parent items retain their existing expansion behavior. For Faculty,
+Analytics expands by default and Reports expands for its active page or manually.
+Shared labels, icon sizes and submenu spacing remain; no faculty card appears
+above Settings. See [Faculty access](faculty-access.md). Overview active
 states are exact, including `/analytics` as an alias of `/analytics/overview`.
 Long sidebar labels wrap, and active links expose `aria-current="page"`.
 

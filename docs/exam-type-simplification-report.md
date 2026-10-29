@@ -79,7 +79,7 @@ models, migrations, schema, seeders, extraction, EJS, browser JavaScript, tests
 and academic documentation. Principal files inspected:
 
 - `controllers/resultController.js`, `controllers/analyticsController.js`,
-  `controllers/revaluationController.js`, `controllers/sessionController.js`.
+  `controllers/revaluationController.js`, `controllers/examSessionController.js`.
 - `services/academicPolicy.js`, `academicOutcomeService.js`,
   `resultHistoryService.js`, `analyticsService.js`, `reportsService.js`,
   `settingsService.js`, `documentExtractor.js` under `services/`.

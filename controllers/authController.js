@@ -222,7 +222,7 @@ const authController = {
   resendOtp: async (req, res) => {
     try {
       const { adminId, type } = req.body;
-      if (type !== 'password_reset' && (!['email_change', 'mobile_change'].includes(type) || !req.session.adminId || String(req.session.adminId) !== String(adminId))) {
+      if (type !== 'password_reset' && (!['email_change'].includes(type) || !req.session.adminId || String(req.session.adminId) !== String(adminId))) {
         return res.status(403).json({ ok: false, error: 'Your account session is required.' });
       }
       if (!adminId || !type) {
@@ -246,22 +246,26 @@ const authController = {
       if (!admin) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
       const isMatch = await bcrypt.compare(password, admin.password_hash);
       if (!isMatch) return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Invalid username or password.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
-      if (admin.status !== 'active') return res.render('auth/login', { layout: 'layouts/landing', title: 'Login - SRAAS', error: 'Your account is inactive. Contact support.', expired: false , pageStyles: LOGIN_PAGE_STYLES });
+      if (admin.status !== 'active') return require('../middlewares/accountAccessResponse')(req, res);
+      const account = await require('../repositories/settingsRepository').account(admin.admin_id);
+      if (!account) return require('../middlewares/accountAccessResponse')(req, res);
       
       // Set session data
       req.session.adminId = admin.admin_id;
-      req.session.username = admin.username;
-      req.session.role = admin.role;
+      req.session.username = account.username;
+      req.session.role = account.role;
       
       // Store complete user object in session for easy access
       req.session.user = {
         adminId: admin.admin_id,
-        username: admin.username,
-        role: admin.role
+        username: account.username,
+        role: account.role,
+        facultyId: account.faculty_id
       };
 
       await AdminUser.update({ last_login: new Date() }, { where: { admin_id: admin.admin_id } });
-      const returnTo = req.session.returnTo || '/dashboard';
+      const requested = req.session.returnTo || '/dashboard';
+      const returnTo = account.role === 'faculty' && !/^\/(dashboard|analytics|reports|settings)(\/|\?|$)/.test(requested) ? '/dashboard' : requested;
       delete req.session.returnTo;
       return res.redirect(returnTo);
     } catch (err) {
@@ -270,7 +274,8 @@ const authController = {
     }
   },
   logout: (req, res) => {
-    req.session.destroy((err) => { if (err) console.error('Logout error:', err); res.clearCookie('connect.sid'); return res.redirect('/'); });
+    const destination = req.query?.next === 'login' ? '/login' : '/';
+    req.session.destroy((err) => { if (err) console.error('Logout error:', err); res.clearCookie('connect.sid'); return res.redirect(destination); });
   },
   showAccountSecurity: (req, res) => {
     res.render('auth/account-security', { layout: 'layouts/main', title: 'Account Security - SRAAS', success: null, error: null, breadcrumbItems: [{ href: '/dashboard', label: 'Dashboard' }, { href: '#', label: 'Account Security' }] });

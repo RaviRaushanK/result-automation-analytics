@@ -8,6 +8,7 @@ const {
   SubjectFaculty,
   ExamSession,
   sequelize,
+  AdminUser,
 } = require("../database/models");
 
 const FACULTY_PAGE_STYLES = [
@@ -54,7 +55,7 @@ const facultyController = {
   all: async (req, res) => {
     try {
       const data = await Faculty.findAll({
-        where: { status: "active" },
+        where: { status: "active", deleted_at: null },
         attributes: [
           "faculty_id",
           "faculty_code",
@@ -74,6 +75,51 @@ const facultyController = {
           success: false,
           message: "Unable to load faculty right now. Please try again.",
         });
+    }
+  },
+
+  registry: async (req, res) => {
+    try {
+      const data = await Faculty.findAll({
+        where: { deleted_at: null },
+        attributes: ['faculty_id', 'faculty_name', 'faculty_code', 'designation', 'status'],
+        order: [['faculty_name', 'ASC'], ['faculty_id', 'ASC']],
+        raw: true,
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      console.error('Faculty registry error:', error);
+      return res.status(500).json({ success: false, message: 'Unable to load faculty. Please try again.' });
+    }
+  },
+
+  setStatus: async (req, res) => {
+    const { facultyId } = req.params;
+    const { status, expectedStatus } = req.body || {};
+    if (typeof facultyId !== 'string' || !/^[1-9]\d{0,18}$/.test(facultyId) || BigInt(facultyId) > 9223372036854775807n ||
+        !['active', 'inactive'].includes(status) || !['active', 'inactive'].includes(expectedStatus) || status === expectedStatus ||
+        Object.keys(req.body || {}).some(key => !['status', 'expectedStatus', '_csrf'].includes(key))) {
+      return res.status(400).json({ success: false, message: 'Provide a valid faculty member and an Active/Inactive status change.' });
+    }
+    try {
+      const data = await sequelize.transaction(async transaction => {
+        const actor = await AdminUser.findOne({
+          where: { admin_id: req.session.adminId, role: 'admin', status: 'active', deleted_at: null },
+          attributes: ['admin_id'], transaction, lock: transaction.LOCK.UPDATE,
+        });
+        if (!actor) throw Object.assign(new Error('Administrator access is required.'), { status: 403 });
+        const faculty = await Faculty.findOne({
+          where: { faculty_id: facultyId, deleted_at: null }, transaction, lock: transaction.LOCK.UPDATE,
+        });
+        if (!faculty) throw Object.assign(new Error('This faculty record is unavailable.'), { status: 404 });
+        if (faculty.status !== expectedStatus) throw Object.assign(new Error('The faculty status has changed. Refresh the list and try again.'), { status: 409 });
+        await faculty.update({ status, updated_at: new Date() }, { transaction });
+        return { faculty_id: faculty.faculty_id, faculty_name: faculty.faculty_name, faculty_code: faculty.faculty_code, designation: faculty.designation, status };
+      });
+      return res.json({ success: true, data, message: status === 'inactive' ? 'Faculty deactivated. System access is blocked.' : 'Faculty activated. Existing account restrictions still apply.' });
+    } catch (error) {
+      if (!error.status) console.error('Faculty status update error:', error);
+      return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Unable to update faculty status. Please try again.' });
     }
   },
 

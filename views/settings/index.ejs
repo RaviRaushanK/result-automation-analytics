@@ -9,8 +9,9 @@
       <h2 id="settings-section-title"><%= sections.find(([key]) => key === section)[1] %></h2>
       <% if (notice && noticeType !== 'success') { %><div role="alert" class="alert alert-<%= noticeType %>"><%= notice %></div><% } %>
       <% if (section === 'account') { %>
-        <% if (account.role === 'admin') { %><p><a class="btn btn-outline-primary" href="/invitations">Invite a user</a></p><% } %>
+        <% if (account.role === 'admin') { %><p><a class="btn btn-outline-primary" href="/invitations">Invite faculty</a></p><% } %>
         <dl class="settings-details">
+          <% if (account.role === 'faculty') { %><div><dt>Faculty name</dt><dd><%= account.faculty_name %></dd></div><div><dt>Faculty code</dt><dd><%= account.faculty_code %></dd></div><% } %>
           <% [['Username',account.username],['Role',account.role],['Account Status',account.status],['Last Login',account.last_login ? new Date(account.last_login).toLocaleString() : 'Not recorded']].forEach(([label,value]) => { %><div><dt><%= label %></dt><dd><%= value %></dd></div><% }); %>
         </dl>
 
@@ -33,29 +34,6 @@
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <div class="mb-3"><label class="form-label" for="new-email">New Email Address</label><input id="new-email" name="new_email" type="email" maxlength="100" autocomplete="email" data-account-email data-email-feedback="new-email-error" value="<%= entered.new_email || '' %>" class="form-control<%= errors.new_email ? ' is-invalid' : '' %>" aria-describedby="new-email-error" required><div id="new-email-error" class="invalid-feedback" role="alert" aria-live="polite"><%= errors.new_email || '' %></div><p class="settings-muted">Your current email stays unchanged until you verify the new address with its OTP.</p></div>
               <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">send</span>Verify New Email</button>
-            </form>
-          <% } %>
-        </div>
-
-        <div class="settings-form mt-5">
-          <h3 class="h6 mb-3">Mobile Number</h3>
-          <p class="settings-muted mb-3">Current: <strong><%= account.mobile ? maskMobile(account.mobile) : 'Not registered' %></strong></p>
-
-          <% if (entered.new_mobile && !errors.new_mobile) { %>
-            <!-- OTP verification step for mobile change -->
-            <form method="POST" action="/settings/account/change-mobile/verify" class="settings-form mt-3">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <div class="mb-3"><label class="form-label" for="change-mobile-otp">Verification Code</label><p class="settings-muted">Enter the code sent to your new mobile number.</p><input id="change-mobile-otp" name="otp" type="text" maxlength="6" class="form-control text-center otp-input" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required inputmode="numeric" pattern="[0-9]*"><div id="change-mobile-otp-error" class="invalid-feedback"></div></div>
-              <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">verify</span>Verify &amp; Update Mobile</button>
-              <input type="hidden" name="kind" value="mobile">
-              <button type="submit" formnovalidate formaction="/settings/account/verification" name="action" value="resend" class="btn btn-outline-secondary mt-2">Resend code</button>
-              <button type="submit" formnovalidate formaction="/settings/account/verification" name="action" value="cancel" class="btn btn-outline-secondary mt-2">Cancel</button>
-            </form>
-          <% } else { %>
-            <form method="POST" action="/settings/account/change-mobile/request" class="settings-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <div class="row g-2 mb-3"><div class="col-4"><label class="form-label" for="account-country">Country code</label><input id="account-country" name="countryCode" class="form-control" list="account-countries" value="<%= entered.countryCode || 'India (+91)' %>" placeholder="Search country" autocomplete="off" required><datalist id="account-countries"><option value="India (+91)"></option></datalist></div><div class="col-8"><label class="form-label" for="new-mobile">New Mobile Number</label><input id="new-mobile" name="new_mobile" type="tel" inputmode="numeric" autocomplete="tel-national" pattern="[0-9]{4,14}" maxlength="14" value="<%= entered.new_mobile || '' %>" class="form-control<%= errors.new_mobile ? ' is-invalid' : '' %>" aria-describedby="new-mobile-error" placeholder="Mobile number" required><div id="new-mobile-error" class="invalid-feedback" role="alert"><%= errors.new_mobile || '' %></div></div></div>
-              <button class="btn btn-primary settings-save" type="submit"><span class="material-icons" aria-hidden="true">send</span>Verify New Mobile</button>
             </form>
           <% } %>
         </div>
@@ -116,5 +94,3 @@
 <script src="/js/reports/branding.js" defer></script>
 <script src="/js/settings.js" defer></script>
 <script src="/js/accountEmailValidation.js" defer></script>
-<script src="/js/countryCodes.js" defer></script>
-<script src="/js/accountMobile.js" defer></script>
