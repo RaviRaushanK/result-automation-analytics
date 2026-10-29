@@ -29,6 +29,7 @@ const revaluationIntegrity = require('../services/revaluationIntegrity');
 const revaluationScope = require('../services/revaluationScope');
 const academicIntegrity = require('../services/academicIntegrity');
 const reviewIdentity = require('../services/reviewIdentity');
+const pdfAdmission = require('../services/pdfAdmission');
 
 const REVAL_PENDING_SECONDS = 15 * 60;
 
@@ -679,7 +680,8 @@ exports.showPending = async (req, res) => {
     subjectCount: (saved && saved.subjects) ? saved.subjects.length : 0,
     examSessionId: (saved && saved.exam_session_id) || null,
     resultId: (saved && saved.result_id) || null,
-    error: req.query.error || (saved && saved.ocr && saved.ocr.error) || null
+    error: req.query.error || (saved && saved.ocr && saved.ocr.error) || null,
+    errorTitle: !req.query.error ? pdfAdmission.errorTitle(saved?.ocr?.failed_reason) : null
   });
 };
 
@@ -767,14 +769,18 @@ async function extractRevaluationImport(importId, res) {
   try {
     extractionResult = await revaluationExtractor.extractAndBuild(filePath, serverCtx);
   } catch (err) {
-    console.error('[revaluation] runExtraction engine error:', err);
+    const admissionError = pdfAdmission.publicError(err);
+    if (admissionError) console.warn('[revaluation] ' + admissionError.code + ': ' + admissionError.message.replace(/\n\n/g, ' '));
+    else console.error('[revaluation] runExtraction engine error:', err);
+    const reason = admissionError ? admissionError.code : 'EXTRACTION_ERROR';
     extractionResult = {
       ok: false,
-      reason: 'EXTRACTION_ERROR',
+      reason,
       ocr: {
         extraction_status: 'failed',
-        failed_reason: 'EXTRACTION_ERROR',
-        error: 'The document could not be extracted. Try a clear supported marks card.',
+        failed_reason: reason,
+        error: admissionError ? admissionError.message
+          : 'The document could not be extracted. Try a clear supported marks card.',
         warnings: []
       }
     };

@@ -5,6 +5,7 @@ const fs = require('fs');
 
 // Document extraction service
 const documentExtractor = require('../services/documentExtractor');
+const pdfAdmission = require('../services/pdfAdmission');
 const academicPolicy = require('../services/academicPolicy');
 const integrity = require('../services/academicIntegrity');
 const reviewIdentity = require('../services/reviewIdentity');
@@ -426,6 +427,7 @@ const resultController = {
         selectedAttemptNo,
         selectedExamType,
         error: req.query.error || null,
+        errorTitle: pdfAdmission.errorTitle(req.query.error_code),
         importId: req.query.importId || null
       });
     } catch (err) {
@@ -604,11 +606,19 @@ const resultController = {
 
       return res.redirect(`/results/upload/${log.import_id}/review`);
     } catch (err) {
-      console.error('processUpload error:', err);
+      const admissionError = pdfAdmission.publicError(err);
+      if (admissionError) console.warn('[results] ' + admissionError.code + ': ' + admissionError.message.replace(/\n\n/g, ' '));
+      else console.error('processUpload error:', err);
       if (log) {
         try { await log.update({ status: 'failed' }); } catch (e) { /* ignore */ }
       }
-      return res.redirect('/results/upload?error=' + encodeURIComponent('The document could not be extracted. Upload a clear supported marks card and try again.'));
+      const message = admissionError ? admissionError.message
+        : 'The document could not be extracted. Upload a clear supported marks card and try again.';
+      const selections = admissionError ? ['batch_id','exam_session_id','exam_type','attempt_no']
+        .filter(key => typeof req.body?.[key] === 'string')
+        .map(key => '&' + key + '=' + encodeURIComponent(req.body[key])).join('') : '';
+      return res.redirect('/results/upload?error=' + encodeURIComponent(message)
+        + (admissionError ? '&error_code=' + admissionError.code + selections : ''));
     }
   },
 

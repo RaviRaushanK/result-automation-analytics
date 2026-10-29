@@ -3,6 +3,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const pdfAdmission = require('./pdfAdmission');
 // Content-keyed, bounded read cache stores evidence and deterministic native
 // table misses. No draft or academic data is written; OCR failures remain retryable.
 const originalResultEvidenceCache = new Map();
@@ -29,21 +30,41 @@ const documentExtractor = {
       const fileExt = path.extname(filePath).toLowerCase();
       let pdfResult = null;
       if (this.supportedPdfTypes.includes(fileExt)) {
+        let pageCount = null;
+        let textTable = null;
         try {
           pdfResult = await this.extractPdfTextWithCoordinates(filePath);
+          pageCount = pdfResult.pageCount;
           const parsed = this.parseProductionData(pdfResult.text || '', pdfResult.words || [], resultType);
-          // Embedded table text is stronger evidence than OCR when every row is complete.
-          if (this.hasCompleteTextRows(parsed, options.expectedSubjectCodes) &&
-              this.hasUsableSubjectRows(parsed, resultType, options.candidateSubjectCodes)) {
-            return {
-              success: true,
-              message: 'Result document extracted from embedded PDF text',
-              file: path.basename(filePath),
-              extraction: { documentType: 'pdf', extractionMethod: 'pdfjs-text', rawText: pdfResult.text, ...parsed }
-            };
-          }
+          textTable = parsed;
         } catch (textError) {
+          // A later text-page failure must not hide a known long document.
+          if (Number.isInteger(textError.pageCount)) pageCount = textError.pageCount;
           console.warn('[documentExtractor] Embedded PDF text unavailable:', textError.message);
+        }
+        if (!Number.isInteger(pageCount) || pageCount < 1) {
+          throw new Error('Could not determine the PDF page count. Upload a readable supported PDF.');
+        }
+        // Text admission is independent of strict row/roster validation. Keep
+        // imperfect text readings intact for the existing review flow, without
+        // replacing them with a limited raster reading.
+        if (this.hasMeaningfulResultText(textTable)) {
+          const found = new Set(textTable.subjects.map(row => String(row.subjectCode).trim().toUpperCase()));
+          const candidates = (options.candidateSubjectCodes || []).map(code => String(code).trim().toUpperCase());
+          if (candidates.length && !candidates.some(code => found.has(code))) {
+            const missing = (options.expectedSubjectCodes || []).map(code => String(code).trim().toUpperCase()).filter(code => !found.has(code));
+            throw new pdfAdmission.PdfSubjectScopeError(pageCount, missing, true);
+          }
+          return {
+            success: true,
+            message: 'Result document extracted from embedded PDF text',
+            file: path.basename(filePath),
+            extraction: { documentType: 'pdf', extractionMethod: 'pdfjs-text', rawText: pdfResult.text, pageCount, ...textTable }
+          };
+        }
+        // Keep rejection outside fallback catches and before any OCR/VLM call.
+        if (pageCount > pdfAdmission.MAX_SCANNED_PDF_PAGES) {
+          throw new pdfAdmission.LongPdfTextRequiredError(pageCount);
         }
       }
 
@@ -108,12 +129,43 @@ const documentExtractor = {
         }, options)
       };
     } catch (error) {
+      if (pdfAdmission.publicError(error)) throw error;
       console.error('Document extraction error:', error);
       throw new Error(`Extraction failed: ${error.message}`);
     }
   },
 
 
+
+  hasMeaningfulResultText(data) {
+    if (!data?.subjects?.length) return false;
+    const lines = data.lines || [];
+    // Headers may wrap over several reconstructed lines. Header text alone
+    // is never sufficient: a detected subject must also have row evidence.
+    const tableHeader = lines.some((line, index) => {
+      const header = lines.slice(index, index + 3).join(' ');
+      return /\b(?:subject|course)\b/i.test(line) && /\bcode\b/i.test(header)
+        && /\b(?:marks|internal|external|cie|see|result|rv|final)\b/i.test(header);
+    });
+    const identityContext = !!(data.student?.usn || data.student?.name) && Number.isInteger(data.semester);
+    if (!tableHeader && !identityContext) return false;
+    return data.subjects.some(row => {
+      const code = String(row.subjectCode || '');
+      if (!code) return false;
+      const pattern = new RegExp('\\b' + code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+      return lines.some(line => {
+        const match = pattern.exec(line);
+        if (!match || /https?:\/\/|www\./i.test(line)) return false;
+        const cells = line.slice(match.index + match[0].length)
+          .replace(/\b20\d{2}[-/]?\d{2}[-/]?\d{2}\b/g, ' ')
+          .replace(/\b\d{1,2}[/-]\d{1,2}[/-](?:\d{4}|\d{2})\b/g, ' ')
+          .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, ' ')
+          .replace(/\bpage\s*\d+\s*(?:of|\/)\s*\d+\b/gi, ' ');
+        const numbers = cells.match(/\b\d{1,3}\b/g) || [];
+        return numbers.length >= 2 || (numbers.length >= 1 && /\b(?:PASS|FAIL|P|F|ABSENT|A|WITHHELD|W|NE)\b/i.test(cells));
+      });
+    });
+  },
 
   hasUsableSubjectRows(data, resultType, candidateSubjectCodes = []) {
     const mark = value => Number.isInteger(value) && value >= 0 && value <= 100;
@@ -296,27 +348,33 @@ const documentExtractor = {
     let fullText = '';
     const words = [];
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      
-      for (const item of textContent.items) {
-        if (!item.str.trim()) continue;
-        fullText += item.str + ' ';
-        words.push({
-          text: item.str.trim(),
-          page: i,
-          x: item.transform[4],
-          // Invert PDF Y-coordinates to align with standard image top-down rendering
-          y: 1000 - item.transform[5],
-          width: item.width || 20,
-          height: item.height || 10
-        });
+    try {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+
+        for (const item of textContent.items) {
+          if (!item.str.trim()) continue;
+          fullText += item.str + ' ';
+          words.push({
+            text: item.str.trim(),
+            page: i,
+            x: item.transform[4],
+            // Invert PDF Y-coordinates to align with standard image top-down rendering
+            y: 1000 - item.transform[5],
+            width: item.width || 20,
+            height: item.height || 10
+          });
+        }
+        fullText += '\n';
       }
-      fullText += '\n';
+    } catch (error) {
+      // Retain the already-known page count if reading any page fails.
+      error.pageCount = pdf.numPages;
+      throw error;
     }
 
-    return { text: fullText.trim(), words };
+    return { text: fullText.trim(), words, pageCount: pdf.numPages };
   },
 
   // =====================================================

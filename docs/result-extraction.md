@@ -240,9 +240,10 @@ or persistence changes.
 ### Processing stages
 
 1. **Embedded PDF text:** `documentExtractor` reads text and word coordinates,
-   keeping PDF pages separate. A complete, consistent table can be used directly.
-   Full REGULAR result uploads supply expected session subject codes; retake and
-   revaluation cards may legitimately contain only a subset.
+   keeping PDF pages separate during line grouping. Meaningful result-table text
+   stays on the all-page text path, including imperfect rows requiring review.
+   Full REGULAR result uploads still supply expected session subject codes for
+   later completeness checks; retake/revaluation cards may contain a subset.
 2. **Hybrid when configured:** unless `EXTRACTION_MODE=tesseract`, a configured
    Groq key enables `vlmExtractor`. The document is rendered to page images.
    Tesseract and vision run for each page; a text LLM reconciles those signals.
@@ -256,10 +257,58 @@ or persistence changes.
    sparse OCR requests nested word coordinates. If still necessary, focused
    row crops retry at most six detected anchors per page.
 
-`VLM_MAX_PAGES` defaults to three for rasterized PDF paths, including local
-scanned-PDF recovery; `VLM_RENDER_SCALE` defaults to two. Embedded text extraction
-is a separate path. Verify long documents explicitly rather than assuming every
-page was processed.
+The shared PDF reader returns the total `pageCount` and reads embedded
+text/coordinates from every page. `hasMeaningfulResultText` controls text-path
+admission independently of strict row validation. It reuses parsed subject codes
+and reconstructed lines, requires a result-table header or student identity plus
+semester context, and requires a subject row with at least two numeric cells or
+one numeric cell and a printed result token. Dates, times, page-number labels and
+URL lines do not establish row evidence. Headers/footers/metadata alone and text
+length above 50 characters are not sufficient.
+
+Meaningful text of any page count stays on `pdfjs-text` without rasterization,
+AI or sparse recovery. Confidence, missing result letters, inconsistent marks,
+duplicate codes, identity problems and incomplete required-roster coverage remain
+in the unchanged parser/review/validation flow. The strict `hasCompleteTextRows`
+helper remains in use for authoritative printed-result evidence recovery; it is
+not the admission gate. Blank later pages do not prevent text admission.
+
+Subject scope is checked separately by exact detected code membership. If none
+of the detected subject codes match the supplied candidate roster, the code is
+`PDF_SUBJECT_SCOPE_MISMATCH`, displayed as **Check the selected exam session**.
+It identifies the missing/mismatched subject scope and directs the
+administrator to check semester, period, exam type or the original revaluation
+result. This does not waive any roster requirement or automatically select a
+different session. Original upload selections are preserved when returning to
+the upload page. Partial overlap stays on the text path; missing required rows
+are handled by the existing review and validation requirements.
+
+Only a PDF over three pages with no meaningful result text is rejected before
+rendering/OCR/AI in every mode. Its code is
+`LONG_SCANNED_PDF_REQUIRES_TEXT_LAYER`, displayed as **Selectable/OCR text required**
+with guidance to upload a readable selectable/OCR result-table text layer.
+The rejection does not claim that the PDF contains no text. A known long page
+count is retained even if reading a later text page fails. If the total count
+cannot be established, extraction fails before raster dispatch with the existing
+generic extraction-error UI.
+Expected admission failures are logged once by the controller as concise warnings;
+unrelated extraction failures retain their existing error logging and generic UI.
+
+Regular/Backlog retain their failed import and uploaded file, without creating
+an OCR draft or academic result. Revaluation retains its existing import,
+document and failed extraction envelope, with Retry extraction and Replace
+document actions. Both use existing Bootstrap alerts. No academic validation or
+academic data is changed by admission.
+
+The three-page admission policy is independent of `VLM_MAX_PAGES`, which still
+defaults to three for rasterized PDF paths, including local scanned-PDF recovery.
+`VLM_RENDER_SCALE` still defaults to two. For admitted 1–3-page PDFs, configured
+OCR/VLM dispatch, concurrency, provider retries and row recovery are unchanged.
+
+This does not add per-subject semester/page assignment. The native parser still
+returns one primary semester and a combined subject list; existing mixed-document
+scope validation remains authoritative. A mixed text/image PDF is not certified
+fully readable merely because some embedded rows pass the existing checks.
 
 Sparse recovery is not a general merge of every partially missing table.
 An already usable extraction is retained. A failed or incomplete retry preserves

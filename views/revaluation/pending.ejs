@@ -1,9 +1,11 @@
 <div class="container-fluid revaluation-ui">
   <h4 class="mb-2">Revaluation extraction</h4>
   <p class="text-muted"><%= student.name || 'Student' %> &middot; <%= student.usn || '' %><br><%= sessionDisplay %></p>
-  <div class="alert alert-warning" role="alert">
-    <strong>Preview not ready</strong>
-    <p class="mb-0"><%= error || 'Extraction has not completed. Retry using the uploaded document or replace it.' %></p>
+  <div class="alert <%= typeof errorTitle !== 'undefined' && errorTitle ? 'alert-danger' : 'alert-warning' %>" role="alert">
+    <strong><%= typeof errorTitle !== 'undefined' && errorTitle ? errorTitle : 'Preview not ready' %></strong>
+    <% if (typeof errorTitle !== 'undefined' && errorTitle) { %>
+      <% String(error).split('\n\n').forEach(paragraph => { %><p class="mt-2 mb-0"><%= paragraph %></p><% }); %>
+    <% } else { %><p class="mb-0"><%= error || 'Extraction has not completed. Retry using the uploaded document or replace it.' %></p><% } %>
   </div>
   <% const doc = documents && documents[0]; %>
   <div class="mb-3">

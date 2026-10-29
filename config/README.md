@@ -75,8 +75,13 @@ its npm command are no longer present.
 
 `auto` uses hybrid AI when configured, with local fallback. `vlm` currently
 takes the same branch; it is not a strict force-AI/no-fallback mode. Complete
-embedded PDF tables can bypass AI. Rasterized PDF limits also apply to the local
-sparse fallback; check longer cards manually.
+meaningful embedded PDF result tables bypass AI even when rows need review.
+PDF uploads longer than three pages without meaningful result-table text are
+rejected before any raster/OCR/AI call. Admission is separate from strict marks,
+identity and required-roster validation. A candidate roster with no matching
+detected subject code produces a separate subject-scope error. This policy is independent
+of `VLM_MAX_PAGES`. Rasterized PDF limits still apply to admitted local sparse
+fallbacks. No OCR/VLM settings or provider retry behavior are changed by admission.
 
 Hybrid extraction sends images and OCR/transcription data outside the machine.
 Use local-only mode for records that must not leave the institution. Provider

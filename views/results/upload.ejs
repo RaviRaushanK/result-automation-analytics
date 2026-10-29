@@ -10,7 +10,12 @@
         <div class="card-body">
 
           <% if (typeof error !== 'undefined' && error) { %>
-            <div class="alert alert-danger"><i class="material-icons align-middle me-1">error</i> <%= error %></div>
+            <div class="alert alert-danger" role="alert"><i class="material-icons align-middle me-1">error</i>
+              <% if (typeof errorTitle !== 'undefined' && errorTitle) { %>
+                <strong><%= errorTitle %></strong>
+                <% String(error).split('\n\n').forEach(paragraph => { %><p class="mt-2 mb-0"><%= paragraph %></p><% }); %>
+              <% } else { %><%= error %><% } %>
+            </div>
           <% } %>
 
           <form id="uploadForm" action="/results/upload" method="POST" enctype="multipart/form-data" novalidate>

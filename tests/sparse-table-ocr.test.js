@@ -44,6 +44,7 @@ test('focused row OCR bounds its work, requests only printed row characters and 
       if(name==='sharp')return ()=>chain;
       if(name==='tesseract.js')return {createWorker:async()=>worker};
       if(name==='./aiProviders')return {};
+      if(name==='./pdfAdmission')return require('../services/pdfAdmission');
       return require(name);
     }
   });
@@ -69,6 +70,7 @@ function fixture() {
     require(name){
       if(name==='fs')return {existsSync:()=>true};
       if(name==='./aiProviders')return {isConfigured:()=>state.ai};
+      if(name==='./pdfAdmission')return require('../services/pdfAdmission');
       if(name==='./vlmExtractor')return {extract:async()=>({success:true,extraction:primary})};
       if(name==='./pageRenderer')return {renderPdfToImages:async()=>{state.renderCalls++;return [{pageNumber:1,buffer:'page-1'},{pageNumber:2,buffer:'page-2'}];}};
       return require(name);
@@ -76,7 +78,7 @@ function fixture() {
   });
   const extractor=module.exports;
   extractor.ocrTableRows=async()=>[];
-  extractor.extractPdfTextWithCoordinates=async()=>({text:'',words:[]});
+  extractor.extractPdfTextWithCoordinates=async()=>({text:'',words:[],pageCount:2});
   extractor.ocrImage=async(input,options={})=>{
     if(!options.sparse){state.normalCalls++;return {text:identity,words:[]};}
     state.sparseCalls++;
@@ -177,6 +179,7 @@ test('Tesseract parameters and nested word output use the installed worker API a
         if(name==='sharp')return ()=>chain;
         if(name==='tesseract.js')return {createWorker:async()=>worker};
         if(name==='./aiProviders')return {};
+        if(name==='./pdfAdmission')return require('../services/pdfAdmission');
         return require(name);
       }
     });

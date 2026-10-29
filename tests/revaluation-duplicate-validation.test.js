@@ -8,6 +8,7 @@ const ejs = require('ejs');
 const root = path.resolve(__dirname, '..');
 const policy = require('../services/academicPolicy');
 const integrity = require('../services/revaluationIntegrity');
+const pdfAdmission = require('../services/pdfAdmission');
 
 function fixture(approved = true) {
   const state = { approved, countCalls: [], writes: 0, staged: 0, rolledBack: false, lookupFails: false, extractions: 0, extractionFails: false };
@@ -29,9 +30,9 @@ function fixture(approved = true) {
   const transaction = { LOCK: { UPDATE: 'UPDATE' }, rollback: async () => { state.rolledBack = true; }, commit: async () => {} };
   const forbidden = () => { state.writes++; assert.fail('No academic writes may occur in this test'); };
   const db = {
-    Result: { findByPk: async () => result, findAll: async () => [result], create: forbidden },
-    Student: { findByPk: async () => result.Student }, Subject: {},
-    SubjectResult: { bulkCreate: forbidden }, ExamSession: { findByPk: async () => result.ExamSession },
+    Result: { findByPk: async () => result, findAll: async () => [result], create: forbidden, update: forbidden },
+    Student: { findByPk: async () => result.Student, create: forbidden, update: forbidden }, Subject: {},
+    SubjectResult: { bulkCreate: forbidden, create: forbidden, update: forbidden }, ExamSession: { findByPk: async () => result.ExamSession },
     ImportLog: { findByPk: async () => log, create: async values => { state.staged++; Object.assign(log, values); return log; } },
     OcrExtraction: { findByPk: async () => ocr, create: async values => { state.staged++; Object.assign(ocr, values); return ocr; } },
     RevaluationResult: { findAll: async options => {
@@ -63,6 +64,8 @@ function fixture(approved = true) {
         extractAndBuild: async () => {
           state.extractions++;
           if (state.duringExtraction) state.duringExtraction();
+          if (state.longPdfPageCount) throw new pdfAdmission.LongPdfTextRequiredError(state.longPdfPageCount);
+          if (state.scopeMismatch) throw new pdfAdmission.PdfSubjectScopeError(4, [], true);
           if (state.extractionFails) throw new Error('Test extraction failure');
           return { ok: true, ocr: { extraction_status: 'extracted',
             student_candidates: { name: 'TEST STUDENT', usn: '1MV25MC027' },
@@ -234,6 +237,52 @@ test('failed extraction offers retry and cannot reach the review or approval sta
   state.extractionFails = false;
   assert.equal((await invoke('runExtraction')).url, '/revaluation/review/9');
   assert.equal(state.extractions, 2);
+});
+
+test('long-PDF revaluation rejection retains failed processing state, specific alert and retry/replacement actions', async () => {
+  const { invoke, state, ocr, log } = fixture(false);
+  state.longPdfPageCount = 6;
+  const response = await invoke('processUpload', {file:{path:'/test/upload',originalname:'long-scan.pdf',mimetype:'application/pdf'}});
+  assert.equal(response.url,'/revaluation/pending/9');
+  assert.equal(log.status,'failed');
+  assert.equal(state.staged,2,'existing import and placeholder extraction are retained');
+  assert.equal(ocr.validation_status,'pending');
+  assert.equal(ocr.extracted_json.ocr.extraction_status,'failed');
+  assert.equal(ocr.extracted_json.ocr.failed_reason,pdfAdmission.CODE);
+  assert.equal(ocr.extracted_json.ocr.error,pdfAdmission.MESSAGE);
+  assert.equal(ocr.extracted_json.documents.length,1);
+  const recovery = await invoke('showPending');
+  assert.equal(recovery.view,'revaluation/pending');
+  assert.equal(recovery.locals.errorTitle,pdfAdmission.TITLE);
+  const html = await ejs.renderFile(path.join(root,'views/revaluation/pending.ejs'),recovery.locals);
+  assert.match(html,/alert alert-danger/);
+  assert.match(html,/<strong>Selectable\/OCR text required<\/strong>/);
+  for (const paragraph of pdfAdmission.MESSAGE.split('\n\n')) assert.ok(html.includes(paragraph));
+  assert.match(html,/Retry extraction/); assert.match(html,/Replace document/);
+  assert.match((await invoke('submitReview')).url,/pending\/9/);
+  assert.match((await invoke('approveReview')).url,/error=/);
+  assert.equal((await invoke('runExtraction')).url,'/revaluation/pending/9');
+  assert.equal(state.staged,2); assert.equal(state.writes,0);
+  state.longPdfPageCount = null;
+  assert.equal((await invoke('runExtraction')).url,'/revaluation/review/9');
+  assert.equal(log.status,'extracted'); assert.equal(state.writes,0);
+});
+
+test('readable revaluation PDF with wrong subject scope shows context guidance rather than an OCR alert', async () => {
+  const { invoke, state, ocr, log } = fixture(false);
+  state.scopeMismatch = true;
+  assert.equal((await invoke('processUpload',{file:{path:'/test/upload',originalname:'wrong-scope.pdf',mimetype:'application/pdf'}})).url,'/revaluation/pending/9');
+  assert.equal(log.status,'failed');
+  assert.equal(ocr.extracted_json.ocr.failed_reason,pdfAdmission.SCOPE_CODE);
+  const pending = await invoke('showPending');
+  assert.equal(pending.locals.errorTitle,pdfAdmission.SCOPE_TITLE);
+  const html = await ejs.renderFile(path.join(root,'views/revaluation/pending.ejs'),pending.locals);
+  assert.match(html,/Check the selected exam session/);
+  assert.match(html,/readable selectable\/OCR result table/);
+  assert.match(html,/select the matching original result/);
+  assert.doesNotMatch(html,/Selectable\/OCR text required|text layer could not be read/);
+  assert.match(html,/Replace document/);
+  assert.equal(state.writes,0);
 });
 
 test('identity mismatch remains visible on preview and direct Validate cannot bypass it', async () => {
