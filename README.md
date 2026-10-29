@@ -188,8 +188,9 @@ Avoid conflicting values across these locations.
 force every document through AI or disable fallback. Complete embedded PDF
 tables can be accepted before AI in either mode.
 
-Legacy example variables `UPLOAD_PATH`, `MAX_UPLOAD_SIZE`, `OCR_PROVIDER`,
-and `DEBUG_MODE` do not control the current extraction/upload implementation.
+Retired variables `UPLOAD_PATH`, `MAX_UPLOAD_SIZE`, `OCR_PROVIDER`, and
+`DEBUG_MODE` have been removed from the environment example. Values retained in
+older files do not control the current extraction/upload implementation.
 Actual limits come from `config/uploadLimits.js`.
 
 **Privacy:** hybrid extraction sends document images and OCR/transcription text

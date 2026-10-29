@@ -1,6 +1,6 @@
 # Configuration
 
-Reviewed on 17 October 2026. See [Setup](../README.md#setup) before first use.
+Environment template reviewed on 30 October 2026. See [Setup](../README.md#setup) before first use.
 
 ## Files and Loading
 
@@ -43,7 +43,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## Invitation Email and Email Verification
 
-Account configuration reviewed on 29 October 2026:
+Account configuration reviewed on 30 October 2026:
 
 | Variable | Meaning |
 | --- | --- |
@@ -54,6 +54,9 @@ Invitations create Faculty accounts linked to existing active faculty records.
 Only email verification is used. See [Faculty access](../docs/faculty-access.md).
 
 Phone-number registration and account settings are removed; SMS/Twilio credentials are no longer used.
+The example omits retired SMS/Twilio keys and unused upload/OCR/debug aliases.
+Local cleanup preserves database, session, SMTP and AI credentials. No root `.env`
+is needed when using the existing `config/.env` configuration.
 
 Set a reachable `APP_BASE_URL` before inviting remote users. SMTP acceptance
 does not prove inbox delivery. Restart the server after changing environment
@@ -102,10 +105,10 @@ See [Extraction](../docs/result-extraction.md).
 | Institution logo | PNG, JPEG, WebP | 2 MB |
 
 Result images must be readable single-frame PNG/JPEG within 40 megapixels.
-Logos have separate decoding limits and are re-encoded to PNG. Legacy
-`UPLOAD_PATH`, `MAX_UPLOAD_SIZE`, `OCR_PROVIDER` and `DEBUG_MODE` example
-variables are not active controls in the current pipeline; edit neither those
-values nor database settings expecting them to change these limits.
+Logos have separate decoding limits and are re-encoded to PNG. Retired
+`UPLOAD_PATH`, `MAX_UPLOAD_SIZE`, `OCR_PROVIDER` and `DEBUG_MODE` aliases have
+been removed from the example. Values left in an older environment file are
+ignored; actual limits are defined in `config/uploadLimits.js`.
 
 ## Git and Deployment
 

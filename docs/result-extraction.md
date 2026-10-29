@@ -19,8 +19,9 @@ PNG/JPEG, be single-frame and stay within 40 million pixels. Logo validation is
 a separate Settings flow with its own stricter decoding/re-encoding limits.
 
 Internal renderer support for WebP/TIFF does not enable those formats in result
-or revaluation upload routes. Legacy `MAX_UPLOAD_SIZE`, `UPLOAD_PATH` and
-`OCR_PROVIDER` example values do not override the current middleware.
+or revaluation upload routes. Retired `MAX_UPLOAD_SIZE`, `UPLOAD_PATH` and
+`OCR_PROVIDER` variables are omitted from the current environment example;
+values retained in older files do not override the current middleware.
 
 ## Extraction Order
 
