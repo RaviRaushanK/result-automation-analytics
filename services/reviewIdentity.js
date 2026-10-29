@@ -1,6 +1,15 @@
 'use strict';
 const integrity = require('./academicIntegrity');
 const normalizeName = value => typeof value === 'string' ? value.normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase() : '';
+// MySQL JSON can reorder object keys after an update. A review form must
+// remain current for equivalent JSON, while every value/type and array order
+// still participates in stale-form detection.
+function sourceToken(saved) {
+  return integrity.digest(JSON.stringify(saved, (key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.keys(item).sort().map(field => [field, item[field]]))
+      : item));
+}
 const correctableConflicts = new Set([
   'AI readings identify conflicting student USNs. Re-extract the correct document.',
   'OCR readings identify conflicting student USNs. Re-extract the correct document.',
@@ -59,4 +68,4 @@ function revaluationTarget(result) {
   return { student_id: result.student_id, batch_id: result.ExamSession?.batch_id, exam_session_id: result.exam_session_id,
     result_id: result.result_id, usn: result.Student?.usn, name: result.Student?.student_name };
 }
-module.exports = { propose, valid, annotate, blockingConflicts, originalTarget, revaluationTarget, normalizeName };
+module.exports = { propose, valid, annotate, blockingConflicts, originalTarget, revaluationTarget, normalizeName, sourceToken };

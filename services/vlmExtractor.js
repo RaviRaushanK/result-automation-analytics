@@ -25,6 +25,10 @@ const pageRenderer = require('./pageRenderer');
 
 const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff'];
 const PDF_EXT = ['.pdf'];
+// Bound simultaneous page workers/provider requests; use 1 on constrained hosts.
+const PAGE_CONCURRENCY = Math.max(1, Math.min(2, parseInt(
+    (typeof process !== 'undefined' && process.env.VLM_PAGE_CONCURRENCY) || '2', 10
+) || 2));
 
 const VLM_SYSTEM_PROMPT = [
     'You are an expert document-reading assistant for university result',
@@ -322,47 +326,55 @@ const vlmExtractor = {
         const pageImages = await pageRenderer.documentToImages(filePath);
         if (!pageImages.length) throw new Error('No page images could be produced from the document.');
 
-        // 2. Run advanced OCR + Vision in parallel across pages.
+        // 2. Run OCR + Vision together, with at most two pages in flight.
         const ocrTexts = [];
         const visionPerPage = [];
         const stages = { ocr: { pages: [] }, vision: { pages: [] }, llm: { status: 'pending' } };
         const stageWarnings = [];
-        for (const img of pageImages) {
-            const base64 = img.buffer.toString('base64');
-            const [ocrText, visionText] = await Promise.all([
-                runTesseractOcr(img.buffer).then(text => {
-                    stages.ocr.pages.push({ page: img.pageNumber, status: text ? 'ok' : 'empty' });
-                    return text;
-                }).catch(err => {
-                    stages.ocr.pages.push({ page: img.pageNumber, status: 'failed' });
-                    console.warn('[vlmExtractor] OCR failed for page', img.pageNumber, err.message);
-                    return '';
-                }),
-                ai.vision({
-                    imageBase64: base64,
-                    mime: img.mime || 'image/png',
-                    systemPrompt: VLM_SYSTEM_PROMPT,
-                    userText: buildVlmUserPrompt(resultType),
-                    jsonMode: true
-                }).then(text => {
-                    const parsed = ai.safeJsonParse(text, null);
-                    if (!isDocument(parsed)) throw new Error('Vision returned an invalid document schema');
-                    const status = parsed.subjects.length
-                        ? (parsed.subjects.every(row => isCompleteRow(row, resultType)) ? 'ok' : 'partial') : 'empty';
-                    stages.vision.pages.push({ page: img.pageNumber, status });
-                    return parsed;
-                }).catch(err => {
-                    stages.vision.pages.push({ page: img.pageNumber, status: 'failed' });
-                    console.warn('[vlmExtractor] Vision failed for page', img.pageNumber, err.message);
-                    return { subjects: [] };
-                })
-            ]);
-            ocrTexts.push(`[page ${img.pageNumber}]\n${ocrText}`);
-            visionPerPage.push(visionText);
+        for (let offset = 0; offset < pageImages.length; offset += PAGE_CONCURRENCY) {
+            const batch = pageImages.slice(offset, offset + PAGE_CONCURRENCY);
+            const results = await Promise.all(batch.map(async img => {
+                const base64 = img.buffer.toString('base64');
+                const [ocrText, visionText] = await Promise.all([
+                    runTesseractOcr(img.buffer).then(text => {
+                        stages.ocr.pages.push({ page: img.pageNumber, status: text ? 'ok' : 'empty' });
+                        return text;
+                    }).catch(err => {
+                        stages.ocr.pages.push({ page: img.pageNumber, status: 'failed' });
+                        console.warn('[vlmExtractor] OCR failed for page', img.pageNumber, err.message);
+                        return '';
+                    }),
+                    ai.vision({
+                        imageBase64: base64,
+                        mime: img.mime || 'image/png',
+                        systemPrompt: VLM_SYSTEM_PROMPT,
+                        userText: buildVlmUserPrompt(resultType),
+                        jsonMode: true
+                    }).then(text => {
+                        const parsed = ai.safeJsonParse(text, null);
+                        if (!isDocument(parsed)) throw new Error('Vision returned an invalid document schema');
+                        const status = parsed.subjects.length
+                            ? (parsed.subjects.every(row => isCompleteRow(row, resultType)) ? 'ok' : 'partial') : 'empty';
+                        stages.vision.pages.push({ page: img.pageNumber, status });
+                        return parsed;
+                    }).catch(err => {
+                        stages.vision.pages.push({ page: img.pageNumber, status: 'failed' });
+                        console.warn('[vlmExtractor] Vision failed for page', img.pageNumber, err.message);
+                        return { subjects: [] };
+                    })
+                ]);
+                return { pageNumber: img.pageNumber, ocrText, visionText };
+            }));
+            // Promise.all preserves source order even when pages finish out of order.
+            for (const result of results) {
+                ocrTexts.push(`[page ${result.pageNumber}]\n${result.ocrText}`);
+                visionPerPage.push(result.visionText);
+            }
         }
 
         for (const stage of ['ocr', 'vision']) {
             const pages = stages[stage].pages;
+            pages.sort((a, b) => a.page - b.page);
             stages[stage].status = pages.every(page => page.status === 'ok') ? 'ok'
                 : pages.some(page => ['ok', 'partial'].includes(page.status)) ? 'partial' : 'failed';
             if (stages[stage].status !== 'ok') {

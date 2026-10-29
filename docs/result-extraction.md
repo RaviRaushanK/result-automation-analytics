@@ -42,7 +42,11 @@ conflicts, marks/subject conflicts, semester/period contradictions and roster ru
 remain blocked. Missing-field acknowledgments retain their existing behavior when
 no explicit identity correction is submitted.
 
-Source tokens reject stale correction forms. Final import/approval rechecks the
+Original-result source tokens compare JSON values independently of object-key
+order, including after a failed validation saves the draft. MySQL JSON storage
+reordering does not discard the next submitted name/USN correction. Actual field,
+type, array-order and extraction changes still reject stale correction forms.
+Final import/approval rechecks the
 registered identity and source binding, including a frozen correction digest at
 revaluation approval. Re-extraction clears a previous manual correction. Editing
 the form or opening Review/Preview never updates student records or original
@@ -76,6 +80,13 @@ is made for this evidence recovery.
 Successful evidence is cached in bounded process memory by document-content hash,
 student identity and subject scope; changing any key invalidates reuse. Cached
 evidence never replaces final validation or writes to academic tables.
+Native-table eligibility is checked before visual identity OCR. Image-only and
+incomplete native tables keep their saved extraction evidence without repeating
+OCR during Review, Validate or Preview. These deterministic native-table misses
+are also cached with the same bounds and keys; read/render/OCR failures remain
+retryable. Every request still checks the current file hash, and a file changed
+during the check cannot populate the cache. Identity and academic validation,
+including final-save checks, remain in force.
 
 Existing draft corrections are read-only on Review/Preview and require Validate
 again before import. Validate retains the recovered result's PDF-text provenance;
@@ -235,6 +246,9 @@ or persistence changes.
 2. **Hybrid when configured:** unless `EXTRACTION_MODE=tesseract`, a configured
    Groq key enables `vlmExtractor`. The document is rendered to page images.
    Tesseract and vision run for each page; a text LLM reconciles those signals.
+   Hybrid pages run in batches of two by default (`VLM_PAGE_CONCURRENCY=1`
+   restores sequential processing). Page order and per-page diagnostics are
+   preserved; every rendered page still receives OCR and vision checks.
 3. **Local path:** without AI configuration, or when dispatch fails, the shared
    extractor uses native PDF text/local Tesseract. Scanned PDFs are rasterized
    before OCR rather than passed directly to `sharp` as PDFs.

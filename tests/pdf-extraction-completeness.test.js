@@ -56,15 +56,16 @@ const rows = [
   'MMC105 WEB TECHNOLOGIES 49 35 84 P 2026-04-28',
   'MMCL106 DBMS AND WEB 48 49 97 P 2026-04-28', 'TECHNOLOGIES', 'LABORATORY'
 ];
-function fixture(lines = [...identity,...rows]) {
-  const state = { aiCalls:0, pdfCalls:0, ocrCalls:0, pageCalls:0, configured:true, mode:'auto', aiThrows:false, pdfThrows:false };
+function fixture(lines = [...identity,...rows], cacheContents = false) {
+  const state = { aiCalls:0, pdfCalls:0, ocrCalls:0, pageCalls:0, configured:true, mode:'auto', aiThrows:false, pdfThrows:false,
+    pdfLines: lines, contents: Buffer.from('synthetic PDF contents') };
   const module = {exports:{}};
   const aiResult = { success:true, extraction:{extractionMethod:'test-ai',subjects:[]} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../services/documentExtractor.js'),'utf8'), {
     module, exports:module.exports, console:{log(){},warn(){},error(){}},
     process:{env:{get EXTRACTION_MODE(){return state.mode;}}},
     require(name) {
-      if(name==='fs')return {existsSync:()=>true};
+      if(name==='fs')return {existsSync:()=>true, ...(cacheContents ? { readFileSync:()=>state.contents } : {})};
       if(name==='./aiProviders')return {isConfigured:()=>state.configured};
       if(name==='./pageRenderer')return {renderPdfToImages:async()=>{state.pageCalls++;return [{buffer:Buffer.from('rendered page')}];}};
       if(name==='./vlmExtractor')return {extract:async()=>{state.aiCalls++;if(state.aiThrows)throw new Error('AI unavailable');return aiResult;}};
@@ -76,11 +77,28 @@ function fixture(lines = [...identity,...rows]) {
   extractor.extractPdfTextWithCoordinates=async()=>{
     state.pdfCalls++;
     if(state.pdfThrows)throw new Error('No readable PDF text');
-    return {text:lines.join('\n'),words:lines.map((text,i)=>({text,x:0,y:i*30,page:1,height:12}))};
+    return {text:state.pdfLines.join('\n'),words:state.pdfLines.map((text,i)=>({text,x:0,y:i*30,page:1,height:12}))};
   };
   extractor.ocrImage=async()=>{state.ocrCalls++;return {text:state.ocrText ?? [...identity,...rows].join('\n'),words:[]};};
   return {extractor,state,aiResult};
 }
+
+test('wrapped announcement dates retain the complete native table without AI or OCR', async () => {
+  const wrapped = rows.flatMap(line => line.includes('2026-04-28') ? [line.replace('2026-04-28', '2026-04-'), '28'] : [line]);
+  const { extractor, state } = fixture([...identity, ...wrapped]);
+  const output = await extractor.extract('wrapped.pdf', 'original', { expectedSubjectCodes: ['MMC101', 'MMC102', 'MMC103', 'MMC104', 'MMC105', 'MMCL106'] });
+  assert.equal(output.extraction.extractionMethod, 'pdfjs-text');
+  assert.equal(output.extraction.subjects.length, 6);
+  assert.equal(output.extraction.subjects[0].totalMarks, 86);
+  assert.equal(state.aiCalls, 0);
+  assert.equal(state.ocrCalls, 0);
+});
+
+test('a wrapped date cannot hide an extra number in the marks row', async () => {
+  const { extractor, state, aiResult } = fixture([...identity, 'MMC101 COURSE 7 40 40 80 P 2026-04-', '28']);
+  assert.equal(await extractor.extract('ambiguous.pdf'), aiResult);
+  assert.equal(state.aiCalls, 1);
+});
 
 test('complete embedded PDF text retains the wrapped last lab row before AI can omit it',async()=>{
   const {extractor,state}=fixture();
@@ -181,6 +199,76 @@ test('malformed text identity recovery rejects missing or conflicting visual USN
     state.ocrText = ocrText;
     assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], { usn: '1MV25MC061', name: 'TEST STUDENT' }), null);
   }
+});
+
+test('image-only PDFs skip visual identity OCR and cache the unavailable native table', async () => {
+  const { extractor, state } = fixture([], true);
+  const student = { usn: '1MV25MC061', name: 'TEST STUDENT' };
+  for (let i = 0; i < 3; i++) assert.equal(await extractor.readOriginalResultEvidence('scan.pdf', ['MMC101'], student), null);
+  assert.equal(state.pdfCalls, 1);
+  assert.equal(state.pageCalls, 0);
+  assert.equal(state.ocrCalls, 0);
+  assert.equal(state.aiCalls, 0);
+});
+
+test('incomplete native tables do not trigger visual identity OCR', async () => {
+  const badIdentity = identity.map(line => line.replace('1MV25MC061', '1IMV25MC061'));
+  const { extractor, state } = fixture([...badIdentity, 'MMC101 COURSE 40 40 79 P'], true);
+  const student = { usn: '1MV25MC061', name: 'TEST STUDENT' };
+  assert.equal(await extractor.readOriginalResultEvidence('incomplete.pdf', ['MMC101'], student), null);
+  assert.equal(await extractor.readOriginalResultEvidence('incomplete.pdf', ['MMC101'], student), null);
+  assert.equal(state.pdfCalls, 1);
+  assert.equal(state.ocrCalls, 0);
+});
+
+test('cached native-table misses are invalidated by document, scope and identity changes', async () => {
+  const { extractor, state } = fixture([], true);
+  const student = { usn: '1MV25MC061', name: 'TEST STUDENT' };
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student), null);
+  state.contents = Buffer.from('replacement synthetic PDF');
+  state.pdfLines = [...identity, ...rows];
+  assert.ok(await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student));
+  assert.equal(state.pdfCalls, 2);
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC999'], student), null);
+  assert.equal(state.pdfCalls, 3);
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC999'], { ...student, usn: '1MV25MC062' }), null);
+  assert.equal(state.pdfCalls, 4);
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf', ['MMC999'], { ...student, name: 'ANOTHER STUDENT' }), null);
+  assert.equal(state.pdfCalls, 5);
+});
+
+test('native read and visual OCR failures remain retryable rather than cached', async () => {
+  const badIdentity = identity.map(line => line.replace('1MV25MC061', '1IMV25MC061'));
+  const { extractor, state } = fixture([...badIdentity, ...rows], true);
+  const student = { usn: '1MV25MC061', name: 'TEST STUDENT' };
+  state.pdfThrows = true;
+  await assert.rejects(extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student), /No readable PDF text/);
+  state.pdfThrows = false;
+  const ocr = extractor.ocrImage;
+  extractor.ocrImage = async () => { throw new Error('OCR temporarily unavailable'); };
+  await assert.rejects(extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student), /temporarily unavailable/);
+  extractor.ocrImage = ocr;
+  const evidence = await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student);
+  assert.equal(evidence.student.identitySource, 'local-ocr');
+  assert.equal(state.pdfCalls, 3);
+  assert.ok(await extractor.readOriginalResultEvidence('card.pdf', ['MMC101'], student));
+  assert.equal(state.pdfCalls, 3);
+});
+
+test('a file replaced during the native check cannot populate the miss cache', async () => {
+  const { extractor, state } = fixture([], true);
+  const contents = state.contents;
+  const read = extractor.extractPdfTextWithCoordinates;
+  extractor.extractPdfTextWithCoordinates = async (...args) => {
+    const result = await read(...args);
+    state.contents = Buffer.from('changed during read');
+    return result;
+  };
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf'), null);
+  state.contents = contents;
+  extractor.extractPdfTextWithCoordinates = read;
+  assert.equal(await extractor.readOriginalResultEvidence('card.pdf'), null);
+  assert.equal(state.pdfCalls, 2);
 });
 
 test('complete native revaluation rows preserve all nine independent card fields',async()=>{

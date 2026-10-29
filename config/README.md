@@ -71,6 +71,7 @@ its npm command are no longer present.
 | `EXTRACTION_MODE` | `auto`; use `tesseract` for local-only processing |
 | `VLM_MAX_PAGES` | 3 pages for rasterized PDF paths |
 | `VLM_RENDER_SCALE` | 2 |
+| `VLM_PAGE_CONCURRENCY` | 2; bounded to 1–2 simultaneous hybrid pages; use 1 on constrained hosts or provider quotas |
 
 `auto` uses hybrid AI when configured, with local fallback. `vlm` currently
 takes the same branch; it is not a strict force-AI/no-fallback mode. Complete

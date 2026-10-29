@@ -3,8 +3,8 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-// Content-keyed, bounded read cache avoids repeating local identity OCR on
-// Review/Preview/confirmation. No draft or academic data is written.
+// Content-keyed, bounded read cache stores evidence and deterministic native
+// table misses. No draft or academic data is written; OCR failures remain retryable.
 const originalResultEvidenceCache = new Map();
 
 // Optional AI (VLM + LLM) hybrid extractor. Loaded lazily so the classic
@@ -207,7 +207,11 @@ const documentExtractor = {
           && !!row.oldResult && !!row.rvResult && !!row.finalResult;
       }
       const source = sourceRows.find(item => item.code === row.subjectCode).text
-        .replace(/\b20\d{2}[-/]?\d{2}[-/]?\d{2}\b/g, ' ');
+        .replace(/\b20\d{2}[-/]?\d{2}[-/]?\d{2}\b/g, ' ')
+        // A narrow announcement column can wrap the date's day onto the
+        // next line. Only ignore this date fragment after a printed status;
+        // extra numbers in the course name or marks must remain ambiguous.
+        .replace(/(\b(?:PASS|FAIL|P|F|ABSENT|A|WITHHELD|W)\b)\s+20\d{2}[-/]\d{2}[-/]\s*$/i, '$1');
       const numbers = source.match(/\b\d{1,3}\b/g) || [];
       const printed = source.match(/\b(\d{1,3})\s*(?:\|\s*)?(\d{1,3})\s*(?:\|\s*)?(\d{1,3})\s*(?:\|\s*)?(PASS|FAIL|P|F|ABSENT|A|WITHHELD|W)\b/i);
       const status = value => /^(?:P|PASS)$/i.test(value) ? 'P' : /^(?:F|FAIL)$/i.test(value) ? 'F' : String(value).toUpperCase();
@@ -233,11 +237,29 @@ const documentExtractor = {
     const fingerprint = bytes ? crypto.createHash('sha256').update(bytes).digest('hex') : null;
     const cacheKey = fingerprint ? JSON.stringify([fingerprint, expectedSubjectCodes, expectedStudent?.usn, expectedStudent?.name]) : null;
     if (cacheKey && originalResultEvidenceCache.has(cacheKey)) return JSON.parse(originalResultEvidenceCache.get(cacheKey));
+    const remember = evidence => {
+      if (cacheKey) {
+        // Never reuse a check if the file was replaced while it was running.
+        if (crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') !== fingerprint) return null;
+        if (originalResultEvidenceCache.size >= 16) originalResultEvidenceCache.delete(originalResultEvidenceCache.keys().next().value);
+        originalResultEvidenceCache.set(cacheKey, JSON.stringify(evidence));
+      }
+      return evidence;
+    };
     const pdf = await this.extractPdfTextWithCoordinates(filePath, bytes);
     const parsed = this.parseProductionData(pdf.text || '', pdf.words || [], 'original');
     const nativeUsn = String(parsed.student?.usn || '').toUpperCase();
     const expectedUsn = String(expectedStudent?.usn || '').toUpperCase();
-    if (expectedUsn && nativeUsn !== expectedUsn && !this._extractPatternUsn(nativeUsn)) {
+    const needsVisualIdentity = expectedUsn && nativeUsn !== expectedUsn && !this._extractPatternUsn(nativeUsn);
+    // This recovery can only return a complete embedded table. Test that
+    // prerequisite before expensive visual identity OCR. A scanned/incomplete
+    // PDF retains its saved extraction and the controller's validation checks.
+    // The expected USN is used only for this eligibility check; it cannot become
+    // returned evidence without the existing visual identity verification below.
+    const tableCandidate = needsVisualIdentity
+      ? { ...parsed, student: { ...parsed.student, usn: expectedUsn } } : parsed;
+    if (!this.hasCompleteTextRows(tableCandidate, expectedSubjectCodes)) return remember(null);
+    if (needsVisualIdentity) {
       // Some PDFs render an identifier correctly but encode its characters
       // incorrectly. Re-read the visible first page locally; never fuzzy-match
       // or silently repair a USN, and never override a different valid USN.
@@ -258,12 +280,7 @@ const documentExtractor = {
       parsed.student = { ...parsed.student, usn: expectedUsn, nativeUsn, visibleUsn, identitySource: 'local-ocr' };
     }
     if (!this.hasCompleteTextRows(parsed, expectedSubjectCodes)) return null;
-    if (cacheKey) {
-      if (crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex') !== fingerprint) return null;
-      if (originalResultEvidenceCache.size >= 16) originalResultEvidenceCache.delete(originalResultEvidenceCache.keys().next().value);
-      originalResultEvidenceCache.set(cacheKey, JSON.stringify(parsed));
-    }
-    return parsed;
+    return remember(parsed);
   },
 
   // =====================================================

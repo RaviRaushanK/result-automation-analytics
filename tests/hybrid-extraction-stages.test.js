@@ -36,7 +36,10 @@ function fixture(options = {}) {
         safeJsonParse(text, fallback) { try { return JSON.parse(text); } catch (_) { return fallback; } },
         vision: async input => {
             state.visionPrompts.push(input.userText);
+            const index = state.visionPrompts.length - 1;
+            if (options.onVision) await options.onVision(index);
             if (options.visionFails) throw new Error('Vision offline');
+            if (options.visionReadings) return JSON.stringify(options.visionReadings[index]);
             return JSON.stringify(options.vision === undefined ? source : options.vision);
         },
         complete: async input => {
@@ -48,6 +51,7 @@ function fixture(options = {}) {
     const module = { exports: {} };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../services/vlmExtractor.js'), 'utf8'), {
         module, exports: module.exports, Buffer, console: { warn() {} },
+        process: { env: { VLM_PAGE_CONCURRENCY: options.concurrency } },
         require(name) {
             if (name === './academicIntegrity') return require('../services/academicIntegrity');
             if (name === 'fs') return { existsSync: () => true };
@@ -191,4 +195,46 @@ test('each rasterized PDF page runs all stages with page-specific diagnostics', 
     assert.equal(extraction.stages.vision.pages.length, 2);
     assert.equal(extraction.subjects.length, 1);
 });
+
+test('page work overlaps while identity, OCR text and diagnostics keep document order', async () => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const { extractor, state } = fixture({
+        pages: 2,
+        onVision: index => index === 0 ? gate : undefined,
+        visionReadings: [card(normalRow), { ...card({ ...normalRow, subjectCode: 'MMC104' }), usn: '1MV25MC998' }]
+    });
+    const pending = extractor.extract('synthetic.pdf');
+    try {
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(state.visionPrompts.length, 2, 'second page starts before the first finishes');
+        assert.equal(state.llmPrompts.length, 0, 'reconciliation waits for every page');
+    } finally { release(); }
+    const { extraction } = await pending;
+    assert.equal(extraction.student.usn, '1MV25MC999');
+    assert.ok(extraction.rawText.indexOf('[page 1]') < extraction.rawText.indexOf('[page 2]'));
+    assert.equal(JSON.stringify(extraction.stages.vision.pages.map(page => page.page)), '[1,2]');
+    assert.ok(extraction.integrity_conflicts.some(message => /conflicting student USNs/.test(message)));
+    assert.equal(state.terminated, 2);
+});
+
+for (const [setting, expected] of [[undefined, 2], ['1', 1], ['99', 2]]) {
+    test('page concurrency is bounded for setting ' + String(setting), async () => {
+        let active = 0, peak = 0;
+        const { extractor, state } = fixture({
+            pages: 4, concurrency: setting,
+            onVision: async () => {
+                active++;
+                peak = Math.max(peak, active);
+                await new Promise(resolve => setImmediate(resolve));
+                active--;
+            }
+        });
+        await extractor.extract('synthetic.pdf');
+        assert.equal(peak, expected);
+        assert.equal(state.visionPrompts.length, 4);
+        assert.equal(state.terminated, 4);
+        assert.equal(state.llmPrompts.length, 1);
+    });
+}
 

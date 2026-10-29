@@ -421,6 +421,87 @@ test('manual identity review rejects incorrect/blank names, wrong batches, stale
   }
 });
 
+function reorderedJson(value) {
+  return JSON.parse(JSON.stringify(value, (key, item) => item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.keys(item).sort().map(field => [field, item[field]])) : item));
+}
+
+for (const editedField of ['name', 'usn', 'both']) {
+  test('correcting ' + editedField + ' after a mismatch succeeds on the first retry after JSON storage reorders keys', async () => {
+    const f = fixture({ semester: 1 });
+    const registered = { student_id: 7, batch_id: 1, usn: '1MV25MC027', student_name: 'TEST STUDENT' };
+    const incorrect = { usn: editedField === 'name' ? registered.usn : '1MV25MC028',
+      name: editedField === 'usn' ? registered.student_name : 'OCR WRONG NAME' };
+    f.db.Student.findOne = async options => options.where.usn === registered.usn ? registered
+      : { ...registered, student_id: 8, usn: incorrect.usn, student_name: 'OTHER REGISTERED STUDENT' };
+    f.ocr.extracted_json.student = { ...incorrect };
+    f.ocr.extracted_json.document_evidence = { usns: [incorrect.usn] };
+    const review = await f.invoke('showReviewPage');
+    const rejected = await f.invoke('validateReview', { body: { identity_review: '1',
+      source_token: review.locals.sourceToken, ...incorrect } });
+    assert.equal(rejected.statusCode, 422);
+    assert.match(rejected.locals.formError, /name does not match USN/);
+    // An update leaves JS insertion order in the instance; the next DB read
+    // returns the same JSON values with MySQL's storage order instead.
+    f.ocr.extracted_json = reorderedJson(f.ocr.extracted_json);
+    const corrected = await f.invoke('validateReview', { body: { identity_review: '1',
+      source_token: rejected.locals.sourceToken, usn: registered.usn, name: registered.student_name } });
+    assert.equal(corrected.url, '/results/upload/9/preview');
+    assert.equal(f.ocr.extracted_json.student.usn, registered.usn);
+    assert.equal(f.ocr.extracted_json.student.name, registered.student_name);
+    assert.equal(f.ocr.validation_status, 'validated');
+    assert.equal(f.ocr.extracted_json.extracted_identity.usn, incorrect.usn);
+    assert.equal(f.ocr.extracted_json.extracted_identity.name, incorrect.name);
+    assert.equal(f.ocr.extracted_json.identity_correction.method, 'ADMIN_REVIEW');
+    assert.equal((await f.invoke('showPreviewPage')).view, 'results/preview');
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.students.length, 0);
+  });
+}
+
+for (const [change, mutate] of [
+  ['name', saved => { saved.student.name = 'CHANGED STUDENT'; }],
+  ['USN', saved => { saved.student.usn = '1MV25MC028'; }],
+  ['marks', saved => { saved.subjects[0].internalMarks = 41; }],
+  ['value type', saved => { saved.subjects[0].internalMarks = '40'; }],
+  ['array order', saved => { saved.warnings.reverse(); }],
+  ['document evidence', saved => { saved.document_evidence.raw_text = 'replacement extraction'; }]
+]) {
+  test('key-order-independent review token still rejects a real change to ' + change, async () => {
+    const f = fixture({ semester: 1 });
+    f.ocr.extracted_json.warnings = ['first warning', 'second warning'];
+    f.ocr.extracted_json.document_evidence = { raw_text: 'original extraction' };
+    const review = await f.invoke('showReviewPage');
+    f.ocr.extracted_json = reorderedJson(f.ocr.extracted_json);
+    mutate(f.ocr.extracted_json);
+    const response = await f.invoke('validateReview', { body: {
+      identity_review: '1', source_token: review.locals.sourceToken
+    } });
+    assert.match(decodeURIComponent(response.url), /extracted document or review changed/);
+    assert.equal(f.state.updates.length, 0);
+    assert.equal(f.state.results.length, 0);
+    assert.equal(f.state.students.length, 0);
+  });
+}
+
+test('an identity correction stays edited when another field fails validation', async () => {
+  const f = fixture({ semester: 1 });
+  f.ocr.extracted_json.student.name = 'OCR WRONG NAME';
+  const review = await f.invoke('showReviewPage');
+  const failed = await f.invoke('validateReview', { body: { identity_review: '1',
+    source_token: review.locals.sourceToken, name: 'OCR WRONG NAME' } });
+  f.ocr.extracted_json = reorderedJson(f.ocr.extracted_json);
+  const corrected = await f.invoke('validateReview', { body: { identity_review: '1',
+    source_token: failed.locals.sourceToken, internal_1: '51' } });
+  assert.equal(corrected.statusCode, 422);
+  assert.equal(corrected.locals.student.name, 'TEST STUDENT');
+  assert.equal(f.ocr.extracted_json.student.name, 'TEST STUDENT');
+  assert.equal(corrected.locals.errors['student.name'], undefined);
+  f.ocr.extracted_json = reorderedJson(f.ocr.extracted_json);
+  assert.equal((await f.invoke('validateReview', { body: { identity_review: '1',
+    source_token: corrected.locals.sourceToken } })).url, '/results/upload/9/preview');
+});
+
 test('final import rechecks identity-correction source binding and does not accept a browser-only correction', async () => {
   const f = fixture({ semester: 1 });
   f.ocr.extracted_json.document_evidence = { usns: ['OCRWRONG001'] };

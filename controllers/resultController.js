@@ -740,7 +740,7 @@ const resultController = {
         importId: ctx.log.import_id,
         sessionDisplay: ctx.sessionDisplay,
         student: ctx.saved.student || { usn: '', name: '' },
-        sourceToken: integrity.digest(typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json),
+        sourceToken: reviewIdentity.sourceToken(typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json),
         attempt: attemptInfo,
         documentChecks,
         identityCorrection: reviewIdentity.valid(ctx.saved, correctedTarget, 'original') ? ctx.saved.identity_correction : null,
@@ -776,7 +776,7 @@ const resultController = {
         return res.redirect('/results/upload?error=' + encodeURIComponent('Import record not found.'));
       }
       if (ctx.log.status === 'success') return res.redirect('/results/upload/' + ctx.log.import_id + '/success');
-      if (req.body?.identity_review === '1' && req.body.source_token !== integrity.digest(
+      if (req.body?.identity_review === '1' && req.body.source_token !== reviewIdentity.sourceToken(
         typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json)) {
         return res.redirect('/results/upload/' + ctx.log.import_id + '/review?error=' + encodeURIComponent('The extracted document or review changed. Reload Review & Edit before correcting the identity and validating again.'));
       }
@@ -942,7 +942,7 @@ const resultController = {
           importId: ctx.log.import_id,
           sessionDisplay: ctx.sessionDisplay,
           student: payload.student,
-          sourceToken: integrity.digest(typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json),
+          sourceToken: reviewIdentity.sourceToken(typeof ctx.ocr.extracted_json === 'string' ? safeParseJson(ctx.ocr.extracted_json) : ctx.ocr.extracted_json),
           attempt: { attempt_no: attemptNo, exam_type: examType },
           documentChecks: reviewIdentity.annotate(integrity.summary(ctx.saved.document_evidence || {}, { ...(ctx.session.toJSON?.() || ctx.session),
             usn: payload.student.usn, attempt_no: attemptNo, exam_type: examType }), ctx.saved, identityTarget, 'original'),
